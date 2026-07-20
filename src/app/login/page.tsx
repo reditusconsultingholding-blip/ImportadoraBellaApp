@@ -23,13 +23,14 @@ export default function LoginPage() {
 
     setLoading(false);
 
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "No se pudo iniciar sesión.");
       return;
     }
 
-    router.push("/dashboard");
+    router.push(data.mustChangePassword ? "/cambiar-clave" : "/dashboard");
     router.refresh();
   }
 

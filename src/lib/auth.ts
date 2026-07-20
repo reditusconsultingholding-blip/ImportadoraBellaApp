@@ -10,6 +10,7 @@ export type SessionPayload = {
   email: string;
   name: string;
   role: "OWNER" | "MEMBER";
+  mustChangePassword: boolean;
 };
 
 export async function createSession(payload: SessionPayload) {

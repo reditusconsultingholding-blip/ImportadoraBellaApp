@@ -32,13 +32,14 @@ async function main() {
     data: { name: "Importadora Bella" },
   });
 
-  const passwordHash = await bcrypt.hash("jarvis-demo", 10);
+  const passwordHash = await bcrypt.hash("Jarvis2026!", 10);
   const user = await db.user.create({
     data: {
-      email: "demo@jarvis.local",
+      email: "importadorabellaav@gmail.com",
       passwordHash,
       name: "Fabrizio",
       role: "OWNER",
+      mustChangePassword: true,
       organizationId: org.id,
     },
   });
@@ -116,7 +117,7 @@ async function main() {
   }
 
   console.log("Seed listo.");
-  console.log(`Login demo -> ${user.email} / jarvis-demo`);
+  console.log(`Login -> ${user.email} / Jarvis2026! (pide cambiar la clave al entrar)`);
 }
 
 main()

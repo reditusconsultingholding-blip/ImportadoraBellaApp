@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     email: user.email,
     name: user.name,
     role: user.role,
+    mustChangePassword: user.mustChangePassword,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, mustChangePassword: user.mustChangePassword });
 }

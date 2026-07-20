@@ -34,8 +34,11 @@ npm run dev
 Abrir http://localhost:3000 (o el puerto que uses) e iniciar sesión con:
 
 ```
-demo@jarvis.local / jarvis-demo
+importadorabellaav@gmail.com / Jarvis2026!
 ```
+
+Esta clave es genérica a propósito: la primera vez que entra, la app obliga
+a cambiarla antes de dejar pasar al panel.
 
 ## Variables de entorno
 

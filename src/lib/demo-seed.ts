@@ -16,6 +16,7 @@ const MIGRATION_STATEMENTS = [
     "passwordHash" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'OWNER',
+    "mustChangePassword" BOOLEAN NOT NULL DEFAULT false,
     "organizationId" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "User_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
@@ -101,13 +102,14 @@ export async function seedDemoDatabase(db: PrismaClient) {
 
   const org = await db.organization.create({ data: { name: "Importadora Bella" } });
 
-  const passwordHash = await bcrypt.hash("jarvis-demo", 10);
+  const passwordHash = await bcrypt.hash("Jarvis2026!", 10);
   await db.user.create({
     data: {
-      email: "demo@jarvis.local",
+      email: "importadorabellaav@gmail.com",
       passwordHash,
       name: "Fabrizio",
       role: "OWNER",
+      mustChangePassword: true,
       organizationId: org.id,
     },
   });
