@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getOverview } from "@/lib/metrics";
+import { getSalesOverview } from "@/lib/sales";
 import PlatformTabs from "./platform-tabs";
 import StatTile from "./stat-tile";
+import SalesOverview from "./sales-overview";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
@@ -20,18 +22,22 @@ export default async function DashboardPage({
   const platform: Platform = params.platform === "TIKTOK" ? "TIKTOK" : "META";
 
   const overview = await getOverview(session.organizationId, platform);
+  const sales = getSalesOverview();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Vista general</h1>
-          <p className="text-sm text-muted">
-            Datos de campañas activas &middot; snapshot más reciente
-          </p>
+    <div className="flex flex-col gap-8">
+      <SalesOverview data={sales} />
+
+      <div className="flex flex-col gap-6 pt-2 border-t border-border">
+        <div className="flex items-center justify-between pt-6">
+          <div>
+            <h1 className="text-xl font-semibold">Rendimiento de campañas</h1>
+            <p className="text-sm text-muted">
+              Datos de campañas activas &middot; snapshot más reciente
+            </p>
+          </div>
+          <PlatformTabs active={platform} />
         </div>
-        <PlatformTabs active={platform} />
-      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatTile label="Gasto total" value={money(overview.totalSpend)} />
@@ -112,6 +118,7 @@ export default async function DashboardPage({
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

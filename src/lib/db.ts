@@ -20,19 +20,48 @@ function makeClient() {
   return new PrismaClient({ adapter });
 }
 
-const isFreshClient = !globalForPrisma.prisma;
-export const db = globalForPrisma.prisma ?? makeClient();
-globalForPrisma.prisma = db;
+const rawClient = globalForPrisma.prisma ?? makeClient();
+globalForPrisma.prisma = rawClient;
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
-
-if (DEMO_MODE && isFreshClient) {
-  globalForPrisma.prismaReady = (async () => {
-    const { seedDemoDatabase } = await import("./demo-seed");
-    await seedDemoDatabase(db);
-  })();
+function ensureReady(): Promise<void> {
+  if (!DEMO_MODE) return Promise.resolve();
+  if (!globalForPrisma.prismaReady) {
+    globalForPrisma.prismaReady = (async () => {
+      const { seedDemoDatabase } = await import("./demo-seed");
+      await seedDemoDatabase(rawClient);
+    })();
+  }
+  return globalForPrisma.prismaReady;
 }
 
-if (globalForPrisma.prismaReady) {
-  await globalForPrisma.prismaReady;
+// Evitamos un top-level await acá (rompe el bundling de Turbopack en
+// algunos contextos de server component). En cambio, cada llamada real
+// al cliente espera a que termine la siembra en memoria antes de correr.
+function wrapModel<T extends object>(model: T): T {
+  return new Proxy(model, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return async (...args: unknown[]) => {
+        await ensureReady();
+        return (value as (...a: unknown[]) => unknown).apply(target, args);
+      };
+    },
+  });
 }
+
+export const db = new Proxy(rawClient, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+    if (typeof value === "function") {
+      return async (...args: unknown[]) => {
+        await ensureReady();
+        return (value as (...a: unknown[]) => unknown).apply(target, args);
+      };
+    }
+    if (value && typeof value === "object") {
+      return wrapModel(value);
+    }
+    return value;
+  },
+}) as PrismaClient;
