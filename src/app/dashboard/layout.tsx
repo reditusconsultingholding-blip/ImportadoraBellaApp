@@ -40,6 +40,12 @@ export default async function DashboardLayout({
               >
                 Preguntarle a Jarvis
               </Link>
+              <Link
+                href="/dashboard/conexiones"
+                className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
+              >
+                Conexiones
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">

@@ -29,7 +29,7 @@ async function main() {
   await db.organization.deleteMany();
 
   const org = await db.organization.create({
-    data: { name: "Fabrizio Aguilar Muñoz" },
+    data: { name: "Importadora Bella" },
   });
 
   const passwordHash = await bcrypt.hash("jarvis-demo", 10);
@@ -59,7 +59,7 @@ async function main() {
       organizationId: org.id,
       platform: "META",
       externalId: "act_00000000000000000",
-      name: "Fabrizio Ads — Meta",
+      name: "Importadora Bella — Meta",
       connectedAt: null, // se llena cuando conectemos la cuenta real
     },
   });
@@ -69,7 +69,7 @@ async function main() {
       organizationId: org.id,
       platform: "TIKTOK",
       externalId: "70000000000000000",
-      name: "Fabrizio Ads — TikTok",
+      name: "Importadora Bella — TikTok",
       connectedAt: null,
     },
   });
