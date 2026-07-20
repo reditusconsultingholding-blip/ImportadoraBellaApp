@@ -9,6 +9,7 @@ export type SessionPayload = {
   organizationId: string;
   email: string;
   name: string;
+  role: "OWNER" | "MEMBER";
 };
 
 export async function createSession(payload: SessionPayload) {

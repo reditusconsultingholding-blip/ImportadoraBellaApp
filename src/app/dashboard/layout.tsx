@@ -49,6 +49,14 @@ export default async function DashboardLayout({
               >
                 Conexiones
               </Link>
+              {session.role === "OWNER" && (
+                <Link
+                  href="/dashboard/usuarios"
+                  className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
+                >
+                  Usuarios
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3">

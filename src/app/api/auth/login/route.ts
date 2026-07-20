@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     organizationId: user.organizationId,
     email: user.email,
     name: user.name,
+    role: user.role,
   });
 
   return NextResponse.json({ ok: true });
