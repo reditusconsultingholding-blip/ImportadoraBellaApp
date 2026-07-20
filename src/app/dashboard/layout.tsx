@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getHeaderStats } from "@/lib/sales";
 import LogoutButton from "./logout-button";
+import HeaderStats from "./header-stats";
 
 export default async function DashboardLayout({
   children,
@@ -15,10 +17,11 @@ export default async function DashboardLayout({
   const org = await db.organization.findUnique({
     where: { id: session.organizationId },
   });
+  const headerStats = getHeaderStats();
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
+      <header className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div>
@@ -52,6 +55,9 @@ export default async function DashboardLayout({
             <span className="text-sm text-muted">{session.name}</span>
             <LogoutButton />
           </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-6 pb-4">
+          <HeaderStats stats={headerStats} />
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>

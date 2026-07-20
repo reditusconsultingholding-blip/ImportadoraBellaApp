@@ -37,6 +37,25 @@ export type SalesOverview = {
   topProducts: { name: string; category: string; value: number; changePct: number; share: number }[];
 };
 
+export type HeaderStat = {
+  label: string;
+  value: number;
+  changePct: number | null;
+  format: "compact" | "count" | "percent";
+  isMoney?: boolean;
+};
+
+// Resumen de más alto nivel para el header fijo — ventana más amplia
+// (ej. últimos 30 días) que el detalle "hoy vs. ayer" de las tarjetas.
+export function getHeaderStats(): HeaderStat[] {
+  return [
+    { label: "Sesiones", value: 140200, changePct: 523, format: "compact" },
+    { label: "Ventas totales", value: 298000, changePct: 68, format: "compact", isMoney: true },
+    { label: "Pedidos", value: 8229, changePct: 62, format: "count" },
+    { label: "Tasa de conversión", value: 0, changePct: null, format: "percent" },
+  ];
+}
+
 export function getSalesOverview(): SalesOverview {
   const grossSales = 4325.04;
   const discounts = -322.83;
