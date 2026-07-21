@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { getHeaderStats } from "@/lib/sales";
 import LogoutButton from "./logout-button";
 import HeaderStats from "./header-stats";
+import LiveIndicator from "./live-indicator";
+import LiveRefresher from "./live-refresher";
 
 export default async function DashboardLayout({
   children,
@@ -60,6 +62,7 @@ export default async function DashboardLayout({
             </nav>
           </div>
           <div className="flex items-center gap-3">
+            <LiveIndicator />
             <span className="text-sm text-muted">{session.name}</span>
             <LogoutButton />
           </div>
@@ -68,6 +71,7 @@ export default async function DashboardLayout({
           <HeaderStats stats={headerStats} />
         </div>
       </header>
+      <LiveRefresher />
       <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
     </div>
   );

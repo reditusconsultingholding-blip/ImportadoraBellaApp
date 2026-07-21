@@ -17,6 +17,10 @@ Lo que ya funciona, con datos de prueba (seed):
 - Panel general: gasto, CTR, compras totales, productos que necesitan revisión.
 - Vista por producto con semáforo de CPA, separado por Meta / TikTok.
 - Chat con Jarvis, con flujo de propuesta → aprobación → ejecución.
+- Actualización en vivo: el panel se refresca solo cada 30 segundos (indicador
+  "En vivo" con reloj en el header), y un cron (`vercel.json` + `/api/cron/sync`)
+  sincroniza las cuentas conectadas cada 15 minutos sin que nadie tenga que
+  entrar a Conexiones a apretar "Sincronizar ahora".
 
 Lo que falta para pasar a producción: conectar credenciales reales
 (ver "Accesos pendientes" abajo) — el código de integración ya está
