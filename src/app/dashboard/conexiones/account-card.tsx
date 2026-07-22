@@ -74,6 +74,20 @@ export default function AccountCard({
     router.refresh();
   }
 
+  async function remove() {
+    if (!confirm("¿Eliminar esta cuenta pendiente?")) return;
+    setBusy(true);
+    setMessage(null);
+    const res = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMessage({ type: "error", text: data.error ?? "No se pudo eliminar." });
+      return;
+    }
+    router.refresh();
+  }
+
   return (
     <div className="bg-surface border border-border rounded p-5">
       <div className="flex items-center justify-between">
@@ -149,6 +163,16 @@ export default function AccountCard({
                 className="text-xs text-muted hover:text-foreground transition"
               >
                 Cancelar
+              </button>
+            )}
+            {!connected && (
+              <button
+                type="button"
+                onClick={remove}
+                disabled={busy}
+                className="text-xs text-critical hover:underline disabled:opacity-60"
+              >
+                Eliminar
               </button>
             )}
           </div>
