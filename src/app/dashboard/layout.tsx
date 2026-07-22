@@ -7,6 +7,7 @@ import LogoutButton from "./logout-button";
 import HeaderStats from "./header-stats";
 import LiveIndicator from "./live-indicator";
 import LiveRefresher from "./live-refresher";
+import SidebarNav from "./sidebar-nav";
 
 export default async function DashboardLayout({
   children,
@@ -19,60 +20,34 @@ export default async function DashboardLayout({
   const org = await db.organization.findUnique({
     where: { id: session.organizationId },
   });
-  const headerStats = getHeaderStats();
+  const headerStats = await getHeaderStats(session.organizationId);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 bg-background border-b border-border">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-wide text-accent">
-                Jarvis
-              </p>
-              <p className="text-sm text-muted">{org?.name}</p>
-            </div>
-            <nav className="flex items-center gap-1">
-              <Link
-                href="/dashboard"
-                className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
-              >
-                Panel
-              </Link>
-              <Link
-                href="/dashboard/jarvis"
-                className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
-              >
-                Preguntarle a Jarvis
-              </Link>
-              <Link
-                href="/dashboard/conexiones"
-                className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
-              >
-                Conexiones
-              </Link>
-              {session.role === "OWNER" && (
-                <Link
-                  href="/dashboard/usuarios"
-                  className="text-sm font-medium px-3 py-1.5 rounded hover:bg-surface-2 transition"
-                >
-                  Usuarios
-                </Link>
-              )}
-            </nav>
-          </div>
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-background flex">
+      <aside className="w-56 shrink-0 border-r border-border flex flex-col sticky top-0 h-screen">
+        <div className="px-5 py-5 border-b border-border">
+          <p className="font-mono text-xs uppercase tracking-wide text-accent">Jarvis</p>
+          <p className="text-sm text-muted truncate">{org?.name}</p>
+        </div>
+        <SidebarNav showUsuarios={session.role === "OWNER"} />
+        <div className="mt-auto px-5 py-4 border-t border-border flex items-center justify-between">
+          <span className="text-sm text-muted truncate">{session.name}</span>
+          <LogoutButton />
+        </div>
+      </aside>
+
+      <div className="flex-1 min-w-0">
+        <header className="sticky top-0 z-10 bg-background border-b border-border">
+          <div className="px-6 py-3 flex items-center justify-end">
             <LiveIndicator />
-            <span className="text-sm text-muted">{session.name}</span>
-            <LogoutButton />
           </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-6 pb-4">
-          <HeaderStats stats={headerStats} />
-        </div>
-      </header>
-      <LiveRefresher />
-      <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+          <div className="px-6 pb-4">
+            <HeaderStats stats={headerStats} />
+          </div>
+        </header>
+        <LiveRefresher />
+        <main className="px-6 py-8 max-w-5xl">{children}</main>
+      </div>
     </div>
   );
 }

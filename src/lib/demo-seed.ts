@@ -77,7 +77,42 @@ const MIGRATION_STATEMENTS = [
     CONSTRAINT "PendingAction_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "Campaign" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "PendingAction_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
   )`,
+  `CREATE TABLE "ShopifyStore" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "shopDomain" TEXT NOT NULL,
+    "accessToken" TEXT,
+    "connectedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ShopifyStore_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  )`,
+  `CREATE TABLE "ShopifyOrder" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "storeId" TEXT NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "occurredAt" DATETIME NOT NULL,
+    "channel" TEXT NOT NULL,
+    "grossSales" REAL NOT NULL,
+    "discounts" REAL NOT NULL,
+    "shipping" REAL NOT NULL,
+    "taxes" REAL NOT NULL,
+    "netSales" REAL NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ShopifyOrder_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "ShopifyStore" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  )`,
+  `CREATE TABLE "ShopifyOrderLineItem" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "orderId" TEXT NOT NULL,
+    "productName" TEXT NOT NULL,
+    "category" TEXT,
+    "quantity" INTEGER NOT NULL,
+    "amount" REAL NOT NULL,
+    CONSTRAINT "ShopifyOrderLineItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "ShopifyOrder" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  )`,
   `CREATE UNIQUE INDEX "User_email_key" ON "User"("email")`,
+  `CREATE UNIQUE INDEX "ShopifyStore_organizationId_shopDomain_key" ON "ShopifyStore"("organizationId", "shopDomain")`,
+  `CREATE INDEX "ShopifyOrder_storeId_occurredAt_idx" ON "ShopifyOrder"("storeId", "occurredAt")`,
+  `CREATE UNIQUE INDEX "ShopifyOrder_storeId_externalId_key" ON "ShopifyOrder"("storeId", "externalId")`,
   `CREATE UNIQUE INDEX "AdAccount_organizationId_platform_externalId_key" ON "AdAccount"("organizationId", "platform", "externalId")`,
   `CREATE UNIQUE INDEX "Product_organizationId_code_key" ON "Product"("organizationId", "code")`,
   `CREATE UNIQUE INDEX "Campaign_adAccountId_externalId_key" ON "Campaign"("adAccountId", "externalId")`,

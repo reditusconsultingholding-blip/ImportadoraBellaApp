@@ -21,6 +21,13 @@ Lo que ya funciona, con datos de prueba (seed):
   "En vivo" con reloj en el header), y un cron (`vercel.json` + `/api/cron/sync`)
   sincroniza las cuentas conectadas cada 15 minutos sin que nadie tenga que
   entrar a Conexiones a apretar "Sincronizar ahora".
+- Conexiones con menú lateral: cuentas de Meta/TikTok ilimitadas ("+ Agregar
+  otra cuenta") y la tienda de **Shopify** por separado — cada red y la
+  tienda son secciones plegables, para que la lista no crezca sin control.
+- Shopify alimenta la vista "Ventas" con datos reales de la Admin API en
+  cuanto se conecta (ventas, canal, AOV, top de productos). Sesiones y tasa
+  de conversión reales no están disponibles por esa vía — hace falta la
+  Shopify Analytics API (ShopifyQL), que pide permisos aparte.
 
 Lo que falta para pasar a producción: conectar credenciales reales
 (ver "Accesos pendientes" abajo) — el código de integración ya está

@@ -1,7 +1,10 @@
+import { db } from "@/lib/db";
+
 // Vista de ventas de la tienda completa (Shopify), separada del rendimiento
 // por campaña de Meta/TikTok — acá entran todos los productos del catálogo,
-// se anuncien o no. Datos de ejemplo hasta que conectemos la Admin API real
-// de Shopify (mismo patrón que Conexiones para Meta/TikTok).
+// se anuncien o no. Si hay una tienda conectada (ver Conexiones), se calcula
+// todo esto a partir de las órdenes reales; si no, quedan los datos de
+// ejemplo para poder mostrar el panel mientras tanto.
 
 function hourLabel(h: number) {
   if (h === 0) return "12 a. m.";
@@ -45,18 +48,12 @@ export type HeaderStat = {
   isMoney?: boolean;
 };
 
-// Resumen de más alto nivel para el header fijo — ventana más amplia
-// (ej. últimos 30 días) que el detalle "hoy vs. ayer" de las tarjetas.
-export function getHeaderStats(): HeaderStat[] {
-  return [
-    { label: "Sesiones", value: 140200, changePct: 523, format: "compact" },
-    { label: "Ventas totales", value: 298000, changePct: 68, format: "compact", isMoney: true },
-    { label: "Pedidos", value: 8229, changePct: 62, format: "count" },
-    { label: "Tasa de conversión", value: 0, changePct: null, format: "percent" },
-  ];
+function pctChange(current: number, previous: number): number {
+  if (previous <= 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
 }
 
-export function getSalesOverview(): SalesOverview {
+function demoSalesOverview(): SalesOverview {
   const grossSales = 4325.04;
   const discounts = -322.83;
   const netSales = grossSales + discounts;
@@ -89,4 +86,158 @@ export function getSalesOverview(): SalesOverview {
       { name: "Té Ginseng para los Riñones", category: "Salud", value: 512, changePct: 18, share: 0.47 },
     ],
   };
+}
+
+function demoHeaderStats(): HeaderStat[] {
+  return [
+    { label: "Sesiones", value: 140200, changePct: 523, format: "compact" },
+    { label: "Ventas totales", value: 298000, changePct: 68, format: "compact", isMoney: true },
+    { label: "Pedidos", value: 8229, changePct: 62, format: "count" },
+    { label: "Tasa de conversión", value: 0, changePct: null, format: "percent" },
+  ];
+}
+
+async function getConnectedStore(organizationId: string) {
+  return db.shopifyStore.findFirst({
+    where: { organizationId, connectedAt: { not: null } },
+  });
+}
+
+export async function getSalesOverview(organizationId: string): Promise<SalesOverview> {
+  const store = await getConnectedStore(organizationId);
+  if (!store) return demoSalesOverview();
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  const orders = await db.shopifyOrder.findMany({
+    where: { storeId: store.id, occurredAt: { gte: yesterdayStart } },
+    include: { lineItems: true },
+  });
+
+  const todayOrders = orders.filter((o) => o.occurredAt >= todayStart);
+  const yesterdayOrders = orders.filter((o) => o.occurredAt < todayStart);
+
+  const sum = (list: typeof orders, key: "grossSales" | "discounts" | "shipping" | "taxes" | "netSales") =>
+    list.reduce((s, o) => s + o[key], 0);
+
+  const grossSales = sum(todayOrders, "grossSales");
+  const discounts = sum(todayOrders, "discounts");
+  const shipping = sum(todayOrders, "shipping");
+  const taxes = sum(todayOrders, "taxes");
+  const netSales = sum(todayOrders, "netSales");
+  const netSalesYesterday = sum(yesterdayOrders, "netSales");
+
+  const seriesFor = (key: "netSales") =>
+    Array.from({ length: 12 }, (_, i) => {
+      const h = i * 2;
+      const inBucket = (o: (typeof orders)[number], base: Date) =>
+        o.occurredAt.getHours() >= h && o.occurredAt.getHours() < h + 2 && o.occurredAt >= base;
+      return {
+        hour: hourLabel(h),
+        today: Math.round(todayOrders.filter((o) => inBucket(o, todayStart)).reduce((s, o) => s + o[key], 0)),
+        yesterday: Math.round(
+          yesterdayOrders.filter((o) => inBucket(o, yesterdayStart)).reduce((s, o) => s + o[key], 0)
+        ),
+      };
+    });
+
+  const channelTotals = new Map<string, { today: number; yesterday: number }>();
+  for (const o of todayOrders) {
+    const entry = channelTotals.get(o.channel) ?? { today: 0, yesterday: 0 };
+    entry.today += o.netSales;
+    channelTotals.set(o.channel, entry);
+  }
+  for (const o of yesterdayOrders) {
+    const entry = channelTotals.get(o.channel) ?? { today: 0, yesterday: 0 };
+    entry.yesterday += o.netSales;
+    channelTotals.set(o.channel, entry);
+  }
+
+  const productTotals = new Map<string, { value: number; category: string }>();
+  for (const o of todayOrders) {
+    for (const li of o.lineItems) {
+      const entry = productTotals.get(li.productName) ?? { value: 0, category: li.category ?? "" };
+      entry.value += li.amount;
+      productTotals.set(li.productName, entry);
+    }
+  }
+  const topProducts = Array.from(productTotals.entries())
+    .map(([name, v]) => ({ name, category: v.category, value: v.value, changePct: 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+  const topValue = topProducts[0]?.value || 1;
+
+  return {
+    totalSales: netSales,
+    totalSalesChangePct: pctChange(netSales, netSalesYesterday),
+    salesSeries: seriesFor("netSales"),
+    breakdown: [
+      { label: "Ventas brutas", value: grossSales, changePct: null },
+      { label: "Descuentos", value: -discounts, changePct: null },
+      { label: "Reversiones de ventas", value: 0, changePct: null },
+      { label: "Ventas netas", value: grossSales - discounts, changePct: null },
+      { label: "Cargos de envío", value: shipping, changePct: null },
+      { label: "Cargos por devolución", value: 0, changePct: null },
+      { label: "Impuestos", value: taxes, changePct: null },
+      { label: "Ventas totales", value: netSales, changePct: pctChange(netSales, netSalesYesterday) },
+    ],
+    channels: Array.from(channelTotals.entries()).map(([label, v]) => ({
+      label,
+      value: v.today,
+      changePct: pctChange(v.today, v.yesterday),
+    })),
+    aov: todayOrders.length > 0 ? netSales / todayOrders.length : 0,
+    aovChangePct: pctChange(
+      todayOrders.length > 0 ? netSales / todayOrders.length : 0,
+      yesterdayOrders.length > 0 ? netSalesYesterday / yesterdayOrders.length : 0
+    ),
+    aovSeries: seriesFor("netSales"),
+    topProducts: topProducts.map((p) => ({ ...p, share: p.value / topValue })),
+  };
+}
+
+export async function getHeaderStats(organizationId: string): Promise<HeaderStat[]> {
+  const store = await getConnectedStore(organizationId);
+  if (!store) return demoHeaderStats();
+
+  const now = new Date();
+  const windowStart = new Date(now);
+  windowStart.setDate(windowStart.getDate() - 30);
+  const prevWindowStart = new Date(now);
+  prevWindowStart.setDate(prevWindowStart.getDate() - 60);
+
+  const [current, previous] = await Promise.all([
+    db.shopifyOrder.findMany({ where: { storeId: store.id, occurredAt: { gte: windowStart } } }),
+    db.shopifyOrder.findMany({
+      where: { storeId: store.id, occurredAt: { gte: prevWindowStart, lt: windowStart } },
+    }),
+  ]);
+
+  const currentSales = current.reduce((s, o) => s + o.netSales, 0);
+  const previousSales = previous.reduce((s, o) => s + o.netSales, 0);
+
+  return [
+    // Shopify no expone sesiones/conversión reales por la Admin API estándar
+    // (hace falta ShopifyQL Analytics, con permisos aparte) — quedan en 0
+    // en vez de inventar un número.
+    { label: "Sesiones", value: 0, changePct: null, format: "compact" },
+    {
+      label: "Ventas totales",
+      value: currentSales,
+      changePct: pctChange(currentSales, previousSales),
+      format: "compact",
+      isMoney: true,
+    },
+    {
+      label: "Pedidos",
+      value: current.length,
+      changePct: pctChange(current.length, previous.length),
+      format: "count",
+    },
+    { label: "Tasa de conversión", value: 0, changePct: null, format: "percent" },
+  ];
 }

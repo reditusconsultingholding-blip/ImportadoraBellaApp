@@ -40,9 +40,10 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users      User[]
-  adAccounts AdAccount[]
-  products   Product[]
+  users         User[]
+  adAccounts    AdAccount[]
+  products      Product[]
+  shopifyStores ShopifyStore[]
 }
 
 model User {
@@ -124,6 +125,53 @@ model MetricSnapshot {
   revenue    Float
 
   @@index([campaignId, capturedAt])
+}
+
+// La tienda de Shopify — separada a propósito de AdAccount, porque no es
+// una cuenta publicitaria: es la fuente de la vista "Ventas" (toda la
+// tienda, se anuncie o no cada producto). Una organización tiene una sola.
+model ShopifyStore {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  shopDomain     String   // ej. importadora-bella.myshopify.com
+  accessToken    String?  // Admin API access token (shpat_...) de la app personalizada
+  connectedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  orders ShopifyOrder[]
+
+  @@unique([organizationId, shopDomain])
+}
+
+model ShopifyOrder {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        ShopifyStore @relation(fields: [storeId], references: [id])
+  externalId   String   // order id de Shopify
+  occurredAt   DateTime
+  channel      String   // source_name de la orden (ej. "Funnelish", "web")
+  grossSales   Float
+  discounts    Float
+  shipping     Float
+  taxes        Float
+  netSales     Float
+  createdAt    DateTime @default(now())
+
+  lineItems ShopifyOrderLineItem[]
+
+  @@unique([storeId, externalId])
+  @@index([storeId, occurredAt])
+}
+
+model ShopifyOrderLineItem {
+  id          String @id @default(cuid())
+  orderId     String
+  order       ShopifyOrder @relation(fields: [orderId], references: [id])
+  productName String
+  category    String?
+  quantity    Int
+  amount      Float
 }
 
 // Cualquier acción que Jarvis proponga (pausar, escalar, ajustar presupuesto)

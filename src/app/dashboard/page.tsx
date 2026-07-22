@@ -22,7 +22,7 @@ export default async function DashboardPage({
   const platform: Platform = params.platform === "TIKTOK" ? "TIKTOK" : "META";
 
   const overview = await getOverview(session.organizationId, platform);
-  const sales = getSalesOverview();
+  const sales = await getSalesOverview(session.organizationId);
 
   return (
     <div className="flex flex-col gap-8">
