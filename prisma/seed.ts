@@ -20,13 +20,18 @@ type SeedCampaign = {
 };
 
 async function main() {
-  await db.pendingAction.deleteMany();
-  await db.metricSnapshot.deleteMany();
-  await db.campaign.deleteMany();
-  await db.product.deleteMany();
-  await db.adAccount.deleteMany();
-  await db.user.deleteMany();
-  await db.organization.deleteMany();
+  // Salvaguarda: si ya hay una organización (o sea, si esto no es la
+  // primera vez que se corre), no se toca nada. Sin esto, volver a correr
+  // el seed borraría el token real que hayan conectado en Conexiones y
+  // habría que volver a pegarlo — justo lo que no queremos.
+  const existing = await db.organization.findFirst();
+  if (existing) {
+    console.log(
+      `Ya hay datos (organización "${existing.name}"). No se vuelve a sembrar para no pisar cuentas ya conectadas.`
+    );
+    console.log("Si de verdad querés reiniciar todo desde cero, borrá prisma/dev.db a mano y corré el seed de nuevo.");
+    return;
+  }
 
   const org = await db.organization.create({
     data: { name: "Importadora Bella" },
