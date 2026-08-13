@@ -28,6 +28,7 @@ export default function SidebarNav({
     ...(showRentabilidad ? [{ href: "/dashboard/rentabilidad", label: "Rentabilidad" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/calculadora", label: "Calculadora de precios" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/reportes", label: "Reportes diarios" }] : []),
+    ...(showPipeline ? [{ href: "/dashboard/logistica", label: "Torre logística" }] : []),
     ...TAIL_LINKS,
     ...(showUsuarios ? [{ href: "/dashboard/usuarios", label: "Usuarios" }] : []),
   ];

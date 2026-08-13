@@ -4,18 +4,20 @@ import { db } from "@/lib/db";
 import AccountCard from "./account-card";
 import AddAccountButton from "./add-account-button";
 import ShopifyCard from "./shopify-card";
+import DropiCard from "./dropi-card";
 import CollapsibleSection from "./collapsible-section";
 
 export default async function ConexionesPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [accounts, shopifyStore] = await Promise.all([
+  const [accounts, shopifyStore, dropiConnection] = await Promise.all([
     db.adAccount.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
     }),
     db.shopifyStore.findFirst({ where: { organizationId: session.organizationId } }),
+    db.dropiConnection.findFirst({ where: { organizationId: session.organizationId } }),
   ]);
 
   const metaAccounts = accounts.filter((a) => a.platform === "META");
@@ -79,6 +81,25 @@ export default async function ConexionesPage() {
                     id: shopifyStore.id,
                     shopDomain: shopifyStore.shopDomain,
                     connected: Boolean(shopifyStore.connectedAt),
+                  }
+                : null
+            }
+          />
+        </CollapsibleSection>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
+          Logística &middot; torre de envíos Ecuador
+        </h2>
+
+        <CollapsibleSection title="Dropi" count={dropiConnection?.integrationKey ? 1 : 0}>
+          <DropiCard
+            connection={
+              dropiConnection
+                ? {
+                    hasKey: Boolean(dropiConnection.integrationKey),
+                    connectedAt: dropiConnection.connectedAt?.toISOString() ?? null,
                   }
                 : null
             }
