@@ -12,14 +12,17 @@ const TAIL_LINKS = [
 export default function SidebarNav({
   showUsuarios,
   showPipeline,
+  showRentabilidad,
 }: {
   showUsuarios: boolean;
   showPipeline: boolean;
+  showRentabilidad: boolean;
 }) {
   const pathname = usePathname();
   const links = [
     ...BASE_LINKS,
     ...(showPipeline ? [{ href: "/dashboard/pipeline", label: "Pipeline" }] : []),
+    ...(showRentabilidad ? [{ href: "/dashboard/rentabilidad", label: "Rentabilidad" }] : []),
     ...TAIL_LINKS,
     ...(showUsuarios ? [{ href: "/dashboard/usuarios", label: "Usuarios" }] : []),
   ];

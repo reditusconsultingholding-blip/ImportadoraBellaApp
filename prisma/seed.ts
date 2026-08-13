@@ -2,6 +2,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PROFITABILITY_ABRIL_2026, PROFITABILITY_MONTH_ABRIL } from "../src/lib/profitability-data";
 
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL ?? "file:./dev.db",
@@ -200,6 +201,23 @@ async function main() {
         cpm: r.cpm,
         nextAction: r.nextAction,
         notes: r.notes,
+      },
+    });
+  }
+
+  for (const row of PROFITABILITY_ABRIL_2026) {
+    await db.productProfitability.create({
+      data: {
+        organizationId: org.id,
+        month: PROFITABILITY_MONTH_ABRIL,
+        productName: row.productName,
+        orders: row.orders,
+        cpa: row.cpa,
+        revenueAccum: row.revenueAccum,
+        adSpendAccum: row.adSpendAccum,
+        operatingExpenseAccum: row.operatingExpenseAccum,
+        adminExpenseAccum: row.adminExpenseAccum,
+        profitAccum: row.profitAccum,
       },
     });
   }

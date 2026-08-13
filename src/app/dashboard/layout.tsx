@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getHeaderStats } from "@/lib/sales";
-import { canAccessPipeline } from "@/lib/permissions";
+import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import LogoutButton from "./logout-button";
 import HeaderStats from "./header-stats";
 import LiveIndicator from "./live-indicator";
@@ -30,7 +30,11 @@ export default async function DashboardLayout({
           <p className="text-sm font-semibold truncate">{org?.name ?? "Importadora Bella"}</p>
           <p className="font-mono text-xs uppercase tracking-wide text-accent">Jarvis</p>
         </div>
-        <SidebarNav showUsuarios={session.role === "OWNER"} showPipeline={canAccessPipeline(session.role)} />
+        <SidebarNav
+          showUsuarios={session.role === "OWNER"}
+          showPipeline={canAccessPipeline(session.role)}
+          showRentabilidad={canManagePipeline(session.role)}
+        />
         <div className="mt-auto px-5 py-4 border-t border-border flex items-center justify-between">
           <span className="text-sm text-muted truncate">{session.name}</span>
           <LogoutButton />
