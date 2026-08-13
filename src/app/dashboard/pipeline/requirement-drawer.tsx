@@ -5,7 +5,9 @@ import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
 import type { RequirementRow, UserOption } from "./types";
 
 type Comment = { id: string; body: string; createdAt: string; author: { id: string; name: string } };
-type Detail = RequirementRow & { comments: Comment[] };
+type Version = { id: string; label: string; link: string; note: string | null; isFinal: boolean; authorName: string; createdAt: string };
+type Activity = { id: string; actorName: string; action: string; detail: string; createdAt: string };
+type Detail = RequirementRow & { comments: Comment[]; versions: Version[]; activity: Activity[] };
 
 const METRIC_FIELDS: { key: keyof RequirementRow; label: string; suffix?: string }[] = [
   { key: "hookRate", label: "Hook Rate", suffix: "%" },
@@ -45,6 +47,9 @@ export default function RequirementDrawer({
   const [sendingComment, setSendingComment] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [versionLink, setVersionLink] = useState("");
+  const [versionNote, setVersionNote] = useState("");
+  const [sendingVersion, setSendingVersion] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +73,8 @@ export default function RequirementDrawer({
             cpa: data.requirement.cpa?.toString() ?? "",
             frequency: data.requirement.frequency?.toString() ?? "",
             cpm: data.requirement.cpm?.toString() ?? "",
+            dueDate: data.requirement.dueDate ? data.requirement.dueDate.slice(0, 10) : "",
+            thumbnailUrl: data.requirement.thumbnailUrl ?? "",
           });
         } else {
           setError(data.error ?? "No se pudo cargar.");
@@ -111,7 +118,41 @@ export default function RequirementDrawer({
       cpa: editValues.cpa,
       frequency: editValues.frequency,
       cpm: editValues.cpm,
+      dueDate: editValues.dueDate || null,
+      thumbnailUrl: editValues.thumbnailUrl || null,
     });
+  }
+
+  async function sendVersion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!versionLink.trim()) return;
+    setSendingVersion(true);
+    const res = await fetch(`/api/requirements/${requirementId}/versions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ link: versionLink, note: versionNote }),
+    });
+    const data = await res.json();
+    setSendingVersion(false);
+    if (res.ok) {
+      setDetail((prev) => (prev ? { ...prev, versions: [...prev.versions, data.version] } : prev));
+      setVersionLink("");
+      setVersionNote("");
+    }
+  }
+
+  async function markVersionFinal(versionId: string, isFinal: boolean) {
+    const res = await fetch(`/api/requirements/${requirementId}/versions/${versionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isFinal }),
+    });
+    if (res.ok) {
+      // Marcar final también deja una entrada en la bitácora — se refresca
+      // el detalle completo en vez de parchear a mano para no desincronizar.
+      const fresh = await fetch(`/api/requirements/${requirementId}`).then((r) => r.json());
+      if (fresh.requirement) setDetail(fresh.requirement);
+    }
   }
 
   async function sendComment(e: React.FormEvent) {
@@ -220,6 +261,109 @@ export default function RequirementDrawer({
             </div>
 
             <div className="border-t border-border pt-4">
+              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Producción</p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="block text-[11px] text-muted mb-1">Fecha de entrega</span>
+                  <input
+                    type="date"
+                    value={editValues.dueDate ?? ""}
+                    onChange={(e) => setEditValues((v) => ({ ...v, dueDate: e.target.value }))}
+                    className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-[11px] text-muted mb-1">Miniatura (URL de imagen)</span>
+                  <input
+                    value={editValues.thumbnailUrl ?? ""}
+                    onChange={(e) => setEditValues((v) => ({ ...v, thumbnailUrl: e.target.value }))}
+                    placeholder="https://…"
+                    className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  />
+                </label>
+              </div>
+              {editValues.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={editValues.thumbnailUrl}
+                  alt=""
+                  className="w-full h-32 object-cover rounded bg-surface-2 mt-3"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              <button
+                onClick={saveFields}
+                disabled={saving}
+                className="mt-3 text-xs font-medium bg-accent text-white rounded px-3 py-1.5 disabled:opacity-60"
+              >
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </button>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">
+                Versiones &middot; historial de iteraciones
+              </p>
+              <div className="flex flex-col gap-2 mb-3">
+                {detail.versions.length === 0 && (
+                  <p className="text-xs text-muted">Todavía no se subió ninguna versión.</p>
+                )}
+                {detail.versions.map((v) => (
+                  <div
+                    key={v.id}
+                    className={`rounded border px-3 py-2 text-xs ${
+                      v.isFinal ? "border-good bg-good-bg" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <a href={v.link} target="_blank" rel="noreferrer" className="font-mono font-semibold text-accent-deep hover:underline">
+                        {v.label}
+                      </a>
+                      <div className="flex items-center gap-2">
+                        {v.isFinal ? (
+                          <span className="text-good font-medium">✓ Final</span>
+                        ) : (
+                          canManage && (
+                            <button onClick={() => markVersionFinal(v.id, true)} className="text-muted hover:text-accent-deep">
+                              Marcar final
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                    {v.note && <p className="text-muted mt-1">{v.note}</p>}
+                    <p className="text-[10px] text-muted mt-1 font-mono">{v.authorName}</p>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={sendVersion} className="flex flex-col gap-2">
+                <input
+                  value={versionLink}
+                  onChange={(e) => setVersionLink(e.target.value)}
+                  placeholder="Link de la nueva versión…"
+                  className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                />
+                <div className="flex gap-2">
+                  <input
+                    value={versionNote}
+                    onChange={(e) => setVersionNote(e.target.value)}
+                    placeholder="Nota (opcional)"
+                    className="flex-1 border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sendingVersion}
+                    className="text-xs font-medium bg-accent text-white rounded px-3 py-2 disabled:opacity-60"
+                  >
+                    Subir
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="border-t border-border pt-4">
               <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Enlaces</p>
               <div className="flex flex-col gap-2">
                 {LINK_FIELDS.map((f) => (
@@ -279,6 +423,26 @@ export default function RequirementDrawer({
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Actividad</p>
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                {detail.activity.length === 0 && (
+                  <p className="text-xs text-muted">Sin cambios registrados todavía.</p>
+                )}
+                {detail.activity.map((a) => (
+                  <div key={a.id} className="text-xs flex items-baseline gap-2">
+                    <span className="text-muted font-mono text-[10px] shrink-0">
+                      {new Date(a.createdAt).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
+                    </span>
+                    <span>
+                      <span className="font-medium">{a.actorName}</span>{" "}
+                      <span className="text-muted">{a.detail}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="border-t border-border pt-4 flex flex-col gap-3">

@@ -56,7 +56,9 @@ export default async function DesempenoPage({
                 <th className="px-5 py-3">Editor</th>
                 <th className="px-5 py-3 text-right">Asignados</th>
                 <th className="px-5 py-3 text-right">Completados</th>
-                <th className="px-5 py-3 text-right">Testeados con buen CPA</th>
+                <th className="px-5 py-3 text-right">Buen CPA</th>
+                <th className="px-5 py-3 text-right">Mal CPA</th>
+                <th className="px-5 py-3 text-right">Entrega rápida</th>
                 <th className="px-5 py-3 text-right">Puntaje</th>
               </tr>
             </thead>
@@ -69,13 +71,15 @@ export default async function DesempenoPage({
                   </td>
                   <td className="px-5 py-3 text-right tabular-nums">{r.assigned}</td>
                   <td className="px-5 py-3 text-right tabular-nums">{r.completed}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">{r.goodPerformance}</td>
+                  <td className="px-5 py-3 text-right tabular-nums text-good">{r.goodPerformance}</td>
+                  <td className="px-5 py-3 text-right tabular-nums text-critical">{r.badPerformance}</td>
+                  <td className="px-5 py-3 text-right tabular-nums">{r.fastTurnaround}</td>
                   <td className="px-5 py-3 text-right tabular-nums font-semibold">{r.score}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-muted">
+                  <td colSpan={7} className="px-5 py-8 text-center text-muted">
                     Todavía no hay editores en el equipo.
                   </td>
                 </tr>
@@ -86,9 +90,9 @@ export default async function DesempenoPage({
       </div>
 
       <p className="text-xs text-muted">
-        Puntaje = requerimientos completados en el mes (Realizado / Editado / Testeado) + 2 puntos extra por cada
-        anuncio Testeado con CPA igual o mejor que el objetivo del producto. Es un criterio de arranque — se puede
-        ajustar el peso apenas el equipo defina uno más formal.
+        Puntaje = completados en el mes (+1 c/u) + buen CPA en Testeado (+2 c/u) − mal CPA en Testeado (−1 c/u) +
+        entrega rápida (+1 por cada pieza que llegó a un estado terminado en 3 días o menos desde que se creó). Es
+        un criterio de arranque — se puede ajustar el peso apenas el equipo defina uno más formal.
       </p>
     </div>
   );

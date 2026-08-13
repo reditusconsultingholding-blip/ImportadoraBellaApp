@@ -124,7 +124,11 @@ export default async function ProductoDetailPage({
           canManage={canManage}
           currentUserId={session.userId}
           currentUserName={session.name}
-          initialRequirements={requirements.map((r) => ({ ...r, date: r.date.toISOString() }))}
+          initialRequirements={requirements.map((r) => ({
+            ...r,
+            date: r.date.toISOString(),
+            dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+          }))}
           products={[{ id: product.id, code: product.code, name: product.name }]}
           users={users}
           title={`Pipeline — ${product.name}`}

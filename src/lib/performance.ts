@@ -7,9 +7,14 @@ import type { Role } from "@/generated/prisma/client";
 // registra en el pipeline:
 //   +1 por cada requerimiento que salió de PENDIENTE (o sea, se trabajó)
 //   +2 extra si terminó TESTEADO con CPA igual o mejor que el objetivo del producto
+//   -1 si terminó TESTEADO con CPA peor que el objetivo (antes no restaba nada)
+//   +1 extra si llegó a un estado terminado en 3 días o menos desde que se creó
+//      (turnaround rápido) — se calcula con RequirementActivity, que registra
+//      cuándo cambió el estado, no solo el estado final.
 // Queda documentado acá para poder ajustar el peso el día que Fabrizio
 // defina un criterio más formal.
 const DONE_STATUSES = ["REALIZADO", "EDITADO", "TESTEADO"] as const;
+const FAST_TURNAROUND_DAYS = 3;
 
 export type EditorPerformance = {
   userId: string;
@@ -17,6 +22,8 @@ export type EditorPerformance = {
   assigned: number;
   completed: number;
   goodPerformance: number;
+  badPerformance: number;
+  fastTurnaround: number;
   score: number;
 };
 
@@ -50,7 +57,16 @@ export async function getEditorPerformance(
       ownerId: { in: editors.map((e) => e.id) },
       updatedAt: { gte: effectiveRange.start, lt: effectiveRange.end },
     },
-    include: { product: { select: { cpaTarget: true } } },
+    include: {
+      product: { select: { cpaTarget: true } },
+      // Primer cambio de estado que llegó a un estado terminado — alcanza
+      // para medir turnaround sin traer toda la bitácora.
+      activity: {
+        where: { action: "STATUS_CHANGE", toValue: { in: [...DONE_STATUSES] } },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
   });
 
   const rows: EditorPerformance[] = editors.map((editor) => {
@@ -60,8 +76,18 @@ export async function getEditorPerformance(
     const goodPerformance = own.filter(
       (r) => r.status === "TESTEADO" && r.cpa != null && r.product && r.cpa <= r.product.cpaTarget
     ).length;
-    const score = completed + goodPerformance * 2;
-    return { userId: editor.id, name: editor.name, assigned, completed, goodPerformance, score };
+    const badPerformance = own.filter(
+      (r) => r.status === "TESTEADO" && r.cpa != null && r.product && r.cpa > r.product.cpaTarget
+    ).length;
+    const fastTurnaround = own.filter((r) => {
+      const firstDone = r.activity[0];
+      if (!firstDone) return false;
+      const days = (firstDone.createdAt.getTime() - r.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      return days <= FAST_TURNAROUND_DAYS;
+    }).length;
+
+    const score = completed + goodPerformance * 2 - badPerformance + fastTurnaround;
+    return { userId: editor.id, name: editor.name, assigned, completed, goodPerformance, badPerformance, fastTurnaround, score };
   });
 
   rows.sort((a, b) => b.score - a.score || b.completed - a.completed);

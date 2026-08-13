@@ -66,6 +66,8 @@ export default function RequirementForm({
   const [awarenessLevel, setAwarenessLevel] = useState("");
   const [marketOrigin, setMarketOrigin] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,6 +91,8 @@ export default function RequirementForm({
         awarenessLevel,
         marketOrigin,
         ownerId: ownerId || undefined,
+        dueDate: dueDate || undefined,
+        thumbnailUrl: thumbnailUrl || undefined,
       }),
     });
     const data = await res.json();
@@ -191,6 +195,31 @@ export default function RequirementForm({
           ))}
         </select>
       </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
+            Fecha de entrega
+          </span>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
+            Miniatura (URL de imagen)
+          </span>
+          <input
+            value={thumbnailUrl}
+            onChange={(e) => setThumbnailUrl(e.target.value)}
+            placeholder="https://…"
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+          />
+        </label>
+      </div>
 
       <div className="flex gap-2 pt-2">
         <button

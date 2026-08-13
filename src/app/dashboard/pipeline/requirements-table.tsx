@@ -11,6 +11,13 @@ const STATUS_TONE: Record<string, string> = {
   TESTEADO: "bg-good-bg text-good",
 };
 
+const DONE_STATUSES = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
+
+function isOverdue(r: RequirementRow) {
+  if (!r.dueDate || DONE_STATUSES.has(r.status)) return false;
+  return new Date(r.dueDate).getTime() < Date.now();
+}
+
 export default function RequirementsTable({
   requirements,
   onOpen,
@@ -31,6 +38,7 @@ export default function RequirementsTable({
               <th className="px-4 py-3">Ángulo</th>
               <th className="px-4 py-3">Awareness</th>
               <th className="px-4 py-3">Editor</th>
+              <th className="px-4 py-3">Entrega</th>
               <th className="px-4 py-3">CPA</th>
               <th className="px-4 py-3">Hook Rate</th>
               <th className="px-4 py-3">Estado</th>
@@ -50,6 +58,11 @@ export default function RequirementsTable({
                 <td className="px-4 py-3 text-xs text-muted max-w-[10rem] truncate">{r.angle}</td>
                 <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{r.awarenessLevel}</td>
                 <td className="px-4 py-3 text-xs">{r.owner?.name ?? "Sin asignar"}</td>
+                <td className={`px-4 py-3 text-xs whitespace-nowrap ${isOverdue(r) ? "text-critical font-medium" : "text-muted"}`}>
+                  {r.dueDate
+                    ? new Date(r.dueDate).toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" })
+                    : "—"}
+                </td>
                 <td className="px-4 py-3 tabular-nums text-xs">{r.cpa ?? "—"}</td>
                 <td className="px-4 py-3 tabular-nums text-xs">{r.hookRate !== null ? `${r.hookRate}%` : "—"}</td>
                 <td className="px-4 py-3">
@@ -65,7 +78,7 @@ export default function RequirementsTable({
             ))}
             {requirements.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-muted">
+                <td colSpan={11} className="px-4 py-8 text-center text-muted">
                   Sin requerimientos todavía.
                 </td>
               </tr>

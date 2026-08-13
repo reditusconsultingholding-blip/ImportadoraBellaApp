@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessRequirement, canManagePipeline } from "@/lib/permissions";
-import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
+import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
 
 async function loadOwned(id: string, organizationId: string) {
   return db.requirement.findFirst({
@@ -14,6 +14,8 @@ async function loadOwned(id: string, organizationId: string) {
         orderBy: { createdAt: "asc" },
         include: { author: { select: { id: true, name: true } } },
       },
+      versions: { orderBy: { createdAt: "asc" } },
+      activity: { orderBy: { createdAt: "desc" }, take: 30 },
     },
   });
 }
@@ -57,6 +59,8 @@ const EDITABLE_FIELDS = [
   "status",
   "ownerId",
   "productId",
+  "dueDate",
+  "thumbnailUrl",
 ] as const;
 
 // Los campos numéricos vienen del form como string — hay que castear
@@ -70,6 +74,8 @@ const NUMERIC_FIELDS = new Set([
   "frequency",
   "cpm",
 ]);
+
+const DATE_FIELDS = new Set(["dueDate"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -97,6 +103,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const value = body[field];
     if (NUMERIC_FIELDS.has(field)) {
       data[field] = value === "" || value === null || value === undefined ? null : Number(value);
+    } else if (DATE_FIELDS.has(field)) {
+      data[field] = value === "" || value === null || value === undefined ? null : new Date(value as string);
     } else {
       data[field] = value === "" ? null : value;
     }
@@ -110,6 +118,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       owner: { select: { id: true, name: true } },
     },
   });
+
+  // Bitácora: solo se registran los cambios que le importan a un director
+  // (estado, asignación) — las ediciones de métricas/notas no ensucian
+  // el timeline con ruido de campo por campo.
+  const activityEntries: { action: string; fromValue: string | null; toValue: string | null; detail: string }[] = [];
+  if ("status" in data && data.status !== existing.status) {
+    activityEntries.push({
+      action: "STATUS_CHANGE",
+      fromValue: existing.status,
+      toValue: data.status as string,
+      detail: `${STATUS_LABEL[existing.status] ?? existing.status} → ${STATUS_LABEL[data.status as string] ?? data.status}`,
+    });
+  }
+  if ("ownerId" in data && data.ownerId !== existing.ownerId) {
+    const newOwner = data.ownerId ? await db.user.findUnique({ where: { id: data.ownerId as string }, select: { name: true } }) : null;
+    activityEntries.push({
+      action: "ASSIGNED",
+      fromValue: existing.ownerId,
+      toValue: (data.ownerId as string) ?? null,
+      detail: newOwner ? `Reasignado a ${newOwner.name}` : "Sin asignar",
+    });
+  }
+  for (const entry of activityEntries) {
+    await db.requirementActivity.create({
+      data: { requirementId: id, actorName: session.name, ...entry },
+    });
+  }
 
   return NextResponse.json({ requirement });
 }
@@ -128,6 +163,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!existing) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
 
   await db.comment.deleteMany({ where: { requirementId: id } });
+  await db.requirementVersion.deleteMany({ where: { requirementId: id } });
+  await db.requirementActivity.deleteMany({ where: { requirementId: id } });
   await db.requirement.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

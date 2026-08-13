@@ -45,7 +45,11 @@ export default async function PipelinePage() {
       canManage={canManage}
       currentUserId={session.userId}
       currentUserName={session.name}
-      initialRequirements={requirements.map((r) => ({ ...r, date: r.date.toISOString() }))}
+      initialRequirements={requirements.map((r) => ({
+        ...r,
+        date: r.date.toISOString(),
+        dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+      }))}
       products={products.map((p) => ({ id: p.id, code: p.code, name: p.name }))}
       users={users}
     />

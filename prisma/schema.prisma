@@ -241,12 +241,51 @@ model Requirement {
   nextAction String?
   notes      String?
 
+  dueDate      DateTime? // fecha de entrega — la tarjeta se marca vencida si se pasó y sigue en producción
+  thumbnailUrl String?   // imagen de portada del creativo, para no depender solo del link
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   comments Comment[]
+  versions RequirementVersion[]
+  activity RequirementActivity[]
 
   @@index([organizationId, status])
+}
+
+// Historial de iteraciones de un creativo (v1, v2, v3...) — separado del
+// link único original porque un editor sube varias versiones hasta que
+// una se aprueba, y hoy no quedaba registro de cuál ganó.
+model RequirementVersion {
+  id            String      @id @default(cuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  label         String // "v1", "v2"...
+  link          String
+  note          String?
+  isFinal       Boolean     @default(false)
+  authorName    String
+  createdAt     DateTime    @default(now())
+
+  @@index([requirementId, createdAt])
+}
+
+// Bitácora de cambios de una pieza — quién movió el estado, quién
+// reasignó, cuándo. authorName/fromValue/toValue van como snapshot de
+// texto (no relaciones) para mantener el modelo liviano.
+model RequirementActivity {
+  id            String      @id @default(cuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  actorName     String
+  action        String // STATUS_CHANGE | ASSIGNED | VERSION_ADDED
+  fromValue     String?
+  toValue       String?
+  detail        String
+  createdAt     DateTime    @default(now())
+
+  @@index([requirementId, createdAt])
 }
 
 // Chat interno de cada Requirement. Se buscan @menciones en el texto al

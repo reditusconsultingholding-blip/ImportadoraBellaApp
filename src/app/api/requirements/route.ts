@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
     marketOrigin,
     ownerId,
     status,
+    dueDate,
+    thumbnailUrl,
   } = body as Record<string, string | undefined>;
 
   if (!adName?.trim() || !adType || !phase || !visualFormat || !angle || !awarenessLevel || !marketOrigin) {
@@ -73,6 +75,8 @@ export async function POST(req: NextRequest) {
       marketOrigin,
       ownerId: ownerId || null,
       status: finalStatus as never,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      thumbnailUrl: thumbnailUrl || null,
     },
     include: {
       product: { select: { code: true, name: true } },

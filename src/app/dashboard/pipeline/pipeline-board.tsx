@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import KanbanBoard from "./kanban-board";
 import RequirementsTable from "./requirements-table";
 import RequirementForm from "./requirement-form";
@@ -30,6 +30,9 @@ export default function PipelineBoard({
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [showForm, setShowForm] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("all");
+  const [productFilter, setProductFilter] = useState("all");
 
   function upsert(requirement: RequirementRow) {
     setRequirements((prev) => {
@@ -37,6 +40,42 @@ export default function PipelineBoard({
       return exists ? prev.map((r) => (r.id === requirement.id ? requirement : r)) : [requirement, ...prev];
     });
   }
+
+  async function changeStatus(id: string, status: string) {
+    const current = requirements.find((r) => r.id === id);
+    if (!current || current.status === status) return;
+    // Optimista: refleja el cambio ya mismo, corrige si el servidor lo rechaza.
+    setRequirements((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+    const res = await fetch(`/api/requirements/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      const { requirement } = await res.json();
+      upsert(requirement);
+    } else if (current) {
+      setRequirements((prev) => prev.map((r) => (r.id === id ? current : r)));
+    }
+  }
+
+  const owners = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of requirements) if (r.owner) map.set(r.owner.id, r.owner.name);
+    return Array.from(map.entries());
+  }, [requirements]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return requirements.filter((r) => {
+      if (q && !r.adName.toLowerCase().includes(q) && !r.product?.code.toLowerCase().includes(q) && !r.product?.name.toLowerCase().includes(q)) {
+        return false;
+      }
+      if (ownerFilter !== "all" && r.ownerId !== ownerFilter) return false;
+      if (productFilter !== "all" && r.productId !== productFilter) return false;
+      return true;
+    });
+  }, [requirements, search, ownerFilter, productFilter]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,10 +119,50 @@ export default function PipelineBoard({
         </div>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por anuncio o producto…"
+          className="text-xs border border-border rounded px-3 py-1.5 bg-transparent min-w-[200px]"
+        />
+        {owners.length > 0 && (
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            className="text-xs border border-border rounded px-3 py-1.5 bg-transparent"
+          >
+            <option value="all">Todos los editores</option>
+            {owners.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        {products.length > 0 && (
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="text-xs border border-border rounded px-3 py-1.5 bg-transparent"
+          >
+            <option value="all">Todos los productos</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.code} — {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {(search || ownerFilter !== "all" || productFilter !== "all") && (
+          <span className="text-xs text-muted">{filtered.length} de {requirements.length}</span>
+        )}
+      </div>
+
       {view === "kanban" ? (
-        <KanbanBoard requirements={requirements} onOpen={setOpenId} />
+        <KanbanBoard requirements={filtered} onOpen={setOpenId} onStatusChange={changeStatus} canDrag />
       ) : (
-        <RequirementsTable requirements={requirements} onOpen={setOpenId} />
+        <RequirementsTable requirements={filtered} onOpen={setOpenId} />
       )}
 
       {showForm && (

@@ -27,6 +27,8 @@ export type RequirementRow = {
   cpm: number | null;
   nextAction: string | null;
   notes: string | null;
+  dueDate: string | null;
+  thumbnailUrl: string | null;
 };
 
 export type ProductOption = { id: string; code: string; name: string };

@@ -138,12 +138,38 @@ const MIGRATION_STATEMENTS = [
     "cpm" REAL,
     "nextAction" TEXT,
     "notes" TEXT,
+    "dueDate" DATETIME,
+    "thumbnailUrl" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "Requirement_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "Requirement_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Requirement_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
   )`,
+  `CREATE TABLE "RequirementVersion" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "requirementId" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "link" TEXT NOT NULL,
+    "note" TEXT,
+    "isFinal" BOOLEAN NOT NULL DEFAULT false,
+    "authorName" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RequirementVersion_requirementId_fkey" FOREIGN KEY ("requirementId") REFERENCES "Requirement" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  )`,
+  `CREATE TABLE "RequirementActivity" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "requirementId" TEXT NOT NULL,
+    "actorName" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "fromValue" TEXT,
+    "toValue" TEXT,
+    "detail" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RequirementActivity_requirementId_fkey" FOREIGN KEY ("requirementId") REFERENCES "Requirement" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  )`,
+  `CREATE INDEX "RequirementVersion_requirementId_createdAt_idx" ON "RequirementVersion"("requirementId", "createdAt")`,
+  `CREATE INDEX "RequirementActivity_requirementId_createdAt_idx" ON "RequirementActivity"("requirementId", "createdAt")`,
   `CREATE TABLE "Comment" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "requirementId" TEXT NOT NULL,
