@@ -1,10 +1,11 @@
-# Jarvis
+# Importadora Bella (Jarvis)
 
-Panel en vivo de campañas de Meta (Facebook + Instagram) y TikTok para
-Fabrizio Aguilar Muñoz, con un asistente (Jarvis) que responde preguntas
-sobre el rendimiento y puede proponer acciones — pausar, reanudar, ajustar
-presupuesto — que siempre quedan pendientes de aprobación humana antes de
-tocar una cuenta real.
+Panel en vivo de campañas de Meta (Facebook + Instagram) y TikTok, ventas de
+Shopify, pipeline creativo y operación para Importadora Bella (Fabrizio
+Aguilar Muñoz). Jarvis es el nombre del asistente de IA integrado — responde
+preguntas sobre el rendimiento y puede proponer acciones (pausar, reanudar,
+ajustar presupuesto) que siempre quedan pendientes de aprobación humana antes
+de tocar una cuenta real.
 
 Ver la propuesta completa (alcance, fases, precio): documento compartido
 por separado con Reditus Consulting.
@@ -36,6 +37,33 @@ Lo que ya funciona, con datos de prueba (seed):
   con métricas editables y chat interno con `@menciones` que generan
   notificaciones (campanita en el header). Un Editor solo ve y edita lo que
   tiene asignado; Director/Owner ven y arman todo el pipeline.
+- **Pipeline por producto** (`/dashboard/productos`): drill-down de cada
+  producto con lo realizado / por realizar y qué anuncios testeados dieron
+  buen o mal CPA.
+- **Centro de notificaciones** (`/dashboard/notificaciones`): además de
+  menciones, un motor de alertas (`src/lib/alerts.ts`) detecta oportunidades
+  de escalar (CPA muy por debajo del objetivo), fatiga de anuncio (CTR/CPA
+  que se deterioran entre snapshots) y discrepancias entre lo que reportan
+  Meta/TikTok y las órdenes reales de Shopify. Corre solo en cada sync y
+  también a demanda ("Revisar alertas ahora").
+- **Reportes diarios en PDF** (`/dashboard/reportes`): un cron a medianoche
+  (hora Ecuador) genera un PDF con ventas, campañas y alertas del día, y le
+  notifica a cada OWNER. También se puede generar a mano.
+- **Desempeño del equipo** (`/dashboard/desempeno`): ranking mensual de
+  editores con podio top 3 y recompensas ($100 / $50 / $30).
+- **Rentabilidad por producto** (`/dashboard/rentabilidad`): tabla mensual
+  con los acumulados reales que ya llevaba Fabrizio en su planilla; las
+  columnas "por pedido" se calculan solas.
+- **Calculadora de precios** (`/dashboard/calculadora`) para dropshipping
+  Ecuador: precio sugerido a partir de costos, comisión de pasarela, IVA y
+  margen/ganancia objetivo.
+- **Torre logística Ecuador** (`/dashboard/logistica`), pensada para
+  conectarse a Dropi: efectividad de entrega por provincia y transportadora.
+  Sin una key de Dropi conectada todavía, muestra datos de ejemplo con la
+  misma estructura que va a tener con datos reales (ver "Accesos pendientes").
+- Tipografía **Poppins** en toda la app; el nombre visible es **Importadora
+  Bella** (Jarvis queda como el asistente de IA, no como la marca). Los
+  colores de marca están pendientes de que Fabrizio los envíe.
 
 Lo que falta para pasar a producción: conectar credenciales reales
 (ver "Accesos pendientes" abajo) — el código de integración ya está
@@ -83,6 +111,9 @@ Copiar `.env.example` a `.env` y completar:
 5. `ANTHROPIC_API_KEY` para que el chat de Jarvis funcione con datos reales.
 6. Confirmar el patrón real de los códigos de producto en los nombres de campaña de Fabrizio (el seed usa `BAT-001`, `TAB-001`, `FAJ-001`, `BOD-001`, `CEP-001` como ejemplo).
 7. Umbral de CPA "bueno/malo" por producto, para calibrar el semáforo con números reales.
+8. **Colores e identidad gráfica de Importadora Bella** — Fabrizio los va a enviar; hoy la app usa la paleta ámbar/bronce original mientras tanto.
+9. **Acceso a la API de Dropi**: hay que pedirle al equipo de IT de Dropi la `dropi-integration-key` (y confirmar el formato exacto de sus endpoints — son privados, no están documentados públicamente). Sin esto, la torre logística sigue con datos de ejemplo.
+10. `CRON_SECRET` para proteger `/api/cron/sync` y `/api/cron/daily-report` en producción.
 
 ## Estructura
 
@@ -91,9 +122,21 @@ src/lib/db.ts                 cliente Prisma (SQLite vía adapter)
 src/lib/auth.ts                sesión (JWT en cookie httpOnly)
 src/lib/metrics.ts             agregación de métricas por producto/plataforma
 src/lib/agent.ts               lógica del chat de Jarvis (Claude + tool use)
+src/lib/alerts.ts               motor de alertas (escala / fatiga / discrepancia)
+src/lib/daily-report.ts         genera el PDF del reporte diario (pdfkit)
+src/lib/profitability.ts        cálculo de la tabla de rentabilidad
+src/lib/logistics.ts            efectividad de envíos por provincia/transportadora
+src/lib/performance.ts          puntaje de desempeño de editores
 src/lib/integrations/          clientes reales de Meta Graph API y TikTok Business API
 src/app/dashboard/              panel general + vista por producto
 src/app/dashboard/jarvis/       chat con Jarvis
+src/app/dashboard/pipeline/     Kanban/tabla del pipeline creativo
+src/app/dashboard/productos/    pipeline específico por producto
+src/app/dashboard/rentabilidad/ tabla de rentabilidad mensual
+src/app/dashboard/calculadora/  calculadora de precios dropshipping Ecuador
+src/app/dashboard/reportes/     historial de reportes diarios en PDF
+src/app/dashboard/logistica/    torre logística Ecuador (Dropi)
+src/app/dashboard/desempeno/    ranking de desempeño del equipo
 prisma/schema.prisma            modelo de datos multi-tenant
 prisma/seed.ts                  datos de ejemplo (productos reales de Fabrizio)
 ```
