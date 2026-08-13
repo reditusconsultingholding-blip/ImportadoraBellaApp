@@ -23,6 +23,7 @@ export default function SidebarNav({
     ...BASE_LINKS,
     ...(showPipeline ? [{ href: "/dashboard/pipeline", label: "Pipeline" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/rentabilidad", label: "Rentabilidad" }] : []),
+    ...(showRentabilidad ? [{ href: "/dashboard/calculadora", label: "Calculadora de precios" }] : []),
     ...TAIL_LINKS,
     ...(showUsuarios ? [{ href: "/dashboard/usuarios", label: "Usuarios" }] : []),
   ];
