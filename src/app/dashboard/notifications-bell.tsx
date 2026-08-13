@@ -109,6 +109,13 @@ export default function NotificationsBell() {
               </button>
             ))
           )}
+          <a
+            href="/dashboard/notificaciones"
+            onClick={() => setOpen(false)}
+            className="block text-center text-xs text-accent hover:underline px-4 py-3 border-t border-border"
+          >
+            Ver el centro de notificaciones
+          </a>
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const BASE_LINKS = [{ href: "/dashboard", label: "Panel" }];
 const TAIL_LINKS = [
+  { href: "/dashboard/notificaciones", label: "Notificaciones" },
   { href: "/dashboard/jarvis", label: "Preguntarle a Jarvis" },
   { href: "/dashboard/conexiones", label: "Conexiones" },
 ];
