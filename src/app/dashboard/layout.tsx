@@ -27,8 +27,8 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-background flex">
       <aside className="w-56 shrink-0 border-r border-border flex flex-col sticky top-0 h-screen">
         <div className="px-5 py-5 border-b border-border">
+          <p className="text-sm font-semibold truncate">{org?.name ?? "Importadora Bella"}</p>
           <p className="font-mono text-xs uppercase tracking-wide text-accent">Jarvis</p>
-          <p className="text-sm text-muted truncate">{org?.name}</p>
         </div>
         <SidebarNav showUsuarios={session.role === "OWNER"} showPipeline={canAccessPipeline(session.role)} />
         <div className="mt-auto px-5 py-4 border-t border-border flex items-center justify-between">

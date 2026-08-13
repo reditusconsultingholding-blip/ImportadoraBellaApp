@@ -41,12 +41,12 @@ export default function LoginPage() {
         className="w-full max-w-sm bg-surface border border-border rounded p-8"
       >
         <div className="mb-8">
-          <p className="font-mono text-xs uppercase tracking-wide text-accent mb-2">
+          <h1 className="text-2xl font-semibold">Importadora Bella</h1>
+          <p className="font-mono text-xs uppercase tracking-wide text-accent mt-1 mb-2">
             Jarvis
           </p>
-          <h1 className="text-2xl font-semibold">Iniciar sesión</h1>
           <p className="text-sm text-muted mt-1">
-            Panel de campañas de Meta y TikTok.
+            Panel de campañas, ventas y pipeline creativo.
           </p>
         </div>
 

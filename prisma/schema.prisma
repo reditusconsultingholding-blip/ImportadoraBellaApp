@@ -56,11 +56,14 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users         User[]
-  adAccounts    AdAccount[]
-  products      Product[]
-  shopifyStores ShopifyStore[]
-  requirements  Requirement[]
+  users               User[]
+  adAccounts          AdAccount[]
+  products            Product[]
+  shopifyStores       ShopifyStore[]
+  requirements        Requirement[]
+  dailyReports        DailyReport[]
+  profitabilityRows   ProductProfitability[]
+  dropiConnections    DropiConnection[]
 }
 
 model User {
@@ -265,11 +268,82 @@ model Notification {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   message   String
-  link      String? // ej. /dashboard/pipeline/{requirementId}
+  link      String? // ej. /dashboard/pipeline?open={requirementId}
+  // mention | alert_escala | alert_fatiga | alert_discrepancia | daily_report
+  type      String   @default("mention")
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([userId, read])
+}
+
+// Reporte diario en PDF. Un cron a medianoche (ver /api/cron/daily-report)
+// genera uno por organización y notifica al/los OWNER para que lo revise.
+model DailyReport {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  date           DateTime // día que resume (medianoche de ese día)
+  pdf            Bytes
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, date])
+}
+
+// Tabla de rentabilidad por producto/mes — lo que Sebastian ya lleva en
+// una planilla. Los campos "por pedido" (ingreso, gasto operativo, margen
+// sin publicidad, publicidad) se calculan al leer, no se guardan, para que
+// siempre reflejen los acumulados más recientes.
+model ProductProfitability {
+  id                    String @id @default(cuid())
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  month                 String // ej. "ABRIL"
+  productName           String
+  orders                Int
+  cpa                   Float
+  revenueAccum          Float
+  adSpendAccum          Float
+  operatingExpenseAccum Float
+  adminExpenseAccum     Float
+  profitAccum           Float
+  merchandiseAccum      Float?
+  desiredProfitPerOrder Float? // objetivo manual, si lo cargan
+  createdAt             DateTime @default(now())
+
+  @@unique([organizationId, month, productName])
+}
+
+// La cuenta de Dropi (Ecuador) para la torre logística. Separada de
+// ShopifyStore/AdAccount porque es otra cosa: fulfillment y envíos, no
+// ventas ni pauta.
+model DropiConnection {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  integrationKey String?  // header dropi-integration-key, una vez que Dropi lo habilite
+  country        String   @default("Ecuador")
+  connectedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  shipments Shipment[]
+}
+
+model Shipment {
+  id           String   @id @default(cuid())
+  connectionId String
+  connection   DropiConnection @relation(fields: [connectionId], references: [id])
+  externalId   String // id de la orden/guía en Dropi
+  province     String // "departamento" en Colombia, "provincia" en Ecuador
+  city         String
+  carrier      String // transportadora
+  status       String // ENTREGADO, EN_RUTA, DEVUELTO, NOVEDAD...
+  isReturn     Boolean  @default(false)
+  occurredAt   DateTime
+  createdAt    DateTime @default(now())
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId, occurredAt])
 }
 
 // Cualquier acción que Jarvis proponga (pausar, escalar, ajustar presupuesto)

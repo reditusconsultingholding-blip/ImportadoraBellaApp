@@ -28,7 +28,7 @@
   --color-good-bg: var(--good-bg);
   --color-critical: var(--critical);
   --color-critical-bg: var(--critical-bg);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
 }
 
