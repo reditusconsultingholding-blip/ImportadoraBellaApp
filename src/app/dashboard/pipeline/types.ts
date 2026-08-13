@@ -1,0 +1,33 @@
+export type RequirementRow = {
+  id: string;
+  date: string;
+  productId: string | null;
+  product: { code: string; name: string } | null;
+  adName: string;
+  externalId1: string | null;
+  externalId2: string | null;
+  adType: string;
+  phase: string;
+  visualFormat: string;
+  angle: string;
+  awarenessLevel: string;
+  marketOrigin: string;
+  ownerId: string | null;
+  owner: { id: string; name: string } | null;
+  status: string;
+  originalVideoLink: string | null;
+  tiktokPostLink: string | null;
+  fbPostLink: string | null;
+  hookRate: number | null;
+  ctr: number | null;
+  holdRate: number | null;
+  purchases: number | null;
+  cpa: number | null;
+  frequency: number | null;
+  cpm: number | null;
+  nextAction: string | null;
+  notes: string | null;
+};
+
+export type ProductOption = { id: string; code: string; name: string };
+export type UserOption = { id: string; name: string; role: string };

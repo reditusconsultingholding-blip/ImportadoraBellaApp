@@ -16,9 +16,25 @@ enum Platform {
   TIKTOK
 }
 
+// OWNER = Super Admin / CEO / Media Buyer (acceso total).
+// DIRECTOR = Director Operativo Creativo (arma el pipeline, asigna, aprueba).
+// EDITOR = Editor/Creador (solo ve y edita lo que se le asignó).
+// PENDING = recién creado, sin rol asignado todavía — sin acceso a nada sensible.
 enum Role {
   OWNER
-  MEMBER
+  DIRECTOR
+  EDITOR
+  PENDING
+}
+
+enum RequirementStatus {
+  PENDIENTE
+  EN_EDICION
+  LISTO_PARA_REVISAR
+  APROBADO
+  REALIZADO
+  EDITADO
+  TESTEADO
 }
 
 enum ActionType {
@@ -44,6 +60,7 @@ model Organization {
   adAccounts    AdAccount[]
   products      Product[]
   shopifyStores ShopifyStore[]
+  requirements  Requirement[]
 }
 
 model User {
@@ -57,7 +74,10 @@ model User {
   organization       Organization @relation(fields: [organizationId], references: [id])
   createdAt          DateTime @default(now())
 
-  requestedActions PendingAction[]
+  requestedActions      PendingAction[]
+  assignedRequirements  Requirement[]   @relation("RequirementOwner")
+  comments              Comment[]
+  notifications         Notification[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -89,7 +109,8 @@ model Product {
   cpaTarget      Float    // umbral: por debajo = verde, por encima = rojo
   createdAt      DateTime @default(now())
 
-  campaigns Campaign[]
+  campaigns    Campaign[]
+  requirements Requirement[]
 
   @@unique([organizationId, code])
 }
@@ -172,6 +193,83 @@ model ShopifyOrderLineItem {
   category    String?
   quantity    Int
   amount      Float
+}
+
+// Pipeline creativo (SuperAds Ops). Reemplaza la hoja de cálculo: un
+// Requirement es una pieza de contenido publicitario, de la idea a
+// probada. Las listas de opciones (tipo de anuncio, ángulo, formato...)
+// se validan en la app — quedan como String simple para poder ajustarlas
+// sin migración cada vez que el equipo agrega una opción nueva.
+model Requirement {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  date        DateTime @default(now())
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  adName      String
+  externalId1 String?
+  externalId2 String?
+
+  adType         String // ORIGINAL, FASE 1, FASE 2 / HOOK, FASE 2 / GUION, FASE 2 / CTA, VARIANTE, IMG ANUNCIO, IMAGEN
+  phase          String // F1, F2, CT 1.0, CT 4.0, OP, Escala
+  visualFormat   String // diversidad semántica — formato visual
+  angle          String // diversidad semántica — ángulo
+  awarenessLevel String // L1..L5
+  marketOrigin   String // Perú, USA, España, México, Colombia, Otro
+
+  ownerId String?
+  owner   User?   @relation("RequirementOwner", fields: [ownerId], references: [id])
+
+  status RequirementStatus @default(PENDIENTE)
+
+  originalVideoLink String?
+  tiktokPostLink    String?
+  fbPostLink        String?
+
+  hookRate   Float?
+  ctr        Float?
+  holdRate   Float?
+  purchases  Int?
+  cpa        Float?
+  frequency  Float?
+  cpm        Float?
+  nextAction String?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments Comment[]
+
+  @@index([organizationId, status])
+}
+
+// Chat interno de cada Requirement. Se buscan @menciones en el texto al
+// guardar y se genera una Notification para cada usuario mencionado.
+model Comment {
+  id            String      @id @default(cuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  body          String
+  createdAt     DateTime    @default(now())
+
+  @@index([requirementId, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  link      String? // ej. /dashboard/pipeline/{requirementId}
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
 }
 
 // Cualquier acción que Jarvis proponga (pausar, escalar, ajustar presupuesto)

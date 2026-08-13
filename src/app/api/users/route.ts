@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const finalRole = role === "OWNER" ? "OWNER" : "MEMBER";
+  const validRoles = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"];
+  const finalRole = validRoles.includes(role ?? "") ? (role as (typeof validRoles)[number]) : "PENDING";
 
   const existing = await db.user.findUnique({ where: { email: email.trim() } });
   if (existing) {

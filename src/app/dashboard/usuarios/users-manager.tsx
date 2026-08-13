@@ -13,7 +13,9 @@ type UserRow = {
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Administrador",
-  MEMBER: "Miembro",
+  DIRECTOR: "Director operativo",
+  EDITOR: "Editor / Creador",
+  PENDING: "Pendiente de rol",
 };
 
 export default function UsersManager({
@@ -29,7 +31,7 @@ export default function UsersManager({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"OWNER" | "MEMBER">("MEMBER");
+  const [role, setRole] = useState<"OWNER" | "DIRECTOR" | "EDITOR" | "PENDING">("EDITOR");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function UsersManager({
     setName("");
     setEmail("");
     setPassword("");
-    setRole("MEMBER");
+    setRole("EDITOR");
     setOpen(false);
     router.refresh();
   }
@@ -181,11 +183,15 @@ export default function UsersManager({
             </span>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as "OWNER" | "MEMBER")}
+              onChange={(e) =>
+                setRole(e.target.value as "OWNER" | "DIRECTOR" | "EDITOR" | "PENDING")
+              }
               className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
             >
-              <option value="MEMBER">Miembro</option>
+              <option value="EDITOR">Editor / Creador</option>
+              <option value="DIRECTOR">Director operativo</option>
               <option value="OWNER">Administrador</option>
+              <option value="PENDING">Pendiente de rol</option>
             </select>
           </label>
           <div className="flex gap-2">

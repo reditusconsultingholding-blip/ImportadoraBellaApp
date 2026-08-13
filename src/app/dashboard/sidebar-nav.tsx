@@ -3,15 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LINKS = [
-  { href: "/dashboard", label: "Panel" },
+const BASE_LINKS = [{ href: "/dashboard", label: "Panel" }];
+const TAIL_LINKS = [
   { href: "/dashboard/jarvis", label: "Preguntarle a Jarvis" },
   { href: "/dashboard/conexiones", label: "Conexiones" },
 ];
 
-export default function SidebarNav({ showUsuarios }: { showUsuarios: boolean }) {
+export default function SidebarNav({
+  showUsuarios,
+  showPipeline,
+}: {
+  showUsuarios: boolean;
+  showPipeline: boolean;
+}) {
   const pathname = usePathname();
-  const links = showUsuarios ? [...LINKS, { href: "/dashboard/usuarios", label: "Usuarios" }] : LINKS;
+  const links = [
+    ...BASE_LINKS,
+    ...(showPipeline ? [{ href: "/dashboard/pipeline", label: "Pipeline" }] : []),
+    ...TAIL_LINKS,
+    ...(showUsuarios ? [{ href: "/dashboard/usuarios", label: "Usuarios" }] : []),
+  ];
 
   return (
     <nav className="flex flex-col gap-0.5 p-3">

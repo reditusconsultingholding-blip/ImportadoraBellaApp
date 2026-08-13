@@ -9,7 +9,7 @@ export type SessionPayload = {
   organizationId: string;
   email: string;
   name: string;
-  role: "OWNER" | "MEMBER";
+  role: "OWNER" | "DIRECTOR" | "EDITOR" | "PENDING";
   mustChangePassword: boolean;
 };
 

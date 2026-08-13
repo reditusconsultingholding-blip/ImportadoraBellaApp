@@ -49,6 +49,30 @@ async function main() {
     },
   });
 
+  const directorPasswordHash = await bcrypt.hash("Jarvis2026!", 10);
+  const director = await db.user.create({
+    data: {
+      email: "reditusconsultingholding@gmail.com",
+      passwordHash: directorPasswordHash,
+      name: "Sebastian",
+      role: "DIRECTOR",
+      mustChangePassword: true,
+      organizationId: org.id,
+    },
+  });
+
+  const editorPasswordHash = await bcrypt.hash("Jarvis2026!", 10);
+  const editor = await db.user.create({
+    data: {
+      email: "editor.demo@reditusconsulting.com",
+      passwordHash: editorPasswordHash,
+      name: "Valentina Ruiz",
+      role: "EDITOR",
+      mustChangePassword: true,
+      organizationId: org.id,
+    },
+  });
+
   const products = await Promise.all(
     [
       { code: "BAT-001", name: "Kit de Batana", cpaTarget: 15 },
@@ -121,8 +145,69 @@ async function main() {
     }
   }
 
+  type SeedRequirement = {
+    productCode: string;
+    adName: string;
+    adType: string;
+    phase: string;
+    visualFormat: string;
+    angle: string;
+    awarenessLevel: string;
+    marketOrigin: string;
+    status: string;
+    ownerId?: string;
+    hookRate?: number;
+    ctr?: number;
+    holdRate?: number;
+    purchases?: number;
+    cpa?: number;
+    frequency?: number;
+    cpm?: number;
+    nextAction?: string;
+    notes?: string;
+  };
+
+  const requirements: SeedRequirement[] = [
+    { productCode: "BAT-001", adName: "Batana UGC — Hook dolor capilar", adType: "FASE 1", phase: "F1", visualFormat: "UGC con Persona", angle: "Dolor Hiperspecífico", awarenessLevel: "L2 — Problem Aware", marketOrigin: "Colombia", status: "PENDIENTE" },
+    { productCode: "FAJ-001", adName: "Faja — Testimonial transformación", adType: "VARIANTE", phase: "Escala", visualFormat: "Antes / Después", angle: "Transformación Emocional", awarenessLevel: "L3 — Solution Aware", marketOrigin: "Colombia", status: "EN_EDICION", ownerId: editor.id, hookRate: 32.4, ctr: 1.8 },
+    { productCode: "TAB-001", adName: "Tabla de Picar — Demo sin persona", adType: "ORIGINAL", phase: "F1", visualFormat: "Demo sin Persona", angle: "Beneficios", awarenessLevel: "L1 — Unaware", marketOrigin: "Colombia", status: "LISTO_PARA_REVISAR", ownerId: editor.id },
+    { productCode: "BOD-001", adName: "Body Reductor — Ugly ad one-take", adType: "FASE 2 / HOOK", phase: "CT 1.0", visualFormat: "Ugly Ad / One-take", angle: "Pattern Interrupt", awarenessLevel: "L2 — Problem Aware", marketOrigin: "Otro", status: "APROBADO", ownerId: editor.id },
+    { productCode: "CEP-001", adName: "Cepillo — Testimonial screenshot", adType: "IMG ANUNCIO", phase: "OP", visualFormat: "Testimonial Screenshot", angle: "Review Screenshot", awarenessLevel: "L4 — Product Aware", marketOrigin: "Colombia", status: "REALIZADO", ownerId: editor.id },
+    { productCode: "FAJ-001", adName: "Faja — Grid estático beneficios", adType: "IMAGEN", phase: "F1", visualFormat: "Grid Ad / Estático", angle: "Beneficios", awarenessLevel: "L2 — Problem Aware", marketOrigin: "México", status: "EDITADO" },
+    { productCode: "BOD-001", adName: "Body Reductor — VSL corta resultado", adType: "FASE 1", phase: "Escala", visualFormat: "VSL Corta", angle: "Resultado con Métricas", awarenessLevel: "L3 — Solution Aware", marketOrigin: "Colombia", status: "TESTEADO", ownerId: editor.id, hookRate: 41.2, ctr: 2.3, holdRate: 18.5, purchases: 62, cpa: 9.4, frequency: 1.8, cpm: 12.1, nextAction: "Escalar presupuesto 30%", notes: "Mejor CPA del mes en este producto." },
+  ];
+
+  for (const r of requirements) {
+    await db.requirement.create({
+      data: {
+        organizationId: org.id,
+        productId: productByCode[r.productCode].id,
+        adName: r.adName,
+        adType: r.adType,
+        phase: r.phase,
+        visualFormat: r.visualFormat,
+        angle: r.angle,
+        awarenessLevel: r.awarenessLevel,
+        marketOrigin: r.marketOrigin,
+        status: r.status as never,
+        ownerId: r.ownerId,
+        hookRate: r.hookRate,
+        ctr: r.ctr,
+        holdRate: r.holdRate,
+        purchases: r.purchases,
+        cpa: r.cpa,
+        frequency: r.frequency,
+        cpm: r.cpm,
+        nextAction: r.nextAction,
+        notes: r.notes,
+      },
+    });
+  }
+
   console.log("Seed listo.");
-  console.log(`Login -> ${user.email} / Jarvis2026! (pide cambiar la clave al entrar)`);
+  console.log(`Login OWNER -> ${user.email} / Jarvis2026! (pide cambiar la clave al entrar)`);
+  console.log(`Login DIRECTOR -> ${director.email} / Jarvis2026! (pide cambiar la clave al entrar)`);
+  console.log(`Login EDITOR -> ${editor.email} / Jarvis2026! (pide cambiar la clave al entrar)`);
 }
 
 main()

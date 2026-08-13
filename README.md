@@ -28,6 +28,14 @@ Lo que ya funciona, con datos de prueba (seed):
   cuanto se conecta (ventas, canal, AOV, top de productos). Sesiones y tasa
   de conversión reales no están disponibles por esa vía — hace falta la
   Shopify Analytics API (ShopifyQL), que pide permisos aparte.
+- **Pipeline creativo** (SuperAds Ops), integrado dentro de Jarvis, para el
+  equipo de producción de Reditus: roles OWNER / DIRECTOR / EDITOR / PENDING
+  (un usuario nuevo arranca sin acceso hasta que le asignen rol desde
+  Usuarios), tablero Kanban + vista de tabla con los desplegables de tipo de
+  anuncio / fase / formato / ángulo / awareness / mercado, drawer de detalle
+  con métricas editables y chat interno con `@menciones` que generan
+  notificaciones (campanita en el header). Un Editor solo ve y edita lo que
+  tiene asignado; Director/Owner ven y arman todo el pipeline.
 
 Lo que falta para pasar a producción: conectar credenciales reales
 (ver "Accesos pendientes" abajo) — el código de integración ya está
@@ -42,10 +50,13 @@ npm run db:seed          # carga datos de ejemplo
 npm run dev
 ```
 
-Abrir http://localhost:3000 (o el puerto que uses) e iniciar sesión con:
+Abrir http://localhost:3000 (o el puerto que uses) e iniciar sesión con cualquiera
+de estos tres, para ver el panel según cada rol:
 
 ```
-importadorabellaav@gmail.com / Jarvis2026!
+importadorabellaav@gmail.com       / Jarvis2026!   (OWNER — Fabrizio)
+reditusconsultingholding@gmail.com / Jarvis2026!   (DIRECTOR — Sebastian)
+editor.demo@reditusconsulting.com  / Jarvis2026!   (EDITOR — Valentina, demo)
 ```
 
 Esta clave es genérica a propósito: la primera vez que entra, la app obliga
