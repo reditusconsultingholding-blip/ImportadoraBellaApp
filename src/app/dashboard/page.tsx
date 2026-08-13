@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { getOverview } from "@/lib/metrics";
 import { getSalesOverview } from "@/lib/sales";
+import { canAccessPipeline } from "@/lib/permissions";
 import PlatformTabs from "./platform-tabs";
 import StatTile from "./stat-tile";
 import SalesOverview from "./sales-overview";
@@ -85,7 +87,13 @@ export default async function DashboardPage({
               {overview.products.map((p) => (
                 <tr key={p.code} className="border-t border-border">
                   <td className="px-5 py-3">
-                    <p className="font-medium">{p.name}</p>
+                    {canAccessPipeline(session.role) ? (
+                      <Link href={`/dashboard/productos/${p.code}`} className="font-medium hover:text-accent hover:underline">
+                        {p.name}
+                      </Link>
+                    ) : (
+                      <p className="font-medium">{p.name}</p>
+                    )}
                     <p className="text-xs font-mono text-muted">{p.code}</p>
                   </td>
                   <td className="px-5 py-3 tabular-nums">{p.purchases}</td>

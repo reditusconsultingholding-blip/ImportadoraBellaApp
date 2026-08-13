@@ -14,6 +14,8 @@ export default function PipelineBoard({
   initialRequirements,
   products,
   users,
+  title = "Pipeline creativo",
+  subtitle,
 }: {
   canManage: boolean;
   currentUserId: string;
@@ -21,6 +23,8 @@ export default function PipelineBoard({
   initialRequirements: RequirementRow[];
   products: ProductOption[];
   users: UserOption[];
+  title?: string;
+  subtitle?: string;
 }) {
   const [requirements, setRequirements] = useState(initialRequirements);
   const [view, setView] = useState<"kanban" | "table">("kanban");
@@ -38,11 +42,12 @@ export default function PipelineBoard({
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Pipeline creativo</h1>
+          <h1 className="text-xl font-semibold">{title}</h1>
           <p className="text-sm text-muted">
-            {canManage
-              ? "Todos los requerimientos de Importadora Bella."
-              : `Lo que tenés asignado, ${currentUserName}.`}
+            {subtitle ??
+              (canManage
+                ? "Todos los requerimientos de Importadora Bella."
+                : `Lo que tenés asignado, ${currentUserName}.`)}
           </p>
         </div>
         <div className="flex items-center gap-2">
