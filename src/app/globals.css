@@ -1,18 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef0f2;
+  --background: #eef1f5;
   --surface: #ffffff;
-  --surface-2: #e7e5e0;
-  --foreground: #171a1e;
-  --muted: #565d66;
-  --border: #d8dce1;
-  --accent: #a8681f;
-  --accent-strong: #7c4c17;
+  --surface-2: #e6e9ef;
+  --foreground: #16213c;
+  --muted: #5b6577;
+  --border: #d7dbe3;
+  --accent: #1fae66;
+  --accent-strong: #147a48;
   --good: #2f8f5b;
   --good-bg: #e4f3ea;
   --critical: #c4432b;
   --critical-bg: #fbeae6;
+
+  /* Identidad de marca de Importadora Bella (navy + verde del logo real) —
+     estos quedan fijos, no cambian con el tema claro/oscuro, para que el
+     sidebar y el login siempre se lean como la marca sin importar el modo.
+     Sacados a ojo de la captura que mandó Fabrizio — si tiene los hex
+     exactos del archivo de logo, se ajustan acá nomás. */
+  --brand-navy: #1b2a4e;
+  --brand-navy-deep: #121c36;
+  --brand-green: #1fae66;
+  --brand-green-deep: #147a48;
 }
 
 @theme inline {
@@ -28,20 +38,24 @@
   --color-good-bg: var(--good-bg);
   --color-critical: var(--critical);
   --color-critical-bg: var(--critical-bg);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-deep: var(--brand-navy-deep);
+  --color-brand-green: var(--brand-green);
+  --color-brand-green-deep: var(--brand-green-deep);
   --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0c0f13;
-    --surface: #151a20;
-    --surface-2: #20262d;
-    --foreground: #e7e9ec;
-    --muted: #9ba3ad;
-    --border: #262d35;
-    --accent: #d69a52;
-    --accent-strong: #e9b876;
+    --background: #0d1526;
+    --surface: #16223f;
+    --surface-2: #1e2c4d;
+    --foreground: #eef1f6;
+    --muted: #9aa4bb;
+    --border: #2b3a5e;
+    --accent: #34d399;
+    --accent-strong: #6ee7b7;
     --good: #4cbe86;
     --good-bg: #163326;
     --critical: #e2896f;

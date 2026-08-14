@@ -14,7 +14,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={logout}
-      className="text-sm text-muted hover:text-foreground transition"
+      className="text-sm text-white/70 hover:text-white transition"
     >
       Salir
     </button>

@@ -35,14 +35,17 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background px-4">
+    <main className="min-h-screen flex items-center justify-center bg-brand-navy px-4">
       <form
         onSubmit={onSubmit}
         className="w-full max-w-sm bg-surface border border-border rounded p-8"
       >
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold">Importadora Bella</h1>
-          <p className="font-mono text-xs uppercase tracking-wide text-accent mt-1 mb-2">
+          <p className="font-bold uppercase tracking-wide text-sm text-foreground leading-tight">
+            Importadora
+          </p>
+          <h1 className="font-serif italic text-4xl leading-tight -mt-1 text-foreground">Bella</h1>
+          <p className="font-mono text-xs uppercase tracking-wide text-accent mt-2 mb-2">
             Jarvis
           </p>
           <p className="text-sm text-muted mt-1">

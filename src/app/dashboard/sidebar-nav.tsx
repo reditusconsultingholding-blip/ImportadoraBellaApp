@@ -42,7 +42,7 @@ export default function SidebarNav({
             key={link.href}
             href={link.href}
             className={`text-sm font-medium px-3 py-2 rounded transition ${
-              active ? "bg-accent text-white" : "text-muted hover:bg-surface-2 hover:text-foreground"
+              active ? "bg-brand-green text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
             }`}
           >
             {link.label}
