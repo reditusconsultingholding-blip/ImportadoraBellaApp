@@ -103,6 +103,19 @@ generarle falsa expectativa al cliente." Se sacó de la arquitectura activa
 (sección 3) y del plan de integración; queda documentado como función
 futura, no como pendiente en curso.
 
+## Ideas de referencia externa — qué se adopta y qué no
+**Decisión:** del pipeline de video de una agencia externa (herramienta
+ajena, acceso legítimo del usuario, solo se miró la estructura de
+producto — no se guardó ningún dato de sus clientes) se adoptan: barra de
+etapas horizontal en el drawer, generador de hooks/guion con IA por pieza,
+biblioteca central de lo generado, y un filtro "Necesita atención" que
+cruce todas las columnas. No se adopta: link mágico externo por tarea (no
+aplica, el equipo son 7 editores con cuenta propia) ni el sidebar
+seccionado por categorías (el actual todavía alcanza).
+**Por qué:** son mejoras de UX/producto que no chocan con nada ya
+decidido — se agregan al final del plan de integración (sección 6, punto
+12) para no competir por prioridad con lo ya comprometido.
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).

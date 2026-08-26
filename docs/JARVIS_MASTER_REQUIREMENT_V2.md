@@ -292,6 +292,44 @@ primero — resuelve el 90% del pedido ("que le llegue a Fabrizio y a todos
 los empleados") sin fricción de aprobaciones externas. Dejar WhatsApp como
 una fase aparte, después de decidir con Fabrizio el tema del número.
 
+### 5.11 Ideas tomadas de referencia externa (Spark Marketing "Command Center")
+
+Se revisó por encima el pipeline de video de una agencia de marketing
+(herramienta ajena, con acceso legítimo — no se guardó ni se replica
+ningún dato de sus clientes, solo la estructura de producto). Cuatro ideas
+concretas que vale la pena portar a Jarvis, todas compatibles con lo que
+ya existe hoy sin rehacer nada:
+
+1. **Barra de etapas horizontal en el drawer, en vez de un `<select>`.**
+   Todas las etapas se ven en una fila de pastillas arriba de la ficha —
+   la actual resaltada — y se puede saltar a cualquiera con un clic. Da
+   más contexto que un dropdown y es un cambio chico sobre
+   `requirement-drawer.tsx`.
+2. **Generador de hooks/guion con IA por pieza.** Botón "Auto-generar" en
+   la ficha: se describe el proyecto/producto y la IA devuelve una batería
+   de hooks (10-12 variantes) + cuerpo + CTA, en el mismo lenguaje que ya
+   usa el equipo (ángulo, awareness level). Esto va un paso más allá del
+   "motor de recomendaciones" (5.6) — no solo avisa qué ángulo viene
+   funcionando, genera contenido nuevo listo para grabar a partir de eso.
+   Se construye con la Anthropic API que ya está configurada; no hace
+   falta ningún proveedor nuevo. Sugerido como pestaña nueva dentro del
+   drawer, junto a Versiones.
+3. **Biblioteca central de lo generado.** Una pantalla aparte
+   (`/dashboard/guiones` o similar) que junta todos los hooks/guiones
+   generados con IA, filtrable por producto — para reusar un ángulo que ya
+   funcionó en otro producto sin tener que volver a generarlo.
+4. **Filtro "Necesita atención" que cruza todas las columnas.** En vez de
+   mirar columna por columna, un filtro que junta todo lo que lleva
+   "vencido" o estancado hace más de N días sin moverse, sin importar en
+   qué estado esté — más rápido para que un Director sepa qué revisar
+   primero al entrar.
+
+**No vale la pena portar:** el link mágico externo por tarea (para gente
+sin cuenta) — nuestro equipo son 7 editores con cuenta propia, no
+freelancers rotativos; y la estructura de sidebar por secciones
+colapsables — con los módulos que tiene Jarvis hoy el sidebar plano
+todavía alcanza, se revisita si crece mucho más.
+
 ## 6. Plan de integración sugerido (orden)
 
 1. Confirmar acceso al repo completo del Sistema B (o al menos más código
@@ -315,6 +353,9 @@ una fase aparte, después de decidir con Fabrizio el tema del número.
     la de más esfuerzo de UI y no bloquea nada del negocio.
 11. WhatsApp (si se confirma con Fabrizio, después de resolver el tema del
     número — ver sección 5.10).
+12. Barra de etapas horizontal en el drawer + generador de hooks con IA por
+    pieza (sección 5.11) — mejoras de UX inspiradas en referencia externa,
+    no bloquean nada de lo anterior.
 
 ## 7. Preguntas abiertas para Fabrizio / Sebastian
 
