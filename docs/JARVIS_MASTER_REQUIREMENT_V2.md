@@ -51,16 +51,16 @@ Meta Ads ──┐
 TikTok Ads ┘         (una sola integración en vez de                         │
                        mantener 2 APIs + revisión de TikTok)                 │
                                                                               ▼
-Shopify ───────────────────────────────────────────────► Jarvis backend     │
+Shopify ───────────────────────────────────────────────► Jarvis backend ──► MCP server
    (patrón de auth: ver REFERENCIA_SISTEMA_RAILWAY.md)                       │
-                                                                              ▼
-Dropi (pendiente key) ────────────────────────────────► Jarvis backend ──► MCP server
-                                                                              │
                                                                               ▼
                                                                     Claude / Jarvis chat
                                                               (consulta datos vía tool calls,
                                                                no un resumen fijo en el prompt)
 ```
+
+**Dropi queda fuera de esta arquitectura por ahora — ver aviso en la
+sección 5.9.** No se integra en esta fase.
 
 **Por qué Windsor.ai (decisión delegada a mi criterio, confirmada por Sebastian
 como "hazlo como lo veas más viable"):** Windsor.ai ya resuelve el OAuth y la
@@ -218,7 +218,18 @@ model Recommendation {
 ### 5.7 Chat interno — **existe** (por requerimiento, con `@menciones` →
 notificación), mismo patrón que el CRM interno de Reditus.
 
-### 5.8 Torre logística, Reportes diarios, Desempeño, Notificaciones/alertas — **existen**, sin cambios de alcance.
+### 5.8 Reportes diarios, Desempeño, Notificaciones/alertas — **existen**, sin cambios de alcance.
+
+### 5.8b Torre logística / Dropi — **EN ESPERA, no es parte de esta fase**
+
+> ⚠️ **No trabajar en esto todavía.** La pantalla de Torre logística ya
+> existe en el repo con datos de ejemplo (para mostrar cómo se va a ver
+> algún día), pero **Dropi no se integra en esta fase** — no hay que pedir
+> la key, no hay que avanzar la conexión, y sobre todo **no hay que
+> mencionarlo como algo próximo frente a Fabrizio**. Es una función a
+> futuro, no un pendiente activo — decisión explícita para no generar una
+> expectativa que todavía no toca cumplir. Retomar solo cuando Sebastian
+> lo indique de nuevo.
 
 ### 5.9 Conexiones — **cambia**
 - Meta + TikTok: reemplazar la sección actual por una sola tarjeta
@@ -226,7 +237,8 @@ notificación), mismo patrón que el CRM interno de Reditus.
 - Shopify: reusar el patrón de auth del Sistema B (`SHOPIFY_CLIENT_ID` +
   `SHOPIFY_CLIENT_SECRET`, client credentials grant, cacheado ~24h) en vez
   del token fijo simple que hay hoy — más robusto y ya probado en producción.
-- Dropi: sin cambios, sigue pendiente de la key real.
+- Dropi: **en espera, fuera de esta fase** (ver 5.8b) — no forma parte del
+  plan de integración de la sección 6.
 
 ### 5.10 Mensajería — notificaciones externas y anuncio general — **nuevo**
 

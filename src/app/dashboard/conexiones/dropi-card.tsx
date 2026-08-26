@@ -9,7 +9,7 @@ export default function DropiCard({
   connection: { hasKey: boolean; connectedAt: string | null } | null;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(!connection?.hasKey);
+  const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "warn" | "error"; text: string } | null>(null);
@@ -42,26 +42,30 @@ export default function DropiCard({
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium">Dropi (Ecuador)</p>
-          <p className="text-xs text-muted">Torre logística — envíos, devoluciones y efectividad por transportadora</p>
+          <p className="text-xs text-muted">Torre logística — módulo a futuro, fuera del alcance actual</p>
         </div>
         <span
           className={`font-mono text-xs px-2 py-1 rounded ${
-            hasKey ? "bg-good-bg text-good" : "bg-pending-bg text-muted"
+            hasKey ? "bg-good-bg text-good" : "bg-surface-2 text-muted"
           }`}
         >
-          {hasKey ? "Key guardada" : "Pendiente"}
+          {hasKey ? "Key guardada" : "En espera"}
         </span>
       </div>
 
       <p className="text-xs text-muted mt-3">
-        La API de Dropi es privada — hay que pedirle acceso (<code>dropi-integration-key</code>) al equipo de IT
-        de Dropi. Mientras eso se confirma, la torre logística muestra datos de ejemplo con la misma estructura
-        que va a tener con datos reales.
+        Esta integración no se está gestionando por el momento — queda documentada para retomarla más
+        adelante, cuando se decida avanzarla. No hace falta pedir ni cargar ninguna key todavía.
       </p>
 
       {hasKey && !open && (
         <button onClick={() => setOpen(true)} className="text-xs text-muted hover:text-foreground transition mt-3">
           Cambiar key
+        </button>
+      )}
+      {!hasKey && !open && (
+        <button onClick={() => setOpen(true)} className="text-xs text-muted hover:text-foreground transition mt-3">
+          Cargar key de todas formas
         </button>
       )}
 

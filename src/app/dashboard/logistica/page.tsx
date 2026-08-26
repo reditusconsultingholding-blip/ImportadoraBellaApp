@@ -16,16 +16,15 @@ export default async function LogisticaPage() {
       <div>
         <h1 className="text-xl font-semibold">Torre logística — Ecuador</h1>
         <p className="text-sm text-muted">
-          Efectividad de entrega por provincia y transportadora, conectado a Dropi.
+          Efectividad de entrega por provincia y transportadora.
         </p>
       </div>
       {!data.connected && (
-        <div className="bg-accent/10 border border-accent/30 rounded p-4 text-sm">
-          <p className="font-medium text-accent-strong mb-1">Mostrando datos de ejemplo</p>
+        <div className="bg-surface-2 border border-border rounded p-4 text-sm">
+          <p className="font-medium mb-1">Vista previa — módulo a futuro</p>
           <p className="text-muted">
-            Todavía no hay una cuenta de Dropi conectada — anda a{" "}
-            <a href="/dashboard/conexiones" className="text-accent hover:underline">Conexiones</a> para pegar la
-            key cuando Dropi te la habilite. Mientras tanto, esto muestra cómo se va a ver la torre real.
+            Esto muestra cómo se va a ver esta sección con datos reales de logística más adelante.
+            No es parte del alcance actual — por ahora es solo una demostración con datos de ejemplo.
           </p>
         </div>
       )}

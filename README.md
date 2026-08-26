@@ -112,8 +112,13 @@ Copiar `.env.example` a `.env` y completar:
 6. Confirmar el patrón real de los códigos de producto en los nombres de campaña de Fabrizio (el seed usa `BAT-001`, `TAB-001`, `FAJ-001`, `BOD-001`, `CEP-001` como ejemplo).
 7. Umbral de CPA "bueno/malo" por producto, para calibrar el semáforo con números reales.
 8. **Colores e identidad gráfica de Importadora Bella** — Fabrizio los va a enviar; hoy la app usa la paleta ámbar/bronce original mientras tanto.
-9. **Acceso a la API de Dropi**: hay que pedirle al equipo de IT de Dropi la `dropi-integration-key` (y confirmar el formato exacto de sus endpoints — son privados, no están documentados públicamente). Sin esto, la torre logística sigue con datos de ejemplo.
-10. `CRON_SECRET` para proteger `/api/cron/sync` y `/api/cron/daily-report` en producción.
+9. `CRON_SECRET` para proteger `/api/cron/sync` y `/api/cron/daily-report` en producción.
+
+**Nota — Dropi / Torre logística: EN ESPERA, no es parte del alcance
+actual.** La pantalla ya existe con datos de ejemplo, pero la integración
+con Dropi queda pausada a propósito (decisión explícita, no un olvido) —
+no pedir la key ni avanzarla todavía, y no presentarla como algo próximo.
+Se retoma más adelante, cuando se indique. Ver `docs/DECISIONES.md`.
 
 ## Estructura
 

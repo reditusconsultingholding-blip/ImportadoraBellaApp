@@ -92,6 +92,17 @@ número de WhatsApp que ya esté en uso — resuelve el pedido real ("que le
 llegue a Fabrizio y a todos los empleados") mucho más rápido que empezar
 por WhatsApp.
 
+## Dropi / Torre logística — en espera, fuera de alcance por ahora
+**Decisión:** no se trabaja en la integración de Dropi en esta fase. La
+pantalla de Torre logística queda como está (con datos de ejemplo), pero no
+se pide la key, no se avanza la conexión, y no se le menciona a Fabrizio
+como algo próximo.
+**Por qué:** instrucción explícita de Sebastian — "aún no en este proyecto
+haremos nada con Dropi... colocalo como en espera próximamente para no
+generarle falsa expectativa al cliente." Se sacó de la arquitectura activa
+(sección 3) y del plan de integración; queda documentado como función
+futura, no como pendiente en curso.
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).
