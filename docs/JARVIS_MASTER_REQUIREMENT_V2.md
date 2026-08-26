@@ -294,41 +294,71 @@ una fase aparte, después de decidir con Fabrizio el tema del número.
 
 ### 5.11 Ideas tomadas de referencia externa (Spark Marketing "Command Center")
 
-Se revisó por encima el pipeline de video de una agencia de marketing
-(herramienta ajena, con acceso legítimo — no se guardó ni se replica
-ningún dato de sus clientes, solo la estructura de producto). Cuatro ideas
-concretas que vale la pena portar a Jarvis, todas compatibles con lo que
-ya existe hoy sin rehacer nada:
+Se revisó a fondo una herramienta interna de una agencia de marketing
+(acceso legítimo del usuario — no se guardó ni se replica ningún dato de
+sus clientes ni de su equipo, solo la estructura de producto: pipeline de
+shoots, reportes de pauta, roster, outreach y su documentación interna).
+Ocho ideas concretas, agrupadas por dónde pegan en Jarvis:
+
+**Pipeline creativo (drawer / ficha de cada pieza)**
 
 1. **Barra de etapas horizontal en el drawer, en vez de un `<select>`.**
-   Todas las etapas se ven en una fila de pastillas arriba de la ficha —
-   la actual resaltada — y se puede saltar a cualquiera con un clic. Da
-   más contexto que un dropdown y es un cambio chico sobre
-   `requirement-drawer.tsx`.
+   Todas las etapas en una fila de pastillas arriba de la ficha — la
+   actual resaltada — y se puede saltar a cualquiera con un clic. Cambio
+   chico sobre `requirement-drawer.tsx`.
 2. **Generador de hooks/guion con IA por pieza.** Botón "Auto-generar" en
    la ficha: se describe el proyecto/producto y la IA devuelve una batería
    de hooks (10-12 variantes) + cuerpo + CTA, en el mismo lenguaje que ya
-   usa el equipo (ángulo, awareness level). Esto va un paso más allá del
-   "motor de recomendaciones" (5.6) — no solo avisa qué ángulo viene
-   funcionando, genera contenido nuevo listo para grabar a partir de eso.
-   Se construye con la Anthropic API que ya está configurada; no hace
-   falta ningún proveedor nuevo. Sugerido como pestaña nueva dentro del
-   drawer, junto a Versiones.
-3. **Biblioteca central de lo generado.** Una pantalla aparte
+   usa el equipo (ángulo, awareness level). Va un paso más allá del "motor
+   de recomendaciones" (5.6) — no solo avisa qué ángulo viene funcionando,
+   genera contenido nuevo listo para grabar. Se construye con la Anthropic
+   API ya configurada, sin proveedor nuevo. Sugerido como pestaña nueva
+   junto a Versiones.
+3. **Biblioteca central de lo generado.** Pantalla aparte
    (`/dashboard/guiones` o similar) que junta todos los hooks/guiones
-   generados con IA, filtrable por producto — para reusar un ángulo que ya
-   funcionó en otro producto sin tener que volver a generarlo.
-4. **Filtro "Necesita atención" que cruza todas las columnas.** En vez de
-   mirar columna por columna, un filtro que junta todo lo que lleva
-   "vencido" o estancado hace más de N días sin moverse, sin importar en
-   qué estado esté — más rápido para que un Director sepa qué revisar
-   primero al entrar.
+   generados con IA, filtrable por producto — para reusar un ángulo
+   ganador en otro producto sin regenerar desde cero.
 
-**No vale la pena portar:** el link mágico externo por tarea (para gente
-sin cuenta) — nuestro equipo son 7 editores con cuenta propia, no
-freelancers rotativos; y la estructura de sidebar por secciones
-colapsables — con los módulos que tiene Jarvis hoy el sidebar plano
-todavía alcanza, se revisita si crece mucho más.
+**Panel general / vista de equipo**
+
+4. **Resumen ejecutivo en lenguaje natural, generado por IA, arriba del
+   Panel.** El patrón se repite dos veces en la herramienta de referencia
+   (en su reporte de pauta y en su propio pipeline): un párrafo corto,
+   actualizado periódicamente, que dice en palabras lo que hay que mirar
+   ("la cuenta X tiene el CPA disparado, dos cuentas están gastando de
+   menos") — para no tener que abrir tabla por tabla a buscar el problema.
+   Se arma con la misma Anthropic API, tomando como entrada lo que ya
+   calculan `getOverview` y el motor de alertas. Refrescarlo junto con el
+   cron de sync.
+5. **Filtro "Necesita atención" que cruza todas las columnas/cuentas.** En
+   vez de mirar columna por columna, un filtro que junta todo lo vencido o
+   estancado hace más de N días, sin importar el estado — más rápido para
+   que un Director sepa qué revisar primero al entrar.
+6. **Sparkline inline por fila en las tablas de Rentabilidad/Panel.** Una
+   mini-tendencia (ej. CPA de los últimos 14 días) al lado de cada
+   producto en la tabla, no solo el número del día — se ve un pico o una
+   caída sin abrir el detalle. Mismo componente de gráfico que ya se usa
+   en otros lados del panel.
+
+**Documentación y automatización**
+
+7. **Un "Playbook" adentro de la app.** Una página de ayuda escrita por el
+   equipo (no un PDF aparte) que explica cómo funciona cada módulo — a
+   quién le llega cada alerta, qué hace cada botón — para que un editor
+   nuevo no dependa de que alguien le explique todo a mano. Bajo esfuerzo,
+   alto valor con 7+ editores rotando.
+8. **Auto-creación de la primera pieza al dar de alta un producto.** Igual
+   que crear un producto nuevo dispara solo el primer Requirement en
+   "Pendiente" (tipo "Crear primer contenido de {producto}"), en vez de
+   que alguien tenga que acordarse de armarlo a mano.
+
+**No vale la pena portar:** el roster de videographers freelance con mapa
+geográfico y el agente de outreach por Instagram — son soluciones a un
+problema que Importadora Bella no tiene (sourcing de freelancers externos
+por ubicación); el equipo son 7 editores fijos con cuenta propia. Tampoco
+el link mágico externo por tarea, por la misma razón, ni el sidebar
+seccionado por categorías — con los módulos que tiene Jarvis hoy, el
+sidebar plano todavía alcanza.
 
 ## 6. Plan de integración sugerido (orden)
 
@@ -353,9 +383,12 @@ todavía alcanza, se revisita si crece mucho más.
     la de más esfuerzo de UI y no bloquea nada del negocio.
 11. WhatsApp (si se confirma con Fabrizio, después de resolver el tema del
     número — ver sección 5.10).
-12. Barra de etapas horizontal en el drawer + generador de hooks con IA por
-    pieza (sección 5.11) — mejoras de UX inspiradas en referencia externa,
-    no bloquean nada de lo anterior.
+12. Mejoras de UX inspiradas en referencia externa (sección 5.11) — no
+    bloquean nada de lo anterior, se pueden intercalar según convenga:
+    barra de etapas horizontal, resumen ejecutivo con IA en el Panel,
+    filtro "Necesita atención", sparklines por fila, generador de hooks
+    con IA + biblioteca central, Playbook interno, auto-creación de la
+    primera pieza al dar de alta un producto.
 
 ## 7. Preguntas abiertas para Fabrizio / Sebastian
 

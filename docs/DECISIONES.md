@@ -104,14 +104,22 @@ generarle falsa expectativa al cliente." Se sacó de la arquitectura activa
 futura, no como pendiente en curso.
 
 ## Ideas de referencia externa — qué se adopta y qué no
-**Decisión:** del pipeline de video de una agencia externa (herramienta
-ajena, acceso legítimo del usuario, solo se miró la estructura de
-producto — no se guardó ningún dato de sus clientes) se adoptan: barra de
-etapas horizontal en el drawer, generador de hooks/guion con IA por pieza,
-biblioteca central de lo generado, y un filtro "Necesita atención" que
-cruce todas las columnas. No se adopta: link mágico externo por tarea (no
-aplica, el equipo son 7 editores con cuenta propia) ni el sidebar
-seccionado por categorías (el actual todavía alcanza).
+**Decisión:** de una herramienta interna de una agencia externa (acceso
+legítimo del usuario; se revisó a fondo pipeline, reportes, roster,
+outreach y su documentación interna — no se guardó ni se reproduce ningún
+dato de sus clientes ni de su equipo, solo la estructura de producto) se
+adoptan ocho ideas, ver `JARVIS_MASTER_REQUIREMENT_V2.md` sección 5.11:
+barra de etapas horizontal en el drawer, generador de hooks/guion con IA
+por pieza + biblioteca central, resumen ejecutivo en lenguaje natural
+generado por IA arriba del Panel, filtro "Necesita atención" transversal,
+sparklines por fila en las tablas, un Playbook de ayuda dentro de la
+app, y auto-creación de la primera pieza al dar de alta un producto.
+
+No se adopta: el roster de videographers freelance con mapa geográfico y
+el agente de outreach por Instagram (resuelven un problema — sourcing de
+freelancers externos — que Importadora Bella no tiene, el equipo son 7
+editores fijos), el link mágico externo por tarea (misma razón), ni el
+sidebar seccionado por categorías (el plano actual todavía alcanza).
 **Por qué:** son mejoras de UX/producto que no chocan con nada ya
 decidido — se agregan al final del plan de integración (sección 6, punto
 12) para no competir por prioridad con lo ya comprometido.
