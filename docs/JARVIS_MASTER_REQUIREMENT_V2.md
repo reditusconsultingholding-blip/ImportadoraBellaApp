@@ -124,28 +124,66 @@ fórmulas de margen simple. **Portar del Sistema B:**
 fechas de entrega, bitácora, filtros. Base sólida — no se reconstruye.
 
 ### 5.5 Tablero visual por producto — **nuevo** (reemplaza las 30-40 pestañas)
-Sustituye la idea de "una fila por anuncio en una grilla plana" por una
-vista de dos niveles dentro de cada producto:
 
-1. **Línea de tiempo diaria** (arriba, scroll horizontal): una columna por
-   día con las piezas creadas/testeadas ese día — calca la estructura real
-   de la planilla (`SUPERADS V2`, una fila por fecha).
-2. **Canvas agrupado por ángulo/concepto** (abajo, en vez de por estado):
-   tarjetas con miniatura + ángulo + formato + estado, agrupadas
-   visualmente por concepto — mismas fichas ya construidas (drawer con
-   versiones/actividad/chat).
+Decisión de diseño ya tomada (Fabrizio pidió que se resuelva "como yo
+quiera que sea más conveniente" y que "sea una app espectacular") —
+esto es la especificación final, no opciones a elegir:
 
-**Fase 1 (recomendada primero):** tarjetas agrupables y reordenables dentro
-de cada grupo — ya es un salto enorme sobre Excel y reusa el modelo de datos
-existente (`Requirement`, `RequirementVersion`, `RequirementActivity`).
-**Fase 2 (después):** canvas 100% libre estilo Milanote, con posición
-`x`/`y` guardada por tarjeta — mucho más trabajo de UI (drag libre,
-z-index, zoom/pan), no bloquea el resto del sistema.
+**La pantalla de un producto (`/dashboard/productos/[code]`) se rediseña
+en tres capas, de arriba hacia abajo:**
+
+1. **Encabezado con "salud del producto"** — no solo el nombre y CPA
+   objetivo: una franja con el CPA de los últimos 7 días vs. el objetivo
+   (mini-sparkline, mismo componente de gráfico que ya usa el Panel),
+   badge grande de "Rentable / En el límite / Perdiendo" con color
+   (verde/ámbar/rojo), y el conteo realizado/por-realizar/buen-mal
+   performance que ya existe hoy — todo esto arriba del pliegue, para que
+   con un vistazo se sepa si vale la pena seguir invirtiendo en contenido
+   de ese producto antes de mirar el detalle.
+
+2. **Línea de tiempo diaria** (scroll horizontal, como un calendario de
+   commits de GitHub pero con tarjetas): una columna por día con las
+   piezas creadas/testeadas ese día, del más reciente al más viejo —
+   calca la estructura real de la planilla `SUPERADS V2` (una fila por
+   fecha) pero de forma visual. Cada columna colapsa a un número si no se
+   la está mirando, y se expande al pasar el mouse/tocar.
+
+3. **Tablero agrupado por ángulo/concepto** (reemplaza el Kanban-por-estado
+   como vista principal de esta pantalla — el Kanban-por-estado del
+   pipeline general se mantiene intacto en `/dashboard/pipeline`, esto es
+   una vista adicional, no un reemplazo de esa): columnas por
+   ángulo/concepto en vez de por estado (`Dolor Hiperspecífico`,
+   `Transformación Emocional`, `Antes/Después`, etc. — los valores reales
+   que ya vienen del CSV `SUPERADS V2`). Cada tarjeta muestra miniatura,
+   formato visual, estado con su color, y un borde de color según
+   performance (verde si Testeado con buen CPA, rojo si Testeado con mal
+   CPA, gris si todavía no tiene métricas) — así de un vistazo se ve qué
+   ángulo está funcionando sin entrar a cada tarjeta. Drag & drop entre
+   grupos reasigna el ángulo (reusa el mismo patrón de drag&drop que ya
+   existe en el Kanban por estado).
+
+**Construcción en dos entregas** (para no bloquear el resto por el canvas
+libre, que es la parte más cara de construir bien):
+- **Entrega 1 — "tablero agrupado".** Todo lo de arriba, con posición
+  automática (grid/flex, no drag libre) dentro de cada grupo — ya
+  resuelve el problema real (30-40 pestañas inmanejables) y se ve pulido
+  desde el día uno: transiciones suaves al reordenar, bordes de color por
+  performance, sparklines, la línea de tiempo diaria. Reusa el modelo de
+  datos existente (`Requirement`, `RequirementVersion`,
+  `RequirementActivity`) sin cambios de schema.
+- **Entrega 2 — canvas libre estilo Milanote.** Arrastrar cualquier
+  tarjeta a cualquier posición `x`/`y` del lienzo, zoom/pan, tarjetas de
+  texto libre para anotar ideas sueltas junto a los anuncios. Esto sí
+  necesita un campo `positionX`/`positionY` (o `boardMeta Json`) en
+  `Requirement` y una librería de canvas (ej. `react-flow` o `konva`, ya
+  probadas para este tipo de UI) — es la entrega que hace que la app se
+  sienta "espectacular" de verdad, pero es puramente incremental sobre la
+  Entrega 1, no hay que rehacer nada.
 
 Por ahora **solo links** (Drive, TikTok, FB) como ya está — el campo
 `thumbnailUrl` ya existente cubre la miniatura visual sin necesitar upload
 de archivos real todavía. Subir archivos de verdad queda como mejora
-futura, no bloqueante.
+futura, no bloqueante (ver también sección 5.10 sobre almacenamiento).
 
 ### 5.6 Motor de recomendaciones — **nuevo**
 Tabla de recomendaciones (auto-generadas a partir de qué campañas/ángulos
@@ -190,6 +228,58 @@ notificación), mismo patrón que el CRM interno de Reditus.
   del token fijo simple que hay hoy — más robusto y ya probado en producción.
 - Dropi: sin cambios, sigue pendiente de la key real.
 
+### 5.10 Mensajería — notificaciones externas y anuncio general — **nuevo**
+
+Dos cosas distintas, no confundirlas:
+
+**A) Anuncio general al ingresar (in-app, sin costo, construir primero).**
+Un mensaje que el CEO o la Directora puede escribir desde un panel simple
+("Anuncios") y que le aparece a **todo el que inicia sesión** hasta que lo
+cierra o hasta la fecha de expiración que se le ponga — un banner arriba
+del Panel, no un modal bloqueante. Modelo sugerido:
+```prisma
+model Announcement {
+  id        String   @id @default(cuid())
+  organizationId String
+  message   String
+  createdBy String
+  activeUntil DateTime?
+  createdAt DateTime @default(now())
+}
+```
+Se resuelve completo dentro de este mismo repo, sin ningún servicio externo.
+
+**B) Notificaciones y reportes fuera de la app (a Fabrizio y a los 7+
+empleados, aunque no tengan la app abierta).** Acá sí hace falta un
+proveedor externo — recomendación en orden de qué construir primero:
+
+1. **Email (arrancar por acá).** El reporte diario en PDF que ya se genera
+   (`src/lib/daily-report.ts`) se manda por correo además de quedar en el
+   panel; las alertas críticas (fatiga de anuncio, discrepancia de datos)
+   también. Proveedor sugerido: **Resend** (tiene SDK simple para
+   Next.js, capa gratis generosa, no requiere aprobación de nadie —
+   arranca en minutos). Alternativas equivalentes: SendGrid, Postmark.
+2. **WhatsApp (si de verdad hace falta que llegue ahí, no solo email).**
+   Más caro y más lento de habilitar — necesita una cuenta de WhatsApp
+   Business API vía un proveedor (Meta Cloud API directo, o Twilio /
+   360dialog como intermediarios) y **una aprobación de plantillas de
+   mensaje ante Meta**, que tarda días. **Aviso importante ya identificado
+   en el CRM interno de Reditus:** mover un número de WhatsApp Business
+   (la app normal del celular) a la Cloud API bloquea seguir usando la
+   app del celular con ese mismo número, salvo que se use la función más
+   nueva de "coexistencia" de Meta — hay que decidir esto con Fabrizio
+   antes de elegir el número a usar, no después.
+3. **Push notification / mensaje instantáneo dentro del navegador** (sin
+   WhatsApp): una alternativa intermedia — más simple que WhatsApp, no
+   necesita revisión de Meta, pero solo llega si el navegador está abierto
+   o el dispositivo lo permite. Mencionarlo como opción B si WhatsApp se
+   descarta por la fricción de aprobación/coexistencia.
+
+**Recomendación concreta:** construir (A) y el envío por **email** de (B)
+primero — resuelve el 90% del pedido ("que le llegue a Fabrizio y a todos
+los empleados") sin fricción de aprobaciones externas. Dejar WhatsApp como
+una fase aparte, después de decidir con Fabrizio el tema del número.
+
 ## 6. Plan de integración sugerido (orden)
 
 1. Confirmar acceso al repo completo del Sistema B (o al menos más código
@@ -203,11 +293,16 @@ notificación), mismo patrón que el CRM interno de Reditus.
 5. Código de autorización en creación de usuarios (cambio chico, hacerlo
    temprano).
 6. Motor de recomendaciones + papelera 15 días.
-7. Tablero visual Fase 1 (agrupado) sobre el pipeline existente.
-8. MCP server sobre los datos ya centralizados, para Jarvis y para cualquier
+7. Anuncio general al ingresar (`Announcement`) + envío de reportes/alertas
+   por email (Resend) — resuelve la mensajería sin fricción externa.
+8. Tablero visual Entrega 1 (agrupado, con sparklines y línea de tiempo
+   diaria) sobre el pipeline existente.
+9. MCP server sobre los datos ya centralizados, para Jarvis y para cualquier
    otra sesión de Claude.
-9. Tablero visual Fase 2 (canvas libre) — al final, es la de más esfuerzo de
-   UI y no bloquea nada del negocio.
+10. Tablero visual Entrega 2 (canvas libre estilo Milanote) — al final, es
+    la de más esfuerzo de UI y no bloquea nada del negocio.
+11. WhatsApp (si se confirma con Fabrizio, después de resolver el tema del
+    número — ver sección 5.10).
 
 ## 7. Preguntas abiertas para Fabrizio / Sebastian
 
@@ -220,6 +315,10 @@ notificación), mismo patrón que el CRM interno de Reditus.
   puede arrancar con reglas simples y evolucionar.
 - ¿`USER_CREATION_CODE` fijo (`190300`) para siempre, o debería poder
   cambiarse desde el panel de Administrador más adelante?
+- Si se quiere WhatsApp (no solo email): ¿qué número se usa? Definir esto
+  antes de conectar nada — migrarlo a la Cloud API sin la función de
+  "coexistencia" bloquea seguir usando la app normal de WhatsApp en ese
+  número.
 
 ## 8. Recomendaciones para el negocio (no solo para el desarrollo)
 

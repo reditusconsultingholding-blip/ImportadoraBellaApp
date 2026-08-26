@@ -70,6 +70,28 @@ miniaturas) es lo que cambia, no el almacenamiento.
 problema a resolver es la experiencia visual/de seguimiento diario, no
 todavía la infraestructura de almacenamiento de archivos.
 
+## Tablero visual — diseño final (no quedan opciones abiertas)
+**Decisión:** encabezado con salud del producto (sparkline CPA 7 días +
+badge de color) + línea de tiempo diaria + tablero agrupado por
+ángulo/concepto con bordes de color por performance, construido en dos
+entregas (agrupado primero, canvas libre estilo Milanote después).
+**Por qué:** Fabrizio pidió explícitamente resolverlo "como yo quiera que
+sea más conveniente" y que el resultado sea "una app espectacular" — se
+tomó la decisión de diseño completa en vez de dejar alternativas, ver
+`JARVIS_MASTER_REQUIREMENT_V2.md` sección 5.5.
+
+## Mensajería — email primero, WhatsApp después
+**Decisión:** el "anuncio general al ingresar" se construye adentro de la
+app (modelo `Announcement`, sin costo ni proveedor externo). Los reportes
+y alertas que necesitan llegar fuera de la app se mandan por **email**
+(Resend) como primera fase. WhatsApp queda como fase aparte, condicionada a
+resolver primero qué número se usa (riesgo de coexistencia ya documentado
+en el CRM interno de Reditus).
+**Por qué:** email no tiene fricción de aprobación ni riesgo de romper un
+número de WhatsApp que ya esté en uso — resuelve el pedido real ("que le
+llegue a Fabrizio y a todos los empleados") mucho más rápido que empezar
+por WhatsApp.
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).
