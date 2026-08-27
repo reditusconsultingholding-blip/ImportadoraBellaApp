@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import ChatPins from "./chat-pins";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChatMessageView } from "@/lib/chat";
@@ -79,10 +80,24 @@ export default function ChatView({
   const [newChannel, setNewChannel] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
+  // El id del canal abierto, cuando lo que esta abierto es un canal. El scope
+  // viaja como "channel:<id>" o "dm:<id>"; los anclados son solo de canales.
+  const canalActivoId = activeScope?.startsWith("channel:")
+    ? activeScope.slice("channel:".length)
+    : null;
+
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMessages(initialMessages), [initialMessages]);
+  // Cuando el servidor manda otra conversación (se cambió de canal), se
+  // reemplaza lo que hay en pantalla. Se ajusta durante el render y no desde un
+  // efecto: hacerlo en un efecto pinta primero los mensajes viejos bajo el
+  // título nuevo y recién después los corrige.
+  const [ultimasRecibidas, setUltimasRecibidas] = useState(initialMessages);
+  if (initialMessages !== ultimasRecibidas) {
+    setUltimasRecibidas(initialMessages);
+    setMessages(initialMessages);
+  }
 
   const scrollToBottom = useCallback((smooth = false) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
@@ -213,6 +228,26 @@ export default function ChatView({
     setMessages((prev) => prev.filter((m) => m.id !== message.id));
   }
 
+  async function borrarCanal(channel: Entry) {
+    // Se dice cuánto se está por perder antes de preguntar: borrar un canal se
+    // lleva puesto el historial, y "¿Seguro?" a secas no alcanza para eso.
+    const ok = confirm(
+      `Borrar el canal ${channel.name} elimina también todos sus mensajes y lo que esté anclado. Esto no se puede deshacer.\n\n¿Lo borro igual?`
+    );
+    if (!ok) return;
+
+    const res = await fetch(`/api/chat/channels?id=${encodeURIComponent(channel.id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error ?? "No se pudo borrar el canal.");
+      return;
+    }
+    if (activeScope === channel.scope) router.push("/dashboard/chat");
+    else router.refresh();
+  }
+
   async function createChannel(e: React.FormEvent) {
     e.preventDefault();
     const name = newChannel?.trim();
@@ -275,7 +310,18 @@ export default function ChatView({
 
           <nav className="flex flex-col px-1.5 pb-2">
             {channels.map((channel) => (
-              <SidebarLink key={channel.id} entry={channel} active={activeScope === channel.scope} />
+              <div key={channel.id} className="group relative">
+                <SidebarLink entry={channel} active={activeScope === channel.scope} />
+                {canCreateChannels && (
+                  <button
+                    onClick={() => borrarCanal(channel)}
+                    title={`Borrar #${channel.name}`}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-muted opacity-0 transition hover:text-critical focus:opacity-100 group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </nav>
 
@@ -306,6 +352,10 @@ export default function ChatView({
               </p>
             )}
           </header>
+
+          {/* Notas y links anclados. Solo en canales: en un directo no hay
+              "lo que el equipo tiene que tener a mano". */}
+          {canalActivoId && <ChatPins key={canalActivoId} channelId={canalActivoId} />}
 
           {error && (
             <p className="mx-4 mt-3 text-sm text-critical bg-critical-bg border border-critical/30 rounded px-3 py-2">
