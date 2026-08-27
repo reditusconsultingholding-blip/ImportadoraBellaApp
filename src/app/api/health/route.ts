@@ -38,7 +38,10 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    { ok: true, database: "ok", uptimeSeconds, checkedAt },
+    // "build" identifica qué versión está sirviendo. Sin esto no había forma
+    // de saber si una respuesta venía del despliegue nuevo o del anterior
+    // reiniciado, y se termina probando contra código viejo sin darse cuenta.
+    { ok: true, build: process.env.APP_BUILD ?? "sin-marcar", database: "ok", uptimeSeconds, checkedAt },
     { status: 200, headers: { "Cache-Control": "no-store" } }
   );
 }
