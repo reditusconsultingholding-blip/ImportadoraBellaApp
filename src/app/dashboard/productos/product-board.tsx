@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NoteDrawer from "./note-drawer";
@@ -85,11 +85,21 @@ export default function ProductBoard({
   const [creating, setCreating] = useState<null | "folder" | "product" | "note">(null);
   const [openNote, setOpenNote] = useState<string | null>(openNoteId);
 
-  useEffect(() => setOpenNote(openNoteId), [openNoteId]);
-
   // El servidor manda la verdad en cada refresh; el estado local solo existe
-  // para que arrastrar se sienta instantáneo.
-  useEffect(() => setItems(initialItems), [initialItems]);
+  // para que arrastrar se sienta instantáneo. Se sincroniza durante el render
+  // y no desde un efecto: en un efecto se pinta un cuadro con las tarjetas en
+  // la posición vieja antes de corregirse.
+  const [ultimoOpen, setUltimoOpen] = useState(openNoteId);
+  if (openNoteId !== ultimoOpen) {
+    setUltimoOpen(openNoteId);
+    setOpenNote(openNoteId);
+  }
+
+  const [ultimosItems, setUltimosItems] = useState(initialItems);
+  if (initialItems !== ultimosItems) {
+    setUltimosItems(initialItems);
+    setItems(initialItems);
+  }
 
   const drag = useRef<{ id: string; kind: string; dx: number; dy: number } | null>(null);
 

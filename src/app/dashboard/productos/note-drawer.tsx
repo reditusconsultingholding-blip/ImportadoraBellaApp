@@ -103,14 +103,17 @@ export default function NoteDrawer({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/board/notes/${noteId}`);
-    if (!res.ok) {
-      setError("No se pudo abrir la ficha.");
-      return;
-    }
-    const data = await res.json();
-    setNote(data.note);
+  // El estado se toca dentro del .then y no en el cuerpo de una función que
+  // el efecto llama derecho: sincrónicamente dispara un render de más y no
+  // resiste el modo estricto de React.
+  const load = useCallback(() => {
+    fetch(`/api/board/notes/${noteId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return setError("No se pudo abrir la ficha.");
+        setNote(data.note);
+      })
+      .catch(() => setError("No se pudo abrir la ficha."));
   }, [noteId]);
 
   useEffect(() => {

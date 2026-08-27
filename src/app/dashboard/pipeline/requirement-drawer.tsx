@@ -53,7 +53,9 @@ export default function RequirementDrawer({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // El estado se toca solo dentro del .then: ponerlo en "cargando" desde el
+    // cuerpo del efecto dispara un render de más y no resiste el modo estricto
+    // de React. Arranca en true, así que la primera carga se ve igual.
     fetch(`/api/requirements/${requirementId}`)
       .then((r) => r.json())
       .then((data) => {

@@ -17,8 +17,14 @@ export default function MobileNav({
   const pathname = usePathname();
 
   // Al navegar se cierra solo: si no, quedaría el cajón abierto tapando la
-  // pantalla a la que se acaba de entrar.
-  useEffect(() => setOpen(false), [pathname]);
+  // pantalla a la que se acaba de entrar. Se ajusta durante el render y no
+  // desde un efecto: en un efecto, la pantalla nueva se pinta un cuadro con el
+  // cajón todavía encima.
+  const [ultimaRuta, setUltimaRuta] = useState(pathname);
+  if (pathname !== ultimaRuta) {
+    setUltimaRuta(pathname);
+    setOpen(false);
+  }
 
   // Con el cajón abierto no se scrollea lo de atrás.
   useEffect(() => {

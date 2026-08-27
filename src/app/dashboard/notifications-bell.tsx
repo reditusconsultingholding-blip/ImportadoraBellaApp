@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 type Notification = { id: string; message: string; link: string | null; read: boolean; createdAt: string };
@@ -12,19 +12,28 @@ export default function NotificationsBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  async function load() {
-    const res = await fetch("/api/notifications");
-    if (!res.ok) return;
-    const data = await res.json();
-    setItems(data.notifications);
-    setUnreadCount(data.unreadCount);
-  }
+  // El estado se toca dentro del .then y no en el cuerpo del efecto: hacerlo
+  // sincrónicamente ahí dispara un render de más y no resiste el modo estricto
+  // de React.
+  const load = useCallback(() => {
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setItems(data.notifications);
+        setUnreadCount(data.unreadCount);
+      })
+      .catch(() => {
+        // Una caída puntual de red no tiene que romper la campana; en 30
+        // segundos se vuelve a intentar.
+      });
+  }, []);
 
   useEffect(() => {
     load();
     const id = setInterval(load, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
