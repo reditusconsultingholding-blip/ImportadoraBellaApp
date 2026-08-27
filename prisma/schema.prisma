@@ -68,6 +68,85 @@ model Organization {
   payrollPeriods      PayrollPeriod[]
   productFolders      ProductFolder[]
   boardNotes          BoardNote[]
+  chatChannels        ChatChannel[]
+  chatMessages        ChatMessage[]
+}
+
+// --- Chat interno --------------------------------------------------------
+//
+// Reemplaza los grupos de WhatsApp: canales por función y mensajes directos
+// entre dos personas, en el mismo lugar donde se trabaja. Es distinto del chat
+// que ya existe dentro de cada requerimiento (modelo Comment), que sigue atado
+// a una pieza puntual del pipeline.
+
+model ChatChannel {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  slug           String
+  name           String
+  createdAt      DateTime     @default(now())
+
+  messages ChatMessage[]
+
+  @@unique([organizationId, slug])
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Un mensaje va a un canal O a una persona, nunca a los dos.
+  channelId   String?
+  channel     ChatChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  recipientId String?
+  recipient   User?        @relation("ChatReceived", fields: [recipientId], references: [id])
+
+  authorId String
+  author   User   @relation("ChatAuthored", fields: [authorId], references: [id])
+
+  body      String
+  replyToId String?
+  replyTo   ChatMessage?  @relation("ChatReplies", fields: [replyToId], references: [id])
+  replies   ChatMessage[] @relation("ChatReplies")
+
+  pinned    Boolean   @default(false)
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  reactions ChatReaction[]
+
+  @@index([organizationId, channelId, createdAt])
+  @@index([organizationId, recipientId, createdAt])
+  @@index([organizationId, authorId, createdAt])
+}
+
+model ChatReaction {
+  id        String      @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+// Hasta dónde leyó cada persona en cada conversación. El "scope" es una
+// cadena — "channel:<id>" o "dm:<idDeLaOtraPersona>" — en vez de dos columnas
+// que puedan ser nulas: en Postgres dos NULL no se consideran iguales, así que
+// una clave única sobre columnas nulas no evitaría filas repetidas.
+model ChatRead {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope  String
+  readAt DateTime @default(now())
+
+  @@unique([userId, scope])
 }
 
 // Carpetas para ordenar el catálogo. Se anidan sin límite de profundidad
@@ -139,6 +218,10 @@ model User {
   comments              Comment[]
   notifications         Notification[]
   employee              Employee?
+  chatAuthored          ChatMessage[]  @relation("ChatAuthored")
+  chatReceived          ChatMessage[]  @relation("ChatReceived")
+  chatReactions         ChatReaction[]
+  chatReads             ChatRead[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization

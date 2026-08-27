@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { syncAdAccount } from "@/lib/integrations/sync";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { runAlertChecks } from "@/lib/alerts";
@@ -9,8 +10,7 @@ import { runAlertChecks } from "@/lib/alerts";
 // solos, sin que alguien tenga que entrar a Conexiones y apretar
 // "Sincronizar ahora".
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAuthorized(req)) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
