@@ -88,6 +88,7 @@ model ChatChannel {
   createdAt      DateTime     @default(now())
 
   messages ChatMessage[]
+  pins     ChatPin[]
 
   @@unique([organizationId, slug])
 }
@@ -258,6 +259,7 @@ model User {
   chatReads             ChatRead[]
   assignedNotes         BoardNote[]        @relation("BoardNoteAssignee")
   noteComments          BoardNoteComment[]
+  chatPins ChatPin[] @relation("ChatPinsCreated")
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -684,4 +686,23 @@ model PendingAction {
   status       ActionStatus @default(PENDING)
   createdAt    DateTime     @default(now())
   resolvedAt   DateTime?
+}
+
+// Hasta 3 cosas ancladas por canal: una nota, un link, una carpeta. Es el
+// lugar donde queda lo que el equipo tiene que tener a mano sin buscarlo en
+// el historial. El tope de 3 es a propósito: si se pudieran anclar veinte,
+// dejaría de ser un atajo y volvería a ser una lista que nadie mira.
+model ChatPin {
+  id          String      @id @default(cuid())
+  channelId   String
+  channel     ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  kind        String      // NOTA | LINK
+  title       String
+  body        String?     // texto, cuando es nota
+  url         String?     // destino, cuando es link
+  createdById String
+  createdBy   User        @relation("ChatPinsCreated", fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+
+  @@index([channelId])
 }

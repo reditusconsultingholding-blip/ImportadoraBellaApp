@@ -176,7 +176,7 @@ export default function SidebarNav({
         { href: "/dashboard/notificaciones", label: "Notificaciones", icon: "notificaciones" },
         { href: "/dashboard/jarvis", label: "Preguntarle a Jarvis", icon: "jarvis" },
         { href: "/dashboard/conexiones", label: "Conexiones", icon: "conexiones" },
-        { href: "/dashboard/configuracion", label: "Mi cuenta", icon: "cuenta" },
+        { href: "/dashboard/configuracion", label: "Configuraciones", icon: "cuenta" },
         ...(showUsuarios
           ? [{ href: "/dashboard/usuarios", label: "Usuarios", icon: "usuarios" }]
           : []),
