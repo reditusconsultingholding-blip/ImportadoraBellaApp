@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { dailyReportHtml, emailConfigured, reportRecipients, sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { getOverview } from "@/lib/metrics";
 import { getSalesOverview } from "@/lib/sales";
@@ -115,5 +116,63 @@ export async function generateAndStoreDailyReport(organizationId: string, date: 
     });
   }
 
+  // Además del aviso dentro de la app, el reporte sale por correo — que es lo
+  // que hace que llegue aunque nadie tenga el panel abierto. Si el envío falla
+  // NO se corta la generación: el PDF ya quedó guardado y la notificación
+  // interna también, así que perder el correo no debe perder el reporte.
+  if (emailConfigured()) {
+    try {
+      const to = await reportRecipients(organizationId);
+      const totals = await dayTotals(organizationId, dayStart);
+      const result = await sendEmail({
+        to,
+        subject: `Reporte del ${dateLabel} · Importadora Bella`,
+        html: dailyReportHtml({
+          date: dayStart,
+          appUrl: process.env.APP_URL?.trim() || "https://jarvis-production-0120.up.railway.app",
+          ...totals,
+        }),
+        attachment: {
+          filename: `reporte-${dayStart.toISOString().slice(0, 10)}.pdf`,
+          content: pdfBuffer,
+        },
+      });
+      if (!result.ok) console.error("[reporte diario] no se pudo enviar el correo:", result.error);
+    } catch (err) {
+      console.error("[reporte diario] error enviando el correo:", err);
+    }
+  }
+
   return report;
+}
+
+// Los cuatro números que van en el cuerpo del correo.
+async function dayTotals(organizationId: string, dayStart: Date) {
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+  const [orders, metrics] = await Promise.all([
+    db.shopifyOrder.aggregate({
+      where: {
+        store: { organizationId },
+        occurredAt: { gte: dayStart, lt: dayEnd },
+      },
+      _count: { _all: true },
+      _sum: { netSales: true },
+    }),
+    db.metricSnapshot.aggregate({
+      where: {
+        campaign: { adAccount: { organizationId } },
+        capturedAt: { gte: dayStart, lt: dayEnd },
+      },
+      _sum: { spend: true, purchases: true },
+    }),
+  ]);
+
+  return {
+    orders: orders._count._all,
+    revenue: orders._sum.netSales ?? 0,
+    spend: metrics._sum.spend ?? 0,
+    purchases: metrics._sum.purchases ?? 0,
+  };
 }
