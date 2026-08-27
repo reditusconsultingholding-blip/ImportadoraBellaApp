@@ -99,7 +99,7 @@ export default function ProfitabilityTable({
 
       <div className="bg-surface border border-border rounded overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="table-cols w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-left text-xs font-mono uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 sticky left-0 bg-surface">Producto</th>

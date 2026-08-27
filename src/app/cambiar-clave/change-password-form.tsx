@@ -48,11 +48,11 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
         <input
           type="password"
           required
-          minLength={6}
+          minLength={8}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           className="w-full border border-border rounded px-3 py-2 bg-transparent outline-none focus:border-accent"
-          placeholder="mínimo 6 caracteres"
+          placeholder="mínimo 8 caracteres"
         />
       </label>
 
@@ -63,7 +63,7 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
         <input
           type="password"
           required
-          minLength={6}
+          minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           className="w-full border border-border rounded px-3 py-2 bg-transparent outline-none focus:border-accent"

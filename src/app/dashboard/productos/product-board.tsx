@@ -215,7 +215,7 @@ export default function ProductBoard({
                 href={parentId ? `/dashboard/productos?carpeta=${parentId}` : "/dashboard/productos"}
                 className={btn}
               >
-                ← Subir
+                ← Volver atrás
               </Link>
             )}
             <button onClick={() => setCreating("folder")} className={btn}>

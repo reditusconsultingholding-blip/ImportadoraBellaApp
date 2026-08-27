@@ -150,6 +150,14 @@ th {
   letter-spacing: 0.02em;
 }
 
+/* Separadores verticales entre columnas. En una tabla ancha como Rentabilidad
+   (nueve columnas de números), sin ellos los encabezados se leen como una sola
+   línea corrida y no se sabe qué número cae bajo qué título. */
+.table-cols th:not(:last-child),
+.table-cols td:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
 /* La fila se marca al pasar el mouse: en tablas anchas como Rentabilidad o
    Nómina es lo que evita perder el renglón a mitad de camino. */
 tbody tr {

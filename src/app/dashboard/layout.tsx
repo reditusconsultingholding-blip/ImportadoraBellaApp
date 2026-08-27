@@ -30,7 +30,7 @@ export default async function DashboardLayout({
     // El permiso de nómina se lee de la base, no del JWT — ver payroll-access.ts.
     db.user.findUnique({
       where: { id: session.userId },
-      select: { canViewPayroll: true },
+      select: { canViewPayroll: true, avatarUrl: true },
     }),
   ]);
 
@@ -53,9 +53,18 @@ export default async function DashboardLayout({
 
         <div className="mt-auto border-t border-white/10 px-3 py-3">
           <div className="flex items-center gap-2.5 rounded px-2 py-1.5">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-green/20 text-[11px] font-semibold text-brand-green">
-              {initials(session.name)}
-            </span>
+            {me?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={me.avatarUrl}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-green/20 text-[11px] font-semibold text-brand-green">
+                {initials(session.name)}
+              </span>
+            )}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-white">
                 {session.name}

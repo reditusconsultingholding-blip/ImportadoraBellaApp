@@ -124,6 +124,12 @@ model User {
   // aparte porque el pago solo lo miran Fabricio y Katherine, y puede haber
   // otros administradores que no deban verlo.
   canViewPayroll     Boolean  @default(false)
+  // Foto de perfil como data URL. Se guarda en la base y no en un bucket
+  // porque es una miniatura de 256px (~30 KB): montar almacenamiento de
+  // archivos para eso sería más infraestructura que valor.
+  avatarUrl          String?
+  birthDate          DateTime?
+  phone              String?
   organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id])
   createdAt          DateTime @default(now())
