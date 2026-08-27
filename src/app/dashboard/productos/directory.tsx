@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { Fragment, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import PulseLine, { type PulseTone } from "../pulse-line";
+import {
+  ColaDeAprobacion,
+  DetalleProducto,
+  type Pendiente,
+  type Persona,
+  type Sugerencia,
+} from "../product-actions-panel";
 
 export type DirectoryRow = {
   id: string;
@@ -20,6 +27,8 @@ export type DirectoryRow = {
   score: number;
   state: PulseTone;
   serie: number[];
+  motivos: string[];
+  sugerencias: Sugerencia[];
   campanas: number;
   creativos: number;
   creativosEnProduccion: number;
@@ -71,16 +80,62 @@ export default function ProductDirectory({
   carpetas,
   totales,
   puedeGestionar,
+  pendientes,
+  equipo,
+  puedeDecidir,
 }: {
   rows: DirectoryRow[];
   carpetas: string[];
   totales: { productos: number; conPauta: number; sinCosto: number };
   puedeGestionar: boolean;
+  pendientes: Pendiente[];
+  equipo: Persona[];
+  puedeDecidir: boolean;
 }) {
+  const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
   const [carpeta, setCarpeta] = useState("");
   const [estado, setEstado] = useState<"" | PulseTone>("");
   const [orden, setOrden] = useState<Orden>("pulso");
+  const [filaAbierta, setFilaAbierta] = useState<string | null>(null);
+
+  // Proponer y decidir usan la misma API que el panel: el flujo es uno solo,
+  // se entre por donde se entre.
+  const proponer = (productId: string) => async (s: Sugerencia, cantidad: number) => {
+    const res = await fetch("/api/acciones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId,
+        kind: s.kind,
+        detail: s.detail,
+        reason: s.reason,
+        cantidad,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "No se pudo proponer.");
+    }
+    router.refresh();
+  };
+
+  async function decidir(
+    id: string,
+    decision: "aprobar" | "rechazar",
+    extra: { assigneeId?: string; dueDate?: string; nota?: string }
+  ) {
+    const res = await fetch("/api/acciones", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision, ...extra }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "No se pudo guardar.");
+    }
+    router.refresh();
+  }
 
   const visibles = useMemo(() => {
     const q = plano(busqueda.trim());
@@ -121,6 +176,10 @@ export default function ProductDirectory({
 
   return (
     <div className="flex flex-col gap-4">
+      {puedeDecidir && (
+        <ColaDeAprobacion pendientes={pendientes} equipo={equipo} onDecidir={decidir} />
+      )}
+
       {/* Filtros: una sola fila arriba de la tabla. */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -215,12 +274,19 @@ export default function ProductDirectory({
 
             {visibles.map((r) => {
               const excedido = r.cpa != null && r.cpaTarget > 0 && r.cpa > r.cpaTarget;
+              const abierto = filaAbierta === r.id;
               return (
-                <tr key={r.id} className="border-b border-border last:border-b-0 hover:bg-surface-2">
+                <Fragment key={r.id}>
+                <tr
+                  className={`border-b border-border last:border-b-0 hover:bg-surface-2 ${
+                    abierto ? "bg-surface-2" : ""
+                  }`}
+                >
                   <td className="px-3 py-2.5">
-                    <Link
-                      href={`/dashboard/productos/${encodeURIComponent(r.code)}`}
-                      className="block hover:underline"
+                    <button
+                      onClick={() => setFilaAbierta(abierto ? null : r.id)}
+                      aria-expanded={abierto}
+                      className="block w-full text-left"
                     >
                       <span className="block font-medium">{r.name}</span>
                       <span className="block text-xs text-muted">
@@ -230,7 +296,7 @@ export default function ProductDirectory({
                           ? ` · ${r.campanas} ${r.campanas === 1 ? "campaña" : "campañas"}`
                           : " · sin campañas"}
                       </span>
-                    </Link>
+                    </button>
                   </td>
 
                   <td className="px-3 py-2.5">
@@ -300,6 +366,31 @@ export default function ProductDirectory({
                     )}
                   </td>
                 </tr>
+
+                {abierto && (
+                  <tr className="border-b border-border last:border-b-0">
+                    <td colSpan={7} className="p-0">
+                      <DetalleProducto
+                        p={{
+                          productId: r.id,
+                          code: r.code,
+                          name: r.name,
+                          score: r.score,
+                          state: r.state,
+                          spend: r.spend,
+                          purchases: r.purchases,
+                          cpa: r.cpa,
+                          cpaTarget: r.cpaTarget,
+                          serie: r.serie,
+                          motivos: r.motivos,
+                          sugerencias: r.sugerencias,
+                        }}
+                        onProponer={proponer(r.id)}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

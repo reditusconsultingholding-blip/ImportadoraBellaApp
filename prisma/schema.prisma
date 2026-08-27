@@ -71,6 +71,7 @@ model Organization {
   chatChannels        ChatChannel[]
   chatMessages        ChatMessage[]
   calcSettings CalcSetting[]
+  acciones     ProductAction[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -266,6 +267,9 @@ model User {
   vozPresencia  VoicePresence[]
   senalesEnviadas VoiceSignal[] @relation("VozDe")
   senalesRecibidas VoiceSignal[] @relation("VozPara")
+  accionesPropuestas ProductAction[] @relation("AccionPropuesta")
+  accionesDecididas  ProductAction[] @relation("AccionDecidida")
+  accionesAsignadas  ProductAction[] @relation("AccionAsignada")
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -308,6 +312,7 @@ model Product {
   createdAt      DateTime @default(now())
 
   campaigns    Campaign[]
+  acciones     ProductAction[]
   requirements Requirement[]
 
   @@unique([organizationId, code])
@@ -445,6 +450,11 @@ model Requirement {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // De que accion aprobada salio este creativo, si salio de una. Es lo que
+  // permite cerrar el circulo: el producto pidio tres piezas, estas son.
+  actionId String?
+  action   ProductAction? @relation(fields: [actionId], references: [id], onDelete: SetNull)
 
   comments Comment[]
   versions RequirementVersion[]
@@ -766,4 +776,45 @@ model VoiceSignal {
   createdAt  DateTime    @default(now())
 
   @@index([toUserId, channelId, createdAt])
+}
+
+// El puente entre "este producto esta en riesgo" y "alguien hizo algo al
+// respecto".
+//
+// Sin esto el panel diagnostica y ahi termina: el equipo lee que un producto
+// se esta yendo de CPA, lo comenta por chat y no queda registro de si se
+// decidio algo ni de quien lo hizo. Una accion se propone desde el producto,
+// direccion la aprueba o la rechaza, y al aprobarla se le asigna a un editor
+// y nacen los creativos ya vinculados de vuelta al producto.
+model ProductAction {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  kind     String  // MAS_CREATIVOS | ESCALAR | PAUSAR | REVISAR_OFERTA
+  detail   String  // que exactamente se pide
+  cantidad Int?    // cuantas piezas, cuando el pedido es de creativos
+  reason   String  // por que se propone: el numero que lo justifica
+
+  status       String    @default("PROPUESTA") // PROPUESTA | APROBADA | RECHAZADA | HECHA
+  proposedById String
+  proposedBy   User      @relation("AccionPropuesta", fields: [proposedById], references: [id])
+  decidedById  String?
+  decidedBy    User?     @relation("AccionDecidida", fields: [decidedById], references: [id])
+  decidedAt    DateTime?
+  decisionNote String?
+
+  assigneeId String?
+  assignee   User?     @relation("AccionAsignada", fields: [assigneeId], references: [id])
+  dueDate    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requirements Requirement[]
+
+  @@index([organizationId, status])
+  @@index([productId])
 }

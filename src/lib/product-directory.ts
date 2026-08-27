@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getPulses, type PulseState } from "@/lib/pulse";
+import { sugerirAcciones } from "@/lib/product-actions";
 import type { Range } from "@/lib/date-range";
 
 // El directorio de productos: una fila por producto con todo lo que hace falta
@@ -27,6 +28,8 @@ export type DirectoryRow = {
   score: number;
   state: PulseState;
   serie: number[];
+  motivos: string[];
+  sugerencias: { kind: string; detail: string; reason: string }[];
 
   campanas: number;
   creativos: number;
@@ -38,6 +41,17 @@ export type DirectoryRow = {
 export type Directory = {
   rows: DirectoryRow[];
   carpetas: string[];
+  pendientes: {
+    id: string;
+    kind: string;
+    detail: string;
+    cantidad: number | null;
+    reason: string;
+    createdAt: string;
+    product: { id: string; code: string; name: string };
+    proposedBy: { id: string; name: string };
+  }[];
+  equipo: { id: string; name: string; role: string }[];
   /** Cuántos productos de la tienda todavía no se siguen. */
   totales: { productos: number; conPauta: number; sinCosto: number };
 };
@@ -46,10 +60,16 @@ export async function getDirectory(
   organizationId: string,
   range: Range
 ): Promise<Directory> {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  // "Hoy" es el de Ecuador, no el del servidor: Railway corre en UTC y
+  // setHours() haría que el día arrancara a las 19:00 de la víspera.
+  const ahora = new Date();
+  const enEcuador = new Date(ahora.getTime() - 5 * 3600_000);
+  const hoy = new Date(
+    Date.UTC(enEcuador.getUTCFullYear(), enEcuador.getUTCMonth(), enEcuador.getUTCDate()) +
+      5 * 3600_000
+  );
 
-  const [productos, pulsos, creativos] = await Promise.all([
+  const [productos, pulsos, creativos, pendientes, equipo] = await Promise.all([
     db.product.findMany({
       where: { organizationId, archived: false },
       select: {
@@ -74,6 +94,28 @@ export async function getDirectory(
         dueDate: true,
         updatedAt: true,
       },
+    }),
+    // Lo que espera decisión, para que la misma cola aparezca acá y en el
+    // panel. Si viviera en un solo lugar, la mitad del equipo no la vería.
+    db.productAction.findMany({
+      where: { organizationId, status: "PROPUESTA" },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        kind: true,
+        detail: true,
+        cantidad: true,
+        reason: true,
+        createdAt: true,
+        product: { select: { id: true, code: true, name: true } },
+        proposedBy: { select: { id: true, name: true } },
+      },
+    }),
+    db.user.findMany({
+      where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, role: true },
     }),
   ]);
 
@@ -131,6 +173,8 @@ export async function getDirectory(
       score: pulso?.score ?? 0,
       state: pulso?.state ?? "SIN_DATOS",
       serie: pulso?.serie ?? [],
+      motivos: pulso?.motivos ?? [],
+      sugerencias: pulso ? sugerirAcciones(pulso) : [],
 
       campanas: p._count.campaigns,
       creativos: conteo?.total ?? 0,
@@ -147,6 +191,10 @@ export async function getDirectory(
   return {
     rows,
     carpetas,
+    // Las fechas viajan como texto: cruzan del servidor al navegador y un Date
+    // no sobrevive ese viaje sin convertirse en string igual.
+    pendientes: pendientes.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
+    equipo,
     totales: {
       productos: rows.length,
       conPauta: rows.filter((r) => r.spend > 0).length,

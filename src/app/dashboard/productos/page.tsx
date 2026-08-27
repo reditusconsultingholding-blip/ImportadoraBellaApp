@@ -8,6 +8,7 @@ import ProductDirectory from "./directory";
 import CatalogPicker from "../catalog-picker";
 import { getDirectory } from "@/lib/product-directory";
 import { resolveRange } from "@/lib/date-range";
+import { puedeDecidir } from "@/lib/product-actions";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
@@ -190,6 +191,9 @@ export default async function ProductosPage({
             carpetas={directorio.carpetas}
             totales={directorio.totales}
             puedeGestionar={canManage}
+            pendientes={directorio.pendientes}
+            equipo={directorio.equipo}
+            puedeDecidir={puedeDecidir(session.role)}
           />
         </>
       ) : (

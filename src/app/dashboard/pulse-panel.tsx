@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import PulseLine, { type PulseTone } from "./pulse-line";
+import {
+  ColaDeAprobacion,
+  DetalleProducto,
+  type Pendiente,
+  type Persona,
+  type Sugerencia,
+} from "./product-actions-panel";
 
 type Insights = {
   headline: string;
@@ -23,6 +29,7 @@ type Pulse = {
   cpaTarget: number | null;
   serie: number[];
   motivos: string[];
+  sugerencias: Sugerencia[];
 };
 
 const ESTADO: Record<PulseTone, { texto: string; chip: string }> = {
@@ -55,10 +62,20 @@ export default function PulsePanel({ query }: { query: string }) {
   // "todavía no llegó" se deduce comparando — no hace falta poner el estado en
   // "cargando" desde adentro del efecto, que dispara un render de más y no
   // resiste el modo estricto de React.
-  const [pulsos, setPulsos] = useState<{ q: string; data: Pulse[] } | null>(null);
+  const [pulsos, setPulsos] = useState<{
+    q: string;
+    data: Pulse[];
+    equipo: Persona[];
+    pendientes: Pendiente[];
+    puedoDecidir: boolean;
+  } | null>(null);
   const [analisis, setAnalisis] = useState<
     { q: string; data: Insights } | { q: string; motivo: string } | null
   >(null);
+  const [productoAbierto, setProductoAbierto] = useState<string | null>(null);
+  // Se incrementa después de proponer o decidir, para volver a pedir el pulso
+  // sin que nadie tenga que refrescar la página.
+  const [recarga, setRecarga] = useState(0);
 
   // El pulso se pide siempre: es la línea que se ve con el panel cerrado.
   useEffect(() => {
@@ -66,15 +83,24 @@ export default function PulsePanel({ query }: { query: string }) {
     fetch(`/api/pulse?${query}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelado) setPulsos({ q: query, data: d.pulses ?? [] });
+        if (cancelado) return;
+        setPulsos({
+          q: query,
+          data: d.pulses ?? [],
+          equipo: d.equipo ?? [],
+          pendientes: d.pendientes ?? [],
+          puedoDecidir: Boolean(d.puedoDecidir),
+        });
       })
       .catch(() => {
-        if (!cancelado) setPulsos({ q: query, data: [] });
+        if (!cancelado) {
+          setPulsos({ q: query, data: [], equipo: [], pendientes: [], puedoDecidir: false });
+        }
       });
     return () => {
       cancelado = true;
     };
-  }, [query]);
+  }, [query, recarga]);
 
   // El análisis de IA solo cuando alguien abre: cuesta una llamada al modelo y
   // nadie la pidió mientras el panel estaba cerrado.
@@ -96,8 +122,50 @@ export default function PulsePanel({ query }: { query: string }) {
     };
   }, [abierto, query]);
 
-  const pulses = pulsos?.q === query ? pulsos.data : null;
+  const datos = pulsos?.q === query ? pulsos : null;
+  const pulses = datos?.data ?? null;
+  const equipo = datos?.equipo ?? [];
+  const pendientes = datos?.pendientes ?? [];
+  const puedoDecidir = datos?.puedoDecidir ?? false;
   const analisisDelPeriodo = analisis?.q === query ? analisis : null;
+
+  // Proponer una acción sobre un producto. Se recarga el pulso después para
+  // que la cola de aprobación quede al día sin que nadie refresque.
+  const proponer = (p: Pulse) => async (s: Sugerencia, cantidad: number) => {
+    const res = await fetch("/api/acciones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: p.productId,
+        kind: s.kind,
+        detail: s.detail,
+        reason: s.reason,
+        cantidad,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "No se pudo proponer.");
+    }
+    setRecarga((n) => n + 1);
+  };
+
+  async function decidir(
+    id: string,
+    decision: "aprobar" | "rechazar",
+    extra: { assigneeId?: string; dueDate?: string; nota?: string }
+  ) {
+    const res = await fetch("/api/acciones", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision, ...extra }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "No se pudo guardar.");
+    }
+    setRecarga((n) => n + 1);
+  }
 
   const conPauta = (pulses ?? []).filter((p) => p.state !== "SIN_DATOS");
   const enRiesgo = conPauta.filter((p) => p.state === "RIESGO");
@@ -186,37 +254,59 @@ export default function PulsePanel({ query }: { query: string }) {
 
       {abierto && (
         <div className="flex flex-col gap-5 border-t border-border px-4 py-4">
+          {puedoDecidir && pendientes.length > 0 && (
+            <ColaDeAprobacion
+              pendientes={pendientes}
+              equipo={equipo}
+              onDecidir={decidir}
+            />
+          )}
+
           {conPauta.length > 0 && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-                Pulso por producto
+                Pulso por producto — tocá uno para ver qué le pasa
               </p>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {conPauta.map((p) => (
-                  <Link
-                    key={p.productId ?? p.name}
-                    href={p.code ? `/dashboard/productos/${encodeURIComponent(p.code)}` : "#"}
-                    className="flex items-center gap-2.5 rounded border border-border px-2.5 py-2 transition hover:border-border-strong hover:bg-surface-2"
-                  >
-                    <PulseLine serie={p.serie} state={p.state} width={54} height={20} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm">{p.name}</span>
-                      <span className="block text-xs tabular-nums text-muted">
-                        {money(p.spend)} ·{" "}
-                        {p.cpa == null ? "sin compras" : `CPA ${p.cpa.toFixed(2)}`}
-                        {p.cpaTarget ? ` / obj ${p.cpaTarget.toFixed(2)}` : ""}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ESTADO[p.state].chip}`}
+              <div className="flex flex-col gap-1.5">
+                {conPauta.map((p) => {
+                  const abiertoEste = productoAbierto === (p.productId ?? p.name);
+                  return (
+                    <div
+                      key={p.productId ?? p.name}
+                      className={`overflow-hidden rounded border transition ${
+                        abiertoEste ? "border-border-strong" : "border-border"
+                      }`}
                     >
-                      {ESTADO[p.state].texto}
-                    </span>
-                    <span className="w-7 shrink-0 text-right font-mono text-sm tabular-nums">
-                      {p.score}
-                    </span>
-                  </Link>
-                ))}
+                      <button
+                        onClick={() =>
+                          setProductoAbierto(abiertoEste ? null : (p.productId ?? p.name))
+                        }
+                        aria-expanded={abiertoEste}
+                        className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition hover:bg-surface-2"
+                      >
+                        <PulseLine serie={p.serie} state={p.state} width={54} height={20} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">{p.name}</span>
+                          <span className="block text-xs tabular-nums text-muted">
+                            {money(p.spend)} ·{" "}
+                            {p.cpa == null ? "sin compras" : `CPA ${p.cpa.toFixed(2)}`}
+                            {p.cpaTarget ? ` / obj ${p.cpaTarget.toFixed(2)}` : ""}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${ESTADO[p.state].chip}`}
+                        >
+                          {ESTADO[p.state].texto}
+                        </span>
+                        <span className="w-7 shrink-0 text-right font-mono text-sm tabular-nums">
+                          {p.score}
+                        </span>
+                      </button>
+
+                      {abiertoEste && <DetalleProducto p={p} onProponer={proponer(p)} />}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
