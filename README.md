@@ -49,8 +49,18 @@ Lo que ya funciona, con datos de prueba (seed):
 - **Reportes diarios en PDF** (`/dashboard/reportes`): un cron a medianoche
   (hora Ecuador) genera un PDF con ventas, campañas y alertas del día, y le
   notifica a cada OWNER. También se puede generar a mano.
-- **Desempeño del equipo** (`/dashboard/desempeno`): ranking mensual de
-  editores con podio top 3 y recompensas ($100 / $50 / $30).
+- **Nómina** (`/dashboard/nomina`): lo que hay que pagarle a cada persona en
+  la semana. Tres formas de pago por persona — semanal fijo, por día, o por
+  pieza entregada (esas se cuentan solas desde el pipeline). Los días no
+  trabajados se marcan de un clic y descuentan la parte proporcional. Al
+  cerrar la semana los montos quedan congelados, así que cambiar un sueldo
+  después no reescribe lo ya pagado. **La ven únicamente las personas con el
+  permiso `canViewPayroll`** — no alcanza con ser administrador, es un
+  permiso por persona. Reemplaza al viejo ranking de desempeño con premios,
+  que se retiró.
+- **Mi cuenta** (`/dashboard/configuracion`): cada persona cambia su propio
+  correo (pidiendo la contraseña actual, porque el correo es con lo que se
+  inicia sesión) y su contraseña.
 - **Rentabilidad por producto** (`/dashboard/rentabilidad`): tabla mensual
   con los acumulados reales que ya llevaba Fabrizio en su planilla; las
   columnas "por pedido" se calculan solas.
@@ -77,6 +87,20 @@ Lo que ya funciona, con datos de prueba (seed):
 Lo que falta para pasar a producción: conectar credenciales reales
 (ver "Accesos pendientes" abajo) — el código de integración ya está
 escrito contra los endpoints reales de Meta y TikTok, solo falta el token.
+
+## En producción
+
+Live: **https://jarvis-production-0120.up.railway.app**
+
+Corre en Railway (proyecto `importadora-bella-jarvis`, servicio `jarvis`),
+desplegando desde `main` de este repo, con health check contra `/api/health`
+y reinicio automático ante fallo. La base es el Postgres de **Supabase**
+(proyecto "Jarvis"), vía el **pooler de transacciones** — la conexión directa
+`db.<ref>.supabase.co` es IPv6 y no responde desde todas las redes.
+
+Las 9 cuentas del equipo entran con un correo genérico
+`nombre.apellido@bellacorp.store` y la clave `Bella2026!`, que la app obliga
+a cambiar en el primer ingreso. Cada uno cambia su correo desde *Mi cuenta*.
 
 ## Correr en local
 
