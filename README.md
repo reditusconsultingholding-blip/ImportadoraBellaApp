@@ -37,9 +37,14 @@ Lo que ya funciona, con datos de prueba (seed):
   con métricas editables y chat interno con `@menciones` que generan
   notificaciones (campanita en el header). Un Editor solo ve y edita lo que
   tiene asignado; Director/Owner ven y arman todo el pipeline.
-- **Pipeline por producto** (`/dashboard/productos`): drill-down de cada
-  producto con lo realizado / por realizar y qué anuncios testeados dieron
-  buen o mal CPA.
+- **Productos** (`/dashboard/productos`): el catálogo como un tablero estilo
+  Milanote. Carpetas y subcarpetas anidables sin límite, productos y notas
+  sueltas, todo como tarjetas que se arrastran — la posición queda guardada
+  para todo el equipo. Cada tarjeta de producto entra a su drill-down: lo
+  realizado / por realizar y qué anuncios testeados dieron buen o mal CPA.
+  Borrar una carpeta no borra sus productos (vuelven a la raíz), y un producto
+  con campañas o piezas asociadas no se puede borrar, para no perder el
+  histórico. Un Editor ve el tablero pero no puede modificarlo.
 - **Centro de notificaciones** (`/dashboard/notificaciones`): además de
   menciones, un motor de alertas (`src/lib/alerts.ts`) detecta oportunidades
   de escalar (CPA muy por debajo del objetivo), fatiga de anuncio (CTR/CPA
@@ -137,6 +142,36 @@ Copiar `.env.example` a `.env` y completar:
 | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | App "Jarvin Panal" del Dev Dashboard. Con esto el token de Shopify se pide y se renueva solo cada ~24h; si no, se pega un token fijo desde Conexiones. |
 | `SHOPIFY_API_VERSION` | Versión de la Admin API. Por defecto `2025-04`. |
 | `USER_CREATION_CODE` | Código que hay que tipear al crear un usuario. Por defecto `190300`. |
+
+## Seguridad — qué está resuelto y qué no
+
+Resuelto:
+
+- **La sesión se revalida contra la base en cada pedido.** El rol vive en la
+  cookie firmada, pero no se le cree: `getSession()` relee usuario, rol y
+  organización. Bajarle el rol a alguien o borrarle la cuenta tiene efecto
+  inmediato; antes el token seguía sirviendo hasta 30 días.
+- **Límite de intentos en el login**: 8 por IP + correo, después bloqueo de 15
+  minutos. El bloqueo es por combinación, así que nadie puede dejar afuera a
+  otro fallando adrede. La respuesta tarda lo mismo exista o no el correo,
+  para no delatar qué cuentas son reales.
+- **`SESSION_SECRET` es obligatorio en producción** — sin él, las cookies se
+  firmarían con una clave que está en el código.
+- **La nómina es un permiso por persona** (`canViewPayroll`), no un rol, y solo
+  lo puede repartir alguien que ya lo tenga.
+
+Pendiente (en orden de riesgo):
+
+1. **Los tokens de Shopify, Meta y TikTok se guardan sin cifrar** en la base.
+   Quien acceda a la base puede operar esas cuentas. Habría que cifrarlos con
+   una clave de aplicación.
+2. **No hay forma de cerrar sesiones a distancia.** Si a alguien le roban la
+   computadora, la única salida hoy es cambiarle la contraseña. Se resuelve con
+   un contador de sesión por usuario dentro del token.
+3. **El código de creación de usuarios tiene un valor por defecto en el código
+   fuente** (`190300`). Debería exigir siempre `USER_CREATION_CODE`.
+4. **El límite de intentos vive en la memoria del proceso**: se pierde al
+   reiniciar y no se comparte si algún día hay más de una instancia corriendo.
 
 ## Accesos pendientes para ir a producción
 
