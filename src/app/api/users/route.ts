@@ -22,12 +22,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solo un administrador puede crear usuarios." }, { status: 403 });
   }
 
-  const { email, name, password, role } = (await req.json()) as {
+  const { email, name, password, role, authCode } = (await req.json()) as {
     email?: string;
     name?: string;
     password?: string;
     role?: string;
+    authCode?: string;
   };
+
+  // Segunda barrera además de "solo un administrador puede crear usuarios":
+  // sin el código de autorización no se crea la cuenta (ver docs/DECISIONES.md).
+  const expectedCode = process.env.USER_CREATION_CODE?.trim() || "190300";
+  if (authCode?.trim() !== expectedCode) {
+    return NextResponse.json(
+      { error: "Código de autorización incorrecto." },
+      { status: 403 }
+    );
+  }
 
   if (!email?.trim() || !name?.trim() || !password || password.length < 6) {
     return NextResponse.json(
@@ -35,8 +46,11 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const validRoles = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"];
-  const finalRole = validRoles.includes(role ?? "") ? (role as (typeof validRoles)[number]) : "PENDING";
+  const validRoles = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"] as const;
+  type RoleValue = (typeof validRoles)[number];
+  const finalRole: RoleValue = validRoles.includes(role as RoleValue)
+    ? (role as RoleValue)
+    : "PENDING";
 
   const existing = await db.user.findUnique({ where: { email: email.trim() } });
   if (existing) {

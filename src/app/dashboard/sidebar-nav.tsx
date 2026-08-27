@@ -14,22 +14,27 @@ export default function SidebarNav({
   showUsuarios,
   showPipeline,
   showRentabilidad,
+  showNomina,
 }: {
   showUsuarios: boolean;
   showPipeline: boolean;
   showRentabilidad: boolean;
+  // Nómina no se muestra por rol: es un permiso por persona. Quien no lo
+  // tenga no ve ni el link.
+  showNomina: boolean;
 }) {
   const pathname = usePathname();
   const links = [
     ...BASE_LINKS,
     ...(showPipeline ? [{ href: "/dashboard/pipeline", label: "Pipeline" }] : []),
     ...(showPipeline ? [{ href: "/dashboard/productos", label: "Productos" }] : []),
-    ...(showPipeline ? [{ href: "/dashboard/desempeno", label: "Desempeño" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/rentabilidad", label: "Rentabilidad" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/calculadora", label: "Calculadora de precios" }] : []),
     ...(showRentabilidad ? [{ href: "/dashboard/reportes", label: "Reportes diarios" }] : []),
     ...(showPipeline ? [{ href: "/dashboard/logistica", label: "Torre logística" }] : []),
+    ...(showNomina ? [{ href: "/dashboard/nomina", label: "Nómina" }] : []),
     ...TAIL_LINKS,
+    { href: "/dashboard/configuracion", label: "Mi cuenta" },
     ...(showUsuarios ? [{ href: "/dashboard/usuarios", label: "Usuarios" }] : []),
   ];
 

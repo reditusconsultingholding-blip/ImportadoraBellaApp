@@ -32,6 +32,7 @@ export default function UsersManager({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"OWNER" | "DIRECTOR" | "EDITOR" | "PENDING">("EDITOR");
+  const [authCode, setAuthCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function UsersManager({
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role }),
+      body: JSON.stringify({ name, email, password, role, authCode }),
     });
     const data = await res.json();
     setBusy(false);
@@ -59,6 +60,7 @@ export default function UsersManager({
     setEmail("");
     setPassword("");
     setRole("EDITOR");
+    setAuthCode("");
     setOpen(false);
     router.refresh();
   }
@@ -193,6 +195,24 @@ export default function UsersManager({
               <option value="OWNER">Administrador</option>
               <option value="PENDING">Pendiente de rol</option>
             </select>
+          </label>
+          <label className="block border-t border-border pt-3">
+            <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
+              Código de autorización
+            </span>
+            <input
+              type="password"
+              value={authCode}
+              onChange={(e) => setAuthCode(e.target.value)}
+              required
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="requerido para crear la cuenta"
+              className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+            />
+            <span className="block text-xs text-muted mt-1">
+              Sin este código no se crea la cuenta, aunque alguien llegue a esta pantalla.
+            </span>
           </label>
           <div className="flex gap-2">
             <button

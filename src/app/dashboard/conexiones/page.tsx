@@ -6,6 +6,7 @@ import AddAccountButton from "./add-account-button";
 import ShopifyCard from "./shopify-card";
 import DropiCard from "./dropi-card";
 import CollapsibleSection from "./collapsible-section";
+import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 
 export default async function ConexionesPage() {
   const session = await getSession();
@@ -75,6 +76,7 @@ export default async function ConexionesPage() {
 
         <CollapsibleSection title="Shopify" count={shopifyStore ? 1 : 0}>
           <ShopifyCard
+            appCredentials={hasShopifyAppCredentials()}
             store={
               shopifyStore
                 ? {

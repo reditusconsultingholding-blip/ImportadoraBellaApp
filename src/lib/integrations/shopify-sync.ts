@@ -5,9 +5,6 @@ import { fetchRecentOrders } from "./shopify";
 // y desde el cron (ver /api/cron/sync), igual que syncAdAccount para Meta/TikTok.
 export async function syncShopifyStore(storeId: string) {
   const store = await db.shopifyStore.findUniqueOrThrow({ where: { id: storeId } });
-  if (!store.accessToken) {
-    throw new Error(`La tienda "${store.shopDomain}" todavía no tiene un token conectado.`);
-  }
 
   const since = new Date();
   since.setDate(since.getDate() - 2);

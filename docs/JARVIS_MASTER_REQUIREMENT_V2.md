@@ -362,16 +362,23 @@ sidebar plano todavía alcanza.
 
 ## 6. Plan de integración sugerido (orden)
 
+> **Estado al 2026-08-26:** hechos los puntos 2, 3 y 5 (auth de Shopify por
+> client credentials + catálogo con costo unitario, calculadora enriquecida
+> con confirmación/devolución/eCPA/breakeven/escenarios, y código de
+> autorización al crear usuarios). El punto 1 sigue esperando respuesta de
+> Sebastian. Siguiente: punto 4 (Windsor.ai).
+
 1. Confirmar acceso al repo completo del Sistema B (o al menos más código
-   además de estos extractos).
-2. Portar el patrón de auth de Shopify (client credentials) al conector
-   existente en `src/lib/integrations/shopify.ts`.
-3. Enriquecer Rentabilidad/Calculadora con las fórmulas de
-   confirmación/devolución del Sistema B.
+   además de estos extractos). — **pendiente de Sebastian**
+2. ~~Portar el patrón de auth de Shopify (client credentials) al conector
+   existente en `src/lib/integrations/shopify.ts`.~~ **hecho**
+3. ~~Enriquecer Rentabilidad/Calculadora con las fórmulas de
+   confirmación/devolución del Sistema B.~~ **hecho** (en la Calculadora; la
+   tabla de Rentabilidad quedó igual, ver nota al final de esta sección)
 4. Conectar Windsor.ai (nueva integración) — retirar los conectores directos
    de Meta/TikTok una vez Windsor.ai esté trayendo los mismos datos.
-5. Código de autorización en creación de usuarios (cambio chico, hacerlo
-   temprano).
+5. ~~Código de autorización en creación de usuarios (cambio chico, hacerlo
+   temprano).~~ **hecho** (`USER_CREATION_CODE`, por defecto `190300`)
 6. Motor de recomendaciones + papelera 15 días.
 7. Anuncio general al ingresar (`Announcement`) + envío de reportes/alertas
    por email (Resend) — resuelve la mensajería sin fricción externa.
@@ -389,6 +396,14 @@ sidebar plano todavía alcanza.
     filtro "Necesita atención", sparklines por fila, generador de hooks
     con IA + biblioteca central, Playbook interno, auto-creación de la
     primera pieza al dar de alta un producto.
+
+**Nota sobre el punto 3:** las fórmulas nuevas viven en la Calculadora, que
+es donde se decide precio y CPA objetivo. La tabla de Rentabilidad
+(`/dashboard/rentabilidad`) sigue mostrando los acumulados reales del mes tal
+como los lleva Fabrizio — para que muestre eCPA y breakeven por producto hace
+falta guardar la tasa de confirmación y de devolución por producto
+(hoy no existen en `ProductProfitability`), y eso sí es un cambio de schema.
+Queda como mejora, no como pendiente del punto 3.
 
 ## 7. Preguntas abiertas para Fabrizio / Sebastian
 

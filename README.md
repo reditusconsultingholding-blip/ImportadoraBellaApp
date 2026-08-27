@@ -56,11 +56,20 @@ Lo que ya funciona, con datos de prueba (seed):
   columnas "por pedido" se calculan solas.
 - **Calculadora de precios** (`/dashboard/calculadora`) para dropshipping
   Ecuador: precio sugerido a partir de costos, comisión de pasarela, IVA y
-  margen/ganancia objetivo.
+  margen/ganancia objetivo. Incluye **tasa de confirmación y de devolución**
+  (portadas del sistema en producción): el precio se ajusta por las ventas
+  que de verdad se cobran, y abajo se ve el CPA breakeven, el CPA ideal, el
+  costo real por venta (eCPA), el ROAS y cuatro escenarios comparativos.
+  Si la tienda de Shopify está conectada, precio y costo unitario de cada
+  producto se cargan del catálogo en vivo.
 - **Torre logística Ecuador** (`/dashboard/logistica`), pensada para
   conectarse a Dropi: efectividad de entrega por provincia y transportadora.
   Sin una key de Dropi conectada todavía, muestra datos de ejemplo con la
   misma estructura que va a tener con datos reales (ver "Accesos pendientes").
+- **Chequeo de salud** (`GET /api/health`): responde 200 si la app y la base
+  contestan, 503 si la base falla. Es público a propósito, para que un monitor
+  externo (UptimeRobot, Better Stack, el health check de Railway) lo consulte
+  sin iniciar sesión.
 - Tipografía **Poppins** en toda la app; el nombre visible es **Importadora
   Bella** (Jarvis queda como el asistente de IA, no como la marca). Los
   colores de marca están pendientes de que Fabrizio los envíe.
@@ -101,6 +110,9 @@ Copiar `.env.example` a `.env` y completar:
 | `ANTHROPIC_API_KEY` | Sin esto, el chat de Jarvis responde con un aviso en vez de contestar. |
 | `META_APP_ID` / `META_APP_SECRET` | App de Meta for Developers para la Marketing API. |
 | `TIKTOK_APP_ID` / `TIKTOK_APP_SECRET` | App de TikTok for Business (requiere aprobación de TikTok). |
+| `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | App "Jarvin Panal" del Dev Dashboard. Con esto el token de Shopify se pide y se renueva solo cada ~24h; si no, se pega un token fijo desde Conexiones. |
+| `SHOPIFY_API_VERSION` | Versión de la Admin API. Por defecto `2025-04`. |
+| `USER_CREATION_CODE` | Código que hay que tipear al crear un usuario. Por defecto `190300`. |
 
 ## Accesos pendientes para ir a producción
 

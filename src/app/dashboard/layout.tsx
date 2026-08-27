@@ -18,10 +18,15 @@ export default async function DashboardLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const org = await db.organization.findUnique({
-    where: { id: session.organizationId },
-  });
-  const headerStats = await getHeaderStats(session.organizationId);
+  const [org, headerStats, me] = await Promise.all([
+    db.organization.findUnique({ where: { id: session.organizationId } }),
+    getHeaderStats(session.organizationId),
+    // El permiso de nómina se lee de la base, no del JWT — ver payroll-access.ts.
+    db.user.findUnique({
+      where: { id: session.userId },
+      select: { canViewPayroll: true },
+    }),
+  ]);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -39,6 +44,7 @@ export default async function DashboardLayout({
           showUsuarios={session.role === "OWNER"}
           showPipeline={canAccessPipeline(session.role)}
           showRentabilidad={canManagePipeline(session.role)}
+          showNomina={Boolean(me?.canViewPayroll)}
         />
         <div className="mt-auto px-5 py-4 border-t border-white/10 flex items-center justify-between">
           <span className="text-sm text-white/80 truncate">{session.name}</span>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { verifyShopifyConnection } from "@/lib/integrations/shopify";
+import { verifyShopifyConnection, hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 
 export async function POST(req: NextRequest) {
@@ -12,17 +12,34 @@ export async function POST(req: NextRequest) {
     shopDomain?: string;
     accessToken?: string;
   };
-  if (!shopDomain?.trim() || !accessToken?.trim()) {
-    return NextResponse.json({ error: "Faltan datos." }, { status: 400 });
+  if (!shopDomain?.trim()) {
+    return NextResponse.json({ error: "Falta el dominio de la tienda." }, { status: 400 });
+  }
+
+  // El token puede venir vacío: si la app "Jarvin Panal" está configurada por
+  // variables de entorno (SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET), el token
+  // lo pide y lo renueva solo el cliente de Shopify.
+  const token = accessToken?.trim() || null;
+  if (!token && !hasShopifyAppCredentials()) {
+    return NextResponse.json(
+      {
+        error:
+          "Pegá el Admin API access token, o configurá SHOPIFY_CLIENT_ID y SHOPIFY_CLIENT_SECRET para que el token se renueve solo.",
+      },
+      { status: 400 }
+    );
   }
 
   let shopName: string | undefined;
   try {
-    const result = await verifyShopifyConnection(shopDomain.trim(), accessToken.trim());
+    const result = await verifyShopifyConnection(shopDomain.trim(), token);
     shopName = result.shopName;
   } catch (err) {
     return NextResponse.json(
-      { error: "No se pudo verificar la tienda — revisá el dominio y el token." },
+      {
+        error: "No se pudo verificar la tienda — revisá el dominio y las credenciales.",
+        detail: err instanceof Error ? err.message : String(err),
+      },
       { status: 400 }
     );
   }
@@ -37,11 +54,11 @@ export async function POST(req: NextRequest) {
     create: {
       organizationId: session.organizationId,
       shopDomain: shopDomain.trim(),
-      accessToken: accessToken.trim(),
+      accessToken: token,
       connectedAt: new Date(),
     },
     update: {
-      accessToken: accessToken.trim(),
+      accessToken: token,
       connectedAt: new Date(),
     },
   });

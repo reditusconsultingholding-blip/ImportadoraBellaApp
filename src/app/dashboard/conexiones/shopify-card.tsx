@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 
 export default function ShopifyCard({
   store,
+  appCredentials,
 }: {
   store: { id: string; shopDomain: string; connected: boolean } | null;
+  // true si la app "Jarvin Panal" está configurada por variables de entorno:
+  // en ese caso el token es opcional, Jarvis lo pide y lo renueva solo.
+  appCredentials: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!store?.connected);
@@ -31,7 +35,10 @@ export default function ShopifyCard({
     setBusy(false);
 
     if (!res.ok) {
-      setMessage({ type: "error", text: data.error ?? "No se pudo conectar." });
+      setMessage({
+        type: "error",
+        text: [data.error ?? "No se pudo conectar.", data.detail].filter(Boolean).join(" "),
+      });
       return;
     }
     setMessage({
@@ -108,16 +115,22 @@ export default function ShopifyCard({
           </label>
           <label className="block">
             <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
-              Admin API access token
+              Admin API access token {appCredentials && <span className="normal-case">(opcional)</span>}
             </span>
             <input
               value={token}
               onChange={(e) => setToken(e.target.value)}
               type="password"
-              required
-              placeholder="shpat_..."
+              required={!appCredentials}
+              placeholder={appCredentials ? "Dejalo vacío para usar la app Jarvin Panal" : "shpat_..."}
               className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
             />
+            {appCredentials && (
+              <span className="block text-xs text-muted mt-1">
+                La app de Shopify ya está configurada en el servidor — si dejás esto vacío, el
+                token se pide y se renueva solo cada 24 horas.
+              </span>
+            )}
           </label>
           <div className="flex gap-2">
             <button

@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum Platform {
@@ -64,6 +64,8 @@ model Organization {
   dailyReports        DailyReport[]
   profitabilityRows   ProductProfitability[]
   dropiConnections    DropiConnection[]
+  employees           Employee[]
+  payrollPeriods      PayrollPeriod[]
 }
 
 model User {
@@ -73,6 +75,10 @@ model User {
   name               String
   role               Role     @default(OWNER)
   mustChangePassword Boolean  @default(false)
+  // Quién ve la pantalla de Nómina. NO alcanza con ser OWNER: es un permiso
+  // aparte porque el pago solo lo miran Fabricio y Katherine, y puede haber
+  // otros administradores que no deban verlo.
+  canViewPayroll     Boolean  @default(false)
   organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id])
   createdAt          DateTime @default(now())
@@ -81,6 +87,7 @@ model User {
   assignedRequirements  Requirement[]   @relation("RequirementOwner")
   comments              Comment[]
   notifications         Notification[]
+  employee              Employee?
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -314,6 +321,98 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, read])
+}
+
+// --- Nómina -------------------------------------------------------------
+//
+// Una persona del equipo con su forma de pago. Se separa de User a propósito:
+// no todo el que cobra necesita cuenta en la app, y no todo el que tiene
+// cuenta cobra sueldo. Cuando la persona sí tiene cuenta, se enlaza por
+// userId para poder contar las piezas que entregó.
+//
+// Los montos NO están hardcodeados en el código: los carga Fabrizio o
+// Katherine desde el panel, porque son los únicos que ven esta pantalla.
+
+enum PayMode {
+  SEMANAL // monto fijo por semana
+  DIARIO // monto por día trabajado
+  POR_PIEZA // monto por cada creativo entregado en la semana
+}
+
+model Employee {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String?      @unique
+  user           User?        @relation(fields: [userId], references: [id])
+
+  fullName    String
+  position    String // "Editora de Video", "Directora Creativa"...
+  payMode     PayMode @default(SEMANAL)
+  payAmount   Float   @default(0)
+  daysPerWeek Float   @default(6) // se usa para prorratear una ausencia
+  currency    String  @default("USD")
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  absences PayrollAbsence[]
+  entries  PayrollEntry[]
+
+  @@index([organizationId, active])
+}
+
+// Un día que la persona no trabajó. Descuenta del pago de esa semana,
+// salvo en POR_PIEZA (ahí el pago ya depende de lo entregado).
+model PayrollAbsence {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime // medianoche del día ausente
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([employeeId, date])
+  @@index([employeeId, date])
+}
+
+// Una semana de pago. Se cierra cuando se paga, y ahí los montos quedan
+// congelados en PayrollEntry — si después cambia el sueldo de alguien, lo
+// ya pagado no se reescribe solo.
+model PayrollPeriod {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  weekStart      DateTime // lunes
+  weekEnd        DateTime // domingo
+  status         String       @default("ABIERTA") // ABIERTA | PAGADA
+  paidAt         DateTime?
+  paidByName     String?
+  createdAt      DateTime     @default(now())
+
+  entries PayrollEntry[]
+
+  @@unique([organizationId, weekStart])
+  @@index([organizationId, weekStart])
+}
+
+model PayrollEntry {
+  id         String        @id @default(cuid())
+  periodId   String
+  period     PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId], references: [id])
+
+  baseAmount     Float // lo que corresponde por sueldo/piezas antes de ajustes
+  absenceDays    Float @default(0)
+  absenceDeduct  Float @default(0)
+  piecesDelivered Int  @default(0)
+  bonus          Float @default(0)
+  total          Float
+  note           String?
+
+  @@unique([periodId, employeeId])
 }
 
 // Reporte diario en PDF. Un cron a medianoche (ver /api/cron/daily-report)
