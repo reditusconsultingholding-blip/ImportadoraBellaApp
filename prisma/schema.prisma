@@ -335,6 +335,10 @@ model MetricSnapshot {
   purchases  Int
   revenue    Float
 
+  // Una fila por campaña y día. La clave única es lo que deja volver a
+  // sincronizar los últimos días sin duplicar: Meta ajusta las compras con
+  // retraso, así que el mismo día se reescribe varias veces.
+  @@unique([campaignId, capturedAt])
   @@index([campaignId, capturedAt])
 }
 
