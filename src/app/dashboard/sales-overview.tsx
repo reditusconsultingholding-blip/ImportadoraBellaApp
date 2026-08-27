@@ -73,6 +73,25 @@ export default function SalesOverview({
   /** Que periodo cubren estos numeros. Sin esto nadie sabe si son de hoy. */
   periodo: string;
 }) {
+  // Sin tienda conectada no se dibuja nada: antes salian ventas de ejemplo con
+  // el mismo aspecto que las reales.
+  if (!data.connected) {
+    return (
+      <div className="rounded border border-border bg-surface p-8 text-center">
+        <p className="text-sm font-medium">Todavia no hay una tienda conectada</p>
+        <p className="mt-1.5 text-sm text-muted">
+          Conecta Shopify para ver las ventas reales de {periodo.toLowerCase()}.
+        </p>
+        <a
+          href="/dashboard/conexiones"
+          className="mt-4 inline-block rounded bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
+        >
+          Ir a Conexiones
+        </a>
+      </div>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="font-mono text-xs uppercase tracking-wide text-muted">

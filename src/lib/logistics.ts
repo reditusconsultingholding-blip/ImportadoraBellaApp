@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
 
-// Torre logística (Ecuador) — mismo patrón que src/lib/sales.ts: si hay una
-// conexión real de Dropi con envíos sincronizados, se usa esa data; si no,
-// se muestran datos de ejemplo para que el panel no quede vacío mientras
-// Fabrizio consigue el acceso (ver nota en /dashboard/conexiones — la API
-// de Dropi es privada y hay que pedirle la key a su equipo de IT).
+// Torre logística (Ecuador).
+//
+// Antes, sin conexión de Dropi, esta pantalla dibujaba provincias y tasas de
+// devolución INVENTADAS, con el mismo aspecto que las reales y sin ninguna
+// marca — la pantalla traía un campo "connected" que nadie leía. Un dueño
+// mirando "Manabí: 15% de devoluciones" no tenía forma de saber que ese número
+// no existía. Un tablero que miente es peor que un tablero vacío, así que
+// ahora devuelve vacío y dice por qué.
 export type ProvinceStat = {
   province: string;
   total: number;
@@ -23,6 +26,8 @@ export type CarrierStat = {
 
 export type LogisticsOverview = {
   connected: boolean;
+  /** Por qué está vacía, cuando lo está. Se muestra tal cual en pantalla. */
+  motivo?: string;
   totalShipments: number;
   delivered: number;
   returned: number;
@@ -36,61 +41,17 @@ function effectiveness(delivered: number, total: number) {
   return total > 0 ? Math.round((delivered / total) * 1000) / 10 : 0;
 }
 
-// Distribución de ejemplo por provincia — pensada para que se note la señal
-// que Fabrizio pidió: "dónde tiene más devoluciones". Manabí y Los Ríos
-// quedan con más devoluciones a propósito, como ejemplo de lo que la torre
-// real mostraría con datos de Dropi.
-const DEMO_PROVINCES: { province: string; total: number; returnedPct: number }[] = [
-  { province: "Pichincha", total: 612, returnedPct: 0.07 },
-  { province: "Guayas", total: 548, returnedPct: 0.09 },
-  { province: "Azuay", total: 214, returnedPct: 0.06 },
-  { province: "Manabí", total: 187, returnedPct: 0.21 },
-  { province: "El Oro", total: 142, returnedPct: 0.11 },
-  { province: "Tungurahua", total: 121, returnedPct: 0.08 },
-  { province: "Los Ríos", total: 98, returnedPct: 0.24 },
-  { province: "Loja", total: 76, returnedPct: 0.10 },
-  { province: "Santo Domingo", total: 64, returnedPct: 0.13 },
-  { province: "Imbabura", total: 58, returnedPct: 0.09 },
-];
-
-const DEMO_CARRIERS: { carrier: string; total: number; returnedPct: number }[] = [
-  { carrier: "Servientrega", total: 720, returnedPct: 0.09 },
-  { carrier: "Laar Courier", total: 480, returnedPct: 0.12 },
-  { carrier: "Urbano", total: 310, returnedPct: 0.10 },
-  { carrier: "Tramaco", total: 210, returnedPct: 0.15 },
-];
-
-function demoLogisticsOverview(): LogisticsOverview {
-  const byProvince: ProvinceStat[] = DEMO_PROVINCES.map((p) => {
-    const returned = Math.round(p.total * p.returnedPct);
-    const delivered = p.total - returned - Math.round(p.total * 0.04); // 4% en tránsito
-    return { province: p.province, total: p.total, delivered, returned, effectivenessPct: effectiveness(delivered, p.total) };
-  });
-
-  const carrierMap = new Map<string, { total: number; returned: number }>();
-  for (const c of DEMO_CARRIERS) {
-    const returned = Math.round(c.total * c.returnedPct);
-    const prev = carrierMap.get(c.carrier) ?? { total: 0, returned: 0 };
-    carrierMap.set(c.carrier, { total: prev.total + c.total, returned: prev.returned + returned });
-  }
-  const byCarrier: CarrierStat[] = Array.from(carrierMap.entries()).map(([carrier, v]) => {
-    const delivered = v.total - v.returned - Math.round(v.total * 0.04);
-    return { carrier, total: v.total, delivered, returned: v.returned, effectivenessPct: effectiveness(delivered, v.total) };
-  });
-
-  const totalShipments = byProvince.reduce((s, p) => s + p.total, 0);
-  const delivered = byProvince.reduce((s, p) => s + p.delivered, 0);
-  const returned = byProvince.reduce((s, p) => s + p.returned, 0);
-
+function sinDatos(motivo: string): LogisticsOverview {
   return {
     connected: false,
-    totalShipments,
-    delivered,
-    returned,
-    inTransit: totalShipments - delivered - returned,
-    effectivenessPct: effectiveness(delivered, totalShipments),
-    byProvince: byProvince.sort((a, b) => b.effectivenessPct - a.effectivenessPct),
-    byCarrier: byCarrier.sort((a, b) => b.effectivenessPct - a.effectivenessPct),
+    motivo,
+    totalShipments: 0,
+    delivered: 0,
+    returned: 0,
+    inTransit: 0,
+    effectivenessPct: 0,
+    byProvince: [],
+    byCarrier: [],
   };
 }
 
@@ -98,14 +59,20 @@ export async function getLogisticsOverview(organizationId: string): Promise<Logi
   const connection = await db.dropiConnection.findFirst({
     where: { organizationId, connectedAt: { not: null } },
   });
-  if (!connection) return demoLogisticsOverview();
+  if (!connection) {
+    return sinDatos(
+      "Todavía no hay una conexión de Dropi. Se configura en Conexiones — la API es privada y hay que pedirle la clave a su equipo."
+    );
+  }
 
-  // La key puede estar guardada sin que todavía haya envíos sincronizados
-  // (la API real de Dropi requiere que su equipo habilite el acceso primero
-  // — ver /dashboard/conexiones). Hasta que haya guías reales, se sigue
-  // mostrando el ejemplo para no dejar el panel vacío.
   const shipments = await db.shipment.findMany({ where: { connectionId: connection.id } });
-  if (shipments.length === 0) return demoLogisticsOverview();
+  if (shipments.length === 0) {
+    // La clave puede estar guardada sin que Dropi haya habilitado todavía el
+    // acceso, así que no alcanza con mirar si hay conexión.
+    return sinDatos(
+      "La conexión con Dropi está guardada pero todavía no bajó ninguna guía. Suele ser que falta que su equipo habilite el acceso."
+    );
+  }
 
   const DELIVERED = "ENTREGADO";
   const RETURNED = "DEVUELTO";
@@ -145,6 +112,7 @@ export async function getLogisticsOverview(organizationId: string): Promise<Logi
 
   return {
     connected: true,
+    motivo: undefined,
     totalShipments: shipments.length,
     delivered,
     returned,

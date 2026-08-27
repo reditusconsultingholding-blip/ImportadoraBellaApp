@@ -31,6 +31,26 @@ export default function LogisticsTower({ data }: { data: LogisticsOverview }) {
     [data.byCarrier, carrier]
   );
 
+  // Sin conexión no se dibuja nada: antes acá salían provincias y tasas de
+  // devolución de ejemplo, iguales a las reales y sin ninguna marca que las
+  // distinguiera.
+  if (!data.connected) {
+    return (
+      <div className="rounded border border-border bg-surface p-8 text-center">
+        <p className="text-sm font-medium">La torre logística todavía no tiene datos</p>
+        <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">
+          {data.motivo ?? "Falta conectar el operador logístico."}
+        </p>
+        <a
+          href="/dashboard/conexiones"
+          className="mt-4 inline-block rounded bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
+        >
+          Ir a Conexiones
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
