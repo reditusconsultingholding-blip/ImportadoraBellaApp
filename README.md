@@ -46,9 +46,15 @@ Lo que ya funciona, con datos de prueba (seed):
   notificaciones (campanita en el header). Un Editor solo ve y edita lo que
   tiene asignado; Director/Owner ven y arman todo el pipeline.
 - **Productos** (`/dashboard/productos`): el catálogo como un tablero estilo
-  Milanote. Carpetas y subcarpetas anidables sin límite, productos y notas
-  sueltas, todo como tarjetas que se arrastran — la posición queda guardada
-  para todo el equipo. Cada tarjeta de producto entra a su drill-down: lo
+  Milanote. Carpetas y subcarpetas anidables sin límite, productos y **fichas
+  de contenido**, todo como tarjetas que se arrastran — la posición queda
+  guardada para todo el equipo. Una ficha se abre en un panel lateral con la
+  barra de etapas (Idea → Guion → Grabación → Edición → Revisión → Aprobado →
+  Publicado), fecha de entrega, prioridad, formato, duración objetivo,
+  responsable, links y su propia conversación con `@menciones`. Comentar no
+  requiere permiso de edición: opinar sobre una pieza no es lo mismo que
+  cambiarla. Los links se filtran a `http(s)` — un `javascript:` guardado por
+  alguien se ejecutaría al hacer clic desde la ficha de otra persona. Cada tarjeta de producto entra a su drill-down: lo
   realizado / por realizar y qué anuncios testeados dieron buen o mal CPA.
   Borrar una carpeta no borra sus productos (vuelven a la raíz), y un producto
   con campañas o piezas asociadas no se puede borrar, para no perder el
