@@ -72,6 +72,11 @@ export default function CatalogPicker() {
     });
   }, [datos, busqueda]);
 
+  // Los que se pueden agregar de los que están a la vista: sirve para dar de
+  // alta un lote entero sin tildar de a uno. Buscar "batana" y seleccionar
+  // todos es la forma rápida de cargar una familia de productos.
+  const disponibles = useMemo(() => visibles.filter((i) => !i.seguido), [visibles]);
+
   function alternar(title: string) {
     setElegidos((prev) => {
       const next = new Set(prev);
@@ -166,9 +171,22 @@ export default function CatalogPicker() {
             <p className="mt-4 text-sm text-muted">Leyendo el catálogo…</p>
           ) : (
             <>
-              <p className="mt-3 text-xs text-muted">
-                {visibles.length} de {datos.items.length} productos
-                {busqueda.trim() ? " coinciden" : " en la tienda"}.
+              <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span>
+                  {visibles.length} de {datos.items.length} productos
+                  {busqueda.trim() ? " coinciden" : " en la tienda"}.
+                </span>
+                {disponibles.length > 0 && (
+                  <button
+                    onClick={() =>
+                      setElegidos(new Set([...elegidos, ...disponibles.map((i) => i.title)]))
+                    }
+                    className="underline underline-offset-2 transition hover:text-foreground"
+                  >
+                    Seleccionar {disponibles.length}{" "}
+                    {disponibles.length === 1 ? "disponible" : "disponibles"}
+                  </button>
+                )}
               </p>
 
               <div className="mt-2 max-h-80 overflow-y-auto rounded border border-border">
