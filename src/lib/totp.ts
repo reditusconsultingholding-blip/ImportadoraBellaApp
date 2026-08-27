@@ -76,3 +76,8 @@ export function verifyTotpCode(code: string) {
   const counter = Math.floor(Date.now() / 1000 / STEP_SECONDS);
   return [0, -1, 1].some((delta) => hotp(secret, counter + delta) === clean);
 }
+
+/** Instante exacto en que vence el código vigente, en ISO. */
+export function nextCodeExpiresAt() {
+  return new Date(Date.now() + secondsUntilNextCode() * 1000).toISOString();
+}

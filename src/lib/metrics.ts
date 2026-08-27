@@ -1,17 +1,21 @@
 import { db } from "@/lib/db";
 import type { Platform } from "@/generated/prisma/client";
+import type { Range } from "@/lib/date-range";
 
-export type ProductMetric = {
-  code: string;
+export type RowMetric = {
+  key: string;
   name: string;
+  // El código del producto cuando la campaña está asociada a uno; null cuando
+  // la fila es una campaña suelta.
+  code: string | null;
   spend: number;
   purchases: number;
   revenue: number;
   clicks: number;
   impressions: number;
   cpa: number | null;
-  cpaTarget: number;
-  status: "ok" | "urgent";
+  cpaTarget: number | null;
+  status: "ok" | "urgent" | "sin-objetivo";
 };
 
 export type Overview = {
@@ -19,76 +23,107 @@ export type Overview = {
   totalPurchases: number;
   totalRevenue: number;
   ctr: number;
-  products: ProductMetric[];
-  topProduct: ProductMetric | null;
-  urgentProducts: ProductMetric[];
+  roas: number | null;
+  rows: RowMetric[];
+  topRow: RowMetric | null;
+  urgentRows: RowMetric[];
+  campaignsWithoutProduct: number;
 };
 
-// Con datos reales, spend/clicks/etc. vienen de la última sincronización
-// contra la Graph API / TikTok Business API (ver src/lib/integrations).
-// Acá se toma el snapshot más reciente por campaña.
+/**
+ * Resumen de pauta para un rango de fechas.
+ *
+ * Antes esto tomaba solo el snapshot MÁS RECIENTE de cada campaña y descartaba
+ * toda campaña sin producto asociado (`if (!snapshot || !campaign.product)`).
+ * Con 722 campañas reales y ningún producto cargado, eso hacía que el panel
+ * mostrara cero habiendo decenas de miles de dólares de gasto en la base.
+ * Ahora:
+ *
+ *  - suma TODOS los días del rango, no un único snapshot;
+ *  - una campaña sin producto se muestra igual, como fila propia, en vez de
+ *    desaparecer. Un número que falta se nota; uno que se esconde, no.
+ */
 export async function getOverview(
   organizationId: string,
-  platform: Platform
+  platform: Platform,
+  range: Range
 ): Promise<Overview> {
   const campaigns = await db.campaign.findMany({
     where: { adAccount: { organizationId, platform } },
     include: {
-      product: true,
-      metrics: { orderBy: { capturedAt: "desc" }, take: 1 },
+      product: { select: { code: true, name: true, cpaTarget: true } },
+      metrics: {
+        where: { capturedAt: { gte: range.from, lte: range.to } },
+        select: { spend: true, purchases: true, revenue: true, clicks: true, impressions: true },
+      },
     },
   });
 
-  const byProduct = new Map<string, ProductMetric>();
+  const rows = new Map<string, RowMetric>();
+  let campaignsWithoutProduct = 0;
 
   for (const campaign of campaigns) {
-    const snapshot = campaign.metrics[0];
-    if (!snapshot || !campaign.product) continue;
+    if (campaign.metrics.length === 0) continue;
+    if (!campaign.product) campaignsWithoutProduct += 1;
 
-    const key = campaign.product.code;
-    const existing = byProduct.get(key) ?? {
-      code: campaign.product.code,
-      name: campaign.product.name,
+    // Las campañas con producto se agrupan bajo el producto; las sueltas
+    // quedan una fila por campaña.
+    const key = campaign.product ? `p:${campaign.product.code}` : `c:${campaign.id}`;
+    const row: RowMetric = rows.get(key) ?? {
+      key,
+      name: campaign.product?.name ?? campaign.name,
+      code: campaign.product?.code ?? null,
       spend: 0,
       purchases: 0,
       revenue: 0,
       clicks: 0,
       impressions: 0,
       cpa: null,
-      cpaTarget: campaign.product.cpaTarget,
-      status: "ok" as const,
+      cpaTarget: campaign.product?.cpaTarget ?? null,
+      status: "ok",
     };
 
-    existing.spend += snapshot.spend;
-    existing.purchases += snapshot.purchases;
-    existing.revenue += snapshot.revenue;
-    existing.clicks += snapshot.clicks;
-    existing.impressions += snapshot.impressions;
+    for (const m of campaign.metrics) {
+      row.spend += m.spend;
+      row.purchases += m.purchases;
+      row.revenue += m.revenue;
+      row.clicks += m.clicks;
+      row.impressions += m.impressions;
+    }
 
-    byProduct.set(key, existing);
+    rows.set(key, row);
   }
 
-  const products = Array.from(byProduct.values()).map((p) => {
-    const cpa = p.purchases > 0 ? p.spend / p.purchases : null;
-    const status: "ok" | "urgent" = cpa !== null && cpa > p.cpaTarget ? "urgent" : "ok";
-    return { ...p, cpa, status };
+  const list = Array.from(rows.values()).map((r) => {
+    const cpa = r.purchases > 0 ? r.spend / r.purchases : null;
+    const status: RowMetric["status"] =
+      r.cpaTarget === null
+        ? "sin-objetivo"
+        : cpa !== null && cpa > r.cpaTarget
+          ? "urgent"
+          : "ok";
+    return { ...r, cpa, status };
   });
 
-  products.sort((a, b) => b.revenue - a.revenue);
+  // Ordenado por gasto: lo que más plata consume es lo primero que hay que
+  // mirar, tenga o no producto asociado.
+  list.sort((a, b) => b.spend - a.spend);
 
-  const totalSpend = products.reduce((s, p) => s + p.spend, 0);
-  const totalPurchases = products.reduce((s, p) => s + p.purchases, 0);
-  const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
-  const totalClicks = products.reduce((s, p) => s + p.clicks, 0);
-  const totalImpressions = products.reduce((s, p) => s + p.impressions, 0);
+  const totalSpend = list.reduce((s, r) => s + r.spend, 0);
+  const totalPurchases = list.reduce((s, r) => s + r.purchases, 0);
+  const totalRevenue = list.reduce((s, r) => s + r.revenue, 0);
+  const totalClicks = list.reduce((s, r) => s + r.clicks, 0);
+  const totalImpressions = list.reduce((s, r) => s + r.impressions, 0);
 
   return {
     totalSpend,
     totalPurchases,
     totalRevenue,
     ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-    products,
-    topProduct: products[0] ?? null,
-    urgentProducts: products.filter((p) => p.status === "urgent"),
+    roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
+    rows: list,
+    topRow: list[0] ?? null,
+    urgentRows: list.filter((r) => r.status === "urgent"),
+    campaignsWithoutProduct,
   };
 }

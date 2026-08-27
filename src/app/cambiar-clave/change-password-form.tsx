@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PasswordInput from "@/components/password-input";
 import { useRouter } from "next/navigation";
 
 export default function ChangePasswordForm({ forced }: { forced: boolean }) {
@@ -45,9 +46,8 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
         <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
           Contraseña nueva
         </span>
-        <input
-          type="password"
-          required
+        <PasswordInput
+            required
           minLength={8}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
@@ -60,9 +60,8 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
         <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
           Repetir contraseña
         </span>
-        <input
-          type="password"
-          required
+        <PasswordInput
+            required
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}

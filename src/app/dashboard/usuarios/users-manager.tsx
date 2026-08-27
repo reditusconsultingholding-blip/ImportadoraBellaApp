@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PasswordInput from "@/components/password-input";
 import { useRouter } from "next/navigation";
 
 type UserRow = {
@@ -193,28 +194,28 @@ export default function UsersManager({
                         <label className="block">
                           <span className={labelClass}>Nombre</span>
                           <input
-                            value={draft.name}
-                            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                            required
-                            className={inputClass}
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            required
+            className={inputClass}
                           />
                         </label>
                         <label className="block">
                           <span className={labelClass}>Correo</span>
                           <input
-                            type="email"
-                            value={draft.email}
-                            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                            required
-                            className={inputClass}
+            type="email"
+            value={draft.email}
+            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+            required
+            className={inputClass}
                           />
                         </label>
                         <label className="block">
                           <span className={labelClass}>Rol</span>
                           <select
-                            value={draft.role}
-                            onChange={(e) => setDraft({ ...draft, role: e.target.value })}
-                            className={inputClass}
+            value={draft.role}
+            onChange={(e) => setDraft({ ...draft, role: e.target.value })}
+            className={inputClass}
                           >
                             {ROLE_ORDER.map((r) => (
                               <option key={r} value={r}>
@@ -225,29 +226,28 @@ export default function UsersManager({
                         </label>
                         <label className="block">
                           <span className={labelClass}>Contraseña nueva (opcional)</span>
-                          <input
-                            type="password"
-                            value={draft.newPassword}
-                            onChange={(e) => setDraft({ ...draft, newPassword: e.target.value })}
-                            minLength={8}
-                            autoComplete="new-password"
-                            placeholder="dejala vacía para no cambiarla"
-                            className={inputClass}
+                          <PasswordInput
+            value={draft.newPassword}
+            onChange={(e) => setDraft({ ...draft, newPassword: e.target.value })}
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="dejala vacía para no cambiarla"
+            className={inputClass}
                           />
                         </label>
                       </div>
 
                       <label
-                        className={`flex items-start gap-2 text-sm ${
+            className={`flex items-start gap-2 text-sm ${
                           canGrantPayroll ? "" : "opacity-60"
                         }`}
                       >
                         <input
-                          type="checkbox"
+            type="checkbox"
                           disabled={!canGrantPayroll}
                           checked={draft.canViewPayroll}
-                          onChange={(e) => setDraft({ ...draft, canViewPayroll: e.target.checked })}
-                          className="mt-0.5"
+            onChange={(e) => setDraft({ ...draft, canViewPayroll: e.target.checked })}
+            className="mt-0.5"
                         />
                         <span>
                           Puede ver la nómina
@@ -261,19 +261,19 @@ export default function UsersManager({
 
                       <div className="flex gap-2">
                         <button
-                          type="submit"
+            type="submit"
                           disabled={busy}
-                          className="text-sm font-medium bg-accent text-white rounded px-4 py-2 hover:bg-accent-strong transition disabled:opacity-60"
+            className="text-sm font-medium bg-accent text-white rounded px-4 py-2 hover:bg-accent-strong transition disabled:opacity-60"
                         >
                           {busy ? "Guardando…" : "Guardar cambios"}
                         </button>
                         <button
-                          type="button"
+            type="button"
                           onClick={() => {
                             setEditingId(null);
                             setDraft(null);
                           }}
-                          className="text-sm text-muted hover:text-foreground transition px-2"
+            className="text-sm text-muted hover:text-foreground transition px-2"
                         >
                           Cancelar
                         </button>
@@ -312,7 +312,7 @@ export default function UsersManager({
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       <button
                         onClick={() => startEdit(u)}
-                        className="text-xs font-medium border border-border rounded px-2.5 py-1 hover:bg-surface-2 transition"
+            className="text-xs font-medium border border-border rounded px-2.5 py-1 hover:bg-surface-2 transition"
                       >
                         Editar
                       </button>
@@ -320,7 +320,7 @@ export default function UsersManager({
                         <button
                           onClick={() => deleteUser(u.id)}
                           disabled={deletingId === u.id}
-                          className="ml-2 text-xs text-critical hover:underline disabled:opacity-60"
+            className="ml-2 text-xs text-critical hover:underline disabled:opacity-60"
                         >
                           {deletingId === u.id ? "Eliminando…" : "Eliminar"}
                         </button>
@@ -355,23 +355,22 @@ export default function UsersManager({
             <label className="block">
               <span className={labelClass}>Correo</span>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className={inputClass}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className={inputClass}
               />
             </label>
             <label className="block">
               <span className={labelClass}>Contraseña</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="mínimo 6 caracteres"
-                className={inputClass}
+              <PasswordInput
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            placeholder="mínimo 6 caracteres"
+            className={inputClass}
               />
             </label>
             <label className="block">
@@ -387,15 +386,14 @@ export default function UsersManager({
           </div>
           <label className="block border-t border-border pt-3">
             <span className={labelClass}>Código de autorización</span>
-            <input
-              type="password"
-              value={authCode}
-              onChange={(e) => setAuthCode(e.target.value)}
-              required
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="requerido para crear la cuenta"
-              className={inputClass}
+            <PasswordInput
+            value={authCode}
+            onChange={(e) => setAuthCode(e.target.value)}
+            required
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="requerido para crear la cuenta"
+            className={inputClass}
             />
             <span className="block text-xs text-muted mt-1">
               Sin este código no se crea la cuenta, aunque alguien llegue a esta pantalla.
@@ -403,16 +401,16 @@ export default function UsersManager({
           </label>
           <div className="flex gap-2">
             <button
-              type="submit"
+            type="submit"
               disabled={busy}
-              className="text-sm font-medium bg-accent text-white rounded px-4 py-2 hover:bg-accent-strong transition disabled:opacity-60"
+            className="text-sm font-medium bg-accent text-white rounded px-4 py-2 hover:bg-accent-strong transition disabled:opacity-60"
             >
               {busy ? "Creando…" : "Crear usuario"}
             </button>
             <button
-              type="button"
+            type="button"
               onClick={() => setOpen(false)}
-              className="text-sm text-muted hover:text-foreground transition px-2"
+            className="text-sm text-muted hover:text-foreground transition px-2"
             >
               Cancelar
             </button>

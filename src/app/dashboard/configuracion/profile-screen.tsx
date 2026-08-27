@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import PasswordInput from "@/components/password-input";
 import { useRouter } from "next/navigation";
 
 type Msg = { type: "ok" | "error"; text: string } | null;
@@ -67,7 +68,7 @@ export default function ProfileScreen({
   position: string | null;
   email: string;
   profile: { name: string; phone: string; birthDate: string; avatarUrl: string | null };
-  creationCode: { code: string; secondsLeft: number } | null;
+  creationCode: { code: string; expiresAt: string } | null;
 }) {
   const router = useRouter();
 
@@ -205,10 +206,10 @@ export default function ProfileScreen({
 
           <div className="flex items-center gap-4">
             <button
-              type="button"
+            type="button"
               onClick={() => fileRef.current?.click()}
               title="Cambiar la foto"
-              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-surface-2"
+            className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-surface-2"
             >
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -221,9 +222,9 @@ export default function ProfileScreen({
             </button>
             <div className="text-xs text-muted">
               <button
-                type="button"
+            type="button"
                 onClick={() => fileRef.current?.click()}
-                className="text-accent hover:underline"
+            className="text-accent hover:underline"
               >
                 Hacé clic en la foto para cambiarla
               </button>
@@ -239,10 +240,10 @@ export default function ProfileScreen({
             </div>
             <input
               ref={fileRef}
-              type="file"
+            type="file"
               accept="image/png,image/jpeg,image/webp"
-              onChange={pickPhoto}
-              className="hidden"
+            onChange={pickPhoto}
+            className="hidden"
             />
           </div>
 
@@ -253,19 +254,19 @@ export default function ProfileScreen({
           <label className="block">
             <span className={labelClass}>Fecha de nacimiento</span>
             <input
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className={inputClass}
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+            className={inputClass}
             />
           </label>
           <label className="block">
             <span className={labelClass}>Teléfono</span>
             <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+593 99 123 4567"
-              className={inputClass}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+593 99 123 4567"
+            className={inputClass}
             />
           </label>
 
@@ -285,22 +286,21 @@ export default function ProfileScreen({
             <label className="block">
               <span className={labelClass}>Correo nuevo</span>
               <input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                required
-                className={inputClass}
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            required
+            className={inputClass}
               />
             </label>
             <label className="block">
               <span className={labelClass}>Confirmá tu contraseña actual</span>
-              <input
-                type="password"
-                value={emailPassword}
-                onChange={(e) => setEmailPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className={inputClass}
+              <PasswordInput
+            value={emailPassword}
+            onChange={(e) => setEmailPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className={inputClass}
               />
             </label>
             <div>
@@ -316,38 +316,35 @@ export default function ProfileScreen({
             <h2 className="font-semibold text-sm">Cambiar contraseña</h2>
             <label className="block">
               <span className={labelClass}>Contraseña actual</span>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className={inputClass}
+              <PasswordInput
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className={inputClass}
               />
             </label>
             <label className="block">
               <span className={labelClass}>Contraseña nueva</span>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                placeholder="mínimo 8 caracteres"
-                className={inputClass}
+              <PasswordInput
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="mínimo 8 caracteres"
+            className={inputClass}
               />
             </label>
             <label className="block">
               <span className={labelClass}>Confirmar contraseña nueva</span>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                className={inputClass}
+              <PasswordInput
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            className={inputClass}
               />
             </label>
             <div>
@@ -363,35 +360,37 @@ export default function ProfileScreen({
   );
 }
 
-function CreationCode({ code, secondsLeft }: { code: string; secondsLeft: number }) {
+function CreationCode({ code, expiresAt }: { code: string; expiresAt: string }) {
   const router = useRouter();
-  const [left, setLeft] = useState(secondsLeft);
 
-  useEffect(() => setLeft(secondsLeft), [code, secondsLeft]);
+  // El vencimiento llega del servidor como instante absoluto; acá solo se
+  // convierte a número, que es una operación pura. El reloj se lee dentro del
+  // intervalo, nunca durante el renderizado.
+  const expiresMs = useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLeft((prev) => {
-        if (prev <= 1) {
-          // Se venció: se pide el siguiente al servidor, que es quien lo sabe
-          // calcular. El secreto nunca baja al navegador.
-          router.refresh();
-          return 30;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const timer = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(timer);
-  }, [router]);
+  }, []);
+
+  const left = Math.max(0, Math.ceil((expiresMs - now) / 1000));
+
+  useEffect(() => {
+    // Venció: se pide el siguiente al servidor, que es quien lo sabe calcular.
+    // El secreto nunca baja al navegador.
+    if (left === 0) router.refresh();
+  }, [left, router]);
 
   return (
     <div className="bg-surface border border-border rounded p-5">
       <h2 className="font-semibold text-sm">Código para crear usuarios</h2>
       <p className="text-xs text-muted mt-1 max-w-xl">
         Solo vos ves este código y cambia cada 30 segundos. Hace falta para dar de alta a alguien en
-        Usuarios — si otro administrador necesita crear una cuenta, dictáselo en el momento.
+        Usuarios, y también para que alguien se registre desde el login — si te lo piden, dictáselo
+        en el momento.
       </p>
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <span className="font-mono text-2xl font-semibold tracking-[0.28em] tabular-nums border border-border rounded bg-surface-2 px-4 py-2">
           {code}
         </span>

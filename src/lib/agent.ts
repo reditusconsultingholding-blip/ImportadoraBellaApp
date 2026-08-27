@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { getOverview } from "@/lib/metrics";
+import { resolveRange } from "@/lib/date-range";
 
 const MODEL = "claude-sonnet-5";
 
@@ -41,12 +42,14 @@ ${contextSummary}`;
 }
 
 function summarize(overview: Awaited<ReturnType<typeof getOverview>>, platformLabel: string) {
-  if (overview.products.length === 0) return `${platformLabel}: sin campañas conectadas todavía.`;
-  const lines = overview.products.map(
+  if (overview.rows.length === 0) return `${platformLabel}: sin campañas con datos en el período.`;
+  // Solo las 20 que más gastan: con 700 campañas, mandarlas todas llenaría el
+  // contexto de ruido y Jarvis contestaría peor, no mejor.
+  const lines = overview.rows.slice(0, 20).map(
     (p) =>
-      `- ${p.name} (${p.code}): gasto US$${p.spend.toFixed(0)}, ${p.purchases} compras, CPA US$${
+      `- ${p.name}${p.code ? ` (${p.code})` : " (sin producto asociado)"}: gasto US${p.spend.toFixed(0)}, ${p.purchases} compras, CPA US${
         p.cpa?.toFixed(1) ?? "—"
-      } (objetivo US$${p.cpaTarget}) — ${p.status === "urgent" ? "URGENTE" : "bien"}`
+      }${p.cpaTarget !== null ? ` (objetivo US${p.cpaTarget})` : ""} — ${p.status === "urgent" ? "URGENTE" : p.status === "ok" ? "bien" : "sin objetivo"}`
   );
   return `${platformLabel} — gasto total US$${overview.totalSpend.toFixed(0)}, CTR ${overview.ctr.toFixed(
     2
@@ -66,9 +69,12 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
   }
 
   const org = await db.organization.findUniqueOrThrow({ where: { id: organizationId } });
+  // Jarvis mira los últimos 30 días: es el período que da contexto sin que un
+  // mal día puntual parezca una tendencia.
+  const range = resolveRange("30d");
   const [metaOverview, tiktokOverview] = await Promise.all([
-    getOverview(organizationId, "META"),
-    getOverview(organizationId, "TIKTOK"),
+    getOverview(organizationId, "META", range),
+    getOverview(organizationId, "TIKTOK", range),
   ]);
 
   const contextSummary = [

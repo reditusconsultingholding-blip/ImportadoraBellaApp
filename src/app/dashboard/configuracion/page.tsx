@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { currentTotpCode, secondsUntilNextCode, totpConfigured } from "@/lib/totp";
+import { currentTotpCode, nextCodeExpiresAt, totpConfigured } from "@/lib/totp";
 import ProfileScreen from "./profile-screen";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -46,7 +46,13 @@ export default async function MiPerfilPage() {
       }}
       creationCode={
         showCode
-          ? { code: currentTotpCode() as string, secondsLeft: secondsUntilNextCode() }
+          ? {
+              code: currentTotpCode() as string,
+              // Instante exacto en que vence. Mandar un timestamp y no un
+              // contador deja que la pantalla lo derive sin leer el reloj
+              // durante el renderizado.
+              expiresAt: nextCodeExpiresAt(),
+            }
           : null
       }
     />

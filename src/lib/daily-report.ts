@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import { dailyReportHtml, emailConfigured, reportRecipients, sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { getOverview } from "@/lib/metrics";
+import { resolveRange } from "@/lib/date-range";
 import { getSalesOverview } from "@/lib/sales";
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -11,10 +12,13 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigi
 // mano desde /dashboard/reportes ("Generar el de hoy").
 export async function buildDailyReportPdf(organizationId: string, date: Date): Promise<Buffer> {
   const org = await db.organization.findUnique({ where: { id: organizationId } });
+  // El reporte del día cubre exactamente ese día, no los últimos treinta.
+  const day = date.toISOString().slice(0, 10);
+  const reportRange = resolveRange("personalizado", day, day);
   const [sales, metaOverview, tiktokOverview] = await Promise.all([
     getSalesOverview(organizationId),
-    getOverview(organizationId, "META"),
-    getOverview(organizationId, "TIKTOK"),
+    getOverview(organizationId, "META", reportRange),
+    getOverview(organizationId, "TIKTOK", reportRange),
   ]);
 
   const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -67,8 +71,8 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
     doc.moveDown(0.3);
     doc.fontSize(10).fillColor("#333");
     doc.text(`Gasto: ${money(overview.totalSpend)} · Compras: ${overview.totalPurchases} · CTR: ${overview.ctr.toFixed(2)}%`);
-    if (overview.urgentProducts.length > 0) {
-      doc.fillColor("#b03a2e").text(`Necesitan revisión (CPA por encima del objetivo): ${overview.urgentProducts.map((p) => p.name).join(", ")}`);
+    if (overview.urgentRows.length > 0) {
+      doc.fillColor("#b03a2e").text(`Necesitan revisión (CPA por encima del objetivo): ${overview.urgentRows.map((p) => p.name).join(", ")}`);
       doc.fillColor("#333");
     }
     doc.moveDown(1);

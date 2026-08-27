@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PasswordInput from "@/components/password-input";
 import { useRouter } from "next/navigation";
 
 type Mode = "login" | "register";
@@ -78,9 +79,9 @@ export default function LoginPage() {
           {(["login", "register"] as Mode[]).map((m) => (
             <button
               key={m}
-              type="button"
+            type="button"
               onClick={() => switchTo(m)}
-              className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+            className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
                 mode === m
                   ? "bg-surface text-foreground shadow-[0_1px_2px_0_rgb(26_26_26_/_0.08)]"
                   : "text-muted hover:text-foreground"
@@ -101,11 +102,11 @@ export default function LoginPage() {
           <label className="block mb-4">
             <span className={labelClass}>Nombre completo</span>
             <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputClass}
-              placeholder="María José Pérez"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+            placeholder="María José Pérez"
             />
           </label>
         )}
@@ -124,8 +125,7 @@ export default function LoginPage() {
 
         <label className="block mb-4">
           <span className={labelClass}>Contraseña</span>
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={mode === "register" ? 8 : undefined}
             value={password}
@@ -138,15 +138,14 @@ export default function LoginPage() {
         {mode === "register" && (
           <label className="block mb-4">
             <span className={labelClass}>Código de autorización</span>
-            <input
-              type="password"
-              required
-              inputMode="numeric"
-              autoComplete="off"
-              value={authCode}
-              onChange={(e) => setAuthCode(e.target.value)}
-              className={inputClass}
-              placeholder="6 dígitos"
+            <PasswordInput
+            required
+            inputMode="numeric"
+            autoComplete="off"
+            value={authCode}
+            onChange={(e) => setAuthCode(e.target.value)}
+            className={inputClass}
+            placeholder="6 dígitos"
             />
             <span className="mt-1 block text-xs text-muted">
               Pedíselo a Fabricio o a Katherine. Cambia cada 30 segundos, así que usalo apenas te lo
