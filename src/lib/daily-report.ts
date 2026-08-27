@@ -16,7 +16,7 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
   const day = date.toISOString().slice(0, 10);
   const reportRange = resolveRange("personalizado", day, day);
   const [sales, metaOverview, tiktokOverview] = await Promise.all([
-    getSalesOverview(organizationId),
+    getSalesOverview(organizationId, reportRange),
     getOverview(organizationId, "META", reportRange),
     getOverview(organizationId, "TIKTOK", reportRange),
   ]);
@@ -155,11 +155,19 @@ async function dayTotals(organizationId: string, dayStart: Date) {
   const dayEnd = new Date(dayStart);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
+  // Las ordenes guardan el instante real de la compra, asi que su dia se corta
+  // a la medianoche de Ecuador (05:00 UTC) y no a la medianoche UTC. Los
+  // snapshots de pauta no: ahi la fecha es una marca de dia, y se compara tal
+  // cual. Mezclarlos hacia que el reporte de la noche se comiera cinco horas
+  // del dia siguiente.
+  const ventasDesde = new Date(dayStart.getTime() + 5 * 3600_000);
+  const ventasHasta = new Date(dayEnd.getTime() + 5 * 3600_000);
+
   const [orders, metrics] = await Promise.all([
     db.shopifyOrder.aggregate({
       where: {
         store: { organizationId },
-        occurredAt: { gte: dayStart, lt: dayEnd },
+        occurredAt: { gte: ventasDesde, lt: ventasHasta },
       },
       _count: { _all: true },
       _sum: { netSales: true },

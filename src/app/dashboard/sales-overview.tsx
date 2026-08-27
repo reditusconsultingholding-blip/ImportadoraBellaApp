@@ -65,10 +65,19 @@ function ChartTooltip({
   );
 }
 
-export default function SalesOverview({ data }: { data: SalesOverviewData }) {
+export default function SalesOverview({
+  data,
+  periodo,
+}: {
+  data: SalesOverviewData;
+  /** Que periodo cubren estos numeros. Sin esto nadie sabe si son de hoy. */
+  periodo: string;
+}) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Ventas · tienda completa</h2>
+      <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
+        Ventas · tienda completa · <span className="text-accent-strong">{periodo}</span>
+      </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-surface border border-border rounded p-5">
@@ -93,7 +102,7 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
                 <Line
                   type="monotone"
                   dataKey="today"
-                  name="Hoy"
+                  name={periodo}
                   stroke={ACCENT}
                   strokeWidth={2}
                   dot={false}
@@ -102,7 +111,7 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
                 <Line
                   type="monotone"
                   dataKey="yesterday"
-                  name="Ayer"
+                  name={"Período anterior"}
                   stroke={REFERENCE}
                   strokeWidth={2}
                   strokeDasharray="4 3"
@@ -114,11 +123,11 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded" style={{ background: ACCENT }} /> Hoy
+              <span className="w-3 h-0.5 rounded" style={{ background: ACCENT }} /> {periodo}
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-0.5 rounded border-t-2 border-dashed" style={{ borderColor: REFERENCE }} />{" "}
-              Ayer
+              Período anterior
             </span>
           </div>
         </div>
@@ -216,11 +225,11 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
                   interval={3}
                 />
                 <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="today" name="Hoy" stroke={ACCENT} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="today" name={periodo} stroke={ACCENT} strokeWidth={2} dot={false} />
                 <Line
                   type="monotone"
                   dataKey="yesterday"
-                  name="Ayer"
+                  name={"Período anterior"}
                   stroke={REFERENCE}
                   strokeWidth={2}
                   strokeDasharray="4 3"

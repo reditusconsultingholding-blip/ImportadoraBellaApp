@@ -90,6 +90,8 @@ model ChatChannel {
 
   messages ChatMessage[]
   pins     ChatPin[]
+  voz      VoicePresence[]
+  senales  VoiceSignal[]
 
   @@unique([organizationId, slug])
 }
@@ -261,6 +263,9 @@ model User {
   assignedNotes         BoardNote[]        @relation("BoardNoteAssignee")
   noteComments          BoardNoteComment[]
   chatPins ChatPin[] @relation("ChatPinsCreated")
+  vozPresencia  VoicePresence[]
+  senalesEnviadas VoiceSignal[] @relation("VozDe")
+  senalesRecibidas VoiceSignal[] @relation("VozPara")
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -722,4 +727,43 @@ model CalcSetting {
   updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, producto])
+}
+
+// Sala de voz por canal, al estilo Discord: se entra y se escucha a todos.
+//
+// El audio va directo entre navegadores (WebRTC en malla). Lo unico que pasa
+// por el servidor es el saludo inicial: quien esta adentro y los mensajes de
+// negociacion. No hay servidor de medios ni WebSocket — se consulta cada dos
+// segundos, que para un equipo de diez personas alcanza y evita montar
+// infraestructura nueva.
+model VoicePresence {
+  id         String      @id @default(cuid())
+  channelId  String
+  channel    ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  muted      Boolean     @default(false)
+  joinedAt   DateTime    @default(now())
+  // Latido. Si se deja de actualizar, la persona se cayo: cerro la pestana o
+  // se quedo sin red. Sin esto la sala quedaria llena de fantasmas.
+  lastSeenAt DateTime    @default(now())
+
+  @@unique([channelId, userId])
+  @@index([channelId, lastSeenAt])
+}
+
+// Un mensaje de negociacion WebRTC de una persona a otra (oferta, respuesta o
+// candidato de red). Se lee una vez y se borra: es correo, no historial.
+model VoiceSignal {
+  id         String      @id @default(cuid())
+  channelId  String
+  channel    ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  fromUserId String
+  fromUser   User        @relation("VozDe", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User        @relation("VozPara", fields: [toUserId], references: [id], onDelete: Cascade)
+  payload    String
+  createdAt  DateTime    @default(now())
+
+  @@index([toUserId, channelId, createdAt])
 }

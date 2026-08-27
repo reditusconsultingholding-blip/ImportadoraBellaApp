@@ -21,6 +21,17 @@ const money2 = (n: number) =>
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
+// Se formatea en UTC a proposito: los limites del rango ya vienen como el dia
+// calendario de Ecuador, y dejar que el navegador del servidor los reinterprete
+// los correria un dia.
+const fechaLarga = (d: Date) =>
+  d.toLocaleDateString("es-EC", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -35,7 +46,7 @@ export default async function DashboardPage({
 
   const [overview, sales] = await Promise.all([
     getOverview(session.organizationId, platform, range),
-    getSalesOverview(session.organizationId),
+    getSalesOverview(session.organizationId, range),
   ]);
 
   const query =
@@ -45,28 +56,42 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <SalesOverview data={sales} />
+      {/* El selector va arriba de todo: manda sobre las ventas de Shopify, el
+          pulso y el rendimiento de campañas. Estaba abajo, junto a las
+          campañas, y por eso parecía que las ventas no le hacían caso. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-semibold">Panel</h1>
+          <p className="mt-0.5 text-sm text-muted">
+            {range.label} · {fechaLarga(range.from)}
+            {isoDay(range.from) !== isoDay(range.to) ? ` al ${fechaLarga(range.to)}` : ""}
+            <span> · hora de Ecuador</span>
+          </p>
+        </div>
+        <RangePicker
+          active={range.id}
+          label={range.label}
+          from={isoDay(range.from)}
+          to={isoDay(range.to)}
+          platform={platform}
+        />
+      </div>
+
+      <SalesOverview data={sales} periodo={range.label} />
 
       {canManagePipeline(session.role) && <PulsePanel query={query} />}
 
       {canManagePipeline(session.role) && <CatalogPicker />}
 
       <div className="flex flex-col gap-5 border-t border-border pt-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-[22px] font-semibold">Rendimiento de campañas</h1>
-              <p className="text-sm text-muted mt-0.5">{range.label}</p>
-            </div>
-            <PlatformTabs active={platform} />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[18px] font-semibold">Rendimiento de campañas</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              Solo lo que atribuye la plataforma. Las ventas reales están arriba, y salen de Shopify.
+            </p>
           </div>
-          <RangePicker
-            active={range.id}
-            label={range.label}
-            from={isoDay(range.from)}
-            to={isoDay(range.to)}
-            platform={platform}
-          />
+          <PlatformTabs active={platform} />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

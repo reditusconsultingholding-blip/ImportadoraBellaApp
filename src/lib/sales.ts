@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Range } from "@/lib/date-range";
 
 // Vista de ventas de la tienda completa (Shopify), separada del rendimiento
 // por campaña de Meta/TikTok — acá entran todos los productos del catálogo,
@@ -103,18 +104,31 @@ async function getConnectedStore(organizationId: string) {
   });
 }
 
-export async function getSalesOverview(organizationId: string): Promise<SalesOverview> {
+/**
+ * Ventas del período elegido, contra el período anterior del mismo largo.
+ *
+ * Antes esto ignoraba el selector de fechas y calculaba siempre "hoy" — y ese
+ * "hoy" salía de setHours() sobre la hora del servidor, que en Railway es UTC.
+ * O sea que el día arrancaba a las 19:00 de la víspera en Ecuador, y las barras
+ * por hora mostraban horas que no eran las de nadie.
+ */
+export async function getSalesOverview(
+  organizationId: string,
+  range: Range
+): Promise<SalesOverview> {
   const store = await getConnectedStore(organizationId);
   if (!store) return demoSalesOverview();
 
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const todayStart = range.fromInstant;
+  const finPeriodo = range.toInstant;
+  // El período de comparación es igual de largo y termina justo antes de que
+  // arranque este: comparar una semana contra un día haría que todo pareciera
+  // un derrumbe.
+  const largo = finPeriodo.getTime() - todayStart.getTime();
+  const yesterdayStart = new Date(todayStart.getTime() - largo - 1);
 
   const orders = await db.shopifyOrder.findMany({
-    where: { storeId: store.id, occurredAt: { gte: yesterdayStart } },
+    where: { storeId: store.id, occurredAt: { gte: yesterdayStart, lte: finPeriodo } },
     include: { lineItems: true },
   });
 
@@ -131,17 +145,20 @@ export async function getSalesOverview(organizationId: string): Promise<SalesOve
   const netSales = sum(todayOrders, "netSales");
   const netSalesYesterday = sum(yesterdayOrders, "netSales");
 
+  // La hora que le interesa a Fabrizio es la de Ecuador, no la del servidor.
+  // getHours() en Railway devuelve UTC, así que un pico de las 3 de la tarde
+  // aparecía a las 8 de la noche.
+  const horaEcuador = (d: Date) => (d.getUTCHours() + 24 - 5) % 24;
+
   const seriesFor = (key: "netSales") =>
     Array.from({ length: 12 }, (_, i) => {
       const h = i * 2;
-      const inBucket = (o: (typeof orders)[number], base: Date) =>
-        o.occurredAt.getHours() >= h && o.occurredAt.getHours() < h + 2 && o.occurredAt >= base;
+      const enFranja = (o: (typeof orders)[number]) =>
+        horaEcuador(o.occurredAt) >= h && horaEcuador(o.occurredAt) < h + 2;
       return {
         hour: hourLabel(h),
-        today: Math.round(todayOrders.filter((o) => inBucket(o, todayStart)).reduce((s, o) => s + o[key], 0)),
-        yesterday: Math.round(
-          yesterdayOrders.filter((o) => inBucket(o, yesterdayStart)).reduce((s, o) => s + o[key], 0)
-        ),
+        today: Math.round(todayOrders.filter(enFranja).reduce((s, o) => s + o[key], 0)),
+        yesterday: Math.round(yesterdayOrders.filter(enFranja).reduce((s, o) => s + o[key], 0)),
       };
     });
 

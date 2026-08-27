@@ -24,7 +24,29 @@ export const RANGES: { id: RangeId; label: string }[] = [
   { id: "personalizado", label: "Entre dos fechas" },
 ];
 
-export type Range = { from: Date; to: Date; label: string; id: RangeId };
+/**
+ * Un período, con DOS pares de límites, porque en la base conviven dos cosas
+ * que parecen fechas y no lo son:
+ *
+ * - `from`/`to` son MARCAS DE DÍA a medianoche UTC. Así se guarda cada
+ *   MetricSnapshot: Meta y TikTok reportan "el día 27", no un instante, y esa
+ *   marca es la clave que evita duplicar la fila al resincronizar.
+ *
+ * - `fromInstant`/`toInstant` son INSTANTES REALES: el arranque y el final del
+ *   día en Ecuador (UTC-5), o sea las 05:00 UTC de ese día y las 04:59:59 del
+ *   siguiente. Es lo que hay que usar contra las órdenes de Shopify, que sí
+ *   guardan el momento exacto de la compra.
+ *
+ * Mezclarlos es lo que hacía que "Hoy" arrancara a las 19:00 de ayer.
+ */
+export type Range = {
+  from: Date;
+  to: Date;
+  fromInstant: Date;
+  toInstant: Date;
+  label: string;
+  id: RangeId;
+};
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -69,6 +91,10 @@ export function resolveRange(
   const make = (from: Date, to: Date, label: string, rid: RangeId): Range => ({
     from,
     to: endOf(to),
+    // El día en Ecuador arranca 5 horas después de la medianoche UTC y termina
+    // 5 horas después del final del día UTC.
+    fromInstant: new Date(from.getTime() - OFFSET_HOURS * 3600_000),
+    toInstant: new Date(endOf(to).getTime() - OFFSET_HOURS * 3600_000),
     label,
     id: rid,
   });

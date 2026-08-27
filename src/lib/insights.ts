@@ -44,20 +44,20 @@ export async function buildInsights(
     getOverview(organizationId, "META", range),
     getOverview(organizationId, "TIKTOK", range),
     db.shopifyOrder.aggregate({
-      where: { store: { organizationId }, occurredAt: { gte: range.from, lte: range.to } },
+      where: { store: { organizationId }, occurredAt: { gte: range.fromInstant, lte: range.toInstant } },
       _count: { _all: true },
       _sum: { netSales: true, discounts: true },
     }),
     db.shopifyOrder.groupBy({
       by: ["channel"],
-      where: { store: { organizationId }, occurredAt: { gte: range.from, lte: range.to } },
+      where: { store: { organizationId }, occurredAt: { gte: range.fromInstant, lte: range.toInstant } },
       _count: { _all: true },
       _sum: { netSales: true },
     }),
     db.shopifyOrderLineItem.groupBy({
       by: ["productName"],
       where: {
-        order: { store: { organizationId }, occurredAt: { gte: range.from, lte: range.to } },
+        order: { store: { organizationId }, occurredAt: { gte: range.fromInstant, lte: range.toInstant } },
       },
       _sum: { amount: true, quantity: true },
       orderBy: { _sum: { amount: "desc" } },
