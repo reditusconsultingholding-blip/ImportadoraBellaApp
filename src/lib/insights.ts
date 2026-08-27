@@ -73,6 +73,10 @@ export async function buildInsights(
   // sonaría a relleno.
   if (gasto === 0 && ordenes === 0) return null;
 
+  console.log(
+    `[analisis] ${range.label}: gasto ${gasto}, ordenes ${ordenes}, filas meta ${meta.rows.length}, filas tiktok ${tiktok.rows.length}`
+  );
+
   const topCampanas = [...meta.rows, ...tiktok.rows]
     .sort((a, b) => b.spend - a.spend)
     .slice(0, 12)
@@ -140,11 +144,20 @@ Entre 3 y 5 findings. Entre 2 y 4 actions.`,
   const text = response.content.find((c) => c.type === "text")?.text ?? "";
   // El modelo a veces envuelve el JSON en ```json; se recorta al primer objeto.
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
+  if (!match) {
+    // Se lanza en vez de devolver null: null significa "no hay datos", y
+    // confundir "el modelo contestó raro" con "no hay datos" hace perder
+    // tiempo buscando el problema donde no está.
+    throw new Error(
+      `El modelo no devolvió un JSON reconocible. Respondió: ${text.slice(0, 200) || "(vacío)"}`
+    );
+  }
 
   try {
     const parsed = JSON.parse(match[0]) as Omit<Insights, "generatedAt">;
-    if (!parsed.headline || !Array.isArray(parsed.findings)) return null;
+    if (!parsed.headline || !Array.isArray(parsed.findings)) {
+      throw new Error("El JSON del modelo no trae headline o findings.");
+    }
 
     const value: Insights = {
       headline: String(parsed.headline).slice(0, 200),
@@ -159,7 +172,9 @@ Entre 3 y 5 findings. Entre 2 y 4 actions.`,
     };
     cache.set(key, { at: Date.now(), value });
     return value;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(
+      `No se pudo leer la respuesta del modelo: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
