@@ -141,7 +141,8 @@ Copiar `.env.example` a `.env` y completar:
 | `TIKTOK_APP_ID` / `TIKTOK_APP_SECRET` | App de TikTok for Business (requiere aprobación de TikTok). |
 | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | App "Jarvin Panal" del Dev Dashboard. Con esto el token de Shopify se pide y se renueva solo cada ~24h; si no, se pega un token fijo desde Conexiones. |
 | `SHOPIFY_API_VERSION` | Versión de la Admin API. Por defecto `2025-04`. |
-| `USER_CREATION_CODE` | Código que hay que tipear al crear un usuario. Por defecto `190300`. |
+| `USER_CREATION_TOTP_SECRET` | Secreto en base32 del código rotativo de 6 dígitos que se pide al crear un usuario. El código se ve en **Mi perfil**, solo para administradores, y cambia cada 30 segundos. Es la forma recomendada. |
+| `USER_CREATION_CODE` | Código fijo alternativo, para mientras no haya secreto rotativo. Si no hay ninguno de los dos, se acepta `190300` — el valor histórico. |
 
 ## Seguridad — qué está resuelto y qué no
 
@@ -159,6 +160,13 @@ Resuelto:
   firmarían con una clave que está en el código.
 - **La nómina es un permiso por persona** (`canViewPayroll`), no un rol, y solo
   lo puede repartir alguien que ya lo tenga.
+- **El código para crear usuarios es rotativo** (TOTP de 6 dígitos, cambia cada
+  30 segundos, visible solo para administradores en Mi perfil). Antes era un
+  número fijo escrito en el código fuente: cualquiera con acceso al repositorio
+  lo conocía y no se podía cambiar sin un deploy.
+- **Cambiar la contraseña pide la contraseña actual** (salvo en el primer
+  ingreso, que es obligatorio y la persona acaba de escribirla). Antes, una
+  sesión abierta y desatendida alcanzaba para apropiarse de la cuenta.
 
 Pendiente (en orden de riesgo):
 
