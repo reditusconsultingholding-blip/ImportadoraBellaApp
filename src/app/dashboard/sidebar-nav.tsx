@@ -170,7 +170,9 @@ export default function SidebarNav({
     {
       title: "Cuenta",
       links: [
-        { href: "/dashboard/chat", label: "Chat interno", icon: "jarvis" },
+        ...(showPipeline
+          ? [{ href: "/dashboard/chat", label: "Chat interno", icon: "jarvis" }]
+          : []),
         { href: "/dashboard/notificaciones", label: "Notificaciones", icon: "notificaciones" },
         { href: "/dashboard/jarvis", label: "Preguntarle a Jarvis", icon: "jarvis" },
         { href: "/dashboard/conexiones", label: "Conexiones", icon: "conexiones" },

@@ -7,6 +7,16 @@ import { totpConfigured, verifyTotpCode } from "@/lib/totp";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Solo un administrador ve el listado completo. Antes alcanzaba con estar
+  // autenticado: cualquiera que se registrara — incluso con rol PENDING, sin
+  // acceso a ninguna otra cosa — se llevaba nombres, correos y roles de todo
+  // el equipo.
+  if (session.role !== "OWNER") {
+    return NextResponse.json(
+      { error: "Solo un administrador puede ver los usuarios." },
+      { status: 403 }
+    );
+  }
 
   const users = await db.user.findMany({
     where: { organizationId: session.organizationId },

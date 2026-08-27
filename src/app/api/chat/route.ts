@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canAccessPipeline } from "@/lib/permissions";
 import {
   MESSAGE_INCLUDE,
   messageWhere,
@@ -19,6 +20,9 @@ const MAX_BODY = 4000;
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const scope = parseScope(req.nextUrl.searchParams.get("scope"));
   if (!scope) return NextResponse.json({ error: "Conversación inválida." }, { status: 400 });
@@ -49,6 +53,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const { scope: rawScope, body, replyToId } = (await req.json()) as {
     scope?: string;
@@ -122,6 +129,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const { id, body, pinned } = (await req.json()) as {
     id?: string;
@@ -172,6 +182,9 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Falta el mensaje." }, { status: 400 });

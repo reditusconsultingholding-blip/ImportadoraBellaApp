@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canAccessPipeline } from "@/lib/permissions";
 import { MESSAGE_INCLUDE, toView } from "@/lib/chat";
 
 // Lista corta y fija a propósito: un selector de mil emojis en un chat de
@@ -11,6 +12,9 @@ const ALLOWED = ["👍", "❤️", "😂", "🎉", "👀"];
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const { messageId, emoji } = (await req.json()) as { messageId?: string; emoji?: string };
   if (!messageId || !emoji || !ALLOWED.includes(emoji)) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canAccessPipeline } from "@/lib/permissions";
 import { parseScope, resolveScope, scopeKey } from "@/lib/chat";
 
 // Marca una conversación como leída hasta ahora. Es lo que apaga el puntito
@@ -8,6 +9,9 @@ import { parseScope, resolveScope, scopeKey } from "@/lib/chat";
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+  }
 
   const { scope: rawScope } = (await req.json()) as { scope?: string };
   const scope = parseScope(rawScope);

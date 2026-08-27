@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canAccessPipeline } from "@/lib/permissions";
 import {
   MESSAGE_INCLUDE,
   messageWhere,
@@ -18,6 +19,18 @@ export default async function ChatPage({
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
+  // El chat interno es la conversación del equipo. Alguien recién registrado,
+  // sin rol asignado todavía, no tiene por qué leerla ni escribirle a nadie.
+  if (!canAccessPipeline(session.role)) {
+    return (
+      <div className="bg-surface border border-border rounded p-6 max-w-lg">
+        <p className="text-sm text-muted">
+          Todavía no tenés un rol asignado, así que no podés entrar al chat del equipo. Un
+          administrador tiene que asignártelo desde Usuarios.
+        </p>
+      </div>
+    );
+  }
 
   const { c } = await searchParams;
 
