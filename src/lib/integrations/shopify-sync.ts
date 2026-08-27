@@ -6,8 +6,13 @@ import { fetchRecentOrders } from "./shopify";
 export async function syncShopifyStore(storeId: string) {
   const store = await db.shopifyStore.findUniqueOrThrow({ where: { id: storeId } });
 
+  // La primera vez se traen 30 días, para que Ventas y Rentabilidad tengan
+  // algo que mostrar desde el minuto uno. Después alcanza con los últimos 2:
+  // el cron corre cada 15 minutos y volver a pedir un mes entero en cada
+  // corrida sería tirar cuota de la API a la basura.
+  const yaTieneOrdenes = await db.shopifyOrder.count({ where: { storeId: store.id } });
   const since = new Date();
-  since.setDate(since.getDate() - 2);
+  since.setDate(since.getDate() - (yaTieneOrdenes > 0 ? 2 : 30));
 
   const orders = await fetchRecentOrders(store.shopDomain, store.accessToken, since.toISOString());
 

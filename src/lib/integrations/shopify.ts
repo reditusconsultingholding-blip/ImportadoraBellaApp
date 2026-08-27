@@ -170,50 +170,103 @@ export type RemoteShopifyOrder = {
   lineItems: { productName: string; quantity: number; amount: number }[];
 };
 
+const ORDERS_QUERY = `
+  query($cursor: String, $q: String) {
+    orders(first: 100, after: $cursor, query: $q, sortKey: CREATED_AT) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        createdAt
+        app { name }
+        currentSubtotalPriceSet { shopMoney { amount } }
+        currentTotalDiscountsSet { shopMoney { amount } }
+        currentTotalTaxSet { shopMoney { amount } }
+        totalShippingPriceSet { shopMoney { amount } }
+        currentTotalPriceSet { shopMoney { amount } }
+        lineItems(first: 100) {
+          nodes { title quantity originalTotalSet { shopMoney { amount } } }
+        }
+      }
+    }
+  }
+`;
+
+type Money = { shopMoney: { amount: string } } | null;
+
+type OrdersPage = {
+  orders: {
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    nodes: {
+      id: string;
+      createdAt: string;
+      app: { name: string } | null;
+      currentSubtotalPriceSet: Money;
+      currentTotalDiscountsSet: Money;
+      currentTotalTaxSet: Money;
+      totalShippingPriceSet: Money;
+      currentTotalPriceSet: Money;
+      lineItems: { nodes: { title: string; quantity: number; originalTotalSet: Money }[] };
+    }[];
+  };
+};
+
+const amount = (money: Money) => Number(money?.shopMoney.amount ?? 0);
+
+// Tope de seguridad: 50 páginas de 100 son 5.000 órdenes por sincronización.
+// Sin un tope, un error de fecha podría hacer que esto pagine la tienda entera.
+const MAX_ORDER_PAGES = 50;
+
+/**
+ * Trae las órdenes creadas desde `sinceISO`.
+ *
+ * Va por GraphQL y no por la API REST por dos motivos que se descubrieron con
+ * datos reales: REST corta en 250 por página y hay que paginar a mano por el
+ * encabezado Link — sin eso el sync truncaba en silencio y parecía que la
+ * tienda vendía menos de lo que vende. Y el `source_name` de REST devuelve el
+ * ID numérico de la app (2820951), mientras que acá `app.name` da el nombre
+ * de verdad: "Funnelish", "Releasit COD Form".
+ */
 export async function fetchRecentOrders(
   shopDomain: string,
   storedToken: string | null | undefined,
   sinceISO: string
 ): Promise<RemoteShopifyOrder[]> {
-  type Money = { shop_money: { amount: string } };
-  type Line = { title: string; quantity: number; price: string };
-  type Order = {
-    id: number;
-    created_at: string;
-    source_name: string | null;
-    subtotal_price: string;
-    total_discounts: string;
-    total_tax: string;
-    total_shipping_price_set?: Money;
-    total_price: string;
-    line_items: Line[];
-  };
+  const orders: RemoteShopifyOrder[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
 
-  const params = new URLSearchParams({
-    status: "any",
-    created_at_min: sinceISO,
-    limit: "250",
-  });
-  const json = await withAuth(shopDomain, storedToken, (token) =>
-    shopifyFetch(shopDomain, token, `/orders.json?${params.toString()}`)
-  );
-  const orders = (json.orders ?? []) as Order[];
+  do {
+    const page: OrdersPage = await withAuth(shopDomain, storedToken, (token) =>
+      shopifyGraphQL<OrdersPage>(shopDomain, token, ORDERS_QUERY, {
+        cursor,
+        q: `created_at:>=${sinceISO}`,
+      })
+    );
 
-  return orders.map((o) => ({
-    externalId: String(o.id),
-    occurredAt: o.created_at,
-    channel: o.source_name || "Online Store",
-    grossSales: Number(o.subtotal_price ?? 0),
-    discounts: Number(o.total_discounts ?? 0),
-    shipping: Number(o.total_shipping_price_set?.shop_money.amount ?? 0),
-    taxes: Number(o.total_tax ?? 0),
-    netSales: Number(o.total_price ?? 0),
-    lineItems: (o.line_items ?? []).map((li) => ({
-      productName: li.title,
-      quantity: li.quantity,
-      amount: Number(li.price ?? 0) * li.quantity,
-    })),
-  }));
+    for (const node of page.orders.nodes) {
+      orders.push({
+        // El id de GraphQL viene como "gid://shopify/Order/123"; se guarda solo
+        // el número, que es lo que ya había en la base.
+        externalId: node.id.split("/").pop() ?? node.id,
+        occurredAt: node.createdAt,
+        channel: node.app?.name || "Tienda online",
+        grossSales: amount(node.currentSubtotalPriceSet),
+        discounts: amount(node.currentTotalDiscountsSet),
+        shipping: amount(node.totalShippingPriceSet),
+        taxes: amount(node.currentTotalTaxSet),
+        netSales: amount(node.currentTotalPriceSet),
+        lineItems: node.lineItems.nodes.map((li) => ({
+          productName: li.title,
+          quantity: li.quantity,
+          amount: amount(li.originalTotalSet),
+        })),
+      });
+    }
+
+    cursor = page.orders.pageInfo.hasNextPage ? page.orders.pageInfo.endCursor : null;
+  } while (cursor && ++pages < MAX_ORDER_PAGES);
+
+  return orders;
 }
 
 // --- Catálogo con costo unitario real ------------------------------------
