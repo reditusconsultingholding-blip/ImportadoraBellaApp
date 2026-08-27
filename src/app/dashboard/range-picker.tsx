@@ -32,13 +32,14 @@ export default function RangePicker({
       return;
     }
     setOpen(false);
-    router.push(`/dashboard?platform=${platform}&rango=${rango}`);
+    router.push(`/dashboard?platform=${platform}&rango=${rango}`, { scroll: false });
   }
 
   function applyCustom() {
     setOpen(false);
     router.push(
-      `/dashboard?platform=${platform}&rango=personalizado&desde=${customFrom}&hasta=${customTo}`
+      `/dashboard?platform=${platform}&rango=personalizado&desde=${customFrom}&hasta=${customTo}`,
+      { scroll: false }
     );
   }
 

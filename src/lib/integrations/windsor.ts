@@ -9,10 +9,7 @@
 
 const BASE_URL = "https://connectors.windsor.ai";
 
-// Los nombres de campo son los que expone Windsor para estos conectores.
-// Meta llama "actions_purchase" a las compras y "action_values_purchase" al
-// valor de esas compras.
-const FIELDS = [
+const COMMON_FIELDS = [
   "date",
   "account_id",
   "account_name",
@@ -21,9 +18,18 @@ const FIELDS = [
   "spend",
   "impressions",
   "clicks",
-  "actions_purchase",
-  "action_values_purchase",
 ] as const;
+
+// Cada plataforma le pone otro nombre a lo mismo, y Windsor respeta el nombre
+// original de cada una. Pedirle a TikTok los campos de Meta devuelve cero sin
+// error — que es peor que fallar, porque parece que la campaña no vendió.
+//
+// Ojo con "total_complete_payment_rate": el nombre dice "rate" pero TikTok lo
+// usa para el VALOR de las compras, no para una tasa.
+const CONVERSION_FIELDS: Record<WindsorConnector, { purchases: string; value: string }> = {
+  facebook: { purchases: "actions_purchase", value: "action_values_purchase" },
+  tiktok: { purchases: "complete_payment", value: "total_complete_payment_rate" },
+};
 
 export type WindsorConnector = "facebook" | "tiktok";
 
@@ -67,10 +73,11 @@ export async function fetchWindsorRows(
     throw new Error("Falta WINDSOR_API_KEY. Se saca del panel de Windsor.ai.");
   }
 
+  const conversion = CONVERSION_FIELDS[connector];
   const params = new URLSearchParams({
     api_key: apiKey,
     date_preset: datePreset,
-    fields: FIELDS.join(","),
+    fields: [...COMMON_FIELDS, conversion.purchases, conversion.value].join(","),
   });
 
   const res = await fetch(`${BASE_URL}/${connector}?${params.toString()}`, {
@@ -100,8 +107,10 @@ export async function fetchWindsorRows(
       spend: num(r.spend),
       impressions: num(r.impressions),
       clicks: num(r.clicks),
-      actions_purchase: num(r.actions_purchase),
-      action_values_purchase: num(r.action_values_purchase),
+      // Se normalizan al mismo nombre para que el resto de la app no tenga
+      // que saber de qué plataforma vino la fila.
+      actions_purchase: num(r[conversion.purchases]),
+      action_values_purchase: num(r[conversion.value]),
     }))
     .filter((r) => r.date && r.account_id);
 }
