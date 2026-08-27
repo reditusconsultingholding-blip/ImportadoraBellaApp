@@ -212,9 +212,11 @@ type OrdersPage = {
 
 const amount = (money: Money) => Number(money?.shopMoney.amount ?? 0);
 
-// Tope de seguridad: 50 páginas de 100 son 5.000 órdenes por sincronización.
+// Tope de seguridad: 250 páginas de 100 son 25.000 órdenes por sincronización.
+// Eran 50 (5.000) y quedaba corto: la tienda hace ~500 órdenes por día, así
+// que un backfill de 30 días se truncaba en silencio a la mitad.
 // Sin un tope, un error de fecha podría hacer que esto pagine la tienda entera.
-const MAX_ORDER_PAGES = 50;
+const MAX_ORDER_PAGES = 250;
 
 /**
  * Trae las órdenes creadas desde `sinceISO`.
