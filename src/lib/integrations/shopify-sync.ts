@@ -3,7 +3,7 @@ import { fetchRecentOrders } from "./shopify";
 
 // Trae las órdenes de los últimos días y las guarda. Se llama al conectar
 // y desde el cron (ver /api/cron/sync), igual que syncAdAccount para Meta/TikTok.
-export async function syncShopifyStore(storeId: string) {
+export async function syncShopifyStore(storeId: string, days?: number) {
   const store = await db.shopifyStore.findUniqueOrThrow({ where: { id: storeId } });
 
   // La primera vez se traen 30 días, para que Ventas y Rentabilidad tengan
