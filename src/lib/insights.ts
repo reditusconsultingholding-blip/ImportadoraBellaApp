@@ -119,7 +119,10 @@ ${sinVentas.map((r) => `- ${r.name}: ${money(r.spend)} sin una sola compra`).joi
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 1200,
+    // 1200 no alcanzaba: el modelo razona antes de contestar y el presupuesto
+    // se agotaba ahí, devolviendo texto vacío. El síntoma era un panel en
+    // blanco sin ningún error visible.
+    max_tokens: 4000,
     system: `Sos el analista de ${orgName}, una importadora que vende por Meta Ads y TikTok Ads con tienda Shopify en Ecuador.
 
 Te paso los números ya calculados. Tu trabajo es LEERLOS y decir qué está pasando, no recalcular nada.
@@ -142,6 +145,12 @@ Entre 3 y 5 findings. Entre 2 y 4 actions.`,
   });
 
   const text = response.content.find((c) => c.type === "text")?.text ?? "";
+
+  if (!text.trim()) {
+    throw new Error(
+      `El modelo no devolvió texto (motivo de corte: ${response.stop_reason ?? "desconocido"}, bloques: ${response.content.map((c) => c.type).join(",") || "ninguno"}).`
+    );
+  }
   // El modelo a veces envuelve el JSON en ```json; se recorta al primer objeto.
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
