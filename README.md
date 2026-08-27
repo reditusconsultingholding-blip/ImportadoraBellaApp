@@ -173,6 +173,10 @@ Copiar `.env.example` a `.env` y completar:
 | `TIKTOK_APP_ID` / `TIKTOK_APP_SECRET` | App de TikTok for Business (requiere aprobación de TikTok). |
 | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | App "Jarvin Panal" del Dev Dashboard. Con esto el token de Shopify se pide y se renueva solo cada ~24h; si no, se pega un token fijo desde Conexiones. |
 | `SHOPIFY_API_VERSION` | Versión de la Admin API. Por defecto `2025-04`. |
+| `WINDSOR_API_KEY` | Clave de la API de Windsor.ai — por acá entran Meta Ads y TikTok Ads. Se saca del panel de Windsor. |
+| `RESEND_API_KEY` | Envío del reporte diario y las alertas por correo. |
+| `EMAIL_FROM_DOMAIN` | Dominio verificado en Resend (ej. `jarvisecom.world`). Sin esto se envía desde la casilla de prueba de Resend, que **solo llega al dueño de la cuenta**. |
+| `APP_URL` | URL pública de la app, para los enlaces dentro de los correos. |
 | `USER_CREATION_TOTP_SECRET` | Secreto en base32 del código rotativo de 6 dígitos que se pide al crear un usuario. El código se ve en **Mi perfil**, solo para administradores, y cambia cada 30 segundos. Es la forma recomendada. |
 | `USER_CREATION_CODE` | Código fijo alternativo, para mientras no haya secreto rotativo. Si no hay ninguno de los dos, se acepta `190300` — el valor histórico. |
 
