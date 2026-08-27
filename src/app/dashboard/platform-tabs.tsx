@@ -1,27 +1,49 @@
 import Link from "next/link";
 import type { Platform } from "@/generated/prisma/client";
 
-const TABS: { value: Platform; label: string }[] = [
-  { value: "META", label: "Meta (Facebook + Instagram)" },
-  { value: "TIKTOK", label: "TikTok" },
+// Los logos van dibujados como SVG, no como imagen ni emoji: se reconocen de
+// un vistazo, toman el color del texto y no dependen de cargar un archivo.
+const ICONS: Record<Platform, React.ReactNode> = {
+  META: (
+    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M3 12.4c0-3.6 1.8-6.4 4-6.4 1.5 0 2.4 1 3 2.2 1 1.9 1.4 3.3 2.4 4.9.6 1 1.2 1.4 2 1.4 1.5 0 2.3-1.3 2.3-3.4 0-2.6-1.3-5.1-3.3-5.1-1.6 0-2.9 1.3-4 3.3-1 1.9-2 4-3.6 4C4.4 13.3 3 12.9 3 12.4z" />
+    </svg>
+  ),
+  TIKTOK: (
+    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+      <path d="M12 2.5v9.2a3.3 3.3 0 1 1-2.6-3.2" />
+      <path d="M12 2.5c.4 2 1.9 3.4 4 3.5" />
+    </svg>
+  ),
+};
+
+const TABS: { value: Platform; label: string; short: string }[] = [
+  { value: "META", label: "Meta", short: "Facebook + Instagram" },
+  { value: "TIKTOK", label: "TikTok", short: "TikTok Ads" },
 ];
 
 export default function PlatformTabs({ active }: { active: Platform }) {
   return (
-    <div className="flex items-center gap-1 border border-border rounded p-1 w-fit">
-      {TABS.map((tab) => (
-        <Link
-          key={tab.value}
-          href={`/dashboard?platform=${tab.value}`}
-          className={`text-sm px-3 py-1.5 rounded transition ${
-            active === tab.value
-              ? "bg-accent text-white"
-              : "text-muted hover:bg-surface-2"
-          }`}
-        >
-          {tab.label}
-        </Link>
-      ))}
+    <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1">
+      {TABS.map((tab) => {
+        const on = active === tab.value;
+        return (
+          <Link
+            key={tab.value}
+            href={`/dashboard?platform=${tab.value}`}
+            aria-current={on ? "page" : undefined}
+            title={tab.short}
+            className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+              on
+                ? "bg-surface text-foreground shadow-[0_1px_2px_0_rgb(26_26_26_/_0.08)]"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            <span className={on ? "text-accent" : "text-muted"}>{ICONS[tab.value]}</span>
+            {tab.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }

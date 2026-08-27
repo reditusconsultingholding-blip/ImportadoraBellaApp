@@ -12,9 +12,18 @@ import {
 } from "recharts";
 import type { SalesOverview as SalesOverviewData } from "@/lib/sales";
 
-const ACCENT = "#b9762c";
-const ACCENT_FADE = "#b9762c66";
-const CHANNEL_COLORS = ["#b9762c", "#3e7cb1"];
+// Los colores salen de globals.css (--chart-*), validados contra el fondo de
+// la tarjeta para daltonismo y contraste. Se usan como variables y no como
+// hex fijo para que el modo oscuro tenga sus propios pasos: los del modo claro
+// sobre fondo oscuro dejan de distinguirse.
+const ACCENT = "var(--chart-1)";
+const REFERENCE = "var(--chart-muted)";
+const CHANNEL_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+];
 
 const money = (n: number) =>
   n.toLocaleString("es-CO", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -94,7 +103,7 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
                   type="monotone"
                   dataKey="yesterday"
                   name="Ayer"
-                  stroke={ACCENT_FADE}
+                  stroke={REFERENCE}
                   strokeWidth={2}
                   strokeDasharray="4 3"
                   dot={false}
@@ -108,7 +117,7 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
               <span className="w-3 h-0.5 rounded" style={{ background: ACCENT }} /> Hoy
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded border-t-2 border-dashed" style={{ borderColor: ACCENT_FADE }} />{" "}
+              <span className="w-3 h-0.5 rounded border-t-2 border-dashed" style={{ borderColor: REFERENCE }} />{" "}
               Ayer
             </span>
           </div>
@@ -212,7 +221,7 @@ export default function SalesOverview({ data }: { data: SalesOverviewData }) {
                   type="monotone"
                   dataKey="yesterday"
                   name="Ayer"
-                  stroke={ACCENT_FADE}
+                  stroke={REFERENCE}
                   strokeWidth={2}
                   strokeDasharray="4 3"
                   dot={false}

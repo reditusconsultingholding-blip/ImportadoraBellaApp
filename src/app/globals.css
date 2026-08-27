@@ -32,6 +32,20 @@
   --brand-green: #00a47c;
   --brand-green-deep: #008060;
 
+  /* Colores de los gráficos. No están elegidos a ojo: se validaron contra el
+     fondo de la tarjeta para daltonismo (deuteranopía, protanopía, tritanopía),
+     separación a la vista normal y contraste. El café y el celeste anteriores
+     no pasaban ninguna de esas pruebas. El orden es fijo — una serie conserva
+     su color aunque cambie el filtro, si no, al filtrar se repintaría todo. */
+  --chart-1: #008060;
+  --chart-2: #4338ca;
+  --chart-3: #c2410c;
+  --chart-4: #ca8a04;
+  /* La serie de referencia (ayer, objetivo) es gris a propósito: no compite
+     con el dato de hoy y no gasta un color de identidad. */
+  --chart-muted: #9ca3af;
+  --chart-grid: #eceef0;
+
   --shadow-card: 0 1px 2px 0 rgb(26 26 26 / 0.06);
   --shadow-pop: 0 8px 24px -6px rgb(26 26 26 / 0.14), 0 2px 6px -2px rgb(26 26 26 / 0.08);
 }
@@ -77,6 +91,16 @@
     --critical-bg: #331a17;
     --warning: #d9a441;
     --pending-bg: #2e2415;
+    /* El modo oscuro lleva sus propios pasos, no los mismos aclarados: sobre
+       fondo oscuro los del modo claro se salen de la banda de luminosidad y
+       dejan de distinguirse. Estos se validaron aparte. */
+    --chart-1: #17a882;
+    --chart-2: #7385f0;
+    --chart-3: #d06735;
+    --chart-4: #be5fa8;
+    --chart-muted: #6b7280;
+    --chart-grid: #2a2e31;
+
     --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
     --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.55);
   }
