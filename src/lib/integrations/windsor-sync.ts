@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fetchWindsorRows, type WindsorConnector, type WindsorRow } from "./windsor";
 import type { Platform } from "@/generated/prisma/client";
+import { parseCampaignRef } from "@/lib/product-code";
 
 // Vuelca lo que trae Windsor en el modelo de la app: una AdAccount por cuenta
 // publicitaria, una Campaign por campaña y un MetricSnapshot por campaña y día.
@@ -10,17 +11,26 @@ const PLATFORM: Record<WindsorConnector, Platform> = {
   tiktok: "TIKTOK",
 };
 
-// Las campañas de Fabrizio se llaman "134142 / TE GINSENG / ABO / COST CAP":
-// número interno, producto, estructura. No hay un código tipo BAT-001, así que
-// se cruza por nombre — se busca cuál de los productos cargados aparece dentro
-// del nombre de la campaña.
+// A qué producto pertenece una campaña.
 //
-// Se prueba primero con los nombres más largos: si existieran "TE" y
-// "TE GINSENG", el corto haría match con todo y ganaría el equivocado.
+// Primero por el código del nombre (ver product-code.ts): las campañas se
+// llaman "134142 / TE GINSENG / ABO / COST CAP" y ese 134142 es el mismo
+// producto en Meta y en TikTok, aunque el nombre esté escrito distinto.
+// Cubre el 96,6% del gasto.
+//
+// Para el resto queda el cruce por nombre, probando primero los más largos:
+// si existieran "TE" y "TE GINSENG", el corto haría match con todo y ganaría
+// el equivocado.
 function matchProduct(
   campaignName: string,
   products: { id: string; code: string; name: string }[]
 ) {
+  const ref = parseCampaignRef(campaignName);
+  if (ref) {
+    const porCodigo = products.find((p) => p.code === ref.code);
+    if (porCodigo) return porCodigo.id;
+  }
+
   const haystack = campaignName.toUpperCase();
   const ordered = [...products].sort((a, b) => b.name.length - a.name.length);
 
