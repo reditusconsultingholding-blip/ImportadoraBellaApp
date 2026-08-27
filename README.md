@@ -19,9 +19,17 @@ Lo que ya funciona, con datos de prueba (seed):
 - Vista por producto con semáforo de CPA, separado por Meta / TikTok.
 - Chat con Jarvis, con flujo de propuesta → aprobación → ejecución.
 - Actualización en vivo: el panel se refresca solo cada 30 segundos (indicador
-  "En vivo" con reloj en el header), y un cron (`vercel.json` + `/api/cron/sync`)
-  sincroniza las cuentas conectadas cada 15 minutos sin que nadie tenga que
-  entrar a Conexiones a apretar "Sincronizar ahora".
+  "En vivo" con reloj en el header) y un cron sincroniza las cuentas conectadas
+  cada 15 minutos, sin que nadie tenga que entrar a Conexiones a apretar
+  "Sincronizar ahora".
+- **Chat interno** (`/dashboard/chat`): canales por función y mensajes directos
+  entre dos personas, con aviso de no leídos. `@nombre` genera una notificación
+  en la campanita; en un mensaje directo se avisa siempre. Reacciones,
+  responder citando, fijar, editar lo propio y borrar (un administrador puede
+  borrar cualquier mensaje, para moderar, pero **nadie** puede editar el de
+  otro: quedaría texto firmado por quien no lo escribió). Se actualiza solo
+  cada 4 segundos, pidiendo únicamente lo posterior al último mensaje en
+  pantalla.
 - Conexiones con menú lateral: cuentas de Meta/TikTok ilimitadas ("+ Agregar
   otra cuenta") y la tienda de **Shopify** por separado — cada red y la
   tienda son secciones plegables, para que la lista no crezca sin control.
@@ -102,6 +110,24 @@ desplegando desde `main` de este repo, con health check contra `/api/health`
 y reinicio automático ante fallo. La base es el Postgres de **Supabase**
 (proyecto "Jarvis"), vía el **pooler de transacciones** — la conexión directa
 `db.<ref>.supabase.co` es IPv6 y no responde desde todas las redes.
+
+### Los crons
+
+**`vercel.json` no se usa en Railway** — sus crons son de Vercel y ahí no
+corren. En su lugar el proyecto de Railway tiene dos servicios aparte, ambos
+con imagen `curlimages/curl` y política de reinicio `NEVER` (corren, pegan la
+llamada y terminan):
+
+| Servicio | Horario | Qué llama |
+|---|---|---|
+| `cron-sync` | `*/15 * * * *` | `/api/cron/sync` — sincroniza cuentas y tiendas |
+| `cron-reporte-diario` | `0 5 * * *` (medianoche en Ecuador) | `/api/cron/daily-report` — genera el PDF y notifica |
+
+Los dos mandan el `CRON_SECRET` en el encabezado `Authorization`. Los endpoints
+**fallan cerrado**: sin secreto configurado no atienden a nadie. Antes hacían
+`if (process.env.CRON_SECRET && ...)`, que dejaba el endpoint público cuando la
+variable faltaba — y uno de ellos consume cuota de las APIs de Meta, TikTok y
+Shopify, mientras el otro genera y guarda PDFs.
 
 Las 9 cuentas del equipo entran con un correo genérico
 `nombre.apellido@bellacorp.store` y la clave `Bella2026!`, que la app obliga
