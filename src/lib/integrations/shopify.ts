@@ -283,7 +283,10 @@ export type ShopifyCatalogProduct = {
   unitCost: number | null;
 };
 
-const CATALOG_TTL_MS = 10 * 60 * 1000;
+// 5 minutos: es lo que se tarda en ver en el buscador un producto que alguien
+// acaba de crear en Shopify. Traer las fichas activas son dos consultas, asi
+// que refrescar seguido no cuesta casi nada.
+const CATALOG_TTL_MS = 5 * 60 * 1000;
 const catalogCache = new Map<string, { at: number; products: ShopifyCatalogProduct[] }>();
 
 const CATALOG_QUERY = `

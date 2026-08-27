@@ -10,6 +10,7 @@ import StatTile from "./stat-tile";
 import SalesOverview from "./sales-overview";
 import RangePicker from "./range-picker";
 import PulsePanel from "./pulse-panel";
+import CatalogPicker from "./catalog-picker";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
@@ -47,6 +48,8 @@ export default async function DashboardPage({
       <SalesOverview data={sales} />
 
       {canManagePipeline(session.role) && <PulsePanel query={query} />}
+
+      {canManagePipeline(session.role) && <CatalogPicker />}
 
       <div className="flex flex-col gap-5 border-t border-border pt-6">
         <div className="flex flex-col gap-3">

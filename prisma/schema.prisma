@@ -70,6 +70,7 @@ model Organization {
   boardNotes          BoardNote[]
   chatChannels        ChatChannel[]
   chatMessages        ChatMessage[]
+  calcSettings CalcSetting[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -705,4 +706,20 @@ model ChatPin {
   createdAt   DateTime    @default(now())
 
   @@index([channelId])
+}
+
+// Los ajustes de la calculadora, por producto y compartidos por todo el
+// equipo. Antes vivian en el estado de la pantalla y se perdian al recargar:
+// dos personas de marketing podian estar mirando numeros distintos del mismo
+// producto sin enterarse.
+model CalcSetting {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  producto       String       // nombre del producto, tal como figura en el catalogo
+  data           String       // JSON con los valores de la calculadora
+  updatedById    String?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, producto])
 }

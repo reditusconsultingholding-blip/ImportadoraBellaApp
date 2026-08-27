@@ -1,6 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+// Lo que se guarda por producto, compartido con todo el equipo. Son todos
+// strings porque es lo que hay en los campos: convertir al guardar y volver a
+// formatear al leer solo agrega formas de perder un decimal.
+type Ajuste = {
+  productCost: string;
+  shippingCost: string;
+  operatingCost: string;
+  adSpend: string;
+  gatewayFeePct: string;
+  ivaPct: string;
+  mode: "margin" | "fixed";
+  marginPct: string;
+  fixedProfit: string;
+  confirmationPct: string;
+  returnPct: string;
+  ordersPerDay: string;
+  adjustForDelivery: boolean;
+  priceOverride: string;
+};
 
 // Producto que se puede cargar de un clic: precio y costo salen de Shopify en
 // vivo (unitCost por variante), CPA y gasto operativo de Rentabilidad.
@@ -105,15 +125,118 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   const [adjustForDelivery, setAdjustForDelivery] = useState(true);
   const [priceOverride, setPriceOverride] = useState("");
 
+  // Los ajustes guardados por producto, compartidos con todo el equipo. Se
+  // leen una vez al abrir la pantalla y se guardan solos al cambiar algo.
+  const ajustesRef = useRef<Record<string, Partial<Ajuste>>>({});
+  const [ajustesListos, setAjustesListos] = useState(false);
+  const [guardado, setGuardado] = useState<"limpio" | "guardando" | "guardado">("limpio");
+
+  useEffect(() => {
+    let cancelado = false;
+    fetch("/api/calculadora")
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelado) return;
+        ajustesRef.current = d.ajustes ?? {};
+        setAjustesListos(true);
+      })
+      .catch(() => {
+        // Si no se pueden leer, la calculadora sirve igual: se pierde el
+        // compartir, no el cálculo.
+        if (!cancelado) setAjustesListos(true);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   function loadFromProduct(name: string) {
     setSelectedProduct(name);
     const p = products.find((x) => x.name === name);
     if (!p) return;
+
+    // Primero lo que sabe Shopify y Rentabilidad…
     if (p.cpa != null) setAdSpend(p.cpa.toFixed(2));
     if (p.operatingExpensePerOrder != null) setOperatingCost(p.operatingExpensePerOrder.toFixed(2));
     if (p.unitCost != null) setProductCost(p.unitCost.toFixed(2));
     if (p.price != null) setPriceOverride(p.price.toFixed(2));
+
+    // …y encima lo que el equipo ya ajustó a mano, que le gana: si alguien
+    // corrigió el flete real de este producto, ese dato vale más que el
+    // valor por defecto.
+    const guardadoDelProducto = ajustesRef.current[name];
+    if (!guardadoDelProducto) return;
+    const g = guardadoDelProducto;
+    if (g.productCost != null) setProductCost(g.productCost);
+    if (g.shippingCost != null) setShippingCost(g.shippingCost);
+    if (g.operatingCost != null) setOperatingCost(g.operatingCost);
+    if (g.adSpend != null) setAdSpend(g.adSpend);
+    if (g.gatewayFeePct != null) setGatewayFeePct(g.gatewayFeePct);
+    if (g.ivaPct != null) setIvaPct(g.ivaPct);
+    if (g.mode === "margin" || g.mode === "fixed") setMode(g.mode);
+    if (g.marginPct != null) setMarginPct(g.marginPct);
+    if (g.fixedProfit != null) setFixedProfit(g.fixedProfit);
+    if (g.confirmationPct != null) setConfirmationPct(g.confirmationPct);
+    if (g.returnPct != null) setReturnPct(g.returnPct);
+    if (g.ordersPerDay != null) setOrdersPerDay(g.ordersPerDay);
+    if (typeof g.adjustForDelivery === "boolean") setAdjustForDelivery(g.adjustForDelivery);
+    if (g.priceOverride != null) setPriceOverride(g.priceOverride);
   }
+
+  const valores = useMemo<Ajuste>(
+    () => ({
+      productCost,
+      shippingCost,
+      operatingCost,
+      adSpend,
+      gatewayFeePct,
+      ivaPct,
+      mode,
+      marginPct,
+      fixedProfit,
+      confirmationPct,
+      returnPct,
+      ordersPerDay,
+      adjustForDelivery,
+      priceOverride,
+    }),
+    [
+      productCost,
+      shippingCost,
+      operatingCost,
+      adSpend,
+      gatewayFeePct,
+      ivaPct,
+      mode,
+      marginPct,
+      fixedProfit,
+      confirmationPct,
+      returnPct,
+      ordersPerDay,
+      adjustForDelivery,
+      priceOverride,
+    ]
+  );
+
+  // Guardado automático con espera: mover un campo dispara un cambio por
+  // tecla, y no hay por qué escribir la base en cada una.
+  useEffect(() => {
+    if (!selectedProduct || !ajustesListos) return;
+    const t = setTimeout(() => {
+      setGuardado("guardando");
+      fetch("/api/calculadora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ producto: selectedProduct, data: valores }),
+      })
+        .then((r) => {
+          if (r.ok) ajustesRef.current[selectedProduct] = valores;
+          setGuardado(r.ok ? "guardado" : "limpio");
+        })
+        .catch(() => setGuardado("limpio"));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [valores, selectedProduct, ajustesListos]);
 
   const conf = Math.min(Math.max(num(confirmationPct) / 100, 0), 1);
   const dev = Math.min(Math.max(num(returnPct) / 100, 0), 1);
@@ -271,6 +394,15 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                   </option>
                 ))}
               </select>
+              {selectedProduct && (
+                <span className="mt-1 block text-xs text-muted">
+                  {guardado === "guardando"
+                    ? "Guardando…"
+                    : guardado === "guardado"
+                      ? "Guardado — todo el equipo ve estos valores."
+                      : "Lo que ajustes acá se guarda para todo el equipo."}
+                </span>
+              )}
             </label>
           )}
 
