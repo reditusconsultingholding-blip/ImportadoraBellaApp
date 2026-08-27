@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     kind?: string;
     folderId?: string | null;
     name?: string;
+    title?: string;
     code?: string;
     cpaTarget?: number;
     salePrice?: number;
@@ -128,13 +129,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, id: product.id });
   }
 
-  const text = body.body?.trim();
-  if (!text) return NextResponse.json({ error: "La nota está vacía." }, { status: 400 });
+  // Una ficha necesita al menos un título: es lo que se lee en el tablero.
+  // El brief puede quedar para después.
+  const title = body.title?.trim();
+  const text = body.body?.trim() || "Sin brief todavía.";
+  if (!title) {
+    return NextResponse.json({ error: "Ponele un título a la ficha." }, { status: 400 });
+  }
 
   const note = await db.boardNote.create({
     data: {
       organizationId: session.organizationId,
       folderId,
+      title,
       body: text,
       color: body.color?.trim() || null,
       positionX,

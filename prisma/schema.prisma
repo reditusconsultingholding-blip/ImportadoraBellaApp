@@ -182,14 +182,48 @@ model BoardNote {
   organization   Organization   @relation(fields: [organizationId], references: [id])
   folderId       String?
   folder         ProductFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  body           String
-  color          String?
-  positionX      Float          @default(0)
-  positionY      Float          @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+
+  title String? // el título que se ve en la tarjeta del tablero
+  body  String // la descripción / brief
+
+  // Todo lo que un equipo de contenido necesita saber de una pieza antes de
+  // grabarla. Se guardan como texto libre y no como enumeraciones cerradas
+  // porque las listas cambian (aparece un formato nuevo, una red nueva) y no
+  // queremos una migración cada vez.
+  status      String    @default("IDEA") // IDEA | GUION | GRABACION | EDICION | REVISION | APROBADO | PUBLICADO
+  priority    String    @default("MEDIA") // BAJA | MEDIA | ALTA
+  dueDate     DateTime?
+  format      String? // "Vertical 9:16", "Cuadrado 1:1", "Horizontal 16:9", "Imagen"
+  durationSec Int? // duración objetivo del video, en segundos
+  assigneeId  String?
+  assignee    User?     @relation("BoardNoteAssignee", fields: [assigneeId], references: [id])
+  // [{ "label": "Referencia TikTok", "url": "https://..." }]
+  links Json?
+
+  color     String?
+  positionX Float    @default(0)
+  positionY Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments BoardNoteComment[]
 
   @@index([organizationId, folderId])
+}
+
+// Conversación de una ficha. Separado del chat interno general: acá lo que se
+// habla queda pegado a la pieza, que es donde alguien lo va a buscar dentro de
+// tres semanas.
+model BoardNoteComment {
+  id        String    @id @default(cuid())
+  noteId    String
+  note      BoardNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([noteId, createdAt])
 }
 
 model User {
@@ -222,6 +256,8 @@ model User {
   chatReceived          ChatMessage[]  @relation("ChatReceived")
   chatReactions         ChatReaction[]
   chatReads             ChatRead[]
+  assignedNotes         BoardNote[]        @relation("BoardNoteAssignee")
+  noteComments          BoardNoteComment[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization

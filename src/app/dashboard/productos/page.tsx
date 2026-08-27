@@ -28,14 +28,14 @@ async function breadcrumb(folderId: string | null, organizationId: string) {
 export default async function ProductosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ carpeta?: string }>;
+  searchParams: Promise<{ carpeta?: string; ficha?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canAccessPipeline(session.role)) redirect("/dashboard");
 
   const canManage = canManagePipeline(session.role);
-  const { carpeta } = await searchParams;
+  const { carpeta, ficha } = await searchParams;
 
   // Una carpeta de otra organización se trata como inexistente: se abre la raíz.
   let folderId: string | null = null;
@@ -66,6 +66,10 @@ export default async function ProductosPage({
     db.boardNote.findMany({
       where: { organizationId: session.organizationId, folderId },
       orderBy: { createdAt: "asc" },
+      include: {
+        assignee: { select: { name: true } },
+        _count: { select: { comments: true } },
+      },
     }),
     breadcrumb(folderId, session.organizationId),
   ]);
@@ -112,9 +116,23 @@ export default async function ProductosPage({
       x: n.positionX,
       y: n.positionY,
       color: n.color,
+      title: n.title,
       body: n.body,
+      status: n.status,
+      priority: n.priority,
+      dueDate: n.dueDate ? n.dueDate.toISOString().slice(0, 10) : null,
+      format: n.format,
+      assigneeName: n.assignee?.name ?? null,
+      commentCount: n._count.comments,
     })),
   ];
+
+  // Para el selector de responsable y para saber a quién se puede mencionar.
+  const people = await db.user.findMany({
+    where: { organizationId: session.organizationId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, avatarUrl: true },
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -131,6 +149,8 @@ export default async function ProductosPage({
         folderId={folderId}
         path={path}
         canManage={canManage}
+        people={people}
+        openNoteId={ficha ?? null}
         parentId={path.length > 1 ? path[path.length - 2].id : null}
       />
     </div>

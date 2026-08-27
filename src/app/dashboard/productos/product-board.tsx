@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NoteDrawer from "./note-drawer";
 
 export type BoardItem =
   | {
@@ -33,11 +34,29 @@ export type BoardItem =
       x: number;
       y: number;
       color: string | null;
+      title: string | null;
       body: string;
+      status: string;
+      priority: string;
+      dueDate: string | null;
+      format: string | null;
+      assigneeName: string | null;
+      commentCount: number;
     };
 
 const CARD_W = { folder: 200, product: 240, note: 200 } as const;
 const GRID = 8; // las tarjetas se acomodan a una grilla de 8px al soltarlas
+
+// Mismas etapas que la ficha, para que la tarjeta y el panel digan lo mismo.
+const STATUS_LABEL: Record<string, string> = {
+  IDEA: "Idea",
+  GUION: "Guion",
+  GRABACION: "Grabación",
+  EDICION: "Edición",
+  REVISION: "Revisión",
+  APROBADO: "Aprobado",
+  PUBLICADO: "Publicado",
+};
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -47,12 +66,16 @@ export default function ProductBoard({
   folderId,
   path,
   canManage,
+  people,
+  openNoteId,
   parentId,
 }: {
   items: BoardItem[];
   folderId: string | null;
   path: { id: string; name: string }[];
   canManage: boolean;
+  people: { id: string; name: string; avatarUrl: string | null }[];
+  openNoteId: string | null;
   parentId: string | null;
 }) {
   const router = useRouter();
@@ -60,6 +83,9 @@ export default function ProductBoard({
   const [items, setItems] = useState(initialItems);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<null | "folder" | "product" | "note">(null);
+  const [openNote, setOpenNote] = useState<string | null>(openNoteId);
+
+  useEffect(() => setOpenNote(openNoteId), [openNoteId]);
 
   // El servidor manda la verdad en cada refresh; el estado local solo existe
   // para que arrastrar se sienta instantáneo.
@@ -87,6 +113,26 @@ export default function ProductBoard({
       return true;
     },
     [router]
+  );
+
+  // Igual que save, pero devuelve lo que respondió el servidor — hace falta
+  // para conocer el id de la ficha recién creada y abrirla.
+  const saveReturning = useCallback(
+    async (payload: Record<string, unknown>) => {
+      setError(null);
+      const res = await fetch("/api/board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "No se pudo guardar.");
+        return null;
+      }
+      return data as { id?: string };
+    },
+    []
   );
 
   function onPointerDown(e: React.PointerEvent, item: BoardItem) {
@@ -144,7 +190,10 @@ export default function ProductBoard({
       positionY: slot.y,
     };
     if (kind === "folder") payload.name = form.get("name");
-    if (kind === "note") payload.body = form.get("body");
+    if (kind === "note") {
+      payload.title = form.get("title");
+      payload.body = form.get("body") || "Sin brief todavía.";
+    }
     if (kind === "product") {
       payload.name = form.get("name");
       payload.code = form.get("code");
@@ -155,9 +204,13 @@ export default function ProductBoard({
       const cost = Number(form.get("unitCost"));
       if (Number.isFinite(cost) && cost > 0) payload.unitCost = cost;
     }
-    if (await save(payload, "POST")) {
+    const created = await saveReturning(payload);
+    if (created) {
       setCreating(null);
       router.refresh();
+      // Una ficha recién creada se abre sola: lo primero que uno quiere es
+      // llenarle la fecha y el formato.
+      if (kind === "note" && created.id) setOpenNote(created.id);
     }
   }
 
@@ -222,7 +275,7 @@ export default function ProductBoard({
               + Carpeta
             </button>
             <button onClick={() => setCreating("note")} className={btn}>
-              + Nota
+              + Ficha
             </button>
             <button
               onClick={() => setCreating("product")}
@@ -246,17 +299,26 @@ export default function ProductBoard({
           className="bg-surface border border-border rounded p-4 flex flex-wrap items-end gap-3"
         >
           {creating === "note" ? (
-            <label className="flex-1 min-w-[260px]">
-              <span className="block text-xs font-medium text-muted mb-1">Nota</span>
-              <textarea
-                name="body"
-                required
-                rows={2}
-                autoFocus
-                placeholder="Una idea, un pendiente, lo que sea"
-                className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent resize-y"
-              />
-            </label>
+            <>
+              <label className="flex-1 min-w-[200px]">
+                <span className="block text-xs font-medium text-muted mb-1">Título de la ficha</span>
+                <input
+                  name="title"
+                  required
+                  autoFocus
+                  placeholder="Reel dolor de espalda · testimonio"
+                  className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+                />
+              </label>
+              <label className="flex-1 min-w-[240px]">
+                <span className="block text-xs font-medium text-muted mb-1">Brief (opcional)</span>
+                <input
+                  name="body"
+                  placeholder="Qué hay que hacer — se completa después"
+                  className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+                />
+              </label>
+            </>
           ) : (
             <>
               <label className="flex-1 min-w-[180px]">
@@ -440,59 +502,71 @@ export default function ProductBoard({
             )}
 
             {item.kind === "note" && (
-              <NoteCard
-                body={item.body}
-                canManage={canManage}
-                onSave={async (body) => {
-                  if (await save({ kind: "note", id: item.id, body })) router.refresh();
-                }}
-              />
+              <button
+                onClick={() => setOpenNote(item.id)}
+                className="block w-full p-3.5 text-left"
+                title="Abrir la ficha"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      item.priority === "ALTA"
+                        ? "bg-critical"
+                        : item.priority === "BAJA"
+                          ? "bg-muted"
+                          : "bg-warning"
+                    }`}
+                  />
+                  <span className="truncate text-[13px] font-medium">
+                    {item.title || "Sin título"}
+                  </span>
+                </span>
+                <span className="mt-1 block text-[11px] text-muted line-clamp-2">{item.body}</span>
+                <span className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">
+                  <span className="rounded bg-surface/70 px-1.5 py-0.5 font-medium text-accent-strong">
+                    {STATUS_LABEL[item.status] ?? item.status}
+                  </span>
+                  {item.dueDate && (
+                    <span className="rounded bg-surface/70 px-1.5 py-0.5 text-muted">
+                      {new Date(`${item.dueDate}T00:00:00`).toLocaleDateString("es-EC", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                  )}
+                  {item.format && (
+                    <span className="rounded bg-surface/70 px-1.5 py-0.5 text-muted">
+                      {item.format}
+                    </span>
+                  )}
+                  {item.commentCount > 0 && (
+                    <span className="rounded bg-surface/70 px-1.5 py-0.5 text-muted">
+                      {item.commentCount} 💬
+                    </span>
+                  )}
+                </span>
+                {item.assigneeName && (
+                  <span className="mt-1.5 block truncate text-[10px] text-muted">
+                    {item.assigneeName}
+                  </span>
+                )}
+              </button>
             )}
           </div>
         ))}
       </div>
+
+      {openNote && (
+        <NoteDrawer
+          noteId={openNote}
+          people={people}
+          canManage={canManage}
+          onClose={() => {
+            setOpenNote(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
-  );
-}
-
-function NoteCard({
-  body,
-  canManage,
-  onSave,
-}: {
-  body: string;
-  canManage: boolean;
-  onSave: (body: string) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(body);
-
-  useEffect(() => setText(body), [body]);
-
-  if (!editing) {
-    return (
-      <p
-        onDoubleClick={() => canManage && setEditing(true)}
-        title={canManage ? "Doble clic para editar" : undefined}
-        className="whitespace-pre-wrap p-3.5 text-[13px] leading-snug"
-      >
-        {body}
-      </p>
-    );
-  }
-
-  return (
-    <textarea
-      autoFocus
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={async () => {
-        setEditing(false);
-        if (text.trim() && text.trim() !== body) await onSave(text.trim());
-        else setText(body);
-      }}
-      rows={4}
-      className="w-full resize-none bg-transparent p-3.5 text-[13px] leading-snug outline-none"
-    />
   );
 }
