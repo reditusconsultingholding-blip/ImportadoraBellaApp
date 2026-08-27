@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { SESSION_COOKIE_NAME } from "@/lib/auth";
+// Se importa del módulo suelto y no de auth.ts: el middleware corre en el
+// runtime edge, y auth.ts consulta la base, que ahí no puede correr.
+import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
 
 const secret = () =>
   new TextEncoder().encode(process.env.SESSION_SECRET ?? "dev-only-secret-change-me");

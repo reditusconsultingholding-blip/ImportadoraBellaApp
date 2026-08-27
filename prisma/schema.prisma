@@ -66,6 +66,51 @@ model Organization {
   dropiConnections    DropiConnection[]
   employees           Employee[]
   payrollPeriods      PayrollPeriod[]
+  productFolders      ProductFolder[]
+  boardNotes          BoardNote[]
+}
+
+// Carpetas para ordenar el catálogo. Se anidan sin límite de profundidad
+// (ej. "Belleza" › "Cabello" › "Aceites"): una carpeta apunta a su madre por
+// parentId, y las de primer nivel tienen parentId nulo. Borrar una carpeta
+// borra sus subcarpetas, pero NO sus productos — esos vuelven a la raíz.
+model ProductFolder {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  name           String
+  parentId       String?
+  parent         ProductFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children       ProductFolder[] @relation("FolderTree")
+  color          String?       // color de la tarjeta en el tablero
+  // Posición de la tarjeta dentro del tablero de su carpeta madre.
+  positionX      Float         @default(0)
+  positionY      Float         @default(0)
+  createdAt      DateTime      @default(now())
+
+  products Product[]
+  notes    BoardNote[]
+
+  @@index([organizationId, parentId])
+}
+
+// Nota suelta del tablero: sirve para anotar una idea al lado de un producto
+// sin tener que crear nada formal. Vive en una carpeta (o en la raíz) igual
+// que un producto o una subcarpeta.
+model BoardNote {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  folderId       String?
+  folder         ProductFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  body           String
+  color          String?
+  positionX      Float          @default(0)
+  positionY      Float          @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId, folderId])
 }
 
 model User {
@@ -117,6 +162,16 @@ model Product {
   code           String   // identificador que aparece en el nombre de campaña
   name           String
   cpaTarget      Float    // umbral: por debajo = verde, por encima = rojo
+  unitCost       Float?   // costo del producto, si se carga a mano
+  salePrice      Float?   // precio de venta de referencia
+  notes          String?
+  archived       Boolean  @default(false)
+  folderId       String?
+  folder         ProductFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  thumbnailUrl   String?
+  // Posición de la tarjeta dentro del tablero de su carpeta.
+  positionX      Float    @default(0)
+  positionY      Float    @default(0)
   createdAt      DateTime @default(now())
 
   campaigns    Campaign[]
