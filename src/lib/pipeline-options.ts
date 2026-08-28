@@ -210,3 +210,22 @@ export function leerHookRate(valor: number | null) {
   if (valor <= 40) return { texto: "Bueno", tono: "bueno" as const };
   return { texto: "Escalar", tono: "bueno" as const };
 }
+
+/**
+ * Cómo se escribió históricamente cada opción en la planilla, contra cómo se
+ * llama oficialmente ahora.
+ *
+ * No son erratas a corregir en el Excel: son datos que ya existen y que hay
+ * que hacer aterrizar en la opción buena. Sin esto, tres ángulos del histórico
+ * quedaban fuera de todas las listas y no se podían filtrar ni contar.
+ */
+export const ALIAS: Record<string, string> = {
+  "INGREDIENTE MECANISMO": "Ingredientes / Mecanismo",
+  "DOLOR HIPERSPECIFICO": "Dolor hiperespecífico",
+  "RESULTADO CON METRICAS": "Resultados con métricas",
+  "TESTIMONIO REAL EN VIDEO": "Testimonio real en video",
+  "TESTIMONIAL REAL EN VIDEO": "Testimonio real en video",
+  "UGLY AD ONE TAKE": "Ugly ad / One take",
+  "FOUNDER TEXTO CARRUSEL": "Founder / Texto carrusel",
+  "GRID AD ESTATICO": "Grid ad / Estático",
+};

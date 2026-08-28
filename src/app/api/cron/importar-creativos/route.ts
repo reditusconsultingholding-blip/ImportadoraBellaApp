@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { cronAuthorized } from "@/lib/cron-auth";
 import { normalizar } from "@/lib/product-code";
 import {
+  ALIAS,
   AD_TYPES,
   ANGLES,
   AWARENESS_LEVELS,
@@ -62,6 +63,10 @@ function contra(valor: string | undefined, lista: readonly string[]): string {
   if (!v) return "";
   const exacto = lista.find((o) => normalizar(o) === v);
   if (exacto) return exacto;
+
+  // Cómo se escribía antes en la planilla.
+  const porAlias = ALIAS[v];
+  if (porAlias && lista.includes(porAlias)) return porAlias;
   // Segundo intento: que uno contenga al otro. Cubre "UGC Persona" contra
   // "UGC con persona" sin abrir la puerta a emparejar cualquier cosa.
   const parecido = lista.find((o) => {
