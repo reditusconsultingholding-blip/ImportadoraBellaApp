@@ -53,6 +53,7 @@ export default async function DashboardLayout({
       showPipeline={canAccessPipeline(session.role)}
       showRentabilidad={canManagePipeline(session.role)}
       showNomina={Boolean(me?.canViewPayroll)}
+      showCeo={session.role === "OWNER"}
     />
   );
 

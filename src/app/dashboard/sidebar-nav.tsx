@@ -122,6 +122,7 @@ export default function SidebarNav({
   showPipeline,
   showRentabilidad,
   showNomina,
+  showCeo,
 }: {
   showUsuarios: boolean;
   showPipeline: boolean;
@@ -129,6 +130,8 @@ export default function SidebarNav({
   // Nómina no se muestra por rol: es un permiso por persona. Quien no lo
   // tenga no ve ni el link.
   showNomina: boolean;
+  /** El panel del dueño: solo OWNER. */
+  showCeo: boolean;
 }) {
   const pathname = usePathname();
 
@@ -138,7 +141,14 @@ export default function SidebarNav({
   const groups: Group[] = [
     {
       title: null,
-      links: [{ href: "/dashboard", label: "Panel", icon: "panel" }],
+      links: [
+        { href: "/dashboard", label: "Panel", icon: "panel" },
+        // El panel del dueño solo para OWNER: un director ve lo suyo en las
+        // pantallas de siempre.
+        ...(showCeo
+          ? [{ href: "/dashboard/ceo", label: "Panel del CEO", icon: "panel" }]
+          : []),
+      ],
     },
     {
       title: "Producción",
