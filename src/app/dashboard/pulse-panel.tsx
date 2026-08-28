@@ -39,6 +39,14 @@ const ESTADO: Record<PulseTone, { texto: string; chip: string }> = {
   SIN_DATOS: { texto: "Sin pauta", chip: "bg-surface-2 text-muted border-border" },
 };
 
+// Los tres estados en las palabras que usa el equipo, no en las del código.
+const FILTROS: { id: "" | PulseTone; label: string }[] = [
+  { id: "", label: "Todos" },
+  { id: "SANO", label: "Van bien" },
+  { id: "VIGILAR", label: "Necesitan optimización" },
+  { id: "RIESGO", label: "Van mal" },
+];
+
 const TONO_HALLAZGO: Record<string, string> = {
   bueno: "bg-good",
   alerta: "bg-critical",
@@ -73,6 +81,9 @@ export default function PulsePanel({ query }: { query: string }) {
     { q: string; data: Insights } | { q: string; motivo: string } | null
   >(null);
   const [productoAbierto, setProductoAbierto] = useState<string | null>(null);
+  // Filtro por estado. Con cincuenta productos, ver los tres grupos mezclados
+  // obliga a leer la lista entera para encontrar los cuatro que importan.
+  const [filtro, setFiltro] = useState<"" | PulseTone>("");
   // Se incrementa después de proponer o decidir, para volver a pedir el pulso
   // sin que nadie tenga que refrescar la página.
   const [recarga, setRecarga] = useState(0);
@@ -168,6 +179,7 @@ export default function PulsePanel({ query }: { query: string }) {
   }
 
   const conPauta = (pulses ?? []).filter((p) => p.state !== "SIN_DATOS");
+  const visibles = filtro ? conPauta.filter((p) => p.state === filtro) : conPauta;
   const enRiesgo = conPauta.filter((p) => p.state === "RIESGO");
   const vigilar = conPauta.filter((p) => p.state === "VIGILAR");
 
@@ -264,11 +276,38 @@ export default function PulsePanel({ query }: { query: string }) {
 
           {conPauta.length > 0 && (
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-                Pulso por producto — toca uno para ver qué le pasa
-              </p>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
+                  Pulso por producto
+                </p>
+                <span className="ml-auto flex flex-wrap gap-1.5">
+                  {FILTROS.map((op) => {
+                    const cuantos =
+                      op.id === "" ? conPauta.length : conPauta.filter((p) => p.state === op.id).length;
+                    return (
+                      <button
+                        key={op.id || "todos"}
+                        onClick={() => setFiltro(op.id)}
+                        disabled={cuantos === 0}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition disabled:opacity-35 ${
+                          filtro === op.id
+                            ? "border-accent bg-good-bg text-accent-strong"
+                            : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                        }`}
+                      >
+                        {op.label} ({cuantos})
+                      </button>
+                    );
+                  })}
+                </span>
+              </div>
               <div className="flex flex-col gap-1.5">
-                {conPauta.map((p) => {
+                {visibles.length === 0 && (
+                  <p className="py-4 text-center text-sm text-muted">
+                    Ningún producto en ese estado.
+                  </p>
+                )}
+                {visibles.map((p) => {
                   const abiertoEste = productoAbierto === (p.productId ?? p.name);
                   return (
                     <div
