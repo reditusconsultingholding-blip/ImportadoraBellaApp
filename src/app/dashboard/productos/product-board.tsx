@@ -101,7 +101,17 @@ export default function ProductBoard({
     setItems(initialItems);
   }
 
-  const drag = useRef<{ id: string; kind: string; dx: number; dy: number } | null>(null);
+  const drag = useRef<{
+    id: string;
+    kind: string;
+    dx: number;
+    dy: number;
+    desdeX: number;
+    desdeY: number;
+    arrastrando: boolean;
+    elemento: HTMLElement;
+    pointerId: number;
+  } | null>(null);
 
   const save = useCallback(
     async (payload: Record<string, unknown>, method: "POST" | "PATCH" | "DELETE" = "PATCH") => {
@@ -145,25 +155,49 @@ export default function ProductBoard({
     []
   );
 
+  // Cuánto hay que mover el dedo o el mouse para que se considere un arrastre.
+  const UMBRAL_PX = 4;
+
   function onPointerDown(e: React.PointerEvent, item: BoardItem) {
     if (!canManage) return;
     // Solo arrastra desde el cuerpo de la tarjeta, no desde botones o links.
     if ((e.target as HTMLElement).closest("a,button,textarea,input")) return;
     const board = boardRef.current?.getBoundingClientRect();
     if (!board) return;
+    // Se anota la intención pero NO se captura el puntero todavía.
+    //
+    // Capturar apenas se apoya el dedo era lo que impedía tocar las tarjetas:
+    // desde ese momento todos los eventos van a la tarjeta que captura, y el
+    // click sobre lo que hay adentro nunca llega a dispararse. Ahora la
+    // captura recién ocurre cuando el puntero se movió de verdad, así que un
+    // click limpio sigue siendo un click.
     drag.current = {
       id: item.id,
       kind: item.kind,
       dx: e.clientX - board.left - item.x,
       dy: e.clientY - board.top - item.y,
+      desdeX: e.clientX,
+      desdeY: e.clientY,
+      arrastrando: false,
+      elemento: e.currentTarget as HTMLElement,
+      pointerId: e.pointerId,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     const board = boardRef.current?.getBoundingClientRect();
     if (!d || !board) return;
+
+    if (!d.arrastrando) {
+      const lejos =
+        Math.abs(e.clientX - d.desdeX) > UMBRAL_PX ||
+        Math.abs(e.clientY - d.desdeY) > UMBRAL_PX;
+      if (!lejos) return;
+      d.arrastrando = true;
+      d.elemento.setPointerCapture(d.pointerId);
+    }
+
     const x = Math.max(0, e.clientX - board.left - d.dx);
     const y = Math.max(0, e.clientY - board.top - d.dy);
     setItems((prev) => prev.map((it) => (it.id === d.id ? { ...it, x, y } : it)));
@@ -172,7 +206,8 @@ export default function ProductBoard({
   function onPointerUp() {
     const d = drag.current;
     drag.current = null;
-    if (!d) return;
+    // Si nunca llegó a arrastrarse fue un click: no hay nada que guardar.
+    if (!d || !d.arrastrando) return;
     const moved = items.find((it) => it.id === d.id);
     if (!moved) return;
     const x = Math.round(moved.x / GRID) * GRID;

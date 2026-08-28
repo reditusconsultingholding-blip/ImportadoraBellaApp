@@ -53,6 +53,32 @@ export default async function ProductosPage({
     if (found && found.organizationId === session.organizationId) folderId = found.id;
   }
 
+  // El directorio es la vista por defecto. El tablero sigue estando, pero para
+  // mirar cincuenta productos y encontrar el que se está yendo de precio hace
+  // falta una lista que se pueda buscar y ordenar, no un lienzo.
+  const enTablero = vista === "tablero";
+
+  if (!enTablero) {
+    const directorio = await getDirectory(session.organizationId, resolveRange("30d"));
+    return (
+      <div className="flex flex-col gap-5">
+        <Encabezado enTablero={false} />
+        {canManage && <CatalogPicker />}
+        <ProductDirectory
+          rows={directorio.rows}
+          carpetas={directorio.carpetas}
+          totales={directorio.totales}
+          puedeGestionar={canManage}
+          pendientes={directorio.pendientes}
+          equipo={directorio.equipo}
+          puedeDecidir={puedeDecidir(session.role)}
+        />
+      </div>
+    );
+  }
+
+  // De acá para abajo solo se llega en el tablero: estas consultas no le
+  // sirven al directorio y antes corrían igual en cada carga.
   const [folders, products, notes, path] = await Promise.all([
     db.productFolder.findMany({
       where: { organizationId: session.organizationId, parentId: folderId },
@@ -140,73 +166,56 @@ export default async function ProductosPage({
     select: { id: true, name: true, avatarUrl: true },
   });
 
-  // El directorio es la vista por defecto. El tablero sigue estando, pero para
-  // mirar cincuenta productos y encontrar el que se está yendo de precio hace
-  // falta una lista que se pueda buscar y ordenar, no un lienzo.
-  const enTablero = vista === "tablero";
-  const directorio = enTablero
-    ? null
-    : await getDirectory(session.organizationId, resolveRange("30d"));
-
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Productos</h1>
-          <p className="mt-1 text-sm text-muted">
-            {enTablero
-              ? "El catálogo como tablero: arma carpetas, mete productos adentro y anota ideas al lado. Arrastra cualquier tarjeta — la posición queda guardada para todo el equipo."
-              : "Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Busca por nombre o por el código que usan las campañas."}
-          </p>
-        </div>
+      <Encabezado enTablero />
+      <ProductBoard
+        items={items}
+        folderId={folderId}
+        path={path}
+        canManage={canManage}
+        people={people}
+        openNoteId={ficha ?? null}
+        parentId={path.length > 1 ? path[path.length - 2].id : null}
+      />
+    </div>
+  );
+}
 
-        <nav className="flex shrink-0 gap-1.5">
-          {[
-            { id: "directorio", label: "Directorio" },
-            { id: "tablero", label: "Tablero" },
-          ].map((v) => {
-            const activo = enTablero ? v.id === "tablero" : v.id === "directorio";
-            return (
-              <Link
-                key={v.id}
-                href={`/dashboard/productos?vista=${v.id}`}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                  activo
-                    ? "border-accent bg-good-bg text-accent-strong"
-                    : "border-border text-muted hover:border-border-strong hover:text-foreground"
-                }`}
-              >
-                {v.label}
-              </Link>
-            );
-          })}
-        </nav>
+/** El título y las dos pestañas. Se comparte entre las dos vistas. */
+function Encabezado({ enTablero }: { enTablero: boolean }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-[22px] font-semibold">Productos</h1>
+        <p className="mt-1 text-sm text-muted">
+          {enTablero
+            ? "El catálogo como tablero: arma carpetas, mete productos adentro y anota ideas al lado. Arrastra cualquier tarjeta — la posición queda guardada para todo el equipo."
+            : "Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Busca por nombre o por el código que usan las campañas."}
+        </p>
       </div>
 
-      {directorio ? (
-        <>
-          {canManage && <CatalogPicker />}
-          <ProductDirectory
-            rows={directorio.rows}
-            carpetas={directorio.carpetas}
-            totales={directorio.totales}
-            puedeGestionar={canManage}
-            pendientes={directorio.pendientes}
-            equipo={directorio.equipo}
-            puedeDecidir={puedeDecidir(session.role)}
-          />
-        </>
-      ) : (
-        <ProductBoard
-          items={items}
-          folderId={folderId}
-          path={path}
-          canManage={canManage}
-          people={people}
-          openNoteId={ficha ?? null}
-          parentId={path.length > 1 ? path[path.length - 2].id : null}
-        />
-      )}
+      <nav className="flex shrink-0 gap-1.5">
+        {[
+          { id: "directorio", label: "Directorio" },
+          { id: "tablero", label: "Tablero" },
+        ].map((v) => {
+          const activo = enTablero ? v.id === "tablero" : v.id === "directorio";
+          return (
+            <Link
+              key={v.id}
+              href={`/dashboard/productos?vista=${v.id}`}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                activo
+                  ? "border-accent bg-good-bg text-accent-strong"
+                  : "border-border text-muted hover:border-border-strong hover:text-foreground"
+              }`}
+            >
+              {v.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

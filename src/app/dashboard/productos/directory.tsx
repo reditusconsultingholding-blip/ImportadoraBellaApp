@@ -397,12 +397,16 @@ export default function ProductDirectory({
                           purchases: r.purchases,
                           cpa: r.cpa,
                           cpaTarget: r.cpaTarget,
+                          salePrice: r.salePrice,
+                          unitCost: r.unitCost,
                           serie: r.serie,
                           motivos: r.motivos,
                           sugerencias: r.sugerencias,
                         }}
                         onProponer={proponer(r.id)}
                         onCerrar={() => setFilaAbierta(null)}
+                        puedeConfigurar={puedeGestionar}
+                        onCambio={() => router.refresh()}
                       />
                     </td>
                   </tr>

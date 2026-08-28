@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import PulseLine, { type PulseTone } from "./pulse-line";
+import { type PulseTone } from "./pulse-line";
+import ProductConfig from "./product-config";
 
 export type Sugerencia = { kind: string; detail: string; reason: string };
 
@@ -16,6 +17,8 @@ export type PulsoConAcciones = {
   purchases: number;
   cpa: number | null;
   cpaTarget: number | null;
+  salePrice?: number | null;
+  unitCost?: number | null;
   serie: number[];
   motivos: string[];
   sugerencias: Sugerencia[];
@@ -61,12 +64,18 @@ export function DetalleProducto({
   p,
   onProponer,
   onCerrar,
+  puedeConfigurar = false,
+  onCambio,
 }: {
   p: PulsoConAcciones;
   onProponer: (s: Sugerencia, cantidad: number) => Promise<void>;
   /** Cerrar el detalle. Sin un control visible, quien lo abre queda sin
    *  saber como volver a la lista. */
   onCerrar?: () => void;
+  /** Quien puede tocar precio, costo y CPA objetivo. */
+  puedeConfigurar?: boolean;
+  /** Para volver a pedir los datos cuando cambian los umbrales. */
+  onCambio?: () => void;
 }) {
   const [eligiendo, setEligiendo] = useState<Sugerencia | null>(null);
   const [cantidad, setCantidad] = useState(3);
@@ -126,6 +135,19 @@ export function DetalleProducto({
             </li>
           ))}
         </ul>
+      )}
+
+      {puedeConfigurar && p.productId && (
+        <ProductConfig
+          inicial={{
+            productId: p.productId,
+            cpaTarget: p.cpaTarget,
+            salePrice: p.salePrice ?? null,
+            unitCost: p.unitCost ?? null,
+          }}
+          puedeEditar
+          onGuardado={onCambio}
+        />
       )}
 
       {p.sugerencias.length > 0 && (

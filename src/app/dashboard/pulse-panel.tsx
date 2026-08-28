@@ -320,6 +320,8 @@ export default function PulsePanel({ query }: { query: string }) {
                           p={p}
                           onProponer={proponer(p)}
                           onCerrar={() => setProductoAbierto(null)}
+                          puedeConfigurar={puedoDecidir}
+                          onCambio={() => setRecarga((n) => n + 1)}
                         />
                       )}
                     </div>
