@@ -29,7 +29,15 @@ export async function syncShopifyStore(
   storeId: string,
   days?: number,
   /** Final de la ventana, para rellenar un tramo del pasado sin traer todo. */
-  hastaISO?: string
+  hastaISO?: string,
+  /**
+   * Reescribe TODAS las ordenes del tramo, no solo las recientes.
+   *
+   * Se usa cuando se agrega un campo nuevo y hay que rellenarlo hacia atras:
+   * los datos del cliente, por ejemplo, no existian cuando se importaron las
+   * primeras ochenta mil ordenes.
+   */
+  forzar = false
 ) {
   const store = await db.shopifyStore.findUniqueOrThrow({ where: { id: storeId } });
 
@@ -99,7 +107,7 @@ export async function syncShopifyStore(
       // Sin este corte, rellenar tres meses obligaba a reescribir de a una las
       // diez mil órdenes que ya estaban, y la petición se pasaba del tiempo del
       // proxy antes de llegar a las nuevas — que eran justo las que faltaban.
-      if (new Date(o.occurredAt) < revisarDesde) continue;
+      if (!forzar && new Date(o.occurredAt) < revisarDesde) continue;
       await db.shopifyOrder.update({
         where: { storeId_externalId: { storeId: store.id, externalId: o.externalId } },
         data: {
