@@ -36,6 +36,10 @@ export async function syncShopifyStore(storeId: string, days?: number) {
   const since = new Date();
   since.setDate(since.getDate() - (days ?? (yaTieneOrdenes > 0 ? 2 : 30)));
 
+  // Hasta dónde vale la pena reescribir lo que ya está guardado.
+  const revisarDesde = new Date();
+  revisarDesde.setDate(revisarDesde.getDate() - 4);
+
   const orders = await fetchRecentOrders(store.shopDomain, store.accessToken, since.toISOString());
 
   let creadas = 0;
@@ -73,6 +77,14 @@ export async function syncShopifyStore(storeId: string, days?: number) {
 
     for (const o of lote) {
       if (!yaEstaban.has(o.externalId)) continue;
+      // Solo se reescriben las órdenes recientes. Shopify ajusta descuentos y
+      // envíos de una compra durante unos días; después de eso el número no se
+      // mueve más.
+      //
+      // Sin este corte, rellenar tres meses obligaba a reescribir de a una las
+      // diez mil órdenes que ya estaban, y la petición se pasaba del tiempo del
+      // proxy antes de llegar a las nuevas — que eran justo las que faltaban.
+      if (new Date(o.occurredAt) < revisarDesde) continue;
       await db.shopifyOrder.update({
         where: { storeId_externalId: { storeId: store.id, externalId: o.externalId } },
         data: {
