@@ -2,24 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-// Hablarle a Jarvis y que conteste en voz alta.
+// Hablar con Jarvis como en una llamada.
 //
 // Usa lo que ya trae el navegador: reconocimiento de voz para pasar lo que se
-// dice a texto, y síntesis para leer la respuesta. No hace falta ningún
-// servicio de audio ni subir la grabación a ningún lado — el audio no sale de
-// la máquina, solo viaja el texto.
+// dice a texto, y síntesis para leer la respuesta. La grabación no sale de la
+// máquina — solo viaja el texto.
+//
+// La diferencia con dictar una pregunta es el modo continuo: cuando Jarvis
+// termina de hablar, el micrófono se vuelve a abrir solo. Sin eso hay que
+// apretar un botón entre cada frase, y deja de sentirse una conversación.
 //
 // Límite: el reconocimiento de voz existe en Chrome, Edge y Safari, pero no en
-// Firefox. Cuando no está, se dice y queda el chat escrito, que funciona igual.
+// Firefox. Cuando no está, se dice y queda el chat escrito.
 
-// El tipado de la API de voz no viene en las definiciones estándar de
-// TypeScript, así que se declara lo que se usa y nada más.
 type Reconocimiento = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start: () => void;
   stop: () => void;
+  abort: () => void;
   onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -41,70 +43,51 @@ export default function VoiceMode({
   ultimaRespuesta,
   pensando,
 }: {
-  /** Manda la pregunta al chat. Devuelve cuando ya se envió. */
   onPregunta: (texto: string) => Promise<void>;
-  /** La última respuesta de Jarvis, para leerla en voz alta. */
   ultimaRespuesta: string | null;
   pensando: boolean;
 }) {
   // Si el navegador reconoce voz se pregunta con useSyncExternalStore y no
-  // desde un efecto: en el servidor no existe window, así que hace falta una
-  // respuesta distinta para cada lado y esta es la forma que React trae para
-  // eso. Con un efecto, además, se pinta un render de más.
+  // desde un efecto: en el servidor no existe window, y hace falta una
+  // respuesta distinta para cada lado.
   const disponible = useSyncExternalStore(
     () => () => {},
     () => traerReconocimiento() != null,
     () => false
   );
+
+  const [enLlamada, setEnLlamada] = useState(false);
   const [escuchando, setEscuchando] = useState(false);
   const [leyendo, setLeyendo] = useState(false);
-  const [vozActiva, setVozActiva] = useState(false);
   const [parcial, setParcial] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const recRef = useRef<Reconocimiento | null>(null);
   const yaLeidoRef = useRef<string | null>(null);
+  const enLlamadaRef = useRef(false);
+  // La escucha se reabre a sí misma cuando hay silencio o cuando Jarvis
+  // termina de hablar. Se llama por referencia para no auto-referenciar el
+  // callback.
+  const escucharRef = useRef<() => void>(() => {});
 
-
-  const leerEnVozAlta = useCallback((texto: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-
-    const frase = new SpeechSynthesisUtterance(texto);
-    frase.lang = "es-EC";
-    frase.rate = 1.05;
-
-    // Se prefiere una voz en español si el sistema tiene alguna; si no, la que
-    // haya. Con la voz por defecto en inglés, un texto en español suena a
-    // cualquier cosa.
-    const voces = window.speechSynthesis.getVoices();
-    const enEspanol = voces.find((v) => v.lang.toLowerCase().startsWith("es"));
-    if (enEspanol) frase.voice = enEspanol;
-
-    frase.onstart = () => setLeyendo(true);
-    frase.onend = () => setLeyendo(false);
-    frase.onerror = () => setLeyendo(false);
-    window.speechSynthesis.speak(frase);
+  const detenerTodo = useCallback(() => {
+    enLlamadaRef.current = false;
+    try {
+      recRef.current?.abort();
+    } catch {
+      // Abortar algo que ya terminó lanza excepción y no importa.
+    }
+    recRef.current = null;
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    setEscuchando(false);
+    setLeyendo(false);
+    setParcial("");
   }, []);
 
-  // Lee cada respuesta nueva, una sola vez, y solo con el modo voz encendido.
-  useEffect(() => {
-    if (!vozActiva || !ultimaRespuesta || pensando) return;
-    if (yaLeidoRef.current === ultimaRespuesta) return;
-    yaLeidoRef.current = ultimaRespuesta;
-    leerEnVozAlta(ultimaRespuesta);
-  }, [vozActiva, ultimaRespuesta, pensando, leerEnVozAlta]);
-
-  function escuchar() {
+  /** Abre el micrófono y manda lo que se diga. */
+  const escuchar = useCallback(() => {
     const Rec = traerReconocimiento();
-    if (!Rec) return;
-
-    // Si estaba leyendo, se calla: hablarle encima a la respuesta anterior es
-    // molesto y además el micrófono se escucharía a sí mismo.
-    window.speechSynthesis?.cancel();
-    setLeyendo(false);
-    setError(null);
-    setParcial("");
+    if (!Rec || !enLlamadaRef.current) return;
 
     const rec = new Rec();
     recRef.current = rec;
@@ -112,102 +95,187 @@ export default function VoiceMode({
     rec.continuous = false;
     rec.interimResults = true;
 
+    let dicho = "";
+
     rec.onresult = (e) => {
       let texto = "";
       for (let i = 0; i < e.results.length; i++) texto += e.results[i][0].transcript;
+      dicho = texto;
       setParcial(texto);
     };
 
     rec.onerror = (e) => {
-      setError(
-        e.error === "not-allowed"
-          ? "Falta darle permiso al micrófono."
-          : "No se entendió. Prueba de nuevo."
-      );
+      if (e.error === "not-allowed") {
+        setError("Falta darle permiso al micrófono.");
+        enLlamadaRef.current = false;
+        setEnLlamada(false);
+      }
+      // "no-speech" pasa todo el tiempo en una conversación real: no es un
+      // error, es un silencio.
       setEscuchando(false);
     };
 
     rec.onend = () => {
       setEscuchando(false);
-      setParcial((texto) => {
-        const limpio = texto.trim();
-        if (limpio) {
-          setVozActiva(true);
-          onPregunta(limpio).catch(() => setError("No se pudo enviar la pregunta."));
-        }
-        return "";
-      });
+      setParcial("");
+      const limpio = dicho.trim();
+
+      if (limpio) {
+        onPregunta(limpio).catch(() => setError("No se pudo enviar la pregunta."));
+      } else if (enLlamadaRef.current) {
+        // Silencio: se reabre el micrófono en vez de cortar la llamada.
+        setTimeout(() => escucharRef.current(), 300);
+      }
     };
 
-    rec.start();
-    setEscuchando(true);
+    try {
+      rec.start();
+      setEscuchando(true);
+      setError(null);
+    } catch {
+      // Arrancar dos veces seguidas lanza excepción; se ignora.
+    }
+  }, [onPregunta]);
+
+
+  const leerEnVozAlta = useCallback(
+    (texto: string) => {
+      if (typeof window === "undefined" || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+
+      const frase = new SpeechSynthesisUtterance(texto);
+      frase.lang = "es-EC";
+      frase.rate = 1.08;
+
+      // Con la voz por defecto en inglés, un texto en español suena a cualquier
+      // cosa.
+      const voces = window.speechSynthesis.getVoices();
+      const enEspanol = voces.find((v) => v.lang.toLowerCase().startsWith("es"));
+      if (enEspanol) frase.voice = enEspanol;
+
+      frase.onstart = () => setLeyendo(true);
+      frase.onend = () => {
+        setLeyendo(false);
+        // El turno vuelve a quien preguntó: es lo que hace que se sienta una
+        // conversación y no un intercambio de mensajes.
+        if (enLlamadaRef.current) setTimeout(() => escucharRef.current(), 250);
+      };
+      frase.onerror = () => setLeyendo(false);
+
+      window.speechSynthesis.speak(frase);
+    },
+    []
+  );
+
+  // La referencia se pone al día en un efecto y no durante el render: el
+  // render tiene que estar libre de efectos secundarios.
+  useEffect(() => {
+    escucharRef.current = escuchar;
+  }, [escuchar]);
+
+  // Lee cada respuesta nueva una sola vez.
+  useEffect(() => {
+    if (!enLlamada || !ultimaRespuesta || pensando) return;
+    if (yaLeidoRef.current === ultimaRespuesta) return;
+    yaLeidoRef.current = ultimaRespuesta;
+    leerEnVozAlta(ultimaRespuesta);
+  }, [enLlamada, ultimaRespuesta, pensando, leerEnVozAlta]);
+
+  async function entrarALlamada() {
+    setError(null);
+    try {
+      // Se pide el micrófono explícitamente antes de arrancar: así el permiso
+      // se resuelve una vez y no en medio de la conversación.
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError("No se pudo usar el micrófono. Hay que darle permiso al navegador.");
+      return;
+    }
+    enLlamadaRef.current = true;
+    setEnLlamada(true);
+    escuchar();
   }
 
-  function detener() {
-    recRef.current?.stop();
-    window.speechSynthesis?.cancel();
-    setEscuchando(false);
-    setLeyendo(false);
+  function colgar() {
+    detenerTodo();
+    setEnLlamada(false);
   }
 
-  useEffect(() => () => {
-    recRef.current?.stop();
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-  }, []);
+  useEffect(() => () => detenerTodo(), [detenerTodo]);
 
   if (!disponible) {
     return (
       <p className="text-xs text-muted">
-        Este navegador no reconoce voz. Funciona en Chrome, Edge y Safari; en el resto queda el
+        Este navegador no reconoce voz. La llamada funciona en Chrome, Edge y Safari; aquí queda el
         chat escrito.
       </p>
     );
   }
 
+  const estado = leyendo
+    ? "Jarvis está hablando"
+    : pensando
+      ? "Pensando…"
+      : escuchando
+        ? "Te escucho"
+        : "En llamada";
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+      {!enLlamada ? (
         <button
           type="button"
-          onClick={escuchando ? detener : escuchar}
-          className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition ${
-            escuchando
-              ? "bg-critical text-white"
-              : "bg-accent text-white hover:bg-accent-strong"
-          }`}
+          onClick={entrarALlamada}
+          className="flex w-fit items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
         >
-          <span aria-hidden>{escuchando ? "⏹" : "🎙"}</span>
-          {escuchando ? "Escuchando… toca para parar" : "Hablar con Jarvis"}
+          <span aria-hidden>🎙</span>
+          Hablar con Jarvis
         </button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent bg-good-bg px-3 py-2.5">
+          {/* El punto que late marca de quién es el turno: sin eso no se sabe si
+              hay que hablar o esperar. */}
+          <span className="relative flex h-3 w-3 shrink-0">
+            {escuchando && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-good opacity-70" />
+            )}
+            <span
+              className={`relative inline-flex h-3 w-3 rounded-full ${
+                leyendo ? "bg-accent-strong" : pensando ? "bg-warning" : "bg-good"
+              }`}
+            />
+          </span>
 
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={vozActiva}
-            onChange={(e) => {
-              setVozActiva(e.target.checked);
-              if (!e.target.checked) window.speechSynthesis?.cancel();
-            }}
-            className="h-3.5 w-3.5 accent-[var(--accent)]"
-          />
-          Que conteste en voz alta
-        </label>
+          <span className="text-sm font-medium text-accent-strong">{estado}</span>
 
-        {leyendo && (
+          {parcial && (
+            <span className="min-w-0 flex-1 truncate text-xs text-muted">“{parcial}”</span>
+          )}
+
+          {leyendo && (
+            <button
+              type="button"
+              onClick={() => {
+                window.speechSynthesis?.cancel();
+                setLeyendo(false);
+                escuchar();
+              }}
+              className="text-xs text-muted underline underline-offset-2 transition hover:text-foreground"
+            >
+              Interrumpir
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => {
-              window.speechSynthesis?.cancel();
-              setLeyendo(false);
-            }}
-            className="text-xs text-muted underline underline-offset-2 transition hover:text-foreground"
+            onClick={colgar}
+            className="ml-auto shrink-0 rounded-full bg-critical px-3 py-1 text-xs font-medium text-white transition hover:opacity-90"
           >
-            Callar
+            Colgar
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {parcial && <p className="text-xs text-muted">“{parcial}”</p>}
       {error && <p className="text-xs text-critical">{error}</p>}
     </div>
   );
