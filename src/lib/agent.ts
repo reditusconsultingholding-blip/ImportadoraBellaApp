@@ -49,7 +49,7 @@ function summarize(overview: Awaited<ReturnType<typeof getOverview>>, platformLa
     (p) =>
       `- ${p.name}${p.code ? ` (${p.code})` : " (sin producto asociado)"}: gasto US${p.spend.toFixed(0)}, ${p.purchases} compras, CPA US${
         p.cpa?.toFixed(1) ?? "—"
-      }${p.cpaTarget !== null ? ` (objetivo US${p.cpaTarget})` : ""} — ${p.status === "urgent" ? "URGENTE" : p.status === "ok" ? "bien" : "sin objetivo"}`
+      }${p.cpaTarget !== null ? ` (objetivo US${p.cpaTarget})` : ""} — ${p.status === "riesgo" ? "VA MAL" : p.status === "vigilar" ? "hay que optimizarlo" : p.status === "sano" ? "va bien" : "sin objetivo cargado"}`
   );
   return `${platformLabel} — gasto total US$${overview.totalSpend.toFixed(0)}, CTR ${overview.ctr.toFixed(
     2

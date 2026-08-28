@@ -15,7 +15,13 @@ export type RowMetric = {
   impressions: number;
   cpa: number | null;
   cpaTarget: number | null;
-  status: "ok" | "urgent" | "sin-objetivo";
+  /**
+   * El mismo semáforo que usa el Pulso, con el mismo corte. Antes esta tabla
+   * decía "Bien" y "Urgente" mientras el Pulso decía "Sano", "Vigilar" y
+   * "En riesgo" para lo mismo: dos vocabularios para la misma idea, y nadie
+   * sabía si eran dos cosas distintas.
+   */
+  status: "sano" | "vigilar" | "riesgo" | "sin-objetivo";
 };
 
 export type Overview = {
@@ -80,7 +86,8 @@ export async function getOverview(
       impressions: 0,
       cpa: null,
       cpaTarget: campaign.product?.cpaTarget ?? null,
-      status: "ok",
+      // Se recalcula más abajo con el CPA real; aquí solo hace falta un valor.
+      status: "sin-objetivo" as const,
     };
 
     for (const m of campaign.metrics) {
@@ -96,12 +103,18 @@ export async function getOverview(
 
   const list = Array.from(rows.values()).map((r) => {
     const cpa = r.purchases > 0 ? r.spend / r.purchases : null;
+    // Hasta un 15% por encima del objetivo se considera que hay margen para
+    // corregirlo con creativos; más que eso ya es plata que se pierde.
     const status: RowMetric["status"] =
-      r.cpaTarget === null
+      r.cpaTarget === null || r.cpaTarget <= 0
         ? "sin-objetivo"
-        : cpa !== null && cpa > r.cpaTarget
-          ? "urgent"
-          : "ok";
+        : cpa === null
+          ? "riesgo"
+          : cpa <= r.cpaTarget
+            ? "sano"
+            : cpa <= r.cpaTarget * 1.15
+              ? "vigilar"
+              : "riesgo";
     return { ...r, cpa, status };
   });
 
@@ -123,7 +136,7 @@ export async function getOverview(
     roas: totalSpend > 0 ? totalRevenue / totalSpend : null,
     rows: list,
     topRow: list[0] ?? null,
-    urgentRows: list.filter((r) => r.status === "urgent"),
+    urgentRows: list.filter((r) => r.status === "riesgo"),
     campaignsWithoutProduct,
   };
 }

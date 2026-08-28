@@ -84,6 +84,9 @@ export default function ProductBoard({
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<null | "folder" | "product" | "note">(null);
   const [openNote, setOpenNote] = useState<string | null>(openNoteId);
+  // Buscador del tablero. Con carpetas anidadas, encontrar un producto
+  // implicaba abrirlas de a una hasta dar con él.
+  const [busqueda, setBusqueda] = useState("");
 
   // El servidor manda la verdad en cada refresh; el estado local solo existe
   // para que arrastrar se sienta instantáneo. Se sincroniza durante el render
@@ -270,6 +273,21 @@ export default function ProductBoard({
     if (await save({ kind: item.kind, id: item.id }, "DELETE")) router.refresh();
   }
 
+  // null = no se está buscando, y se muestra el lienzo entero.
+  const termino = busqueda.trim().toLowerCase();
+  const resultados =
+    termino.length === 0
+      ? null
+      : items.filter((it) => {
+          const texto =
+            it.kind === "note" ? (it.title ?? "") : `${it.name} ${it.kind === "product" ? it.code : ""}`;
+          return texto
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .toLowerCase()
+            .includes(termino.normalize("NFD").replace(/[̀-ͯ]/g, ""));
+        });
+
   const boardHeight = Math.max(
     520,
     ...items.map((it) => it.y + (it.kind === "product" ? 190 : 130) + 40)
@@ -305,6 +323,13 @@ export default function ProductBoard({
             </span>
           ))}
         </nav>
+
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar un producto o carpeta…"
+          className="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent sm:w-64"
+        />
 
         {canManage && (
           <div className="flex items-center gap-2">
@@ -442,6 +467,39 @@ export default function ProductBoard({
       )}
 
       {/* El tablero */}
+      {resultados != null && (
+        <div className="rounded border border-border bg-surface">
+          <p className="border-b border-border px-3 py-2 text-xs text-muted">
+            {resultados.length === 0
+              ? "Nada coincide con eso."
+              : `${resultados.length} ${resultados.length === 1 ? "resultado" : "resultados"}`}
+          </p>
+          {resultados.map((it) => (
+            <Link
+              key={it.id}
+              href={
+                it.kind === "folder"
+                  ? `/dashboard/productos?vista=tablero&carpeta=${it.id}`
+                  : it.kind === "product"
+                    ? `/dashboard/productos/${it.code}`
+                    : `/dashboard/productos?vista=tablero&ficha=${it.id}`
+              }
+              className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm transition last:border-b-0 hover:bg-surface-2"
+            >
+              <span aria-hidden>
+                {it.kind === "folder" ? "📁" : it.kind === "product" ? "📦" : "📝"}
+              </span>
+              <span className="truncate">
+                {it.kind === "note" ? (it.title ?? "Ficha sin título") : it.name}
+              </span>
+              {it.kind === "product" && (
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted">{it.code}</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+
       <div
         ref={boardRef}
         onPointerMove={onPointerMove}

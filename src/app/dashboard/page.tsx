@@ -20,6 +20,15 @@ const money = (n: number) =>
 const money2 = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
+// Las mismas palabras que el filtro del Pulso, para que la tabla y el
+// semáforo de arriba no parezcan dos cosas distintas.
+const ESTADO_FILA = {
+  sano: { texto: "Va bien", chip: "bg-good-bg text-good" },
+  vigilar: { texto: "Optimizar", chip: "bg-surface-2 text-warning" },
+  riesgo: { texto: "Va mal", chip: "bg-critical-bg text-critical" },
+  "sin-objetivo": { texto: "Sin producto", chip: "bg-surface-2 text-muted" },
+} as const;
+
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 // Se formatea en UTC a proposito: los limites del rango ya vienen como el dia
@@ -191,12 +200,10 @@ export default async function DashboardPage({
                         <span className="text-xs text-muted whitespace-nowrap">sin producto</span>
                       ) : (
                         <span
-                          className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded whitespace-nowrap ${
-                            r.status === "ok" ? "bg-good-bg text-good" : "bg-critical-bg text-critical"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-1 text-xs ${ESTADO_FILA[r.status].chip}`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          {r.status === "ok" ? "Bien" : "Urgente"}
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {ESTADO_FILA[r.status].texto}
                         </span>
                       )}
                     </td>
