@@ -6,6 +6,9 @@ import { parseCampaignRef } from "@/lib/product-code";
 // Vuelca lo que trae Windsor en el modelo de la app: una AdAccount por cuenta
 // publicitaria, una Campaign por campaña y un MetricSnapshot por campaña y día.
 
+// Cuántos días se escriben por vuelta.
+const LOTE = 500;
+
 const PLATFORM: Record<WindsorConnector, Platform> = {
   facebook: "META",
   tiktok: "TIKTOK",
@@ -66,6 +69,15 @@ export async function syncWindsorConnector(
   const accountIds = new Map<string, string>();
   const campaignIds = new Map<string, string>();
   let snapshots = 0;
+  const porGuardar: {
+    campaignId: string;
+    capturedAt: Date;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    purchases: number;
+    revenue: number;
+  }[] = [];
 
   for (const row of rows) {
     let accountId = accountIds.get(row.account_id);
@@ -118,27 +130,35 @@ export async function syncWindsorConnector(
     // La fecha se guarda a medianoche UTC y es parte de la clave: volver a
     // sincronizar el mismo día pisa la fila en vez de duplicarla. Importa
     // porque Meta ajusta las compras con días de retraso.
-    const capturedAt = new Date(`${row.date}T00:00:00.000Z`);
-    await db.metricSnapshot.upsert({
-      where: { campaignId_capturedAt: { campaignId, capturedAt } },
-      create: {
-        campaignId,
-        capturedAt,
-        spend: row.spend,
-        impressions: Math.round(row.impressions),
-        clicks: Math.round(row.clicks),
-        purchases: Math.round(row.actions_purchase),
-        revenue: row.action_values_purchase,
-      },
-      update: {
-        spend: row.spend,
-        impressions: Math.round(row.impressions),
-        clicks: Math.round(row.clicks),
-        purchases: Math.round(row.actions_purchase),
-        revenue: row.action_values_purchase,
+    porGuardar.push({
+      campaignId,
+      capturedAt: new Date(`${row.date}T00:00:00.000Z`),
+      spend: row.spend,
+      impressions: Math.round(row.impressions),
+      clicks: Math.round(row.clicks),
+      purchases: Math.round(row.actions_purchase),
+      revenue: row.action_values_purchase,
+    });
+  }
+
+  // Los días se escriben por lotes y no de a uno.
+  //
+  // De a uno eran ~4.300 viajes al pooler para TikTok (615 campañas por 7
+  // días) y la corrida no llegaba a terminar: cada despliegue la cortaba a
+  // mitad de camino y el conector nunca registraba una sincronización buena.
+  //
+  // Se borra y se vuelve a insertar en vez de actualizar fila por fila: lo
+  // que dice Windsor reemplaza por completo lo que había para esos días, así
+  // que no hay nada que conservar.
+  for (let i = 0; i < porGuardar.length; i += LOTE) {
+    const lote = porGuardar.slice(i, i + LOTE);
+    await db.metricSnapshot.deleteMany({
+      where: {
+        OR: lote.map((s) => ({ campaignId: s.campaignId, capturedAt: s.capturedAt })),
       },
     });
-    snapshots += 1;
+    await db.metricSnapshot.createMany({ data: lote });
+    snapshots += lote.length;
   }
 
   return {
