@@ -12,6 +12,7 @@ import RangePicker from "./range-picker";
 import PulsePanel from "./pulse-panel";
 import CatalogPicker from "./catalog-picker";
 import AttributionStrip from "./attribution-strip";
+import AlertasPanel from "./alertas-panel";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
@@ -105,6 +106,8 @@ export default async function DashboardPage({
           ventasDesde={sales.ventasDesde}
         />
       )}
+
+      {canManagePipeline(session.role) && <AlertasPanel />}
 
       {canManagePipeline(session.role) && <PulsePanel query={query} />}
 

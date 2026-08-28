@@ -5,6 +5,7 @@ import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
+import { enviarAlertasDiarias } from "@/lib/alertas-diarias";
 
 // El reloj de la aplicación.
 //
@@ -129,6 +130,16 @@ export async function sincronizarTodo() {
       if (r) resumen.reporte = r;
     } catch (err) {
       resumen.reporte = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Que escalar y que apagar, una vez por dia. Se apoya en su propio
+    // control de frecuencia: el reloj pasa cada cinco minutos y sin eso el
+    // equipo recibiria 288 avisos iguales.
+    try {
+      const r = await enviarAlertasDiarias(org.id);
+      if (r) resumen.alertas = r;
+    } catch (err) {
+      resumen.alertas = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // Y la salud de los productos, una vez por semana. Se apoya en su propia
