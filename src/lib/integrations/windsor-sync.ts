@@ -48,7 +48,7 @@ function matchProduct(
 export async function syncWindsorConnector(
   organizationId: string,
   connector: WindsorConnector,
-  datePreset = "last_7d"
+  datePreset = "last_7dT"
 ) {
   const rows = await fetchWindsorRows(connector, datePreset);
   if (rows.length === 0) {

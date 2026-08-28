@@ -72,6 +72,7 @@ model Organization {
   chatMessages        ChatMessage[]
   calcSettings CalcSetting[]
   acciones     ProductAction[]
+  syncStates   SyncState[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -817,4 +818,27 @@ model ProductAction {
 
   @@index([organizationId, status])
   @@index([productId])
+}
+
+// Cuando se actualizo por ultima vez cada fuente, y si fallo.
+//
+// Existe porque el silencio y el cero se ven igual: si el cron deja de
+// correr, el panel muestra "0 ventas hoy" y parece un mal dia de ventas en
+// vez de una sincronizacion caida. Paso exactamente eso.
+model SyncState {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  fuente         String       // shopify | facebook | tiktok
+  okAt           DateTime?    // ultima corrida que termino bien
+  errorAt        DateTime?
+  error          String?
+  detalle        String?      // que trajo, para poder mirarlo sin entrar a la base
+  // Evita que dos corridas se pisen: el reloj interno dispara cada pocos
+  // minutos y una sincronizacion larga puede seguir viva cuando llega la
+  // siguiente.
+  corriendo      Boolean      @default(false)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, fuente])
 }

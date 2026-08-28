@@ -58,7 +58,10 @@ export function hasWindsorKey() {
 /**
  * Trae las filas de un conector para los últimos `days` días.
  *
- * `datePreset` usa el formato de Windsor ("last_7d", "last_30d"). Se pide un
+ * `datePreset` usa el formato de Windsor. Ojo con la T final: "last_7d"
+ * devuelve los 7 días CERRADOS y deja afuera el de hoy, mientras que
+ * "last_7dT" lo incluye. Con el primero, el panel mostraba gasto cero a
+ * media tarde y parecía que nadie estaba pauteando. Se pide un
  * rango y no "todo": traer el histórico completo en cada corrida del cron
  * sería tirar cuota a la basura, y las filas se reescriben por clave, así que
  * volver a pedir los últimos días corrige cualquier dato que Meta haya
@@ -66,7 +69,7 @@ export function hasWindsorKey() {
  */
 export async function fetchWindsorRows(
   connector: WindsorConnector,
-  datePreset = "last_7d"
+  datePreset = "last_7dT"
 ): Promise<WindsorRow[]> {
   const apiKey = process.env.WINDSOR_API_KEY?.trim();
   if (!apiKey) {
