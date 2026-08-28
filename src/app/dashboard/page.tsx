@@ -92,6 +92,8 @@ export default async function DashboardPage({
           meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases, revenue: meta.totalRevenue }}
           tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases, revenue: tiktok.totalRevenue }}
           periodo={range.label}
+          desdeElPeriodo={isoDay(range.from)}
+          ventasDesde={sales.ventasDesde}
         />
       )}
 

@@ -22,6 +22,13 @@ export type SalesOverview = {
   totalSales: number;
   /** Cuántas órdenes reales entraron en el período. */
   ordenes: number;
+  /**
+   * La orden más vieja que hay guardada. Sirve para avisar cuando el período
+   * pedido empieza antes de eso: si no, un rango de doce meses muestra el
+   * gasto de pauta completo contra cero ventas y parece un desastre, cuando
+   * en realidad lo que falta es historia.
+   */
+  ventasDesde: string | null;
   totalSalesChangePct: number;
   salesSeries: SalesPoint[];
   breakdown: { label: string; value: number; changePct: number | null }[];
@@ -52,6 +59,7 @@ function sinTienda(): SalesOverview {
     connected: false,
     totalSales: 0,
     ordenes: 0,
+    ventasDesde: null,
     totalSalesChangePct: 0,
     salesSeries: vacia,
     breakdown: [],
@@ -96,6 +104,12 @@ export async function getSalesOverview(
   const orders = await db.shopifyOrder.findMany({
     where: { storeId: store.id, occurredAt: { gte: yesterdayStart, lte: finPeriodo } },
     include: { lineItems: true },
+  });
+
+  const masVieja = await db.shopifyOrder.findFirst({
+    where: { storeId: store.id },
+    orderBy: { occurredAt: "asc" },
+    select: { occurredAt: true },
   });
 
   const todayOrders = orders.filter((o) => o.occurredAt >= todayStart);
@@ -158,6 +172,7 @@ export async function getSalesOverview(
     connected: true,
     totalSales: netSales,
     ordenes: todayOrders.length,
+    ventasDesde: masVieja?.occurredAt.toISOString() ?? null,
     totalSalesChangePct: pctChange(netSales, netSalesYesterday),
     salesSeries: seriesFor("netSales"),
     breakdown: [

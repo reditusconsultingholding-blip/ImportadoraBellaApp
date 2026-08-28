@@ -15,13 +15,25 @@ export default function AttributionStrip({
   meta,
   tiktok,
   periodo,
+  desdeElPeriodo,
+  ventasDesde,
 }: {
   ventasReales: number;
   ordenesReales: number;
   meta: { spend: number; purchases: number; revenue: number };
   tiktok: { spend: number; purchases: number; revenue: number };
   periodo: string;
+  /** Cuándo arranca el período elegido. */
+  desdeElPeriodo: string;
+  /** La orden más vieja que hay guardada, si hay alguna. */
+  ventasDesde: string | null;
 }) {
+  // Si el período pedido empieza antes de la primera orden guardada, la
+  // comparación no significa nada: el gasto de pauta estaría completo y las
+  // ventas a medias, y parecería un desastre cuando lo que falta es historia.
+  const faltaHistoria =
+    ventasDesde != null && new Date(desdeElPeriodo) < new Date(ventasDesde.slice(0, 10));
+
   const gasto = meta.spend + tiktok.spend;
   const atribuidas = meta.purchases + tiktok.purchases;
 
@@ -87,6 +99,21 @@ export default function AttributionStrip({
           </div>
         ))}
       </div>
+
+      {faltaHistoria && (
+        <p className="border-t border-border px-4 py-2.5 text-xs text-warning">
+          Las ventas de Shopify están cargadas desde el{" "}
+          {new Date(ventasDesde!).toLocaleDateString("es-EC", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          })}
+          , pero este período empieza antes. El gasto de pauta sí está completo, así que la
+          comparación de arriba subestima las ventas — no las mires como si faltaran ventas,
+          falta historia.
+        </p>
+      )}
 
       {exceso != null && exceso > 1.3 && (
         <p className="border-t border-border px-4 py-2.5 text-xs text-warning">
