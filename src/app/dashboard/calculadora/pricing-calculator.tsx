@@ -32,6 +32,14 @@ export type CalcProduct = {
   unitCost: number | null;
   cpa: number | null;
   operatingExpensePerOrder: number | null;
+  /**
+   * La realidad operativa, cuando el producto la tiene cargada. Es lo que
+   * separa una calculadora de una planilla: sin efectividad ni devoluciones,
+   * el resultado describe un negocio que no es este.
+   */
+  flete: number | null;
+  efectividad: number | null;
+  devoluciones: number | null;
 };
 
 const money = (n: number) =>
@@ -163,6 +171,9 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     if (p.operatingExpensePerOrder != null) setOperatingCost(p.operatingExpensePerOrder.toFixed(2));
     if (p.unitCost != null) setProductCost(p.unitCost.toFixed(2));
     if (p.price != null) setPriceOverride(p.price.toFixed(2));
+    if (p.flete != null) setShippingCost(p.flete.toFixed(2));
+    if (p.efectividad != null) setConfirmationPct((p.efectividad * 100).toFixed(0));
+    if (p.devoluciones != null) setReturnPct((p.devoluciones * 100).toFixed(0));
 
     // …y encima lo que el equipo ya ajustó a mano, que le gana: si alguien
     // corrigió el flete real de este producto, ese dato vale más que el

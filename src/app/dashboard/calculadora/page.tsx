@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canManagePipeline } from "@/lib/permissions";
-import { getProfitability } from "@/lib/profitability";
 import { fetchProductCatalog, type ShopifyCatalogProduct } from "@/lib/integrations/shopify";
 import PricingCalculator, { type CalcProduct } from "./pricing-calculator";
 
@@ -11,16 +10,30 @@ export default async function CalculadoraPage() {
   if (!session) redirect("/login");
   if (!canManagePipeline(session.role)) redirect("/dashboard");
 
-  const [{ rows }, store] = await Promise.all([
-    getProfitability(session.organizationId),
+  const [fichas, store] = await Promise.all([
+    // La economía real de cada producto, que es lo que el equipo lleva en su
+    // planilla. Antes esto salía de ProductProfitability, una tabla que nunca
+    // llenó nadie: la calculadora arrancaba siempre con los valores por
+    // defecto y parecía que no sabía nada de los productos.
+    db.product.findMany({
+      where: { organizationId: session.organizationId, archived: false },
+      select: {
+        name: true,
+        salePrice: true,
+        unitCost: true,
+        flete: true,
+        efectividad: true,
+        devoluciones: true,
+        cpaTarget: true,
+      },
+    }),
     db.shopifyStore.findFirst({
       where: { organizationId: session.organizationId, connectedAt: { not: null } },
     }),
   ]);
 
-  // Precio y costo unitario salen de Shopify en vivo cuando la tienda está
-  // conectada — es lo que evita tipear el costo de cada producto a mano. Si
-  // Shopify falla, la calculadora sigue funcionando con lo de Rentabilidad.
+  // El catálogo de Shopify aporta precio y costo de los productos que todavía
+  // no tienen ficha propia.
   let catalog: ShopifyCatalogProduct[] = [];
   let catalogError = false;
   if (store) {
@@ -39,28 +52,25 @@ export default async function CalculadoraPage() {
       unitCost: c.unitCost,
       cpa: null,
       operatingExpensePerOrder: null,
+      flete: null,
+      efectividad: null,
+      devoluciones: null,
     });
   }
-  // Las filas vienen ordenadas por mes descendente: la primera aparición de
-  // cada producto es la del mes más reciente, y esa es la que vale.
-  for (const r of rows) {
-    const key = r.productName.trim().toLowerCase();
-    const existing = byName.get(key);
-    if (existing) {
-      if (existing.cpa == null) existing.cpa = r.cpa;
-      if (existing.operatingExpensePerOrder == null) {
-        existing.operatingExpensePerOrder = r.operatingExpensePerOrder;
-      }
-      if (existing.price == null && r.revenuePerOrder > 0) existing.price = r.revenuePerOrder;
-    } else {
-      byName.set(key, {
-        name: r.productName,
-        price: r.revenuePerOrder > 0 ? r.revenuePerOrder : null,
-        unitCost: null,
-        cpa: r.cpa,
-        operatingExpensePerOrder: r.operatingExpensePerOrder,
-      });
-    }
+
+  // La ficha le gana al catálogo: si alguien cargó el costo real o la
+  // efectividad, ese dato vale más que el de la tienda.
+  for (const p of fichas) {
+    byName.set(p.name.trim().toLowerCase(), {
+      name: p.name,
+      price: p.salePrice,
+      unitCost: p.unitCost,
+      cpa: p.cpaTarget > 0 ? p.cpaTarget : null,
+      operatingExpensePerOrder: null,
+      flete: p.flete,
+      efectividad: p.efectividad,
+      devoluciones: p.devoluciones,
+    });
   }
   const products = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
 

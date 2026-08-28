@@ -14,12 +14,18 @@ export default function RangePicker({
   from,
   to,
   platform,
+  basePath = "/dashboard",
 }: {
   active: RangeId;
   label: string;
   from: string;
   to: string;
   platform: string;
+  /**
+   * A qué pantalla vuelve al cambiar el período. Estaba fijo en /dashboard,
+   * así que usar este selector en Rentabilidad mandaba al panel.
+   */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -32,13 +38,13 @@ export default function RangePicker({
       return;
     }
     setOpen(false);
-    router.push(`/dashboard?platform=${platform}&rango=${rango}`, { scroll: false });
+    router.push(`${basePath}?platform=${platform}&rango=${rango}`, { scroll: false });
   }
 
   function applyCustom() {
     setOpen(false);
     router.push(
-      `/dashboard?platform=${platform}&rango=personalizado&desde=${customFrom}&hasta=${customTo}`,
+      `${basePath}?platform=${platform}&rango=personalizado&desde=${customFrom}&hasta=${customTo}`,
       { scroll: false }
     );
   }
