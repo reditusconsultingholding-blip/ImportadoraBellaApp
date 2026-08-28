@@ -128,6 +128,17 @@ async function shopifyFetch(shopDomain: string, token: string, path: string) {
   return json;
 }
 
+// Shopify no cobra por consulta sino por costo: un balde que se llena y se
+// vacía de a poco. Cuando se pasa responde THROTTLED, y eso NO es un error del
+// que haya que rendirse — es "espera un segundo".
+//
+// Sin esto, rellenar un año se caía a la mitad: siete ventanas pidiendo a la vez
+// vaciaban el balde y las últimas volvían con THROTTLED, sin escribir nada.
+const REINTENTOS_THROTTLE = 5;
+const ESPERA_BASE_MS = 2000;
+
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function shopifyGraphQL<T>(
   shopDomain: string,
   token: string,
@@ -135,22 +146,41 @@ async function shopifyGraphQL<T>(
   variables: Record<string, unknown> = {}
 ): Promise<T> {
   const url = `https://${normalizeShopDomain(shopDomain)}/admin/api/${apiVersion()}/graphql.json`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "X-Shopify-Access-Token": token,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = (await res.json().catch(() => ({}))) as { data?: T; errors?: unknown };
-  if (res.status === 401) throw new ShopifyAuthError("Shopify rechazó el token (GraphQL).");
-  if (!res.ok || json.errors) {
-    throw new Error(`Shopify GraphQL error: ${JSON.stringify(json.errors ?? json)}`);
-  }
-  return json.data as T;
-}
 
+  for (let intento = 0; ; intento++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: T;
+      errors?: { extensions?: { code?: string } }[];
+    };
+
+    if (res.status === 401) throw new ShopifyAuthError("Shopify rechazó el token (GraphQL).");
+
+    const throttled =
+      res.status === 429 ||
+      (Array.isArray(json.errors) &&
+        json.errors.some((e) => e?.extensions?.code === "THROTTLED"));
+
+    if (throttled && intento < REINTENTOS_THROTTLE) {
+      // La espera se duplica en cada vuelta: 2s, 4s, 8s… Insistir al mismo
+      // ritmo con el balde vacío solo alarga la fila.
+      await dormir(ESPERA_BASE_MS * 2 ** intento);
+      continue;
+    }
+
+    if (!res.ok || json.errors) {
+      throw new Error(`Shopify GraphQL error: ${JSON.stringify(json.errors ?? json)}`);
+    }
+    return json.data as T;
+  }
+}
 export async function verifyShopifyConnection(shopDomain: string, storedToken?: string | null) {
   const json = await withAuth(shopDomain, storedToken, (token) =>
     shopifyFetch(shopDomain, token, "/shop.json")

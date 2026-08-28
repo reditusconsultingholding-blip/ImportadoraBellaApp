@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { fetchRecentOrders } from "./shopify";
 
 // Cuántas órdenes se escriben por vuelta. Con 400 cada lote son ~5 consultas
@@ -98,35 +99,64 @@ export async function syncShopifyStore(
       creadas += nuevas.length;
     }
 
-    for (const o of lote) {
-      if (!yaEstaban.has(o.externalId)) continue;
-      // Solo se reescriben las órdenes recientes. Shopify ajusta descuentos y
-      // envíos de una compra durante unos días; después de eso el número no se
-      // mueve más.
-      //
-      // Sin este corte, rellenar tres meses obligaba a reescribir de a una las
-      // diez mil órdenes que ya estaban, y la petición se pasaba del tiempo del
-      // proxy antes de llegar a las nuevas — que eran justo las que faltaban.
-      if (!forzar && new Date(o.occurredAt) < revisarDesde) continue;
-      await db.shopifyOrder.update({
-        where: { storeId_externalId: { storeId: store.id, externalId: o.externalId } },
-        data: {
-          channel: o.channel,
-          grossSales: o.grossSales,
-          discounts: o.discounts,
-          shipping: o.shipping,
-          taxes: o.taxes,
-          netSales: o.netSales,
-          clienteNombre: o.clienteNombre,
-          clienteTelefono: o.clienteTelefono,
-          clienteEmail: o.clienteEmail,
-          provincia: o.provincia,
-          ciudad: o.ciudad,
-        },
-      });
-      actualizadas += 1;
-    }
+    // Las que ya estaban se reescriben EN UN SOLO golpe por lote.
+    //
+    // De a una era una consulta por orden: rellenar un año con `forzar`
+    // significaba 79.000 consultas seguidas, y la petición se pasaba del
+    // tiempo del proxy sin alcanzar a escribir casi nada. Con un
+    // UPDATE ... FROM (VALUES ...) es una consulta por lote de 400.
+    //
+    // Por defecto solo se reescriben las recientes: Shopify ajusta descuentos
+    // y envíos durante unos días y después el número no se mueve más.
+    // `forzar` existe para cuando se agrega un campo nuevo y hay que llenarlo
+    // hacia atrás.
+    const aReescribir = lote.filter(
+      (o) =>
+        yaEstaban.has(o.externalId) &&
+        (forzar || new Date(o.occurredAt) >= revisarDesde)
+    );
 
+    if (aReescribir.length > 0) {
+      const valores = Prisma.join(
+        aReescribir.map(
+          (o) => Prisma.sql`(
+            ${o.externalId}::text,
+            ${o.channel}::text,
+            ${o.grossSales}::double precision,
+            ${o.discounts}::double precision,
+            ${o.shipping}::double precision,
+            ${o.taxes}::double precision,
+            ${o.netSales}::double precision,
+            ${o.clienteNombre}::text,
+            ${o.clienteTelefono}::text,
+            ${o.clienteEmail}::text,
+            ${o.provincia}::text,
+            ${o.ciudad}::text
+          )`
+        )
+      );
+
+      await db.$executeRaw`
+        UPDATE "ShopifyOrder" AS o
+        SET "channel" = v.channel,
+            "grossSales" = v.gross,
+            "discounts" = v.disc,
+            "shipping" = v.ship,
+            "taxes" = v.tax,
+            "netSales" = v.net,
+            "clienteNombre" = v.nombre,
+            "clienteTelefono" = v.telefono,
+            "clienteEmail" = v.email,
+            "provincia" = v.provincia,
+            "ciudad" = v.ciudad
+        FROM (VALUES ${valores}) AS v(
+          ext, channel, gross, disc, ship, tax, net,
+          nombre, telefono, email, provincia, ciudad
+        )
+        WHERE o."storeId" = ${store.id} AND o."externalId" = v.ext`;
+
+      actualizadas += aReescribir.length;
+    }
     // Los renglones se reescriben enteros: es más simple que diferenciarlos y
     // el volumen por lote lo aguanta.
     const guardadas = await db.shopifyOrder.findMany({
