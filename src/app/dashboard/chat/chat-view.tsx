@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatPins from "./chat-pins";
+import VoiceRoom from "./voice-room";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChatMessageView } from "@/lib/chat";
@@ -353,8 +354,16 @@ export default function ChatView({
             )}
           </header>
 
-          {/* Notas y links anclados. Solo en canales: en un directo no hay
-              "lo que el equipo tiene que tener a mano". */}
+          {/* Sala de voz y anclados. Solo en canales: un directo no tiene
+              sala, ni "lo que el equipo tiene que tener a mano". */}
+          {canalActivoId && (
+            <VoiceRoom
+              key={`voz-${canalActivoId}`}
+              channelId={canalActivoId}
+              channelName={(activeTitle ?? '').replace(/^#s*/, '')}
+              yo={me}
+            />
+          )}
           {canalActivoId && <ChatPins key={canalActivoId} channelId={canalActivoId} />}
 
           {error && (
