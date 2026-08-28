@@ -301,15 +301,29 @@ export default function VoiceRoom({
 
   useEffect(() => () => desconectar(), [desconectar]);
 
+  // Quien está en la sala, con quien mira primero: verse a uno mismo arriba
+  // confirma que el micrófono quedó abierto.
+  const enSala = [...participantes].sort((a, b) =>
+    a.userId === yo.id ? -1 : b.userId === yo.id ? 1 : a.name.localeCompare(b.name, "es")
+  );
+
   return (
-    <div className="border-b border-border bg-surface-2/40 px-4 py-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted">🎙 Sala de voz</span>
+    <div className="border-b border-border bg-surface-2/50">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
+          <span aria-hidden>🎙</span>
+          Sala de voz
+          {enSala.length > 0 && (
+            <span className="rounded-full bg-good px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              {enSala.length}
+            </span>
+          )}
+        </span>
 
         {!dentro ? (
           <button
             onClick={entrar}
-            className="rounded bg-accent px-2.5 py-1 text-xs font-medium text-white transition hover:bg-accent-strong"
+            className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
           >
             Entrar a #{channelName}
           </button>
@@ -317,47 +331,112 @@ export default function VoiceRoom({
           <>
             <button
               onClick={() => setMudo((v) => !v)}
-              className={`rounded border px-2.5 py-1 text-xs font-medium transition ${
+              title={mudo ? "Activar micrófono" : "Silenciar micrófono"}
+              className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition ${
                 mudo
-                  ? "border-critical/40 bg-critical-bg text-critical"
-                  : "border-border text-muted hover:text-foreground"
+                  ? "bg-critical text-white hover:opacity-90"
+                  : "border border-border bg-surface text-foreground hover:border-border-strong"
               }`}
             >
+              <IconoMicrofono apagado={mudo} />
               {mudo ? "Micrófono apagado" : "Micrófono abierto"}
             </button>
+
+            {/* Salir siempre en rojo: es la acción de la que uno se quiere
+                poder acordar sin buscarla. */}
             <button
               onClick={salir}
-              className="rounded border border-border px-2.5 py-1 text-xs text-muted transition hover:border-critical hover:text-critical"
+              className="flex items-center gap-1.5 rounded bg-critical px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90"
             >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 9c-1.6 0-3.15.25-4.6.7v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.99.99 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .27-.11.52-.29.7l-2.48 2.46c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
+              </svg>
               Salir
             </button>
           </>
         )}
-
-        {participantes.length > 0 && (
-          <span className="flex flex-wrap items-center gap-1.5">
-            {participantes.map((p) => (
-              <span
-                key={p.userId}
-                title={p.name}
-                className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition ${
-                  hablando.has(p.userId)
-                    ? "border-good bg-good-bg text-good"
-                    : "border-border text-muted"
-                }`}
-              >
-                <span className="grid h-4 w-4 place-items-center rounded-full bg-surface-2 text-[8px] font-semibold">
-                  {iniciales(p.name)}
-                </span>
-                {p.userId === yo.id ? "Tú" : p.name.split(" ")[0]}
-                {p.muted && <span aria-label="silenciado">🔇</span>}
-              </span>
-            ))}
-          </span>
-        )}
       </div>
 
-      {error && <p className="mt-1.5 text-xs text-critical">{error}</p>}
+      {/* Las fichas de quienes están adentro. Con foto, nombre y el estado del
+          micrófono: sin eso, una sala con cuatro personas es una lista de
+          iniciales que no dice quién habla. */}
+      {enSala.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 pb-3">
+          {enSala.map((p) => {
+            const habla = hablando.has(p.userId) && !p.muted;
+            return (
+              <div
+                key={p.userId}
+                className={`flex min-w-[7.5rem] items-center gap-2 rounded-lg border px-2.5 py-2 transition ${
+                  habla
+                    ? "border-good bg-good-bg"
+                    : "border-border bg-surface"
+                }`}
+              >
+                <span className="relative shrink-0">
+                  {/* El anillo verde es la señal de que esa persona está
+                      hablando ahora: es lo que Discord resolvió bien y por eso
+                      se copia. */}
+                  <span
+                    className={`grid h-9 w-9 place-items-center rounded-full text-xs font-semibold ${
+                      habla
+                        ? "bg-good text-white ring-2 ring-good ring-offset-2 ring-offset-[var(--good-bg)]"
+                        : "bg-surface-2 text-muted"
+                    }`}
+                  >
+                    {p.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.avatarUrl}
+                        alt=""
+                        className="h-9 w-9 rounded-full object-cover"
+                      />
+                    ) : (
+                      iniciales(p.name)
+                    )}
+                  </span>
+
+                  {p.muted && (
+                    <span className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-critical text-white ring-2 ring-[var(--surface)]">
+                      <IconoMicrofono apagado tamano={9} />
+                    </span>
+                  )}
+                </span>
+
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium">
+                    {p.userId === yo.id ? `${p.name.split(" ")[0]} (tú)` : p.name}
+                  </span>
+                  <span className="block text-[10px] text-muted">
+                    {p.muted ? "Silenciado" : habla ? "Hablando" : "En la sala"}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error && <p className="px-4 pb-2 text-xs text-critical">{error}</p>}
     </div>
+  );
+}
+
+/** El micrófono, abierto o tachado. */
+function IconoMicrofono({ apagado, tamano = 13 }: { apagado?: boolean; tamano?: number }) {
+  return (
+    <svg width={tamano} height={tamano} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" />
+      <path d="M17 11a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" />
+      {apagado && (
+        <path
+          d="M3 3l18 18"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          fill="none"
+        />
+      )}
+    </svg>
   );
 }
