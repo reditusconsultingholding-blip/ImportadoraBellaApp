@@ -18,10 +18,10 @@ export async function POST(req: NextRequest) {
 
   const nextEmail = email?.trim().toLowerCase();
   if (!nextEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(nextEmail)) {
-    return NextResponse.json({ error: "Escribí un correo válido." }, { status: 400 });
+    return NextResponse.json({ error: "Escribe un correo válido." }, { status: 400 });
   }
   if (!currentPassword) {
-    return NextResponse.json({ error: "Escribí tu contraseña actual." }, { status: 400 });
+    return NextResponse.json({ error: "Escribe tu contraseña actual." }, { status: 400 });
   }
 
   const user = await db.user.findUnique({ where: { id: session.userId } });

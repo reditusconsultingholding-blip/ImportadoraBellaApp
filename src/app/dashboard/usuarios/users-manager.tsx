@@ -286,7 +286,7 @@ export default function UsersManager({
                       <p className="font-medium">
                         {u.name}
                         {u.id === currentUserId && (
-                          <span className="text-muted font-normal"> (vos)</span>
+                          <span className="text-muted font-normal"> (tú)</span>
                         )}
                       </p>
                       <p className="text-xs text-muted">{u.email}</p>

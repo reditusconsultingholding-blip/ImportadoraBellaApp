@@ -112,7 +112,7 @@ export async function importarProductosDesdeCampanas(organizationId: string) {
           unitCost: costo,
           salePrice: precio,
           notes: provisional
-            ? `Creado automáticamente desde las campañas (código ${code}). No se encontró en el catálogo de Shopify, así que el CPA objetivo es provisional: revisalo.`
+            ? `Creado automáticamente desde las campañas (código ${code}). No se encontró en el catálogo de Shopify, así que el CPA objetivo es provisional: revísalo.`
             : `Creado automáticamente desde las campañas (código ${code}). Precio y costo salen del catálogo de Shopify: "${enShopify?.title}".`,
         },
       });

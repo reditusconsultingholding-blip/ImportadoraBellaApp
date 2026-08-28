@@ -118,7 +118,7 @@ export default async function DashboardPage({
         {overview.campaignsWithoutProduct > 0 && (
           <p className="rounded border border-border bg-pending-bg px-3 py-2 text-xs text-warning">
             {overview.campaignsWithoutProduct} campañas todavía no están asociadas a un producto, así
-            que se muestran sueltas y sin semáforo de CPA. Cargá los productos en{" "}
+            que se muestran sueltas y sin semáforo de CPA. Carga los productos en{" "}
             <Link href="/dashboard/productos" className="underline">
               Productos
             </Link>{" "}

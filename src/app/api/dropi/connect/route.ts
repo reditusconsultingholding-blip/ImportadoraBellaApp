@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 
 // Guarda la integration key de Dropi. A diferencia de Meta/TikTok/Shopify,
-// todavía no hay un sync real contra la API de Dropi acá — sus endpoints
+// todavía no hay un sync real contra la API de Dropi aquí — sus endpoints
 // son privados y hace falta que su equipo de IT habilite el acceso (ver
 // nota en la UI). Por ahora esto solo deja la key guardada y lista para
 // cuando se conecte el sync de verdad.

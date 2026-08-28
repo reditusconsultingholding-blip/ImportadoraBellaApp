@@ -180,7 +180,7 @@ export default function ChatPins({ channelId }: { channelId: string }) {
 
           {lleno && !creando && (
             <p className="text-xs text-muted">
-              Este canal ya tiene {MAXIMO} anclados. Soltá uno para anclar otro.
+              Este canal ya tiene {MAXIMO} anclados. Suelta uno para anclar otro.
             </p>
           )}
 

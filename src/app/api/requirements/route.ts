@@ -8,7 +8,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado en el pipeline." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado en el pipeline." }, { status: 403 });
   }
 
   // Un Editor solo ve lo que tiene asignado. Owner/Director ven todo.

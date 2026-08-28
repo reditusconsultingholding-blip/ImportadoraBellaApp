@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
   if (!canAccessRequirement(session, requirement)) {
-    return NextResponse.json({ error: "No tenés acceso a este requerimiento." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 
   const { link, note } = (await req.json()) as { link?: string; note?: string };

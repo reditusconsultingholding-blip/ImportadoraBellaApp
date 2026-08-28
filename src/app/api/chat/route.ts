@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
   }
 
   const scope = parseScope(req.nextUrl.searchParams.get("scope"));
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
   }
 
   const { scope: rawScope, body, replyToId } = (await req.json()) as {
@@ -130,7 +130,7 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
   }
 
   const { id, body, pinned } = (await req.json()) as {
@@ -152,7 +152,7 @@ export async function PATCH(req: NextRequest) {
     // Editar el mensaje de otro no lo puede hacer nadie, ni un administrador:
     // quedaría texto con el nombre de alguien que no lo escribió.
     if (message.authorId !== session.userId) {
-      return NextResponse.json({ error: "Solo podés editar tus propios mensajes." }, { status: 403 });
+      return NextResponse.json({ error: "Solo puedes editar tus propios mensajes." }, { status: 403 });
     }
     const text = body.trim();
     if (!text) return NextResponse.json({ error: "El mensaje está vacío." }, { status: 400 });
@@ -183,7 +183,7 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
   }
 
   const id = req.nextUrl.searchParams.get("id");
@@ -200,7 +200,7 @@ export async function DELETE(req: NextRequest) {
   // El autor borra lo suyo; un administrador puede borrar cualquier cosa del
   // canal, que es lo que hace falta para moderar.
   if (message.authorId !== session.userId && session.role !== "OWNER") {
-    return NextResponse.json({ error: "No podés borrar este mensaje." }, { status: 403 });
+    return NextResponse.json({ error: "No puedes borrar este mensaje." }, { status: 403 });
   }
 
   await db.chatMessage.delete({ where: { id } });

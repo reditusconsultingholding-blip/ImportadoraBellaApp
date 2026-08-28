@@ -329,7 +329,7 @@ export default function ProductDirectory({
                       {r.cpaTargetProvisional && (
                         <span
                           className="text-warning"
-                          title="El objetivo se puso sin conocer el costo real del producto: revisalo"
+                          title="El objetivo se puso sin conocer el costo real del producto: revísalo"
                         >
                           {" · provisional"}
                         </span>

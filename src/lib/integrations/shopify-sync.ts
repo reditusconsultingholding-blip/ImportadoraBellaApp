@@ -20,7 +20,7 @@ const trozos = <T,>(items: T[], tamano: number): T[][] => {
  * La escritura va por lotes y no orden por orden. La versión anterior hacía un
  * upsert, un deleteMany y un create por renglón para cada orden: contra el
  * pooler de Supabase eso son cuatro viajes por orden, y un backfill de un mes
- * (~15.000 órdenes acá) no llegaba a terminar dentro del request. Acá se
+ * (~15.000 órdenes aquí) no llegaba a terminar dentro del request. Aquí se
  * separan las nuevas de las que ya estaban: las nuevas entran con createMany
  * de una, y solo las que ya existían se actualizan de a una, porque sus
  * totales sí cambian (Shopify ajusta descuentos y envíos después).

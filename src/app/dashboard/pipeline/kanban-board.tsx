@@ -72,7 +72,7 @@ export default function KanbanBoard({
               ))}
               {items.length === 0 && (
                 <div className="border border-dashed border-border rounded p-3 text-xs text-muted text-center">
-                  {isDragTarget ? "Soltar acá" : "Vacío"}
+                  {isDragTarget ? "Soltar aquí" : "Vacío"}
                 </div>
               )}
             </div>

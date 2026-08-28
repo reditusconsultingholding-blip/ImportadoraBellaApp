@@ -121,7 +121,7 @@ export default function NotificationCenter({
 
       <div className="bg-surface border border-border rounded overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-muted">No hay notificaciones acá todavía.</p>
+          <p className="px-5 py-10 text-center text-sm text-muted">No hay notificaciones aquí todavía.</p>
         ) : (
           filtered.map((n) => {
             const meta = TYPE_META[n.type] ?? { label: n.type, badge: "bg-surface-2 text-foreground" };

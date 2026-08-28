@@ -29,8 +29,8 @@ export default async function ConexionesPage() {
       <div>
         <h1 className="text-xl font-semibold">Conexiones</h1>
         <p className="text-sm text-muted">
-          Pegá acá el token de cada cuenta cuando lo tengas. Si tenés varias cuentas
-          publicitarias por red, agregá una tarjeta por cada una. Mientras tanto, el
+          Pegá aquí el token de cada cuenta cuando lo tengas. Si tienes varias cuentas
+          publicitarias por red, agrega una tarjeta por cada una. Mientras tanto, el
           panel sigue mostrando los datos de ejemplo.
         </p>
       </div>

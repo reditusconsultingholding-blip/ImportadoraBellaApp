@@ -13,10 +13,10 @@ export default async function CambiarClavePage() {
           <p className="font-bold uppercase tracking-wide text-sm text-foreground leading-tight">Importadora</p>
           <p className="font-serif italic text-3xl leading-tight -mt-1 text-foreground">Bella</p>
           <p className="font-mono text-xs uppercase tracking-wide text-accent mt-2 mb-2">Jarvis</p>
-          <h1 className="text-2xl font-semibold">Elegí una contraseña</h1>
+          <h1 className="text-2xl font-semibold">Elige una contraseña</h1>
           <p className="text-sm text-muted mt-1">
             {session.mustChangePassword
-              ? "Esta cuenta entró con una clave genérica — antes de seguir, elegí una propia."
+              ? "Esta cuenta entró con una clave genérica — antes de seguir, elige una propia."
               : `Cambiar la contraseña de ${session.email}.`}
           </p>
         </div>

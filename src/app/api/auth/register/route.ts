@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const wait = blocked(key);
   if (wait > 0) {
     return NextResponse.json(
-      { error: `Demasiados intentos. Probá de nuevo en ${wait} minutos.` },
+      { error: `Demasiados intentos. Prueba de nuevo en ${wait} minutos.` },
       { status: 429 }
     );
   }
@@ -73,10 +73,10 @@ export async function POST(req: NextRequest) {
   const cleanEmail = email?.trim().toLowerCase();
 
   if (!cleanName || cleanName.length < 2) {
-    return NextResponse.json({ error: "Escribí tu nombre completo." }, { status: 400 });
+    return NextResponse.json({ error: "Escribe tu nombre completo." }, { status: 400 });
   }
   if (!cleanEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
-    return NextResponse.json({ error: "Escribí un correo válido." }, { status: 400 });
+    return NextResponse.json({ error: "Escribe un correo válido." }, { status: 400 });
   }
   if (!password || password.length < 8) {
     return NextResponse.json(

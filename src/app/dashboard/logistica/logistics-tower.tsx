@@ -31,7 +31,7 @@ export default function LogisticsTower({ data }: { data: LogisticsOverview }) {
     [data.byCarrier, carrier]
   );
 
-  // Sin conexión no se dibuja nada: antes acá salían provincias y tasas de
+  // Sin conexión no se dibuja nada: antes aquí salían provincias y tasas de
   // devolución de ejemplo, iguales a las reales y sin ninguna marca que las
   // distinguiera.
   if (!data.connected) {

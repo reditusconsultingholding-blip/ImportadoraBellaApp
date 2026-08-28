@@ -273,7 +273,7 @@ export default function ChatView({
       <div>
         <h1 className="text-[22px] font-semibold">Chat interno</h1>
         <p className="text-sm text-muted mt-1">
-          Canales por función y mensajes directos. Escribí <span className="font-medium">@nombre</span>{" "}
+          Canales por función y mensajes directos. Escribe <span className="font-medium">@nombre</span>{" "}
           para avisarle a alguien — le llega a la campanita.
         </p>
       </div>
@@ -345,7 +345,7 @@ export default function ChatView({
         {/* Conversación */}
         <section className="bg-surface border border-border rounded flex flex-col h-[calc(100vh-15rem)] min-h-[420px] overflow-hidden">
           <header className="px-4 py-3 border-b border-border shrink-0">
-            <p className="font-medium text-sm">{activeTitle ?? "Elegí una conversación"}</p>
+            <p className="font-medium text-sm">{activeTitle ?? "Elige una conversación"}</p>
             {pinned.length > 0 && (
               <p className="text-xs text-muted mt-0.5 truncate">
                 📌 {pinned[pinned.length - 1].body}
@@ -366,7 +366,7 @@ export default function ChatView({
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
             {messages.length === 0 && (
               <p className="text-sm text-muted text-center py-10">
-                Todavía no hay mensajes acá. Escribí el primero.
+                Todavía no hay mensajes aquí. Escribe el primero.
               </p>
             )}
 

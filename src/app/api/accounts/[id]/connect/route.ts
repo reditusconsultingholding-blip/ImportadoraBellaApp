@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ok: true,
       synced: false,
       warning:
-        "Se guardó el token, pero la primera sincronización falló — revisá que el token y el ID sean correctos.",
+        "Se guardó el token, pero la primera sincronización falló — revisa que el token y el ID sean correctos.",
       detail: err instanceof Error ? err.message : String(err),
     });
   }

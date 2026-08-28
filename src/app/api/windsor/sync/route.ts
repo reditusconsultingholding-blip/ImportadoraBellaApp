@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para sincronizar." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para sincronizar." }, { status: 403 });
   }
   if (!hasWindsorKey()) {
     return NextResponse.json(

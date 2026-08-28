@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
 // Lo anclado de un canal: hasta 3 notas o links que el equipo quiere tener a
-// mano. El tope está acá y no solo en la pantalla, porque un tope que solo
+// mano. El tope está aquí y no solo en la pantalla, porque un tope que solo
 // vive en el botón no es un tope.
 const MAXIMO = 3;
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const tipo = kind === "LINK" ? "LINK" : "NOTA";
   const titulo = title?.trim();
-  if (!titulo) return NextResponse.json({ error: "Ponele un título." }, { status: 400 });
+  if (!titulo) return NextResponse.json({ error: "Ponle un título." }, { status: 400 });
 
   const destino = url?.trim();
   if (tipo === "LINK") {
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   const cuantos = await db.chatPin.count({ where: { channelId } });
   if (cuantos >= MAXIMO) {
     return NextResponse.json(
-      { error: `Este canal ya tiene ${MAXIMO} anclados. Soltá uno para anclar otro.` },
+      { error: `Este canal ya tiene ${MAXIMO} anclados. Suelta uno para anclar otro.` },
       { status: 409 }
     );
   }

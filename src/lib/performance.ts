@@ -11,7 +11,7 @@ import type { Role } from "@/generated/prisma/client";
 //   +1 extra si llegó a un estado terminado en 3 días o menos desde que se creó
 //      (turnaround rápido) — se calcula con RequirementActivity, que registra
 //      cuándo cambió el estado, no solo el estado final.
-// Queda documentado acá para poder ajustar el peso el día que Fabrizio
+// Queda documentado aquí para poder ajustar el peso el día que Fabrizio
 // defina un criterio más formal.
 const DONE_STATUSES = ["REALIZADO", "EDITADO", "TESTEADO"] as const;
 const FAST_TURNAROUND_DAYS = 3;

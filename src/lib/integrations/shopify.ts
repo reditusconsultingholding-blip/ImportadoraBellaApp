@@ -1,5 +1,5 @@
 // Cliente de la Shopify Admin API. Separado a propósito de meta.ts/tiktok.ts:
-// Shopify no es una red publicitaria, es la tienda — de acá sale la vista
+// Shopify no es una red publicitaria, es la tienda — de aquí sale la vista
 // "Ventas" (todo lo que se vende, se anuncie o no).
 //
 // Dos formas de autenticarse, en este orden de prioridad (patrón portado del
@@ -12,7 +12,7 @@
 //     token temporal (~24h) que se cachea en memoria y se renueva 10 minutos
 //     antes de vencer — no hay que rotar nada a mano.
 //
-// Sesiones y tasa de conversión reales NO están disponibles acá — son de la
+// Sesiones y tasa de conversión reales NO están disponibles aquí — son de la
 // Shopify Analytics API, que requiere permisos aparte (Shopify Plus / ShopifyQL).
 
 const DEFAULT_API_VERSION = "2025-04";
@@ -225,7 +225,7 @@ const MAX_ORDER_PAGES = 250;
  * datos reales: REST corta en 250 por página y hay que paginar a mano por el
  * encabezado Link — sin eso el sync truncaba en silencio y parecía que la
  * tienda vendía menos de lo que vende. Y el `source_name` de REST devuelve el
- * ID numérico de la app (2820951), mientras que acá `app.name` da el nombre
+ * ID numérico de la app (2820951), mientras que aquí `app.name` da el nombre
  * de verdad: "Funnelish", "Releasit COD Form".
  */
 export async function fetchRecentOrders(

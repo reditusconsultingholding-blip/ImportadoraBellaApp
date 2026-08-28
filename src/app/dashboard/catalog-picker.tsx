@@ -26,7 +26,7 @@ const plano = (s: string) =>
  * Buscador del catálogo de Shopify para empezar a seguir productos.
  *
  * La tienda tiene cientos de productos y la mayoría nunca se pautea, así que
- * no tiene sentido cargarlos todos como fichas. Acá se busca el que interesa y
+ * no tiene sentido cargarlos todos como fichas. Aquí se busca el que interesa y
  * se lo sigue; recién ahí entra en Pulso, Rentabilidad y los reportes.
  */
 export default function CatalogPicker() {
@@ -130,7 +130,7 @@ export default function CatalogPicker() {
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-medium">Seguir un producto de Shopify</span>
           <span className="block text-xs text-muted">
-            Buscá cualquier producto de la tienda y agregalo al seguimiento. El catálogo se
+            Busca cualquier producto de la tienda y agregalo al seguimiento. El catálogo se
             actualiza solo cada 5 minutos.
           </span>
         </span>
@@ -236,7 +236,7 @@ export default function CatalogPicker() {
                   {guardando
                     ? "Guardando…"
                     : elegidos.size === 0
-                      ? "Elegí al menos uno"
+                      ? "Elige al menos uno"
                       : `Seguir ${elegidos.size} ${elegidos.size === 1 ? "producto" : "productos"}`}
                 </button>
                 {elegidos.size > 0 && (

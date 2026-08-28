@@ -45,7 +45,7 @@ const num = (v: string) => Number(v) || 0;
 // La idea central: de cada checkout que paga Meta, solo una parte se confirma
 // y de esa parte una porción se devuelve. Lo que de verdad se cobra es
 // `delivered = confirmación × (1 − devolución)`, y todos los números cuelgan
-// de ahí. Acá se le suma lo que el sistema viejo no tenía: IVA y comisión de
+// de ahí. Aquí se le suma lo que el sistema viejo no tenía: IVA y comisión de
 // pasarela, que en Ecuador se descuentan del precio antes de ver la ganancia.
 
 type OperationInput = {
@@ -400,7 +400,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                     ? "Guardando…"
                     : guardado === "guardado"
                       ? "Guardado — todo el equipo ve estos valores."
-                      : "Lo que ajustes acá se guarda para todo el equipo."}
+                      : "Lo que ajustes aquí se guarda para todo el equipo."}
                 </span>
               )}
             </label>
@@ -474,7 +474,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
           </div>
 
           <div className="pt-3 border-t border-border">
-            <h2 className="font-semibold text-sm mb-3">¿Qué querés lograr?</h2>
+            <h2 className="font-semibold text-sm mb-3">¿Qué quieres lograr?</h2>
             <div className="flex gap-2 mb-3">
               <button
                 onClick={() => setMode("margin")}

@@ -155,8 +155,8 @@ export default async function ProductosPage({
           <h1 className="text-[22px] font-semibold">Productos</h1>
           <p className="mt-1 text-sm text-muted">
             {enTablero
-              ? "El catálogo como tablero: armá carpetas, meté productos adentro y anotá ideas al lado. Arrastrá cualquier tarjeta — la posición queda guardada para todo el equipo."
-              : "Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Buscá por nombre o por el código que usan las campañas."}
+              ? "El catálogo como tablero: arma carpetas, mete productos adentro y anota ideas al lado. Arrastra cualquier tarjeta — la posición queda guardada para todo el equipo."
+              : "Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Busca por nombre o por el código que usan las campañas."}
           </p>
         </div>
 

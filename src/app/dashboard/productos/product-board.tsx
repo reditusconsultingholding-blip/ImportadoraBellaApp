@@ -423,7 +423,7 @@ export default function ProductBoard({
           <div className="absolute inset-0 grid place-items-center">
             <p className="text-sm text-muted text-center max-w-xs">
               {canManage
-                ? "Todavía no hay nada acá. Empezá creando una carpeta o cargando tu primer producto."
+                ? "Todavía no hay nada aquí. Empezá creando una carpeta o cargando tu primer producto."
                 : "Todavía no hay productos cargados en esta carpeta."}
             </p>
           </div>

@@ -288,7 +288,7 @@ export default function PayrollManager({
       </div>
 
       <p className="text-xs text-muted">
-        Los montos arrancan en cero: cargá lo que cobra cada persona y queda guardado para todas las
+        Los montos arrancan en cero: carga lo que cobra cada persona y queda guardado para todas las
         semanas siguientes. Las piezas entregadas se cuentan solas desde el pipeline, para quien cobre
         por pieza.
       </p>

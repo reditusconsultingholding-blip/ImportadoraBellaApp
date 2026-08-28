@@ -1,5 +1,5 @@
 // Cliente de Windsor.ai — la única puerta de entrada para Meta Ads y TikTok
-// Ads. La decisión de pasar por acá en vez de mantener dos integraciones
+// Ads. La decisión de pasar por aquí en vez de mantener dos integraciones
 // separadas está en docs/DECISIONES.md: una sola credencial, un solo formato,
 // y sobre todo evita la revisión de TikTok Business Center, que era el cuello
 // de botella.

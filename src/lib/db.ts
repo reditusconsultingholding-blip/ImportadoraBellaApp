@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 // El cliente se construye la primera vez que alguien lo usa, no al importar
 // el módulo. Durante `next build` se importan todas las rutas para recolectar
-// sus metadatos: si acá se abriera la conexión (o se tirara el error por falta
+// sus metadatos: si aquí se abriera la conexión (o se tirara el error por falta
 // de DATABASE_URL), el build fallaría aunque en producción la variable exista.
 //
 // Se guarda en un global porque Next recarga los módulos en cada cambio

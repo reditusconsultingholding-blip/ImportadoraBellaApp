@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para editar el catálogo." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
 
   const { id } = await params;

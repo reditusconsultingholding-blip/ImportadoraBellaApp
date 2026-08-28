@@ -54,7 +54,7 @@ const ETIQUETA_TIPO: Record<string, string> = {
  * El estado de un producto, abierto ahí mismo.
  *
  * Antes tocar un producto del pulso llevaba a otra pantalla, y para volver a
- * comparar contra el resto había que volver atrás. Acá se despliega debajo: qué
+ * comparar contra el resto había que volver atrás. Aquí se despliega debajo: qué
  * dice el número, por qué, y qué se puede hacer al respecto sin moverse.
  */
 export function DetalleProducto({

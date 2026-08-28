@@ -25,7 +25,7 @@ export default async function ChatPage({
     return (
       <div className="bg-surface border border-border rounded p-6 max-w-lg">
         <p className="text-sm text-muted">
-          Todavía no tenés un rol asignado, así que no podés entrar al chat del equipo. Un
+          Todavía no tienes un rol asignado, así que no puedes entrar al chat del equipo. Un
           administrador tiene que asignártelo desde Usuarios.
         </p>
       </div>

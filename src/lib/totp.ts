@@ -6,7 +6,7 @@ import { createHmac } from "crypto";
 // No hay que guardar el código en ningún lado: el servidor lo recalcula igual
 // que la pantalla que lo muestra.
 //
-// Acá se usa para el código que hay que tipear al crear un usuario. Antes ese
+// Aquí se usa para el código que hay que tipear al crear un usuario. Antes ese
 // código era un número fijo escrito en el código fuente: cualquiera que viera
 // el repositorio lo conocía, y no se podía cambiar sin un deploy.
 

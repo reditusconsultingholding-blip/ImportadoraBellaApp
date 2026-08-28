@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
   if (!email?.trim() || !name?.trim() || !password || password.length < 6) {
     return NextResponse.json(
-      { error: "Completá nombre, correo y una contraseña de al menos 6 caracteres." },
+      { error: "Completa nombre, correo y una contraseña de al menos 6 caracteres." },
       { status: 400 }
     );
   }

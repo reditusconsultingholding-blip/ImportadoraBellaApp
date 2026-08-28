@@ -1,4 +1,4 @@
-// Rangos de fecha del Panel. Viven acá y no en la pantalla porque los usan
+// Rangos de fecha del Panel. Viven aquí y no en la pantalla porque los usan
 // también el análisis y, más adelante, los reportes.
 
 export type RangeId =

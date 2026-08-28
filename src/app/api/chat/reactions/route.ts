@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tenés un rol asignado." }, { status: 403 });
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
   }
 
   const { messageId, emoji } = (await req.json()) as { messageId?: string; emoji?: string };

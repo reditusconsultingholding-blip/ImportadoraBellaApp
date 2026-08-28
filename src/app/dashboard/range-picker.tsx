@@ -71,7 +71,7 @@ export default function RangePicker({
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-[min(20rem,90vw)] rounded border border-border bg-surface p-3 shadow-[var(--shadow-pop)]">
           <p className="mb-2 text-xs text-muted">
-            Elegí dos fechas, o la misma dos veces para ver un solo día.
+            Elige dos fechas, o la misma dos veces para ver un solo día.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="flex-1">

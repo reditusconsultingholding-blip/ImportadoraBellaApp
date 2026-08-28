@@ -86,7 +86,7 @@ export default function PipelineBoard({
             {subtitle ??
               (canManage
                 ? "Todos los requerimientos de Importadora Bella."
-                : `Lo que tenés asignado, ${currentUserName}.`)}
+                : `Lo que tienes asignado, ${currentUserName}.`)}
           </p>
         </div>
         <div className="flex items-center gap-2">

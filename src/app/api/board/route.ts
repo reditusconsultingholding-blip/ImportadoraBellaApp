@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para editar el catálogo." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
 
   const body = (await req.json()) as {
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   if (body.kind === "folder") {
     const name = body.name?.trim();
-    if (!name) return NextResponse.json({ error: "Ponele un nombre a la carpeta." }, { status: 400 });
+    if (!name) return NextResponse.json({ error: "Ponle un nombre a la carpeta." }, { status: 400 });
 
     const folder = await db.productFolder.create({
       data: {
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
   const title = body.title?.trim();
   const text = body.body?.trim() || "Sin brief todavía.";
   if (!title) {
-    return NextResponse.json({ error: "Ponele un título a la ficha." }, { status: 400 });
+    return NextResponse.json({ error: "Ponle un título a la ficha." }, { status: 400 });
   }
 
   const note = await db.boardNote.create({
@@ -155,7 +155,7 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para editar el catálogo." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
 
   const body = (await req.json()) as {
@@ -202,7 +202,7 @@ export async function PATCH(req: NextRequest) {
         seen.add(cursor);
         if (cursor === body.id) {
           return NextResponse.json(
-            { error: "No podés mover una carpeta dentro de una de sus subcarpetas." },
+            { error: "No puedes mover una carpeta dentro de una de sus subcarpetas." },
             { status: 400 }
           );
         }
@@ -262,7 +262,7 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para editar el catálogo." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
 
   const kind = req.nextUrl.searchParams.get("kind");

@@ -8,7 +8,7 @@ import { relinkCampaignsToProducts } from "@/lib/integrations/windsor-sync";
 
 // El catálogo vivo de Shopify, para poder buscar un producto y empezar a
 // seguirlo desde el panel. La caché de fetchProductCatalog es de 5 minutos:
-// un producto recién creado en Shopify aparece acá en ese plazo sin que nadie
+// un producto recién creado en Shopify aparece aquí en ese plazo sin que nadie
 // apriete nada.
 
 /** Código interno a partir del título, cuando el producto no viene de una campaña. */
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para crear productos." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para crear productos." }, { status: 403 });
   }
 
   const { titles } = (await req.json()) as { titles?: string[] };

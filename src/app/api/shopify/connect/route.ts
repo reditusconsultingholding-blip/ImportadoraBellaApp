@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       {
-        error: "No se pudo verificar la tienda — revisá el dominio y las credenciales.",
+        error: "No se pudo verificar la tienda — revisa el dominio y las credenciales.",
         detail: err instanceof Error ? err.message : String(err),
       },
       { status: 400 }

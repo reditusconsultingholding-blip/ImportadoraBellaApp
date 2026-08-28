@@ -205,7 +205,7 @@ export default function ProfitabilityTable({
       <p className="text-xs text-muted">
         Ingreso x pedido, Gasto operativo, Margen sin publicidad y Publicidad se calculan automáticamente a partir de
         los acumulados (÷ pedidos) — no hace falta cargarlos a mano. Mercadería acumulada y la meta de ganancia por
-        pedido {canEdit ? "se pueden cargar acá directamente." : "las carga un Director u Administrador."}
+        pedido {canEdit ? "se pueden cargar aquí directamente." : "las carga un Director u Administrador."}
       </p>
       {isPending && <p className="text-xs text-muted">Actualizando…</p>}
     </div>

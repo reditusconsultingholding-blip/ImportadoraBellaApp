@@ -403,7 +403,7 @@ export default function NoteDrawer({
               <div className="border-t border-border pt-4">
                 <span className={labelClass}>Conversación</span>
                 <p className="-mt-0.5 mb-3 text-xs text-muted">
-                  Escribí <span className="font-medium">@nombre</span> para avisarle a alguien.
+                  Escribe <span className="font-medium">@nombre</span> para avisarle a alguien.
                 </p>
 
                 <div className="flex flex-col gap-3">
@@ -444,7 +444,7 @@ export default function NoteDrawer({
                         comment(e);
                       }
                     }}
-                    placeholder="Escribí algo — @Emilia mirá el guion"
+                    placeholder="Escribe algo — @Emilia mira el guion"
                     className={`${inputClass} resize-y`}
                   />
                   <button

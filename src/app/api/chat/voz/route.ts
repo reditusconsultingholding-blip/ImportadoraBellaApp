@@ -26,7 +26,7 @@ async function canalDeLaOrg(channelId: string, organizationId: string) {
 }
 
 /**
- * Latido y buzón: dice "sigo acá", devuelve quién más está y entrega las
+ * Latido y buzón: dice "sigo aquí", devuelve quién más está y entrega las
  * señales dirigidas a esta persona.
  */
 export async function POST(req: NextRequest) {

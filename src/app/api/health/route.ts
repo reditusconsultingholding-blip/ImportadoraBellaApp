@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 //   503 → la app levanta pero la base no responde: el monitor avisa y, según
 //         dónde corra, la plataforma la reinicia sola.
 //
-// Si la app está caída del todo, la petición ni siquiera llega acá y el
+// Si la app está caída del todo, la petición ni siquiera llega aquí y el
 // monitor lo ve como timeout — que es exactamente lo que se quiere detectar.
 
 export const dynamic = "force-dynamic";

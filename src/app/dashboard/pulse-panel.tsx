@@ -265,7 +265,7 @@ export default function PulsePanel({ query }: { query: string }) {
           {conPauta.length > 0 && (
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-                Pulso por producto — tocá uno para ver qué le pasa
+                Pulso por producto — toca uno para ver qué le pasa
               </p>
               <div className="flex flex-col gap-1.5">
                 {conPauta.map((p) => {

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   // que alguien se apropie de la cuenta cambiándole la clave.
   if (!user.mustChangePassword) {
     if (!currentPassword) {
-      return NextResponse.json({ error: "Escribí tu contraseña actual." }, { status: 400 });
+      return NextResponse.json({ error: "Escribe tu contraseña actual." }, { status: 400 });
     }
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) {

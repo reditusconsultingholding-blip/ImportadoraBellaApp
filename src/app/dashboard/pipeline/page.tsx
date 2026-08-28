@@ -12,7 +12,7 @@ export default async function PipelinePage() {
     return (
       <div className="bg-surface border border-border rounded p-6 max-w-lg">
         <p className="text-sm text-muted">
-          Todavía no tenés un rol asignado en el pipeline creativo. Pedile a un administrador
+          Todavía no tienes un rol asignado en el pipeline creativo. Pedile a un administrador
           que te asigne &quot;Director operativo&quot; o &quot;Editor / Creador&quot; desde Usuarios.
         </p>
       </div>

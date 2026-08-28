@@ -1,4 +1,4 @@
-// Listas de opciones del pipeline creativo (SuperAds Ops). Viven acá,
+// Listas de opciones del pipeline creativo (SuperAds Ops). Viven aquí,
 // no como enum de la base, para poder agregar una opción nueva sin
 // pedir una migración cada vez que el equipo cambia el criterio.
 

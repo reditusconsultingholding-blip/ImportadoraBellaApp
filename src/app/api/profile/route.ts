@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
-// Datos que cada persona edita de sí misma. Nada de roles ni permisos acá:
+// Datos que cada persona edita de sí misma. Nada de roles ni permisos aquí:
 // eso se toca desde Usuarios y solo un administrador puede.
 
 // Una miniatura de 256px en JPEG ronda los 20-40 KB. El tope deja aire de
@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest) {
       const bytes = Math.floor((match[2].length * 3) / 4);
       if (bytes > MAX_AVATAR_BYTES) {
         return NextResponse.json(
-          { error: "La imagen pesa demasiado. Probá con una más chica." },
+          { error: "La imagen pesa demasiado. Prueba con una más chica." },
           { status: 413 }
         );
       }

@@ -153,7 +153,7 @@ export async function notifyMentions({
       const full = normalize(person.name);
       const first = full.split(" ")[0];
       // El texto tipeado tiene que empezar por el nombre de la persona: así
-      // "@Maria Jose, mirá esto" encuentra a María José y no a medio equipo.
+      // "@Maria Jose, mira esto" encuentra a María José y no a medio equipo.
       if (typed.startsWith(full) || typed === first || typed.startsWith(`${first} `)) {
         mentioned.add(person.id);
       }

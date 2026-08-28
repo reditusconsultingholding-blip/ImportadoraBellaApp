@@ -226,7 +226,7 @@ export default function ProfileScreen({
                 onClick={() => fileRef.current?.click()}
             className="text-accent hover:underline"
               >
-                Hacé clic en la foto para cambiarla
+                Haz clic en la foto para cambiarla
               </button>
               {avatarUrl && (
                 <>
@@ -363,7 +363,7 @@ export default function ProfileScreen({
 function CreationCode({ code, expiresAt }: { code: string; expiresAt: string }) {
   const router = useRouter();
 
-  // El vencimiento llega del servidor como instante absoluto; acá solo se
+  // El vencimiento llega del servidor como instante absoluto; aquí solo se
   // convierte a número, que es una operación pura. El reloj se lee dentro del
   // intervalo, nunca durante el renderizado.
   const expiresMs = useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
@@ -386,7 +386,7 @@ function CreationCode({ code, expiresAt }: { code: string; expiresAt: string }) 
     <div className="bg-surface border border-border rounded p-5">
       <h2 className="font-semibold text-sm">Código para crear usuarios</h2>
       <p className="text-xs text-muted mt-1 max-w-xl">
-        Solo vos ves este código y cambia cada 30 segundos. Hace falta para dar de alta a alguien en
+        Solo tú ves este código y cambia cada 30 segundos. Hace falta para dar de alta a alguien en
         Usuarios, y también para que alguien se registre desde el login — si te lo piden, dictáselo
         en el momento.
       </p>

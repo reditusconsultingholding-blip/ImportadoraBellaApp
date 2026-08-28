@@ -22,7 +22,7 @@ export default async function RentabilidadPage({
       <div>
         <h1 className="text-xl font-semibold">Rentabilidad por producto</h1>
         <p className="text-sm text-muted">
-          Utilidad acumulada mes a mes, tal como la planilla — acá queda como seguimiento en vivo.
+          Utilidad acumulada mes a mes, tal como la planilla — aquí queda como seguimiento en vivo.
         </p>
       </div>
 

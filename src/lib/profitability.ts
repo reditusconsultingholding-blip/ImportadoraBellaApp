@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-// Mismo cálculo que la API (src/app/api/profitability/route.ts) — vive acá
+// Mismo cálculo que la API (src/app/api/profitability/route.ts) — vive aquí
 // para que el server component de la página y la API compartan la misma
 // fórmula y no se desincronicen.
 export function withDerived<T extends {

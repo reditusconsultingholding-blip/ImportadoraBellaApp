@@ -66,7 +66,7 @@ export default function JarvisChat() {
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
         {messages.length === 0 && (
           <p className="text-sm text-muted">
-            Probá preguntando: &ldquo;¿qué producto necesita revisión urgente?&rdquo;
+            Prueba preguntando: &ldquo;¿qué producto necesita revisión urgente?&rdquo;
           </p>
         )}
         {messages.map((m, i) => (

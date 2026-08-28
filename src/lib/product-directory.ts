@@ -95,7 +95,7 @@ export async function getDirectory(
         updatedAt: true,
       },
     }),
-    // Lo que espera decisión, para que la misma cola aparezca acá y en el
+    // Lo que espera decisión, para que la misma cola aparezca aquí y en el
     // panel. Si viviera en un solo lugar, la mitad del equipo no la vería.
     db.productAction.findMany({
       where: { organizationId, status: "PROPUESTA" },

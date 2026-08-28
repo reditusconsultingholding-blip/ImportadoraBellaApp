@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 // puede disparar a mano desde /api/alerts/check ("Revisar alertas ahora"
 // en el Centro de notificaciones).
 //
-// Umbrales (ajustables acá, no hay una fórmula "oficial" de Fabrizio todavía):
+// Umbrales (ajustables aquí, no hay una fórmula "oficial" de Fabrizio todavía):
 const SCALE_CPA_RATIO = 0.7; // CPA <= 70% del objetivo
 const SCALE_MIN_PURCHASES = 5;
 const FATIGUE_CTR_DROP = 0.4; // CTR cae 40%+ entre snapshots consecutivos

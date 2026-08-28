@@ -28,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const requirement = await loadOwned(id, session.organizationId);
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
   if (!canAccessRequirement(session, requirement)) {
-    return NextResponse.json({ error: "No tenés acceso a este requerimiento." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 
   return NextResponse.json({ requirement });
@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await loadOwned(id, session.organizationId);
   if (!existing) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
   if (!canAccessRequirement(session, existing)) {
-    return NextResponse.json({ error: "No tenés acceso a este requerimiento." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
   // Un Editor puede actualizar lo suyo (status, métricas, links) pero no
   // reasignar el requerimiento a otra persona ni cambiar el producto.

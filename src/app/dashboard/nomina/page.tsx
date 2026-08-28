@@ -29,7 +29,7 @@ export default async function NominaPage({
       <div>
         <h1 className="text-xl font-semibold">Nómina</h1>
         <p className="text-sm text-muted">
-          Lo que hay que pagarle a cada persona esta semana. Marcá los días que no trabajó haciendo
+          Lo que hay que pagarle a cada persona esta semana. Marca los días que no trabajó haciendo
           clic sobre el día y el descuento se calcula solo. Esta pantalla la ven únicamente quienes
           tengan el permiso de nómina.
         </p>

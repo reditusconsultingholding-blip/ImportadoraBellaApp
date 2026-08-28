@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
       if (otherOwners === 0) {
         return NextResponse.json(
-          { error: "No podés quitarle el rol al único administrador." },
+          { error: "No puedes quitarle el rol al único administrador." },
           { status: 400 }
         );
       }
@@ -138,7 +138,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
   }
   if (target.id === session.userId) {
-    return NextResponse.json({ error: "No podés eliminar tu propio usuario." }, { status: 400 });
+    return NextResponse.json({ error: "No puedes eliminar tu propio usuario." }, { status: 400 });
   }
   if (target.role === "OWNER") {
     const otherOwners = await db.user.count({
@@ -146,7 +146,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     });
     if (otherOwners === 0) {
       return NextResponse.json(
-        { error: "No podés eliminar al único administrador de la organización." },
+        { error: "No puedes eliminar al único administrador de la organización." },
         { status: 400 }
       );
     }

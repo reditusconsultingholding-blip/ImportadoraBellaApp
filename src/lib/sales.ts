@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
 
 // Vista de ventas de la tienda completa (Shopify), separada del rendimiento
-// por campaña de Meta/TikTok — acá entran todos los productos del catálogo,
+// por campaña de Meta/TikTok — aquí entran todos los productos del catálogo,
 // se anuncien o no. Si hay una tienda conectada (ver Conexiones), se calcula
 // todo esto a partir de las órdenes reales; si no, quedan los datos de
 // ejemplo para poder mostrar el panel mientras tanto.

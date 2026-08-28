@@ -449,7 +449,7 @@ export default function RequirementDrawer({
 
             <div className="border-t border-border pt-4 flex flex-col gap-3">
               <p className="font-mono text-xs uppercase tracking-wide text-muted">
-                Chat interno &middot; usá @nombre para mencionar
+                Chat interno &middot; usa @nombre para mencionar
               </p>
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
                 {detail.comments.length === 0 && (
@@ -471,7 +471,7 @@ export default function RequirementDrawer({
                 <input
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Escribí un comentario… @Valentina"
+                  placeholder="Escribe un comentario… @Valentina"
                   className="flex-1 border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
                 />
                 <button

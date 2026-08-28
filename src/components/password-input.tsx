@@ -45,7 +45,7 @@ export default function PasswordInput({
           <path d="M1.8 10S4.9 4.6 10 4.6 18.2 10 18.2 10 15.1 15.4 10 15.4 1.8 10 1.8 10z" />
           <circle cx="10" cy="10" r="2.6" />
           {/* La barra cruzada solo aparece cuando la contraseña está visible:
-              el ojo tachado significa "hacé clic para esconder". */}
+              el ojo tachado significa "haz clic para esconder". */}
           {visible && <path d="M3.5 3.5l13 13" />}
         </svg>
       </button>

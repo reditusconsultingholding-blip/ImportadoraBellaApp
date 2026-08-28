@@ -19,13 +19,13 @@ export async function POST(req: NextRequest) {
   // Cualquiera puede escribir en los canales, pero crearlos es de quien
   // coordina: si no, en un mes hay treinta canales muertos.
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para crear canales." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para crear canales." }, { status: 403 });
   }
 
   const { name } = (await req.json()) as { name?: string };
   const clean = name?.trim();
   if (!clean || clean.length < 2) {
-    return NextResponse.json({ error: "Ponele un nombre al canal." }, { status: 400 });
+    return NextResponse.json({ error: "Ponle un nombre al canal." }, { status: 400 });
   }
 
   const slug = slugify(clean);
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest) {
   // Borrar es más grave que crear: se lleva puesto todo el historial del
   // canal, así que queda solo en dirección.
   if (!canManagePipeline(session.role)) {
-    return NextResponse.json({ error: "No tenés permiso para borrar canales." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para borrar canales." }, { status: 403 });
   }
 
   const id = req.nextUrl.searchParams.get("id");

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayrollViewer } from "@/lib/payroll-access";
 import { closeWeek, startOfWeek } from "@/lib/payroll";
 
-// Cierra la semana y congela los montos. A partir de acá, tocar un sueldo ya
+// Cierra la semana y congela los montos. A partir de aquí, tocar un sueldo ya
 // no reescribe lo que se pagó.
 export async function POST(req: NextRequest) {
   const session = await getPayrollViewer();

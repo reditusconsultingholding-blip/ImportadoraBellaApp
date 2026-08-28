@@ -105,7 +105,7 @@ export function dailyReportHtml({
     </tr>`;
 
   // Todo el estilo va en línea: los clientes de correo descartan las hojas de
-  // estilo, así que una clase CSS acá no pinta nada.
+  // estilo, así que una clase CSS aquí no pinta nada.
   return `<!doctype html>
 <html lang="es"><body style="margin:0;padding:24px;background:#f1f2f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e1e3e5;border-radius:10px;border-collapse:separate;">

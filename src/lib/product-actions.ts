@@ -123,7 +123,7 @@ export function puedeDecidir(role: SessionPayload["role"]) {
 /**
  * Aprueba una acción y, si es un pedido de creativos, los crea ya asignados.
  *
- * Los requerimientos nacen acá y no en otra pantalla a propósito: si aprobar y
+ * Los requerimientos nacen aquí y no en otra pantalla a propósito: si aprobar y
  * agendar fueran dos pasos separados, la mitad de las acciones aprobadas se
  * quedarían sin agendar y nadie se enteraría.
  */
@@ -158,7 +158,7 @@ export async function aprobarAccion(
   }
 
   if (accion.kind === "MAS_CREATIVOS" && !assigneeId) {
-    return { error: "Elegí a quién le toca hacer los creativos.", status: 400 as const };
+    return { error: "Elige a quién le toca hacer los creativos.", status: 400 as const };
   }
 
   const dueDate = opciones.dueDate ? new Date(opciones.dueDate) : null;

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   if (gate.blocked) {
     return NextResponse.json(
       {
-        error: `Demasiados intentos fallidos. Probá de nuevo en ${gate.retryInMin} minuto${
+        error: `Demasiados intentos fallidos. Prueba de nuevo en ${gate.retryInMin} minuto${
           gate.retryInMin === 1 ? "" : "s"
         }.`,
       },
