@@ -28,6 +28,8 @@ export type SalesOverview = {
   aovChangePct: number;
   aovSeries: SalesPoint[];
   topProducts: { name: string; category: string; value: number; changePct: number; share: number }[];
+  /** Lecturas en palabras de estas ventas. Se calculan, no las opina el modelo. */
+  lecturas: string[];
 };
 
 function pctChange(current: number, previous: number): number {
@@ -55,6 +57,7 @@ function sinTienda(): SalesOverview {
     aovChangePct: 0,
     aovSeries: vacia,
     topProducts: [],
+    lecturas: [],
   };
 }
 
@@ -175,6 +178,98 @@ export async function getSalesOverview(
     ),
     aovSeries: seriesFor("netSales"),
     topProducts: topProducts.map((p) => ({ ...p, share: p.value / topValue })),
+    lecturas: leerVentas({
+      ordenes: todayOrders.length,
+      ordenesAnterior: yesterdayOrders.length,
+      netSales,
+      netSalesAnterior: netSalesYesterday,
+      canales: Array.from(channelTotals.entries()),
+      porHora: seriesFor("netSales"),
+      topProducto: topProducts[0] ?? null,
+      descuentos: discounts,
+    }),
   };
+}
+
+/**
+ * Tres o cuatro observaciones sobre las ventas del período, en palabras.
+ *
+ * Se calculan aquí y no se le piden al modelo: son cuentas simples, tienen que
+ * salir al instante y dar siempre lo mismo. El análisis con criterio — el que
+ * cruza pauta con ventas y sugiere qué hacer — vive en el Pulso.
+ */
+function leerVentas(d: {
+  ordenes: number;
+  ordenesAnterior: number;
+  netSales: number;
+  netSalesAnterior: number;
+  canales: [string, { today: number; yesterday: number }][];
+  porHora: SalesPoint[];
+  topProducto: { name: string; value: number } | null;
+  descuentos: number;
+}): string[] {
+  const plata = (n: number) =>
+    n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+  if (d.ordenes === 0) return ["Todavía no hay ventas en este período."];
+  const out: string[] = [];
+
+  const ticket = d.netSales / d.ordenes;
+  const ticketAnterior = d.ordenesAnterior > 0 ? d.netSalesAnterior / d.ordenesAnterior : null;
+  if (ticketAnterior != null && ticketAnterior > 0) {
+    const dif = ((ticket - ticketAnterior) / ticketAnterior) * 100;
+    if (Math.abs(dif) >= 5) {
+      out.push(
+        dif > 0
+          ? `El ticket promedio subió ${Math.round(dif)}%: ${plata(ticket)} contra ${plata(ticketAnterior)} del período anterior. Están comprando más por pedido.`
+          : `El ticket promedio bajó ${Math.round(Math.abs(dif))}%: ${plata(ticket)} contra ${plata(ticketAnterior)}. Vale mirar si cambió el mix de productos o si se está descontando de más.`
+      );
+    }
+  }
+
+  // Concentración por canal: si uno se lleva casi todo, es un riesgo que
+  // conviene ver escrito.
+  const total = d.canales.reduce((s, [, v]) => s + v.today, 0);
+  const ordenados = [...d.canales].sort((a, b) => b[1].today - a[1].today);
+  if (total > 0 && ordenados.length > 0) {
+    const [nombre, valor] = ordenados[0];
+    const parte = Math.round((valor.today / total) * 100);
+    out.push(
+      parte >= 70 && ordenados.length > 1
+        ? `${nombre} concentra el ${parte}% de lo facturado (${plata(valor.today)}). Si ese canal se cae, se cae casi toda la venta del día.`
+        : `${nombre} es el canal que más factura: ${plata(valor.today)}, el ${parte}% del total.`
+    );
+  }
+
+  // Franja horaria más fuerte: sirve para decidir cuándo empujar presupuesto.
+  const pico = [...d.porHora].sort((a, b) => b.today - a.today)[0];
+  if (pico && pico.today > 0 && d.netSales > 0) {
+    const parte = Math.round((pico.today / d.netSales) * 100);
+    if (parte >= 15) {
+      out.push(
+        `La franja de las ${pico.hour} concentra el ${parte}% de la venta (${plata(pico.today)}). Es la hora donde más rinde empujar presupuesto.`
+      );
+    }
+  }
+
+  if (d.descuentos > 0 && d.netSales > 0) {
+    const parte = (d.descuentos / (d.netSales + d.descuentos)) * 100;
+    if (parte >= 8) {
+      out.push(
+        `Se otorgaron ${plata(d.descuentos)} en descuentos, el ${Math.round(parte)}% de lo facturado. Conviene revisar si hace falta tanto para vender.`
+      );
+    }
+  }
+
+  if (d.topProducto && d.netSales > 0) {
+    const parte = Math.round((d.topProducto.value / d.netSales) * 100);
+    if (parte >= 20) {
+      out.push(
+        `${d.topProducto.name} solo se lleva el ${parte}% de la facturación. Es el producto del que más depende el día.`
+      );
+    }
+  }
+
+  return out.slice(0, 4);
 }
 

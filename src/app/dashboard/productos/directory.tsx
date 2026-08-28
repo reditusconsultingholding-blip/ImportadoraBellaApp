@@ -254,6 +254,7 @@ export default function ProductDirectory({
         <table className="w-full min-w-[52rem] text-sm table-cols">
           <thead>
             <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.07em] text-muted">
+              <th className="w-10 px-3 py-2 text-right font-semibold">#</th>
               <th className="px-3 py-2 font-semibold">Producto</th>
               <th className="px-3 py-2 font-semibold">Pulso</th>
               <th className="px-3 py-2 text-right font-semibold">Gasto</th>
@@ -266,13 +267,13 @@ export default function ProductDirectory({
           <tbody>
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-muted">
+                <td colSpan={8} className="px-3 py-10 text-center text-muted">
                   Ningún producto coincide con eso.
                 </td>
               </tr>
             )}
 
-            {visibles.map((r) => {
+            {visibles.map((r, i) => {
               const excedido = r.cpa != null && r.cpaTarget > 0 && r.cpa > r.cpaTarget;
               const abierto = filaAbierta === r.id;
               return (
@@ -282,12 +283,26 @@ export default function ProductDirectory({
                     abierto ? "bg-surface-2" : ""
                   }`}
                 >
+                  <td className="px-3 py-2.5 text-right align-top text-xs tabular-nums text-muted">
+                    {i + 1}
+                  </td>
                   <td className="px-3 py-2.5">
                     <button
                       onClick={() => setFilaAbierta(abierto ? null : r.id)}
                       aria-expanded={abierto}
-                      className="block w-full text-left"
+                      className="flex w-full items-center gap-2 text-left"
                     >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        aria-hidden
+                        className={`shrink-0 text-muted transition-transform ${abierto ? "rotate-90" : ""}`}
+                      >
+                        <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                      <span className="min-w-0">
                       <span className="block font-medium">{r.name}</span>
                       <span className="block text-xs text-muted">
                         {r.code}
@@ -295,6 +310,7 @@ export default function ProductDirectory({
                         {r.campanas > 0
                           ? ` · ${r.campanas} ${r.campanas === 1 ? "campaña" : "campañas"}`
                           : " · sin campañas"}
+                      </span>
                       </span>
                     </button>
                   </td>
@@ -369,7 +385,7 @@ export default function ProductDirectory({
 
                 {abierto && (
                   <tr className="border-b border-border last:border-b-0">
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       <DetalleProducto
                         p={{
                           productId: r.id,
@@ -386,6 +402,7 @@ export default function ProductDirectory({
                           sugerencias: r.sugerencias,
                         }}
                         onProponer={proponer(r.id)}
+                        onCerrar={() => setFilaAbierta(null)}
                       />
                     </td>
                   </tr>

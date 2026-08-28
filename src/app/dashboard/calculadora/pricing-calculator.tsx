@@ -20,6 +20,8 @@ type Ajuste = {
   ordersPerDay: string;
   adjustForDelivery: boolean;
   priceOverride: string;
+  /** Notas del analisis, para que otro entienda por que quedaron esos numeros. */
+  nota?: string;
 };
 
 // Producto que se puede cargar de un clic: precio y costo salen de Shopify en
@@ -130,6 +132,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   const ajustesRef = useRef<Record<string, Partial<Ajuste>>>({});
   const [ajustesListos, setAjustesListos] = useState(false);
   const [guardado, setGuardado] = useState<"limpio" | "guardando" | "guardado">("limpio");
+  const [nota, setNota] = useState("");
 
   useEffect(() => {
     let cancelado = false;
@@ -181,6 +184,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     if (g.ordersPerDay != null) setOrdersPerDay(g.ordersPerDay);
     if (typeof g.adjustForDelivery === "boolean") setAdjustForDelivery(g.adjustForDelivery);
     if (g.priceOverride != null) setPriceOverride(g.priceOverride);
+    setNota(typeof g.nota === "string" ? g.nota : "");
   }
 
   const valores = useMemo<Ajuste>(
@@ -217,6 +221,30 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
       priceOverride,
     ]
   );
+
+  // Guardado a mano. El automático ya guarda, pero sin un botón nadie sabe si
+  // lo que ajustó quedó: se ve un texto que dice "guardado" y se duda igual.
+  // Además deja escribir una nota, que es lo que convierte un puñado de
+  // números en un análisis que alguien más puede leer después.
+  async function guardarAhora() {
+    if (!selectedProduct) return;
+    setGuardado("guardando");
+    try {
+      const res = await fetch("/api/calculadora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ producto: selectedProduct, data: { ...valores, nota } }),
+      });
+      if (res.ok) {
+        ajustesRef.current[selectedProduct] = { ...valores, nota };
+        setGuardado("guardado");
+      } else {
+        setGuardado("limpio");
+      }
+    } catch {
+      setGuardado("limpio");
+    }
+  }
 
   // Guardado automático con espera: mover un campo dispara un cambio por
   // tecla, y no hay por qué escribir la base en cada una.
@@ -395,13 +423,30 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                 ))}
               </select>
               {selectedProduct && (
-                <span className="mt-1 block text-xs text-muted">
-                  {guardado === "guardando"
-                    ? "Guardando…"
-                    : guardado === "guardado"
-                      ? "Guardado — todo el equipo ve estos valores."
-                      : "Lo que ajustes aquí se guarda para todo el equipo."}
-                </span>
+                <div className="mt-2 flex flex-col gap-2">
+                  <textarea
+                    value={nota}
+                    onChange={(e) => setNota(e.target.value)}
+                    placeholder="Notas del análisis: qué se probó, qué conviene hacer…"
+                    rows={2}
+                    className="w-full resize-none rounded border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={guardarAhora}
+                      disabled={guardado === "guardando"}
+                      className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong disabled:opacity-40"
+                    >
+                      {guardado === "guardando" ? "Guardando…" : "Guardar análisis"}
+                    </button>
+                    <span className="text-xs text-muted">
+                      {guardado === "guardado"
+                        ? "Guardado — todo el equipo ve estos valores."
+                        : "Se guarda solo, pero puedes forzarlo aquí."}
+                    </span>
+                  </div>
+                </div>
               )}
             </label>
           )}

@@ -179,16 +179,19 @@ export default function SalesOverview({
           <p className="font-mono text-xs uppercase tracking-wide text-muted mb-3">
             Ventas totales por canal de ventas
           </p>
-          <div className="flex items-center gap-4">
-            <div style={{ width: 130, height: 130 }} className="shrink-0 relative">
+          {/* La leyenda va DEBAJO del donut y no al costado: al costado le
+              quedaban unos 90 px y "Releasit COD Form" se cortaba en "Re…".
+              Abajo tiene el ancho entero de la tarjeta. */}
+          <div className="flex flex-col items-center gap-3">
+            <div style={{ width: 150, height: 150 }} className="relative shrink-0">
               <ResponsiveContainer>
                 <PieChart>
                   <Pie
                     data={data.channels}
                     dataKey="value"
                     nameKey="label"
-                    innerRadius={42}
-                    outerRadius={62}
+                    innerRadius={48}
+                    outerRadius={71}
                     strokeWidth={2}
                     stroke="var(--surface)"
                   >
@@ -199,23 +202,27 @@ export default function SalesOverview({
                   <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[10px] uppercase tracking-wide text-muted">Total</span>
                 <span className="text-sm font-semibold tabular-nums">
                   {money(data.channels.reduce((s, c) => s + c.value, 0))}
                 </span>
               </div>
             </div>
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
+
+            <div className="flex w-full flex-col gap-1.5">
               {data.channels.map((c, i) => (
                 <div key={c.label} className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-xs text-muted truncate">
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs">
                     <span
-                      className="w-2 h-2 rounded-full shrink-0"
+                      className="h-2 w-2 shrink-0 rounded-full"
                       style={{ background: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
                     />
-                    {c.label}
+                    <span className="truncate" title={c.label}>
+                      {c.label}
+                    </span>
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <span className="text-xs tabular-nums">{money(c.value)}</span>
                     <ChangeChip pct={c.changePct} />
                   </div>
@@ -286,6 +293,26 @@ export default function SalesOverview({
           </div>
         </div>
       </div>
+
+      {/* Lo que dicen estos numeros, en palabras. Va justo debajo de canales
+          y ticket promedio porque es de ahi de donde sale. Son cuentas, no
+          opinion del modelo: salen al instante y dan siempre lo mismo. El
+          analisis con criterio esta en el Pulso, mas abajo. */}
+      {data.lecturas.length > 0 && (
+        <div className="rounded border border-border bg-surface p-5">
+          <p className="mb-2.5 font-mono text-xs uppercase tracking-wide text-muted">
+            Que dicen estas ventas
+          </p>
+          <ul className="flex flex-col gap-2">
+            {data.lecturas.map((l, i) => (
+              <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
+                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                <span>{l}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

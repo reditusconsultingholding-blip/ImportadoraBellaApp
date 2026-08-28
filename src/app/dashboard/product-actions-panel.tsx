@@ -60,9 +60,13 @@ const ETIQUETA_TIPO: Record<string, string> = {
 export function DetalleProducto({
   p,
   onProponer,
+  onCerrar,
 }: {
   p: PulsoConAcciones;
   onProponer: (s: Sugerencia, cantidad: number) => Promise<void>;
+  /** Cerrar el detalle. Sin un control visible, quien lo abre queda sin
+   *  saber como volver a la lista. */
+  onCerrar?: () => void;
 }) {
   const [eligiendo, setEligiendo] = useState<Sugerencia | null>(null);
   const [cantidad, setCantidad] = useState(3);
@@ -85,6 +89,18 @@ export function DetalleProducto({
 
   return (
     <div className="flex flex-col gap-3 border-t border-border bg-surface-2/40 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium">{p.name}</p>
+        {onCerrar && (
+          <button
+            onClick={onCerrar}
+            className="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-muted transition hover:border-border-strong hover:text-foreground"
+          >
+            Cerrar
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Gasto", valor: money(p.spend, 0) },

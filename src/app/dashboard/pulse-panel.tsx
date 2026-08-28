@@ -301,9 +301,27 @@ export default function PulsePanel({ query }: { query: string }) {
                         <span className="w-7 shrink-0 text-right font-mono text-sm tabular-nums">
                           {p.score}
                         </span>
+                        {/* Sin esto no se ve que la fila se abre, ni como
+                            volver a cerrarla. */}
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          aria-hidden
+                          className={`shrink-0 text-muted transition-transform ${abiertoEste ? "rotate-90" : ""}`}
+                        >
+                          <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
                       </button>
 
-                      {abiertoEste && <DetalleProducto p={p} onProponer={proponer(p)} />}
+                      {abiertoEste && (
+                        <DetalleProducto
+                          p={p}
+                          onProponer={proponer(p)}
+                          onCerrar={() => setProductoAbierto(null)}
+                        />
+                      )}
                     </div>
                   );
                 })}
