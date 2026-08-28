@@ -183,12 +183,13 @@ const ORDERS_QUERY = `
         id
         createdAt
         app { name }
-        // A quien y a donde. Es lo que permite ver quien repite y en que
-        // provincia se vende mejor — sin esto, cada orden es anonima.
+        # A quien y a donde. Es lo que permite ver quien repite y en que
+        # provincia se vende mejor. GraphQL comenta con almohadilla: un // acá
+        # es un error de sintaxis que tumba TODA la sincronizacion de ventas.
         phone
         email
         customer { displayName phone email }
-        shippingAddress { province city }
+        shippingAddress { province city phone }
         currentSubtotalPriceSet { shopMoney { amount } }
         currentTotalDiscountsSet { shopMoney { amount } }
         currentTotalTaxSet { shopMoney { amount } }
@@ -214,7 +215,7 @@ type OrdersPage = {
       phone: string | null;
       email: string | null;
       customer: { displayName: string | null; phone: string | null; email: string | null } | null;
-      shippingAddress: { province: string | null; city: string | null } | null;
+      shippingAddress: { province: string | null; city: string | null; phone: string | null } | null;
       currentSubtotalPriceSet: Money;
       currentTotalDiscountsSet: Money;
       currentTotalTaxSet: Money;
