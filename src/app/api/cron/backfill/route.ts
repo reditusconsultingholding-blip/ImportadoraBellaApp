@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { cronAuthorized } from "@/lib/cron-auth";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { importarProductosDesdeCampanas } from "@/lib/product-import";
-import { relinkCampaignsToProducts } from "@/lib/integrations/windsor-sync";
+import { relinkCampaignsToProducts, syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 
 // Tareas de mantenimiento que no corren solas: rellenar histórico de Shopify y
 // rearmar las fichas de producto a partir de las campañas.
@@ -31,6 +31,22 @@ export async function GET(req: NextRequest) {
           ...(await syncShopifyStore(s.id, Math.round(dias))),
         }))
       );
+    }
+
+    // Histórico de pauta. Windsor acepta "last_12m", "last_6m", "last_60dT".
+    // Se pide a mano y no en cada corrida: los rangos de 3, 6, 9 y 12 meses del
+    // panel no mostraban nada porque el reloj solo trae los últimos 7 días —
+    // que es lo correcto para el día a día, pero deja el histórico vacío.
+    const preset = p.get("windsor");
+    if (preset && /^last_\d+[dmwy]T?$/.test(preset)) {
+      const orgs = await db.organization.findMany({ select: { id: true } });
+      const hechos: unknown[] = [];
+      for (const org of orgs) {
+        for (const conector of ["facebook", "tiktok"] as const) {
+          hechos.push({ conector, preset, ...(await syncWindsorConnector(org.id, conector, preset)) });
+        }
+      }
+      salida.windsor = hechos;
     }
 
     if (p.get("productos") === "1") {
