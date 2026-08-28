@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       salida.shopify = await Promise.all(
         stores.map(async (s) => ({
           tienda: s.shopDomain,
-          ...(await syncShopifyStore(s.id, Math.round(dias))),
+          ...(await syncShopifyStore(s.id, Math.round(dias), p.get("hasta") ?? undefined)),
         }))
       );
     }

@@ -231,7 +231,14 @@ const MAX_ORDER_PAGES = 250;
 export async function fetchRecentOrders(
   shopDomain: string,
   storedToken: string | null | undefined,
-  sinceISO: string
+  sinceISO: string,
+  /**
+   * Final de la ventana, opcional. Sin esto solo se puede pedir "desde
+   * hace N dias hasta ahora", y rellenar un ano entero era una sola
+   * peticion de noventa mil ordenes que se pasaba del tiempo del proxy.
+   * Con un final se puede ir mes por mes.
+   */
+  untilISO?: string
 ): Promise<RemoteShopifyOrder[]> {
   const orders: RemoteShopifyOrder[] = [];
   let cursor: string | null = null;
@@ -241,7 +248,7 @@ export async function fetchRecentOrders(
     const page: OrdersPage = await withAuth(shopDomain, storedToken, (token) =>
       shopifyGraphQL<OrdersPage>(shopDomain, token, ORDERS_QUERY, {
         cursor,
-        q: `created_at:>=${sinceISO}`,
+        q: untilISO ? `created_at:>=${sinceISO} created_at:<=${untilISO}` : `created_at:>=${sinceISO}`,
       })
     );
 

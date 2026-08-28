@@ -25,7 +25,12 @@ const trozos = <T,>(items: T[], tamano: number): T[][] => {
  * de una, y solo las que ya existían se actualizan de a una, porque sus
  * totales sí cambian (Shopify ajusta descuentos y envíos después).
  */
-export async function syncShopifyStore(storeId: string, days?: number) {
+export async function syncShopifyStore(
+  storeId: string,
+  days?: number,
+  /** Final de la ventana, para rellenar un tramo del pasado sin traer todo. */
+  hastaISO?: string
+) {
   const store = await db.shopifyStore.findUniqueOrThrow({ where: { id: storeId } });
 
   // Sin `days` explícito: 30 días la primera vez, para que Ventas y
@@ -40,7 +45,12 @@ export async function syncShopifyStore(storeId: string, days?: number) {
   const revisarDesde = new Date();
   revisarDesde.setDate(revisarDesde.getDate() - 4);
 
-  const orders = await fetchRecentOrders(store.shopDomain, store.accessToken, since.toISOString());
+  const orders = await fetchRecentOrders(
+    store.shopDomain,
+    store.accessToken,
+    since.toISOString(),
+    hastaISO
+  );
 
   let creadas = 0;
   let actualizadas = 0;
