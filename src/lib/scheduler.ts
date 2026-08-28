@@ -3,6 +3,7 @@ import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
+import { generateAndStoreDailyReport } from "@/lib/daily-report";
 
 // El reloj de la aplicación.
 //
@@ -120,9 +121,47 @@ export async function sincronizarTodo() {
     } catch {
       // Que falle una alerta no debe tirar abajo la sincronización entera.
     }
+
+    // El reporte del día anterior, una vez por día.
+    try {
+      const r = await generarReporteDelDiaAnterior(org.id);
+      if (r) resumen.reporte = r;
+    } catch (err) {
+      resumen.reporte = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
   }
 
   return resumen;
+}
+
+/**
+ * Genera el reporte del día que cerró, si todavía no existe.
+ *
+ * Vive acá y no en un cron aparte porque el cron aparte se cayó: la imagen de
+ * curl no tiene shell, así que la variable con la dirección nunca se expandía y
+ * a medianoche moría con "Bad hostname". Nadie se enteró hasta que faltó el
+ * reporte.
+ *
+ * Se apoya en que ya existe una restricción de unicidad por organización y día:
+ * si el reporte está, no se vuelve a hacer, sin importar cuántas veces pase el
+ * reloj por acá.
+ */
+async function generarReporteDelDiaAnterior(organizationId: string) {
+  // "Ayer" es el de Ecuador. Con la hora del servidor (UTC), entre las 19:00 y
+  // la medianoche el reporte saldría con la fecha del día siguiente.
+  const enEcuador = new Date(Date.now() - 5 * 3600_000);
+  const ayer = new Date(
+    Date.UTC(enEcuador.getUTCFullYear(), enEcuador.getUTCMonth(), enEcuador.getUTCDate() - 1)
+  );
+
+  const yaEsta = await db.dailyReport.findUnique({
+    where: { organizationId_date: { organizationId, date: ayer } },
+    select: { id: true },
+  });
+  if (yaEsta) return null;
+
+  await generateAndStoreDailyReport(organizationId, ayer);
+  return `generado el del ${ayer.toISOString().slice(0, 10)}`;
 }
 
 // El reloj se guarda en globalThis y no en un módulo: en desarrollo, Next
