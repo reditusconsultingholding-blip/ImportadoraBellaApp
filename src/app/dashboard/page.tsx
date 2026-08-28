@@ -11,6 +11,7 @@ import SalesOverview from "./sales-overview";
 import RangePicker from "./range-picker";
 import PulsePanel from "./pulse-panel";
 import CatalogPicker from "./catalog-picker";
+import AttributionStrip from "./attribution-strip";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
@@ -44,9 +45,14 @@ export default async function DashboardPage({
   const platform: Platform = params.platform === "TIKTOK" ? "TIKTOK" : "META";
   const range = resolveRange(params.rango, params.desde, params.hasta);
 
-  const [overview, sales] = await Promise.all([
+  // Se piden las dos plataformas aunque solo se muestre una en la tabla: el
+  // bloque de comparación de arriba necesita las dos para poder confrontarlas
+  // contra lo que de verdad se vendió en Shopify.
+  const [overview, sales, meta, tiktok] = await Promise.all([
     getOverview(session.organizationId, platform, range),
     getSalesOverview(session.organizationId, range),
+    getOverview(session.organizationId, "META", range),
+    getOverview(session.organizationId, "TIKTOK", range),
   ]);
 
   const query =
@@ -78,6 +84,16 @@ export default async function DashboardPage({
       </div>
 
       <SalesOverview data={sales} periodo={range.label} />
+
+      {canManagePipeline(session.role) && (
+        <AttributionStrip
+          ventasReales={sales.totalSales}
+          ordenesReales={sales.ordenes}
+          meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases, revenue: meta.totalRevenue }}
+          tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases, revenue: tiktok.totalRevenue }}
+          periodo={range.label}
+        />
+      )}
 
       {canManagePipeline(session.role) && <PulsePanel query={query} />}
 

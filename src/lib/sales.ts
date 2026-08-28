@@ -20,6 +20,8 @@ export type SalesOverview = {
   /** Si hay una tienda conectada. En falso, todo lo demas viene en cero. */
   connected: boolean;
   totalSales: number;
+  /** Cuántas órdenes reales entraron en el período. */
+  ordenes: number;
   totalSalesChangePct: number;
   salesSeries: SalesPoint[];
   breakdown: { label: string; value: number; changePct: number | null }[];
@@ -49,6 +51,7 @@ function sinTienda(): SalesOverview {
   return {
     connected: false,
     totalSales: 0,
+    ordenes: 0,
     totalSalesChangePct: 0,
     salesSeries: vacia,
     breakdown: [],
@@ -154,6 +157,7 @@ export async function getSalesOverview(
   return {
     connected: true,
     totalSales: netSales,
+    ordenes: todayOrders.length,
     totalSalesChangePct: pctChange(netSales, netSalesYesterday),
     salesSeries: seriesFor("netSales"),
     breakdown: [
