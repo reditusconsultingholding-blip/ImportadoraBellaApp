@@ -29,6 +29,22 @@ type Reconocimiento = {
 
 type ConstructorReconocimiento = new () => Reconocimiento;
 
+/**
+ * Lee una preferencia del navegador.
+ *
+ * En el servidor no hay localStorage, y un navegador con el almacenamiento
+ * bloqueado lanza excepción al tocarlo — ninguna de las dos cosas es un error
+ * acá: se usa lo que venga por defecto.
+ */
+function guardado(clave: string, siNoHay: string) {
+  if (typeof window === "undefined") return siNoHay;
+  try {
+    return localStorage.getItem(clave) ?? siNoHay;
+  } catch {
+    return siNoHay;
+  }
+}
+
 function traerReconocimiento(): ConstructorReconocimiento | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {
@@ -61,6 +77,57 @@ export default function VoiceMode({
   const [leyendo, setLeyendo] = useState(false);
   const [parcial, setParcial] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // La voz elegida y la velocidad. Se guardan en el navegador porque son de
+  // quien escucha, no de la empresa: en la misma cuenta, cada persona puede
+  // preferir otra.
+  const [voces, setVoces] = useState<SpeechSynthesisVoice[]>([]);
+
+  // La preferencia guardada se lee al construir el estado y no en un efecto:
+  // hacerlo en un efecto obliga a un render de más con el valor equivocado.
+  //
+  // No hay riesgo de descalce con el servidor porque estos controles solo se
+  // dibujan cuando ya hay voces cargadas, y en el servidor nunca las hay.
+  const [vozElegida, setVozElegida] = useState<string>(() => guardado("jarvis-voz", ""));
+  const [velocidad, setVelocidad] = useState<number>(() =>
+    Number(guardado("jarvis-velocidad", "")) || 1.08
+  );
+
+  // Las voces llegan tarde: al primer render getVoices() suele devolver una
+  // lista vacía y recién después el navegador avisa que ya las cargó.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const cargar = () => {
+      const todas = window.speechSynthesis.getVoices();
+      const enEspanol = todas.filter((v) => v.lang.toLowerCase().startsWith("es"));
+      // Si no hay ninguna en español se muestran todas: es preferible una voz
+      // en inglés leyendo español a un selector vacío sin explicación.
+      setVoces(enEspanol.length > 0 ? enEspanol : todas);
+    };
+
+    cargar();
+    window.speechSynthesis.addEventListener("voiceschanged", cargar);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", cargar);
+  }, []);
+
+  const guardarVoz = useCallback((nombre: string) => {
+    setVozElegida(nombre);
+    try {
+      localStorage.setItem("jarvis-voz", nombre);
+    } catch {
+      // Se pierde la preferencia al recargar, pero la llamada funciona igual.
+    }
+  }, []);
+
+  const guardarVelocidad = useCallback((r: number) => {
+    setVelocidad(r);
+    try {
+      localStorage.setItem("jarvis-velocidad", String(r));
+    } catch {
+      // Igual que arriba.
+    }
+  }, []);
 
   const recRef = useRef<Reconocimiento | null>(null);
   const yaLeidoRef = useRef<string | null>(null);
@@ -145,13 +212,16 @@ export default function VoiceMode({
 
       const frase = new SpeechSynthesisUtterance(texto);
       frase.lang = "es-EC";
-      frase.rate = 1.08;
+      frase.rate = velocidad;
 
-      // Con la voz por defecto en inglés, un texto en español suena a cualquier
+      // La voz elegida, y si no hay ninguna elegida la primera en español: con
+      // la voz por defecto en inglés, un texto en español suena a cualquier
       // cosa.
-      const voces = window.speechSynthesis.getVoices();
-      const enEspanol = voces.find((v) => v.lang.toLowerCase().startsWith("es"));
-      if (enEspanol) frase.voice = enEspanol;
+      const disponibles = window.speechSynthesis.getVoices();
+      const elegida =
+        disponibles.find((v) => v.name === vozElegida) ??
+        disponibles.find((v) => v.lang.toLowerCase().startsWith("es"));
+      if (elegida) frase.voice = elegida;
 
       frase.onstart = () => setLeyendo(true);
       frase.onend = () => {
@@ -164,7 +234,7 @@ export default function VoiceMode({
 
       window.speechSynthesis.speak(frase);
     },
-    []
+    [vozElegida, velocidad]
   );
 
   // La referencia se pone al día en un efecto y no durante el render: el
@@ -223,14 +293,64 @@ export default function VoiceMode({
   return (
     <div className="flex flex-col gap-2">
       {!enLlamada ? (
-        <button
-          type="button"
-          onClick={entrarALlamada}
-          className="flex w-fit items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
-        >
-          <span aria-hidden>🎙</span>
-          Hablar con Jarvis
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={entrarALlamada}
+            className="flex w-fit items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
+          >
+            <span aria-hidden>🎙</span>
+            Hablar con Jarvis
+          </button>
+
+          {voces.length > 0 && (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                Voz
+                <select
+                  value={vozElegida}
+                  onChange={(e) => {
+                    guardarVoz(e.target.value);
+                    // Se prueba al elegirla. Sin escucharla, elegir entre
+                    // "Microsoft Sabina" y "Google español" es adivinar.
+                    const v = window.speechSynthesis
+                      .getVoices()
+                      .find((x) => x.name === e.target.value);
+                    if (!v) return;
+                    window.speechSynthesis.cancel();
+                    const p = new SpeechSynthesisUtterance("Listo, así sueno.");
+                    p.voice = v;
+                    p.lang = v.lang;
+                    p.rate = velocidad;
+                    window.speechSynthesis.speak(p);
+                  }}
+                  className="rounded border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-accent"
+                >
+                  <option value="">La que traiga el navegador</option>
+                  {voces.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                Velocidad
+                <input
+                  type="range"
+                  min={0.7}
+                  max={1.6}
+                  step={0.02}
+                  value={velocidad}
+                  onChange={(e) => guardarVelocidad(Number(e.target.value))}
+                  className="w-24 accent-[var(--color-accent)]"
+                />
+                <span className="tabular-nums">{velocidad.toFixed(2)}×</span>
+              </label>
+            </>
+          )}
+        </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent bg-good-bg px-3 py-2.5">
           {/* El punto que late marca de quién es el turno: sin eso no se sabe si

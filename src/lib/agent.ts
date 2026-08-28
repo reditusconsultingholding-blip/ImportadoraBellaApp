@@ -6,6 +6,7 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import { comoTexto, principiosRelevantes } from "@/lib/conocimiento";
 import { resolveRange } from "@/lib/date-range";
+import { HERRAMIENTAS, correrHerramienta } from "@/lib/agent-tools";
 
 const MODEL = "claude-sonnet-5";
 
@@ -51,6 +52,28 @@ Razonas con la economía real del negocio, no con métricas de vanidad. Cuando
 des una recomendación, apóyala en el número que la justifica y, si viene al
 caso, en el principio de abajo que la respalda. Una recomendación que no puede
 explicar de dónde sale no sirve para discutirla.
+
+CÓMO CONSULTAS
+Tienes herramientas para mirar la base de datos de la empresa: ventas reales de
+Shopify, gasto de Meta y TikTok, rentabilidad por producto con la economía de
+contraentrega, la ficha de cualquier producto, las campañas, los clientes, el
+pulso y las alertas del día.
+
+ÚSALAS. Nunca contestes que no tienes la información sin haber buscado primero.
+Si te preguntan por la utilidad de un producto, llama a rentabilidad o a
+producto; si te preguntan por una campaña, llama a campanas. Puedes llamar
+varias, y puedes volver a llamar con otro período si el primero no alcanza.
+
+Los números que devuelven son los mismos del panel. No los recalcules por tu
+cuenta ni los redondees hacia donde le convenga al argumento.
+
+Dos cosas que no puedes callar cuando las veas:
+- Las compras que reportan Meta y TikTok son ATRIBUIDAS y suelen ser bastante
+  más que las órdenes reales de Shopify. Cuando hables de utilidad calculada
+  sobre compras atribuidas, dilo.
+- Si una herramienta devuelve una advertencia sobre datos que faltan, va en la
+  respuesta. Un porcentaje calculado sobre datos incompletos se lee igual de
+  cierto que uno completo, y esa es justamente la trampa.
 
 Si algo amerita una acción sobre una campaña, usa la herramienta
 propose_action. Nunca digas que la ejecutaste: queda pendiente hasta que una
@@ -159,49 +182,107 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
     content: h.content,
   }));
 
-  const response = await client.messages.create({
-    model: MODEL,
-    // Respuestas al grano: el tope corto además hace que llegue antes.
-    max_tokens: 700,
-    system: buildSystemPrompt(org.name, contextSummary, conocimiento),
-    tools: [PROPOSE_ACTION_TOOL],
-    messages,
-  });
-
   const proposedActions: { id: string; type: string; reason: string }[] = [];
   let reply = "";
 
-  for (const block of response.content) {
-    if (block.type === "text") {
-      reply += block.text;
-    } else if (block.type === "tool_use" && block.name === "propose_action") {
-      const input = block.input as {
-        product_code: string;
-        type: "PAUSE_CAMPAIGN" | "RESUME_CAMPAIGN" | "SCALE_BUDGET";
-        daily_budget?: number;
-        reason: string;
-      };
+  // El bucle de herramientas.
+  //
+  // Antes esto era UNA llamada: el modelo contestaba con lo que tuviera en el
+  // resumen y listo. Si preguntabas algo que el resumen no traía —la utilidad
+  // de un producto, el detalle de una campaña— decía que no tenía la
+  // información, y era verdad: no tenía cómo ir a buscarla.
+  //
+  // Ahora, cuando pide un dato, se lo busca y se le devuelve para que siga
+  // razonando. El tope de vueltas es un cortacircuitos: sin él, un modelo que
+  // se obsesiona con una consulta que siempre vuelve vacía gira para siempre y
+  // el usuario mira un "pensando…" que no termina nunca.
+  const MAX_VUELTAS = 6;
 
-      const product = await db.product.findFirst({
-        where: { organizationId, code: input.product_code },
-      });
-      const campaign = product
-        ? await db.campaign.findFirst({ where: { productId: product.id } })
-        : null;
+  for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
+    const response = await client.messages.create({
+      model: MODEL,
+      // Respuestas al grano: el tope corto además hace que llegue antes.
+      max_tokens: 700,
+      system: buildSystemPrompt(org.name, contextSummary, conocimiento),
+      tools: [PROPOSE_ACTION_TOOL, ...HERRAMIENTAS],
+      messages,
+    });
 
-      if (campaign) {
-        const action = await db.pendingAction.create({
-          data: {
-            campaignId: campaign.id,
-            requestedBy: "jarvis",
-            type: input.type,
-            payload: JSON.stringify({ dailyBudget: input.daily_budget }),
-            reason: input.reason,
-          },
+    const resultados: Anthropic.ToolResultBlockParam[] = [];
+
+    for (const block of response.content) {
+      if (block.type === "text") {
+        reply += block.text;
+        continue;
+      }
+      if (block.type !== "tool_use") continue;
+
+      if (block.name === "propose_action") {
+        const input = block.input as {
+          product_code: string;
+          type: "PAUSE_CAMPAIGN" | "RESUME_CAMPAIGN" | "SCALE_BUDGET";
+          daily_budget?: number;
+          reason: string;
+        };
+
+        const product = await db.product.findFirst({
+          where: { organizationId, code: input.product_code },
         });
-        proposedActions.push({ id: action.id, type: action.type, reason: action.reason });
+        const campaign = product
+          ? await db.campaign.findFirst({ where: { productId: product.id } })
+          : null;
+
+        if (campaign) {
+          const action = await db.pendingAction.create({
+            data: {
+              campaignId: campaign.id,
+              requestedBy: "jarvis",
+              type: input.type,
+              payload: JSON.stringify({ dailyBudget: input.daily_budget }),
+              reason: input.reason,
+            },
+          });
+          proposedActions.push({ id: action.id, type: action.type, reason: action.reason });
+        }
+
+        // El modelo tiene que enterarse de si la propuesta quedó registrada.
+        // Si no, dice "listo, la dejé propuesta" para un producto que no
+        // existe y el usuario espera una aprobación que nunca va a aparecer.
+        resultados.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: campaign
+            ? "Propuesta registrada, esperando aprobación humana."
+            : `No hay campaña asociada al producto ${input.product_code}. La propuesta NO quedó registrada; dilo así.`,
+          is_error: !campaign,
+        });
+        continue;
+      }
+
+      // Una consulta al negocio.
+      try {
+        const salida = await correrHerramienta(
+          organizationId,
+          block.name,
+          (block.input ?? {}) as Record<string, unknown>
+        );
+        resultados.push({ type: "tool_result", tool_use_id: block.id, content: salida });
+      } catch (err) {
+        // Que una consulta falle no debe tumbar la conversación: se le dice al
+        // modelo qué pasó y que siga con lo que tenga.
+        resultados.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: `La consulta falló: ${err instanceof Error ? err.message : String(err)}`,
+          is_error: true,
+        });
       }
     }
+
+    if (resultados.length === 0) break;
+
+    messages.push({ role: "assistant", content: response.content });
+    messages.push({ role: "user", content: resultados });
   }
 
   if (!reply) {

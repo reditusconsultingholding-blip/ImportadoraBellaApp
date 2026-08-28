@@ -56,27 +56,28 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users               User[]
-  adAccounts          AdAccount[]
-  products            Product[]
-  shopifyStores       ShopifyStore[]
-  requirements        Requirement[]
-  dailyReports        DailyReport[]
-  profitabilityRows   ProductProfitability[]
-  dropiConnections    DropiConnection[]
-  employees           Employee[]
-  payrollPeriods      PayrollPeriod[]
-  productFolders      ProductFolder[]
-  boardNotes          BoardNote[]
-  chatChannels        ChatChannel[]
-  chatMessages        ChatMessage[]
-  calcSettings CalcSetting[]
-  acciones     ProductAction[]
-  syncStates   SyncState[]
-  weeklyReports WeeklyReport[]
-  productAssets ProductAsset[]
-  referencias   Referencia[]
-  rondas        Ronda[]
+  users             User[]
+  adAccounts        AdAccount[]
+  products          Product[]
+  shopifyStores     ShopifyStore[]
+  requirements      Requirement[]
+  dailyReports      DailyReport[]
+  profitabilityRows ProductProfitability[]
+  dropiConnections  DropiConnection[]
+  employees         Employee[]
+  payrollPeriods    PayrollPeriod[]
+  productFolders    ProductFolder[]
+  boardNotes        BoardNote[]
+  chatChannels      ChatChannel[]
+  chatMessages      ChatMessage[]
+  calcSettings      CalcSetting[]
+  acciones          ProductAction[]
+  syncStates        SyncState[]
+  weeklyReports     WeeklyReport[]
+  productAssets     ProductAsset[]
+  referencias       Referencia[]
+  jarvisChats       JarvisConversacion[]
+  rondas            Ronda[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -164,18 +165,18 @@ model ChatRead {
 // parentId, y las de primer nivel tienen parentId nulo. Borrar una carpeta
 // borra sus subcarpetas, pero NO sus productos — esos vuelven a la raíz.
 model ProductFolder {
-  id             String        @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   name           String
   parentId       String?
   parent         ProductFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
   children       ProductFolder[] @relation("FolderTree")
-  color          String?       // color de la tarjeta en el tablero
+  color          String? // color de la tarjeta en el tablero
   // Posición de la tarjeta dentro del tablero de su carpeta madre.
-  positionX      Float         @default(0)
-  positionY      Float         @default(0)
-  createdAt      DateTime      @default(now())
+  positionX      Float           @default(0)
+  positionY      Float           @default(0)
+  createdAt      DateTime        @default(now())
 
   products Product[]
   notes    BoardNote[]
@@ -208,7 +209,7 @@ model BoardNote {
   assigneeId  String?
   assignee    User?     @relation("BoardNoteAssignee", fields: [assigneeId], references: [id])
   // [{ "label": "Referencia TikTok", "url": "https://..." }]
-  links Json?
+  links       Json?
 
   color     String?
   positionX Float    @default(0)
@@ -237,16 +238,16 @@ model BoardNoteComment {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  email              String   @unique
+  id                 String       @id @default(cuid())
+  email              String       @unique
   passwordHash       String
   name               String
-  role               Role     @default(OWNER)
-  mustChangePassword Boolean  @default(false)
+  role               Role         @default(OWNER)
+  mustChangePassword Boolean      @default(false)
   // Quién ve la pantalla de Nómina. NO alcanza con ser OWNER: es un permiso
   // aparte porque el pago solo lo miran Fabricio y Katherine, y puede haber
   // otros administradores que no deban verlo.
-  canViewPayroll     Boolean  @default(false)
+  canViewPayroll     Boolean      @default(false)
   // Foto de perfil como data URL. Se guarda en la base y no en un bucket
   // porque es una miniatura de 256px (~30 KB): montar almacenamiento de
   // archivos para eso sería más infraestructura que valor.
@@ -255,44 +256,45 @@ model User {
   phone              String?
   organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id])
-  createdAt          DateTime @default(now())
+  createdAt          DateTime     @default(now())
 
-  requestedActions      PendingAction[]
-  assignedRequirements  Requirement[]   @relation("RequirementOwner")
-  comments              Comment[]
-  notifications         Notification[]
-  employee              Employee?
-  chatAuthored          ChatMessage[]  @relation("ChatAuthored")
-  chatReceived          ChatMessage[]  @relation("ChatReceived")
-  chatReactions         ChatReaction[]
-  chatReads             ChatRead[]
-  assignedNotes         BoardNote[]        @relation("BoardNoteAssignee")
-  noteComments          BoardNoteComment[]
-  chatPins ChatPin[] @relation("ChatPinsCreated")
-  vozPresencia  VoicePresence[]
-  senalesEnviadas VoiceSignal[] @relation("VozDe")
-  senalesRecibidas VoiceSignal[] @relation("VozPara")
-  accionesPropuestas ProductAction[] @relation("AccionPropuesta")
-  accionesDecididas  ProductAction[] @relation("AccionDecidida")
-  accionesAsignadas  ProductAction[] @relation("AccionAsignada")
-  assetsCreados ProductAsset[]
-  referenciasCreadas Referencia[]
-  rondasACargo       Ronda[]
-  pushSubscriptions PushSubscription[]
+  requestedActions     PendingAction[]
+  assignedRequirements Requirement[]        @relation("RequirementOwner")
+  comments             Comment[]
+  notifications        Notification[]
+  employee             Employee?
+  chatAuthored         ChatMessage[]        @relation("ChatAuthored")
+  chatReceived         ChatMessage[]        @relation("ChatReceived")
+  chatReactions        ChatReaction[]
+  chatReads            ChatRead[]
+  assignedNotes        BoardNote[]          @relation("BoardNoteAssignee")
+  jarvisChats          JarvisConversacion[]
+  noteComments         BoardNoteComment[]
+  chatPins             ChatPin[]            @relation("ChatPinsCreated")
+  vozPresencia         VoicePresence[]
+  senalesEnviadas      VoiceSignal[]        @relation("VozDe")
+  senalesRecibidas     VoiceSignal[]        @relation("VozPara")
+  accionesPropuestas   ProductAction[]      @relation("AccionPropuesta")
+  accionesDecididas    ProductAction[]      @relation("AccionDecidida")
+  accionesAsignadas    ProductAction[]      @relation("AccionAsignada")
+  assetsCreados        ProductAsset[]
+  referenciasCreadas   Referencia[]
+  rondasACargo         Ronda[]
+  pushSubscriptions    PushSubscription[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
 // puede tener varias — Fabrizio ya dijo que va a compartir varios perfiles.
 model AdAccount {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   platform       Platform
-  externalId     String   // ad_account_id (Meta) / advertiser_id (TikTok)
+  externalId     String // ad_account_id (Meta) / advertiser_id (TikTok)
   name           String
-  accessToken    String?  // token de larga duración una vez conectada la cuenta real
+  accessToken    String? // token de larga duración una vez conectada la cuenta real
   connectedAt    DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   campaigns Campaign[]
 
@@ -302,32 +304,32 @@ model AdAccount {
 // Producto identificado por el código que Fabrizio ya usa en el nombre
 // de sus campañas (ej: BAT-001). Las métricas se agregan por este código.
 model Product {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  code           String   // identificador que aparece en el nombre de campaña
+  code           String // identificador que aparece en el nombre de campaña
   name           String
-  cpaTarget      Float    // umbral: por debajo = verde, por encima = rojo
-  unitCost       Float?   // costo del producto, si se carga a mano
-  salePrice      Float?   // precio de venta de referencia
+  cpaTarget      Float // umbral: por debajo = verde, por encima = rojo
+  unitCost       Float? // costo del producto, si se carga a mano
+  salePrice      Float? // precio de venta de referencia
 
   // La realidad operativa del producto, sin la cual "rentabilidad" es una
   // palabra vacia: en contraentrega no se cobra lo que se vende, se cobra lo
   // que se confirma Y no se devuelve. Sale de la planilla del equipo.
-  efectividad        Float?  // 0-1: que porcion de los checkouts se confirma
-  devoluciones       Float?  // 0-1: que porcion de lo despachado vuelve
-  flete              Float?  // costo de envio por paquete DESPACHADO
-  gastoAdmPorPedido  Float?  // gasto administrativo repartido por pedido entregado
-  economiaDe         String? // de donde salieron estos numeros y de que mes
-  notes          String?
-  archived       Boolean  @default(false)
-  folderId       String?
-  folder         ProductFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  thumbnailUrl   String?
+  efectividad       Float? // 0-1: que porcion de los checkouts se confirma
+  devoluciones      Float? // 0-1: que porcion de lo despachado vuelve
+  flete             Float? // costo de envio por paquete DESPACHADO
+  gastoAdmPorPedido Float? // gasto administrativo repartido por pedido entregado
+  economiaDe        String? // de donde salieron estos numeros y de que mes
+  notes             String?
+  archived          Boolean        @default(false)
+  folderId          String?
+  folder            ProductFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  thumbnailUrl      String?
   // Posición de la tarjeta dentro del tablero de su carpeta.
-  positionX      Float    @default(0)
-  positionY      Float    @default(0)
-  createdAt      DateTime @default(now())
+  positionX         Float          @default(0)
+  positionY         Float          @default(0)
+  createdAt         DateTime       @default(now())
 
   campaigns    Campaign[]
   acciones     ProductAction[]
@@ -340,15 +342,15 @@ model Product {
 }
 
 model Campaign {
-  id           String   @id @default(cuid())
-  adAccountId  String
-  adAccount    AdAccount @relation(fields: [adAccountId], references: [id])
-  productId    String?
-  product      Product?  @relation(fields: [productId], references: [id])
-  externalId   String   // campaign id en la plataforma
-  name         String
-  status       String   // ACTIVE / PAUSED / ...
-  createdAt    DateTime @default(now())
+  id          String    @id @default(cuid())
+  adAccountId String
+  adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id])
+  externalId  String // campaign id en la plataforma
+  name        String
+  status      String // ACTIVE / PAUSED / ...
+  createdAt   DateTime  @default(now())
 
   metrics        MetricSnapshot[]
   pendingActions PendingAction[]
@@ -359,15 +361,15 @@ model Campaign {
 // Snapshot de métricas. Con datos reales esto se llena por polling
 // periódico a la Graph API / TikTok Business API.
 model MetricSnapshot {
-  id         String   @id @default(cuid())
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  capturedAt DateTime @default(now())
-  spend      Float
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  capturedAt  DateTime @default(now())
+  spend       Float
   impressions Int
-  clicks     Int
-  purchases  Int
-  revenue    Float
+  clicks      Int
+  purchases   Int
+  revenue     Float
 
   // Una fila por campaña y día. La clave única es lo que deja volver a
   // sincronizar los últimos días sin duplicar: Meta ajusta las compras con
@@ -380,13 +382,13 @@ model MetricSnapshot {
 // una cuenta publicitaria: es la fuente de la vista "Ventas" (toda la
 // tienda, se anuncie o no cada producto). Una organización tiene una sola.
 model ShopifyStore {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  shopDomain     String   // ej. importadora-bella.myshopify.com
-  accessToken    String?  // Admin API access token (shpat_...) de la app personalizada
+  shopDomain     String // ej. importadora-bella.myshopify.com
+  accessToken    String? // Admin API access token (shpat_...) de la app personalizada
   connectedAt    DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   orders ShopifyOrder[]
 
@@ -394,17 +396,17 @@ model ShopifyStore {
 }
 
 model ShopifyOrder {
-  id           String   @id @default(cuid())
-  storeId      String
-  store        ShopifyStore @relation(fields: [storeId], references: [id])
-  externalId   String   // order id de Shopify
-  occurredAt   DateTime
-  channel      String   // source_name de la orden (ej. "Funnelish", "web")
-  grossSales   Float
-  discounts    Float
-  shipping     Float
-  taxes        Float
-  netSales     Float
+  id         String       @id @default(cuid())
+  storeId    String
+  store      ShopifyStore @relation(fields: [storeId], references: [id])
+  externalId String // order id de Shopify
+  occurredAt DateTime
+  channel    String // source_name de la orden (ej. "Funnelish", "web")
+  grossSales Float
+  discounts  Float
+  shipping   Float
+  taxes      Float
+  netSales   Float
 
   // A quien y a donde. Sin esto cada orden es anonima y no se puede saber
   // quien repite ni en que provincia se vende mejor.
@@ -414,7 +416,7 @@ model ShopifyOrder {
   provincia       String?
   ciudad          String?
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   lineItems ShopifyOrderLineItem[]
 
@@ -425,7 +427,7 @@ model ShopifyOrder {
 }
 
 model ShopifyOrderLineItem {
-  id          String @id @default(cuid())
+  id          String       @id @default(cuid())
   orderId     String
   order       ShopifyOrder @relation(fields: [orderId], references: [id])
   productName String
@@ -440,7 +442,7 @@ model ShopifyOrderLineItem {
 // se validan en la app — quedan como String simple para poder ajustarlas
 // sin migración cada vez que el equipo agrega una opción nueva.
 model Requirement {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
 
@@ -467,12 +469,12 @@ model Requirement {
   // Que esta haciendo la pieza EN LA PAUTA. Es otra cosa: una pieza puede
   // estar "testeada" y ser un "winner validado" o un "kill definitivo".
   // Mezclarlas hace imposible responder "cuantos winners tenemos".
-  estado String?
+  estado   String?
   // A que ronda de cuatro pertenece y que lugar ocupa dentro de ella.
-  ronda   String?
-  rondaId String?
-  rondaRel Ronda? @relation(fields: [rondaId], references: [id], onDelete: SetNull)
-  slot    Int?
+  ronda    String?
+  rondaId  String?
+  rondaRel Ronda?  @relation(fields: [rondaId], references: [id], onDelete: SetNull)
+  slot     Int?
 
   // De donde vino la pieza. Separa el historico del trabajo activo: seis mil
   // registros viejos en la tabla de seguimiento la vuelven inutilizable.
@@ -493,7 +495,7 @@ model Requirement {
   notes      String?
 
   dueDate      DateTime? // fecha de entrega — la tarjeta se marca vencida si se pasó y sigue en producción
-  thumbnailUrl String?   // imagen de portada del creativo, para no depender solo del link
+  thumbnailUrl String? // imagen de portada del creativo, para no depender solo del link
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -653,13 +655,13 @@ model PayrollEntry {
   employeeId String
   employee   Employee      @relation(fields: [employeeId], references: [id])
 
-  baseAmount     Float // lo que corresponde por sueldo/piezas antes de ajustes
-  absenceDays    Float @default(0)
-  absenceDeduct  Float @default(0)
-  piecesDelivered Int  @default(0)
-  bonus          Float @default(0)
-  total          Float
-  note           String?
+  baseAmount      Float // lo que corresponde por sueldo/piezas antes de ajustes
+  absenceDays     Float   @default(0)
+  absenceDeduct   Float   @default(0)
+  piecesDelivered Int     @default(0)
+  bonus           Float   @default(0)
+  total           Float
+  note            String?
 
   @@unique([periodId, employeeId])
 }
@@ -667,12 +669,12 @@ model PayrollEntry {
 // Reporte diario en PDF. Un cron a medianoche (ver /api/cron/daily-report)
 // genera uno por organización y notifica al/los OWNER para que lo revise.
 model DailyReport {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   date           DateTime // día que resume (medianoche de ese día)
   pdf            Bytes
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   @@unique([organizationId, date])
 }
@@ -682,7 +684,7 @@ model DailyReport {
 // sin publicidad, publicidad) se calculan al leer, no se guardan, para que
 // siempre reflejen los acumulados más recientes.
 model ProductProfitability {
-  id                    String @id @default(cuid())
+  id                    String       @id @default(cuid())
   organizationId        String
   organization          Organization @relation(fields: [organizationId], references: [id])
   month                 String // ej. "ABRIL"
@@ -696,7 +698,7 @@ model ProductProfitability {
   profitAccum           Float
   merchandiseAccum      Float?
   desiredProfitPerOrder Float? // objetivo manual, si lo cargan
-  createdAt             DateTime @default(now())
+  createdAt             DateTime     @default(now())
 
   @@unique([organizationId, month, productName])
 }
@@ -705,19 +707,19 @@ model ProductProfitability {
 // ShopifyStore/AdAccount porque es otra cosa: fulfillment y envíos, no
 // ventas ni pauta.
 model DropiConnection {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  integrationKey String?  // header dropi-integration-key, una vez que Dropi lo habilite
-  country        String   @default("Ecuador")
+  integrationKey String? // header dropi-integration-key, una vez que Dropi lo habilite
+  country        String       @default("Ecuador")
   connectedAt    DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   shipments Shipment[]
 }
 
 model Shipment {
-  id           String   @id @default(cuid())
+  id           String          @id @default(cuid())
   connectionId String
   connection   DropiConnection @relation(fields: [connectionId], references: [id])
   externalId   String // id de la orden/guía en Dropi
@@ -725,9 +727,9 @@ model Shipment {
   city         String
   carrier      String // transportadora
   status       String // ENTREGADO, EN_RUTA, DEVUELTO, NOVEDAD...
-  isReturn     Boolean  @default(false)
+  isReturn     Boolean         @default(false)
   occurredAt   DateTime
-  createdAt    DateTime @default(now())
+  createdAt    DateTime        @default(now())
 
   @@unique([connectionId, externalId])
   @@index([connectionId, occurredAt])
@@ -740,12 +742,12 @@ model PendingAction {
   id           String       @id @default(cuid())
   campaignId   String
   campaign     Campaign     @relation(fields: [campaignId], references: [id])
-  requestedBy  String       // "jarvis" o el id del User si la pidió una persona
+  requestedBy  String // "jarvis" o el id del User si la pidió una persona
   approvedById String?
   approvedBy   User?        @relation(fields: [approvedById], references: [id])
   type         ActionType
-  payload      String       // JSON con el detalle (ej. nuevo presupuesto)
-  reason       String       // por qué Jarvis lo sugiere
+  payload      String // JSON con el detalle (ej. nuevo presupuesto)
+  reason       String // por qué Jarvis lo sugiere
   status       ActionStatus @default(PENDING)
   createdAt    DateTime     @default(now())
   resolvedAt   DateTime?
@@ -759,10 +761,10 @@ model ChatPin {
   id          String      @id @default(cuid())
   channelId   String
   channel     ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  kind        String      // NOTA | LINK
+  kind        String // NOTA | LINK
   title       String
-  body        String?     // texto, cuando es nota
-  url         String?     // destino, cuando es link
+  body        String? // texto, cuando es nota
+  url         String? // destino, cuando es link
   createdById String
   createdBy   User        @relation("ChatPinsCreated", fields: [createdById], references: [id])
   createdAt   DateTime    @default(now())
@@ -778,8 +780,8 @@ model CalcSetting {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  producto       String       // nombre del producto, tal como figura en el catalogo
-  data           String       // JSON con los valores de la calculadora
+  producto       String // nombre del producto, tal como figura en el catalogo
+  data           String // JSON con los valores de la calculadora
   updatedById    String?
   updatedAt      DateTime     @updatedAt
 
@@ -840,10 +842,10 @@ model ProductAction {
   productId      String
   product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  kind     String  // MAS_CREATIVOS | ESCALAR | PAUSAR | REVISAR_OFERTA
-  detail   String  // que exactamente se pide
-  cantidad Int?    // cuantas piezas, cuando el pedido es de creativos
-  reason   String  // por que se propone: el numero que lo justifica
+  kind     String // MAS_CREATIVOS | ESCALAR | PAUSAR | REVISAR_OFERTA
+  detail   String // que exactamente se pide
+  cantidad Int? // cuantas piezas, cuando el pedido es de creativos
+  reason   String // por que se propone: el numero que lo justifica
 
   status       String    @default("PROPUESTA") // PROPUESTA | APROBADA | RECHAZADA | HECHA
   proposedById String
@@ -875,11 +877,11 @@ model SyncState {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  fuente         String       // shopify | facebook | tiktok
-  okAt           DateTime?    // ultima corrida que termino bien
+  fuente         String // shopify | facebook | tiktok
+  okAt           DateTime? // ultima corrida que termino bien
   errorAt        DateTime?
   error          String?
-  detalle        String?      // que trajo, para poder mirarlo sin entrar a la base
+  detalle        String? // que trajo, para poder mirarlo sin entrar a la base
   // Evita que dos corridas se pisen: el reloj interno dispara cada pocos
   // minutos y una sincronizacion larga puede seguir viva cuando llega la
   // siguiente.
@@ -898,9 +900,9 @@ model WeeklyReport {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  weekStart      DateTime     // lunes de la semana que resume
-  enviadoA       String       // a quienes se les mando
-  resumen        String       // el texto que se envio, para poder releerlo
+  weekStart      DateTime // lunes de la semana que resume
+  enviadoA       String // a quienes se les mando
+  resumen        String // el texto que se envio, para poder releerlo
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, weekStart])
@@ -925,13 +927,13 @@ model ProductAsset {
   parent   ProductAsset?  @relation("AssetTree", fields: [parentId], references: [id], onDelete: Cascade)
   children ProductAsset[] @relation("AssetTree")
 
-  kind  String  // CARPETA | LINK | NOTA
+  kind  String // CARPETA | LINK | NOTA
   title String
   url   String?
   notes String?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -951,14 +953,14 @@ model Referencia {
   product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   fecha          DateTime @default(now())
-  codigo         String?  // codigo o nombre con que se la identifica
+  codigo         String? // codigo o nombre con que se la identifica
   mercadoOrigen  String?
-  antiguedadDias Int?     // hace cuanto se publico: una referencia vieja pesa distinto
-  fuente         String?  // de donde salio
+  antiguedadDias Int? // hace cuanto se publico: una referencia vieja pesa distinto
+  fuente         String? // de donde salio
   formatoVisual  String?
   angulo         String?
   awarenessLevel String?
-  concepto       String?  // que se extrae de ella
+  concepto       String? // que se extrae de ella
   antiReferencia Boolean  @default(false)
   link           String?
   estado         String?
@@ -1009,13 +1011,48 @@ model PushSubscription {
 
   // El endpoint identifica al navegador de forma unica: es la clave que evita
   // registrar dos veces el mismo dispositivo.
-  endpoint String @unique
-  p256dh   String
-  auth     String
+  endpoint  String  @unique
+  p256dh    String
+  auth      String
   userAgent String?
 
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+// Las conversaciones con Jarvis, guardadas.
+//
+// Antes vivían solo en la memoria del navegador: al recargar la página se
+// perdía todo. Una conversación donde se razonó sobre por qué un producto
+// dejó de rendir vale tanto como el reporte, y desaparecía sola.
+model JarvisConversacion {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  // Cada quien ve las suyas. Un chat con Jarvis es pensamiento en voz alta,
+  // no un documento de la empresa.
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  titulo         String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  mensajes JarvisMensaje[]
+
+  @@index([userId, updatedAt])
+}
+
+model JarvisMensaje {
+  id             String             @id @default(cuid())
+  conversacionId String
+  // En cascada: borrar una conversación tiene que llevarse sus mensajes, o la
+  // tabla se llena de huérfanos que nadie puede ver ni borrar.
+  conversacion   JarvisConversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  rol            String // user | assistant
+  contenido      String
+  createdAt      DateTime           @default(now())
+
+  @@index([conversacionId, createdAt])
 }

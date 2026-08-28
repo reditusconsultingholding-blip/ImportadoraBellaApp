@@ -1,16 +1,33 @@
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { listarConversaciones } from "@/lib/jarvis-chats";
 import JarvisChat from "./jarvis-chat";
 
-export default function JarvisPage() {
+export default async function JarvisPage() {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  // La lista se trae en el servidor y no al montar el componente: así la
+  // pantalla ya llega con las conversaciones puestas, sin un parpadeo vacío.
+  const conversaciones = await listarConversaciones(session.userId);
+
   return (
-    <div className="flex flex-col gap-4 h-[calc(100vh-160px)]">
+    <div className="flex h-[calc(100vh-160px)] flex-col gap-4">
       <div>
         <h1 className="text-xl font-semibold">Jarvis</h1>
         <p className="text-sm text-muted">
-          Preguntale por el rendimiento de tus campañas. Cualquier acción que proponga queda
-          esperando tu aprobación — nunca se ejecuta sola.
+          Preguntale por el rendimiento de tus campañas. Consulta la base de la empresa para
+          responder, y cualquier acción que proponga queda esperando tu aprobación — nunca se
+          ejecuta sola.
         </p>
       </div>
-      <JarvisChat />
+      <JarvisChat
+        inicial={conversaciones.map((c) => ({
+          id: c.id,
+          titulo: c.titulo,
+          updatedAt: c.updatedAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }
