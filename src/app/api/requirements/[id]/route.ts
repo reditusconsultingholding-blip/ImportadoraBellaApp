@@ -55,11 +55,16 @@ const EDITABLE_FIELDS = [
   "frequency",
   "cpm",
   "nextAction",
+  // Estado en la pauta y ronda: son de la planilla nueva.
+  "estado",
+  "ronda",
   "notes",
   "status",
   "ownerId",
   "productId",
   "dueDate",
+  // La fecha de la pieza, que es la primera columna de la planilla.
+  "date",
   "thumbnailUrl",
 ] as const;
 
@@ -75,7 +80,7 @@ const NUMERIC_FIELDS = new Set([
   "cpm",
 ]);
 
-const DATE_FIELDS = new Set(["dueDate"]);
+const DATE_FIELDS = new Set(["dueDate", "date"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();

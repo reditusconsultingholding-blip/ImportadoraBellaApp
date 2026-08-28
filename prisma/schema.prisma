@@ -74,6 +74,7 @@ model Organization {
   acciones     ProductAction[]
   syncStates   SyncState[]
   weeklyReports WeeklyReport[]
+  productAssets ProductAsset[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -272,6 +273,7 @@ model User {
   accionesPropuestas ProductAction[] @relation("AccionPropuesta")
   accionesDecididas  ProductAction[] @relation("AccionDecidida")
   accionesAsignadas  ProductAction[] @relation("AccionAsignada")
+  assetsCreados ProductAsset[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -324,6 +326,7 @@ model Product {
 
   campaigns    Campaign[]
   acciones     ProductAction[]
+  assets       ProductAsset[]
   requirements Requirement[]
 
   @@unique([organizationId, code])
@@ -440,7 +443,15 @@ model Requirement {
   ownerId String?
   owner   User?   @relation("RequirementOwner", fields: [ownerId], references: [id])
 
+  // En que punto del proceso esta la pieza: quien la tiene y que falta.
   status RequirementStatus @default(PENDIENTE)
+
+  // Que esta haciendo la pieza EN LA PAUTA. Es otra cosa: una pieza puede
+  // estar "testeada" y ser un "winner validado" o un "kill definitivo".
+  // Mezclarlas hace imposible responder "cuantos winners tenemos".
+  estado String?
+  // A que ronda de cuatro pertenece, para poder revisar la diversidad.
+  ronda  String?
 
   originalVideoLink String?
   tiktokPostLink    String?
@@ -868,4 +879,36 @@ model WeeklyReport {
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, weekStart])
+}
+
+// El repositorio de direccion creativa de un producto: carpetas, links y
+// notas.
+//
+// Es donde vive el material del que sale un anuncio — referencias, guiones,
+// piezas anteriores, lo que sea. Antes eso estaba repartido entre Drive, el
+// chat y la cabeza de quien lo produjo, y cada pieza nueva empezaba de cero
+// buscando de que partir.
+model ProductAsset {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Las carpetas se anidan entre si; lo demas cuelga de una carpeta o de la raiz.
+  parentId String?
+  parent   ProductAsset?  @relation("AssetTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children ProductAsset[] @relation("AssetTree")
+
+  kind  String  // CARPETA | LINK | NOTA
+  title String
+  url   String?
+  notes String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId, parentId])
 }
