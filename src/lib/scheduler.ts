@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
+import { rellenarClientes } from "@/lib/relleno-clientes";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
@@ -117,6 +118,16 @@ export async function sincronizarTodo() {
       }
     }
 
+    // El relleno de datos de cliente en las órdenes viejas. Avanza un pedazo
+    // por vuelta y se acuerda de dónde quedó; cuando termina deja de correr
+    // solo.
+    try {
+      const r = await rellenarClientes(org.id);
+      if (r) resumen.relleno = r;
+    } catch (err) {
+      resumen.relleno = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
     // Las alertas se revisan después, con los datos ya frescos.
     try {
       await runAlertChecks(org.id);
@@ -194,10 +205,24 @@ const guardado = globalThis as unknown as { __jarvisReloj?: NodeJS.Timeout };
 export function arrancarReloj() {
   if (guardado.__jarvisReloj) return;
 
+  // Una vuelta a la vez. El intervalo dispara cada cinco minutos mire o no si
+  // la anterior terminó, y desde que el relleno de clientes corre acá adentro
+  // una vuelta puede pasarse de esos cinco minutos. Dos vueltas encimadas
+  // repetirían el mismo trabajo y se pelearían los candados.
+  let corriendo = false;
+
   const vuelta = () => {
+    if (corriendo) {
+      console.log("[reloj] la vuelta anterior sigue viva, se saltea esta");
+      return;
+    }
+    corriendo = true;
     sincronizarTodo()
       .then((r) => console.log("[reloj] sincronización lista:", JSON.stringify(r)))
-      .catch((err) => console.error("[reloj] falló la vuelta:", err));
+      .catch((err) => console.error("[reloj] falló la vuelta:", err))
+      .finally(() => {
+        corriendo = false;
+      });
   };
 
   setTimeout(vuelta, ESPERA_INICIAL_MS);
