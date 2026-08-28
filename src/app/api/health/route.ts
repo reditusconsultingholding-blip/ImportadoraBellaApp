@@ -52,11 +52,18 @@ export async function GET() {
       haceMinutos: e.okAt ? Math.round((Date.now() - e.okAt.getTime()) / 60000) : null,
       error: e.error,
     }));
+    // Solo cuentan las FUENTES DE DATOS. Las tareas que corren una vez al día
+    // —las alertas, el reporte— tambien se anotan en la misma tabla, y
+    // contarlas dejaba "datosFrescos" en falso para siempre a la media hora de
+    // cada corrida, que es exactamente la alarma que no hay que dar.
+    const FUENTES = ["shopify", "facebook", "tiktok"];
+    const deDatos = sincronizacion.filter((s) => FUENTES.includes(s.fuente));
+
     // El reloj corre cada 5 minutos; 30 sin una corrida buena ya es un
     // problema, no una demora.
     datosFrescos =
-      sincronizacion.length > 0 &&
-      sincronizacion.every((s) => s.haceMinutos != null && s.haceMinutos <= 30);
+      deDatos.length > 0 &&
+      deDatos.every((s) => s.haceMinutos != null && s.haceMinutos <= 30 && !s.error);
   } catch {
     // Que no se pueda leer el estado no invalida el resto del chequeo.
   }
