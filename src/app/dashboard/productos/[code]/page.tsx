@@ -6,6 +6,8 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import PipelineBoard from "../../pipeline/pipeline-board";
 import TablaCreativos, { type Creativo } from "./tabla-creativos";
 import Repositorio from "./repositorio";
+import BancoReferencias from "./banco-referencias";
+import MatrixRondas from "./matrix-rondas";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
@@ -165,6 +167,8 @@ export default async function ProductoDetailPage({
       <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
         {[
           { id: "tabla", label: "Seguimiento de creativos" },
+          { id: "rondas", label: "Rondas" },
+          { id: "referencias", label: "Referencias" },
           { id: "pipeline", label: "Pipeline" },
           { id: "repositorio", label: "Dirección creativa" },
         ].map((v) => {
@@ -185,7 +189,11 @@ export default async function ProductoDetailPage({
         })}
       </div>
 
-      {vista === "repositorio" ? (
+      {vista === "rondas" ? (
+        <MatrixRondas productId={product.id} />
+      ) : vista === "referencias" ? (
+        <BancoReferencias productId={product.id} />
+      ) : vista === "repositorio" ? (
         <Repositorio productId={product.id} />
       ) : vista === "pipeline" ? (
         <PipelineBoard
