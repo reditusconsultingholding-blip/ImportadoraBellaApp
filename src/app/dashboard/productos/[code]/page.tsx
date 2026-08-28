@@ -34,6 +34,10 @@ export default async function ProductoDetailPage({
       where: {
         organizationId: session.organizationId,
         productId: product.id,
+        // El archivo historico queda fuera de la vista activa: son piezas de
+        // otra operacion, con productos y editores que ya no existen aqui.
+        // Mezclarlas volveria inutilizable la tabla de seguimiento.
+        origen: null,
         ...(canManage ? {} : { ownerId: session.userId }),
       },
       include: {

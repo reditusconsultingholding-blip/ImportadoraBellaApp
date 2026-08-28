@@ -87,7 +87,9 @@ export async function getDirectory(
     }),
     getPulses(organizationId, range),
     db.requirement.findMany({
-      where: { organizationId, productId: { not: null } },
+      // Sin el historico: son piezas archivadas de otra operacion y contarlas
+      // como trabajo en curso daria numeros que no significan nada.
+      where: { organizationId, productId: { not: null }, origen: null },
       select: {
         productId: true,
         status: true,

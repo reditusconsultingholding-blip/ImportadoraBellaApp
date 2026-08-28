@@ -55,6 +55,7 @@ type Entrada = {
   estado?: string;
   proximaAccion?: string;
   notas?: string;
+  origen?: string;
 };
 
 /** Empareja un valor tipeado a mano contra una lista oficial. */
@@ -197,7 +198,19 @@ export async function POST(req: NextRequest) {
       frequency: e.frecuencia ?? null,
       cpm: e.cpm ?? null,
       nextAction: nextAction || null,
-      notes: (e.notas ?? "").trim() || null,
+      origen: (e.origen ?? "").trim() || null,
+      // Si el producto o el editor no existen en esta operacion, sus nombres
+      // se guardan en la nota. El archivo historico viene de otro equipo, y
+      // perder "lo hizo criss para ELIXIR" seria perder justamente lo que lo
+      // hace util.
+      notes:
+        [
+          (e.notas ?? "").trim(),
+          !producto && e.producto ? `Producto original: ${e.producto}` : "",
+          !editor && e.editor ? `Lo hizo: ${e.editor}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
     };
 
     const existente = yaEstan.get(normalizar(nombre));

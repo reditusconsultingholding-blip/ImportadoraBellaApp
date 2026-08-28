@@ -25,6 +25,9 @@ export default async function PipelinePage() {
     db.requirement.findMany({
       where: {
         organizationId: session.organizationId,
+        // El archivo historico queda fuera: son piezas de otra operacion y
+        // llenarian el tablero con trabajo que ya no existe.
+        origen: null,
         ...(canManage ? {} : { ownerId: session.userId }),
       },
       include: {
