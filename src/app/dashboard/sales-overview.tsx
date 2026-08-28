@@ -183,15 +183,15 @@ export default function SalesOverview({
               quedaban unos 90 px y "Releasit COD Form" se cortaba en "Re…".
               Abajo tiene el ancho entero de la tarjeta. */}
           <div className="flex flex-col items-center gap-3">
-            <div style={{ width: 150, height: 150 }} className="relative shrink-0">
+            <div style={{ width: 200, height: 200 }} className="relative shrink-0">
               <ResponsiveContainer>
                 <PieChart>
                   <Pie
                     data={data.channels}
                     dataKey="value"
                     nameKey="label"
-                    innerRadius={48}
-                    outerRadius={71}
+                    innerRadius={66}
+                    outerRadius={92}
                     strokeWidth={2}
                     stroke="var(--surface)"
                   >
@@ -202,9 +202,9 @@ export default function SalesOverview({
                   <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                 <span className="text-[10px] uppercase tracking-wide text-muted">Total</span>
-                <span className="text-sm font-semibold tabular-nums">
+                <span className="text-sm font-semibold leading-tight tabular-nums">
                   {money(data.channels.reduce((s, c) => s + c.value, 0))}
                 </span>
               </div>
