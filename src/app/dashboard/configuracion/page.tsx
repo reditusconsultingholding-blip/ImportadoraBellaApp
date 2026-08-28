@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import PushToggle from "../push-toggle";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { currentTotpCode, nextCodeExpiresAt, totpConfigured } from "@/lib/totp";
@@ -34,7 +35,8 @@ export default async function MiPerfilPage() {
   const showCode = me.role === "OWNER" && totpConfigured();
 
   return (
-    <ProfileScreen
+    <div className="flex flex-col gap-5">
+      <ProfileScreen
       role={ROLE_LABEL[me.role] ?? me.role}
       position={me.employee?.position ?? null}
       email={me.email}
@@ -55,6 +57,11 @@ export default async function MiPerfilPage() {
             }
           : null
       }
-    />
+      />
+
+      {/* Los avisos push viven acá y no en el panel: es una preferencia de la
+          persona, no algo del negocio. */}
+      <PushToggle />
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { calcular, economiaDe } from "@/lib/economia";
+import { avisarA } from "@/lib/push";
 
 // Alertas diarias: qué escalar y qué apagar.
 //
@@ -183,6 +184,20 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
   return alertas.sort((a, b) => orden[a.tipo] - orden[b.tipo] || b.gasto - a.gasto);
 }
 
+/** Una línea con lo que hay que hacer, para el aviso del celular. */
+function resumenCorto(alertas: Alerta[]) {
+  const apagar = alertas.filter((a) => a.tipo === "apagar");
+  const escalar = alertas.filter((a) => a.tipo === "escalar");
+  const partes: string[] = [];
+  if (apagar.length > 0) {
+    partes.push(
+      `${apagar.length} para apagar (${money(apagar.reduce((s, a) => s + a.gasto, 0))} en juego)`
+    );
+  }
+  if (escalar.length > 0) partes.push(`${escalar.length} para escalar`);
+  return partes.join(" · ") || "Todo dentro de su punto de equilibrio.";
+}
+
 /**
  * Manda las alertas del día, una vez por día.
  *
@@ -218,6 +233,15 @@ export async function enviarAlertasDiarias(organizationId: string) {
   });
 
   for (const persona of direccion) {
+    // Un solo push con el resumen, no uno por alerta: doce notificaciones
+    // seguidas se descartan todas juntas sin leer ninguna.
+    await avisarA(persona.id, {
+      titulo: "Qué hacer hoy",
+      cuerpo: resumenCorto(alertas),
+      url: "/dashboard",
+      etiqueta: "alertas-diarias",
+    });
+
     for (const a of alertas.slice(0, 12)) {
       await db.notification.create({
         data: {

@@ -278,6 +278,7 @@ model User {
   assetsCreados ProductAsset[]
   referenciasCreadas Referencia[]
   rondasACargo       Ronda[]
+  pushSubscriptions PushSubscription[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -984,4 +985,26 @@ model Ronda {
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, productId, numero])
+}
+
+// Un navegador suscrito a las notificaciones push.
+//
+// Una persona puede tener varias: el telefono, la computadora del trabajo,
+// la de la casa. Cada una es una suscripcion distinta y se avisa a todas.
+model PushSubscription {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // El endpoint identifica al navegador de forma unica: es la clave que evita
+  // registrar dos veces el mismo dispositivo.
+  endpoint String @unique
+  p256dh   String
+  auth     String
+  userAgent String?
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }
