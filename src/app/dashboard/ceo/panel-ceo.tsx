@@ -34,6 +34,87 @@ const PESTANAS: { id: Pestana; label: string }[] = [
   { id: "nomina", label: "Nómina" },
 ];
 
+/** Los chips de filtro, iguales en las tres pestañas. */
+function Filtros<T extends string>(
+  activo: T,
+  set: (v: T) => void,
+  opciones: { id: T; label: string }[]
+) {
+  return opciones.map((o) => (
+    <button
+      key={o.id}
+      onClick={() => set(o.id)}
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+        activo === o.id
+          ? "border-accent bg-good-bg text-accent-strong"
+          : "border-border text-muted hover:border-border-strong hover:text-foreground"
+      }`}
+    >
+      {o.label}
+    </button>
+  ));
+}
+
+/**
+ * Productos por cómo vienen.
+ *
+ * Dentro de cada grupo manda el gasto: un producto que va mal y se lleva
+ * cinco dólares no es el problema del día, y uno que va bien con mucho
+ * presupuesto es donde está la oportunidad.
+ */
+function ordenarPulsos(pulsos: PanelCeo["productos"]["pulsos"], filtro: string) {
+  if (filtro === "mejores") {
+    return pulsos.filter((p) => p.state === "SANO").sort((a, b) => b.spend - a.spend);
+  }
+  if (filtro === "peores") {
+    return pulsos
+      .filter((p) => p.state === "RIESGO" || p.state === "VIGILAR")
+      .sort((a, b) => a.score - b.score || b.spend - a.spend);
+  }
+  return pulsos;
+}
+
+/** Rentabilidad: los que más dejan, o los que pierden. */
+function ordenarRentabilidad(filas: PanelCeo["rentabilidad"]["filas"], filtro: string) {
+  if (filtro === "mejores") {
+    return filas
+      .filter((f) => (f.utilidad ?? 0) > 0)
+      .slice()
+      .sort((a, b) => (b.utilidad ?? 0) - (a.utilidad ?? 0));
+  }
+  if (filtro === "peores") {
+    return filas
+      .filter((f) => f.utilidad != null && f.utilidad < 0)
+      .slice()
+      .sort((a, b) => (a.utilidad ?? 0) - (b.utilidad ?? 0));
+  }
+  return filas;
+}
+
+/**
+ * Acciones, ordenadas por lo que está en juego.
+ *
+ * "Más importantes" no es lo mismo que "primeras": lo que importa es cuánta
+ * plata mueve la decisión, sea para apagar o para escalar. Un producto que
+ * pierde veinte dólares está antes que uno que pierde diez mil solo si se
+ * ordena por tipo, y eso es exactamente lo que hay que evitar.
+ */
+function ordenarAlertas(alertas: PanelCeo["alertas"], filtro: string) {
+  if (filtro === "apagar") {
+    return alertas.filter((a) => a.tipo === "apagar").sort((a, b) => b.gasto - a.gasto);
+  }
+  if (filtro === "escalar") {
+    return alertas.filter((a) => a.tipo === "escalar").sort((a, b) => b.gasto - a.gasto);
+  }
+  if (filtro === "importantes") {
+    return alertas
+      .filter((a) => a.tipo !== "revisar")
+      .slice()
+      .sort((a, b) => b.gasto - a.gasto);
+  }
+  return alertas;
+}
+
 function Tarjeta({
   label,
   valor,
@@ -71,6 +152,13 @@ export default function PanelCeoVista({
   puedeVerNomina: boolean;
 }) {
   const [pestana, setPestana] = useState<Pestana>("resumen");
+  // Un filtro por pestaña, no uno compartido: "peores" significa cosas
+  // distintas en productos y en rentabilidad, y compartirlo confundiria.
+  const [filtroProductos, setFiltroProductos] = useState<"todos" | "mejores" | "peores">("todos");
+  const [filtroRent, setFiltroRent] = useState<"todos" | "mejores" | "peores">("todos");
+  const [filtroAcciones, setFiltroAcciones] = useState<"importantes" | "apagar" | "escalar" | "todos">(
+    "importantes"
+  );
   const visibles = PESTANAS.filter((p) => p.id !== "nomina" || puedeVerNomina);
 
   return (
@@ -162,12 +250,20 @@ export default function PanelCeoVista({
 
       {pestana === "productos" && (
         <div className="rounded border border-border bg-surface">
-          <p className="border-b border-border px-4 py-2.5 text-xs text-muted">
-            {data.productos.pulsos.length} con pauta activa · {data.productos.sinPauta} sin pauta en
-            este período
-          </p>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+            <p className="text-xs text-muted">
+              {data.productos.pulsos.length} con pauta · {data.productos.sinPauta} sin pauta
+            </p>
+            <span className="ml-auto flex gap-1.5">
+              {Filtros(filtroProductos, setFiltroProductos, [
+                { id: "todos", label: "Todos" },
+                { id: "mejores", label: "Los que van mejor" },
+                { id: "peores", label: "Los que van peor" },
+              ])}
+            </span>
+          </div>
           <div className="flex flex-col">
-            {data.productos.pulsos.map((p) => (
+            {ordenarPulsos(data.productos.pulsos, filtroProductos).map((p) => (
               <Link
                 key={p.productId ?? p.name}
                 href={p.code ? `/dashboard/productos/${encodeURIComponent(p.code)}` : "#"}
@@ -212,6 +308,14 @@ export default function PanelCeoVista({
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-1.5">
+            {Filtros(filtroRent, setFiltroRent, [
+              { id: "todos", label: "Todos" },
+              { id: "mejores", label: "Los que más dejan" },
+              { id: "peores", label: "Los que pierden" },
+            ])}
+          </div>
+
           <div className="overflow-x-auto rounded border border-border bg-surface">
             <table className="table-cols w-full min-w-[42rem] text-sm">
               <thead>
@@ -223,7 +327,7 @@ export default function PanelCeoVista({
                 </tr>
               </thead>
               <tbody>
-                {data.rentabilidad.filas.slice(0, 25).map((f) => (
+                {ordenarRentabilidad(data.rentabilidad.filas, filtroRent).slice(0, 25).map((f) => (
                   <tr key={f.productId} className="border-b border-border last:border-b-0">
                     <td className="px-3 py-2">
                       <Link
@@ -259,13 +363,23 @@ export default function PanelCeoVista({
 
       {pestana === "acciones" && (
         <div className="rounded border border-border bg-surface">
+          {data.alertas.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
+              {Filtros(filtroAcciones, setFiltroAcciones, [
+                { id: "importantes", label: "Más importantes" },
+                { id: "apagar", label: "Para apagar" },
+                { id: "escalar", label: "Para escalar" },
+                { id: "todos", label: "Todas" },
+              ])}
+            </div>
+          )}
           {data.alertas.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-muted">
               Nada urgente hoy: ningún producto está fuera de su punto de equilibrio.
             </p>
           ) : (
             <div className="flex flex-col">
-              {data.alertas.map((a) => (
+              {ordenarAlertas(data.alertas, filtroAcciones).map((a) => (
                 <Link
                   key={`${a.tipo}-${a.productId}`}
                   href={`/dashboard/productos/${encodeURIComponent(a.code)}`}
