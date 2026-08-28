@@ -14,17 +14,19 @@ export type RangeId =
 
 // Los que se ofrecen en el selector.
 //
-// 6, 9 y 12 meses están fuera a propósito: la pauta tiene un año de historia
-// pero las órdenes de Shopify no llegan tan atrás, así que esos rangos
-// mostraban el gasto completo contra ventas a medias — un desastre aparente
-// que en realidad era falta de historia. resolveRange los sigue entendiendo,
-// para que un link viejo no se rompa; simplemente no se ofrecen.
+// 6, 9 y 12 meses estuvieron fuera un rato: la pauta tenía un año de historia
+// pero las órdenes de Shopify no, así que esos rangos mostraban el gasto
+// completo contra ventas a medias. Con el histórico ya cargado (366 días de
+// órdenes) vuelven a tener sentido.
 export const RANGES: { id: RangeId; label: string }[] = [
   { id: "hoy", label: "Hoy" },
   { id: "ayer", label: "Ayer" },
   { id: "7d", label: "Últimos 7 días" },
   { id: "30d", label: "Últimos 30 días" },
   { id: "3m", label: "Últimos 3 meses" },
+  { id: "6m", label: "Últimos 6 meses" },
+  { id: "9m", label: "Últimos 9 meses" },
+  { id: "12m", label: "Últimos 12 meses" },
   { id: "personalizado", label: "Entre dos fechas" },
 ];
 

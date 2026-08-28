@@ -303,6 +303,15 @@ model Product {
   cpaTarget      Float    // umbral: por debajo = verde, por encima = rojo
   unitCost       Float?   // costo del producto, si se carga a mano
   salePrice      Float?   // precio de venta de referencia
+
+  // La realidad operativa del producto, sin la cual "rentabilidad" es una
+  // palabra vacia: en contraentrega no se cobra lo que se vende, se cobra lo
+  // que se confirma Y no se devuelve. Sale de la planilla del equipo.
+  efectividad        Float?  // 0-1: que porcion de los checkouts se confirma
+  devoluciones       Float?  // 0-1: que porcion de lo despachado vuelve
+  flete              Float?  // costo de envio por paquete DESPACHADO
+  gastoAdmPorPedido  Float?  // gasto administrativo repartido por pedido entregado
+  economiaDe         String? // de donde salieron estos numeros y de que mes
   notes          String?
   archived       Boolean  @default(false)
   folderId       String?
