@@ -167,6 +167,7 @@ export default function SidebarNav({
         ...(showRentabilidad
           ? [
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
+              { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
               { href: "/dashboard/calculadora", label: "Calculadora", icon: "calculadora" },
               { href: "/dashboard/reportes", label: "Reportes diarios", icon: "reportes" },
             ]

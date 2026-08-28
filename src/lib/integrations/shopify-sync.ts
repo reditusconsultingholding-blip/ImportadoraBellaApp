@@ -79,6 +79,11 @@ export async function syncShopifyStore(
           shipping: o.shipping,
           taxes: o.taxes,
           netSales: o.netSales,
+          clienteNombre: o.clienteNombre,
+          clienteTelefono: o.clienteTelefono,
+          clienteEmail: o.clienteEmail,
+          provincia: o.provincia,
+          ciudad: o.ciudad,
         })),
         skipDuplicates: true,
       });
@@ -104,6 +109,11 @@ export async function syncShopifyStore(
           shipping: o.shipping,
           taxes: o.taxes,
           netSales: o.netSales,
+          clienteNombre: o.clienteNombre,
+          clienteTelefono: o.clienteTelefono,
+          clienteEmail: o.clienteEmail,
+          provincia: o.provincia,
+          ciudad: o.ciudad,
         },
       });
       actualizadas += 1;

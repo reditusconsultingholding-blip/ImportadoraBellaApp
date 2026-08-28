@@ -161,6 +161,11 @@ export async function verifyShopifyConnection(shopDomain: string, storedToken?: 
 export type RemoteShopifyOrder = {
   externalId: string;
   occurredAt: string;
+  clienteNombre: string | null;
+  clienteTelefono: string | null;
+  clienteEmail: string | null;
+  provincia: string | null;
+  ciudad: string | null;
   channel: string;
   grossSales: number;
   discounts: number;
@@ -178,6 +183,12 @@ const ORDERS_QUERY = `
         id
         createdAt
         app { name }
+        // A quien y a donde. Es lo que permite ver quien repite y en que
+        // provincia se vende mejor — sin esto, cada orden es anonima.
+        phone
+        email
+        customer { displayName phone email }
+        shippingAddress { province city }
         currentSubtotalPriceSet { shopMoney { amount } }
         currentTotalDiscountsSet { shopMoney { amount } }
         currentTotalTaxSet { shopMoney { amount } }
@@ -200,6 +211,10 @@ type OrdersPage = {
       id: string;
       createdAt: string;
       app: { name: string } | null;
+      phone: string | null;
+      email: string | null;
+      customer: { displayName: string | null; phone: string | null; email: string | null } | null;
+      shippingAddress: { province: string | null; city: string | null } | null;
       currentSubtotalPriceSet: Money;
       currentTotalDiscountsSet: Money;
       currentTotalTaxSet: Money;
@@ -258,6 +273,13 @@ export async function fetchRecentOrders(
         // el número, que es lo que ya había en la base.
         externalId: node.id.split("/").pop() ?? node.id,
         occurredAt: node.createdAt,
+        // El telefono puede venir en la orden o en la ficha del cliente:
+        // Funnelish y Releasit lo ponen en lugares distintos.
+        clienteNombre: node.customer?.displayName?.trim() || null,
+        clienteTelefono: (node.phone ?? node.customer?.phone)?.trim() || null,
+        clienteEmail: (node.email ?? node.customer?.email)?.trim() || null,
+        provincia: node.shippingAddress?.province?.trim() || null,
+        ciudad: node.shippingAddress?.city?.trim() || null,
         channel: node.app?.name || "Tienda online",
         grossSales: amount(node.currentSubtotalPriceSet),
         discounts: amount(node.currentTotalDiscountsSet),

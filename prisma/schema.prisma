@@ -405,12 +405,23 @@ model ShopifyOrder {
   shipping     Float
   taxes        Float
   netSales     Float
+
+  // A quien y a donde. Sin esto cada orden es anonima y no se puede saber
+  // quien repite ni en que provincia se vende mejor.
+  clienteNombre   String?
+  clienteTelefono String?
+  clienteEmail    String?
+  provincia       String?
+  ciudad          String?
+
   createdAt    DateTime @default(now())
 
   lineItems ShopifyOrderLineItem[]
 
   @@unique([storeId, externalId])
   @@index([storeId, occurredAt])
+  @@index([clienteTelefono])
+  @@index([provincia])
 }
 
 model ShopifyOrderLineItem {
