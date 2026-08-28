@@ -75,6 +75,8 @@ model Organization {
   syncStates   SyncState[]
   weeklyReports WeeklyReport[]
   productAssets ProductAsset[]
+  referencias   Referencia[]
+  rondas        Ronda[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -274,6 +276,8 @@ model User {
   accionesDecididas  ProductAction[] @relation("AccionDecidida")
   accionesAsignadas  ProductAction[] @relation("AccionAsignada")
   assetsCreados ProductAsset[]
+  referenciasCreadas Referencia[]
+  rondasACargo       Ronda[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -327,6 +331,8 @@ model Product {
   campaigns    Campaign[]
   acciones     ProductAction[]
   assets       ProductAsset[]
+  referencias  Referencia[]
+  rondas       Ronda[]
   requirements Requirement[]
 
   @@unique([organizationId, code])
@@ -450,8 +456,15 @@ model Requirement {
   // estar "testeada" y ser un "winner validado" o un "kill definitivo".
   // Mezclarlas hace imposible responder "cuantos winners tenemos".
   estado String?
-  // A que ronda de cuatro pertenece, para poder revisar la diversidad.
-  ronda  String?
+  // A que ronda de cuatro pertenece y que lugar ocupa dentro de ella.
+  ronda   String?
+  rondaId String?
+  rondaRel Ronda? @relation(fields: [rondaId], references: [id], onDelete: SetNull)
+  slot    Int?
+
+  // De donde vino la pieza. Separa el historico del trabajo activo: seis mil
+  // registros viejos en la tabla de seguimiento la vuelven inutilizable.
+  origen String?
 
   originalVideoLink String?
   tiktokPostLink    String?
@@ -911,4 +924,64 @@ model ProductAsset {
   updatedAt   DateTime @updatedAt
 
   @@index([productId, parentId])
+}
+
+// Banco de referencias: la materia prima del research.
+//
+// Lo que se encuentra afuera y sirve de punto de partida. Guardar tambien las
+// ANTI-referencias importa igual: saber que no funciono evita repetirlo, y esa
+// es la mitad del aprendizaje que hoy se pierde.
+model Referencia {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  fecha          DateTime @default(now())
+  codigo         String?  // codigo o nombre con que se la identifica
+  mercadoOrigen  String?
+  antiguedadDias Int?     // hace cuanto se publico: una referencia vieja pesa distinto
+  fuente         String?  // de donde salio
+  formatoVisual  String?
+  angulo         String?
+  awarenessLevel String?
+  concepto       String?  // que se extrae de ella
+  antiReferencia Boolean  @default(false)
+  link           String?
+  estado         String?
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([organizationId, productId])
+}
+
+// Una ronda: cuatro piezas que salen juntas a testear.
+//
+// Existe para poder verificar la diversidad ANTES de producir, no despues: si
+// las cuatro comparten formato y angulo, compiten entre si y la ronda entera
+// mide una sola cosa.
+model Ronda {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  numero        Int
+  semana        String?
+  fecha         DateTime @default(now())
+  responsableId String?
+  responsable   User?    @relation(fields: [responsableId], references: [id])
+  notas         String?
+
+  piezas Requirement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, productId, numero])
 }
