@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import VoiceMode from "./voice-mode";
 
 type Message = { role: "user" | "assistant"; content: string };
 type ProposedAction = { id: string; type: string; reason: string };
@@ -19,11 +20,13 @@ export default function JarvisChat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  // Preguntar por texto y preguntar por voz terminan en el mismo lugar: si
+  // fueran dos caminos, el historial se les desincronizaria.
+  async function preguntar(texto: string) {
+    const limpio = texto.trim();
+    if (!limpio || loading) return;
 
-    const nextHistory = [...messages, { role: "user" as const, content: input }];
+    const nextHistory = [...messages, { role: "user" as const, content: limpio }];
     setMessages(nextHistory);
     setInput("");
     setLoading(true);
@@ -114,7 +117,21 @@ export default function JarvisChat() {
         {error && <p className="text-sm text-critical self-start">{error}</p>}
       </div>
 
-      <form onSubmit={send} className="border-t border-border p-3 flex gap-2">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          preguntar(input);
+        }}
+        className="border-t border-border p-3 flex flex-col gap-2"
+      >
+        <VoiceMode
+          onPregunta={preguntar}
+          ultimaRespuesta={
+            [...messages].reverse().find((m) => m.role === "assistant")?.content ?? null
+          }
+          pensando={loading}
+        />
+        <div className="flex gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -128,6 +145,7 @@ export default function JarvisChat() {
         >
           Enviar
         </button>
+        </div>
       </form>
     </div>
   );
