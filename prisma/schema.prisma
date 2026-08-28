@@ -73,6 +73,7 @@ model Organization {
   calcSettings CalcSetting[]
   acciones     ProductAction[]
   syncStates   SyncState[]
+  weeklyReports WeeklyReport[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -841,4 +842,21 @@ model SyncState {
   updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, fuente])
+}
+
+// El reporte semanal de salud de productos que le llega al CEO.
+//
+// Se guarda que se mando, no el contenido en PDF: lo que importa es no
+// mandarlo dos veces. La unicidad por semana es lo que lo garantiza, sin
+// importar cuantas veces pase el reloj.
+model WeeklyReport {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  weekStart      DateTime     // lunes de la semana que resume
+  enviadoA       String       // a quienes se les mando
+  resumen        String       // el texto que se envio, para poder releerlo
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, weekStart])
 }

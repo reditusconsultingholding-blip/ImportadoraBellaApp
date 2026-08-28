@@ -4,6 +4,7 @@ import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
+import { enviarReporteSemanal } from "@/lib/weekly-report";
 
 // El reloj de la aplicación.
 //
@@ -128,6 +129,16 @@ export async function sincronizarTodo() {
       if (r) resumen.reporte = r;
     } catch (err) {
       resumen.reporte = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Y la salud de los productos, una vez por semana. Se apoya en su propia
+    // restricción de unicidad, así que pasar por acá cada cinco minutos no
+    // manda nada de más.
+    try {
+      const r = await enviarReporteSemanal(org.id);
+      if (r) resumen.semanal = r;
+    } catch (err) {
+      resumen.semanal = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
