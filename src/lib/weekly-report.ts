@@ -203,6 +203,7 @@ export async function enviarReporteSemanal(organizationId: string, referencia = 
       : `Los ${conPauta.length} productos con pauta dentro de su objetivo · ${money(gasto)} de pauta · ${money(facturado)} facturado`;
 
   let destinatarios: string[] = [];
+  let errorCorreo: string | null = null;
   if (emailConfigured()) {
     destinatarios = await reportRecipients(organizationId);
     if (destinatarios.length > 0) {
@@ -211,9 +212,14 @@ export async function enviarReporteSemanal(organizationId: string, referencia = 
         subject: `Salud de productos · semana del ${bonito(lunesPasado)}`,
         html,
       });
-      // Si el correo no sale, NO se marca como enviado: así el reloj lo
-      // reintenta en la vuelta siguiente en vez de darlo por hecho.
-      if (!r.ok) throw new Error(`No se pudo enviar el reporte semanal: ${r.error}`);
+      // Si el correo no sale se anota y se sigue.
+      //
+      // Antes esto lanzaba, para que el reloj reintentara. Pero el motivo real
+      // de que falle es de configuración —el dominio de Resend sin verificar—,
+      // y eso no se arregla solo: reintentar cada cinco minutos para siempre
+      // castiga a Resend y nunca deja constancia de la semana. El aviso dentro
+      // de la app sale igual, que es lo que garantiza que alguien se entere.
+      if (!r.ok) errorCorreo = r.error ?? "error desconocido";
     }
   }
 
@@ -237,7 +243,9 @@ export async function enviarReporteSemanal(organizationId: string, referencia = 
     data: {
       organizationId,
       weekStart: lunesPasado,
-      enviadoA: destinatarios.join(", ") || "solo aviso interno",
+      enviadoA: errorCorreo
+        ? `no salió por correo (${errorCorreo.slice(0, 200)}) — solo aviso interno`
+        : destinatarios.join(", ") || "solo aviso interno",
       resumen,
     },
   });
