@@ -4,8 +4,21 @@ import { db } from "@/lib/db";
 import { getOverview } from "@/lib/metrics";
 import { resolveRange } from "@/lib/date-range";
 import { getSalesOverview } from "@/lib/sales";
-
-const money = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+import { getRentabilidad } from "@/lib/rentabilidad";
+import { getPulses } from "@/lib/pulse";
+import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
+import {
+  barras,
+  encabezado,
+  moneda,
+  moneda2,
+  pie,
+  recuadro,
+  seccion,
+  semaforo,
+  tarjetas,
+  torta,
+} from "@/lib/pdf-dibujo";
 
 // Arma el PDF del reporte diario para una organización. Se corre a
 // medianoche (ver /api/cron/daily-report) y también se puede disparar a
@@ -38,57 +51,169 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
     distinct: ["message"],
   });
 
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  // Se piden tambien rentabilidad, pulso y alertas: un reporte que solo dice
+  // cuanto se vendio obliga a abrir la app para saber que hacer con eso.
+  const [rentabilidad, pulsos, alertas] = await Promise.all([
+    getRentabilidad(organizationId, reportRange),
+    getPulses(organizationId, reportRange),
+    calcularAlertasDiarias(organizationId),
+  ]);
+
+  // bufferPages permite volver atras al final y numerar el pie en todas.
+  const doc = new PDFDocument({ size: "A4", margin: 48, bufferPages: true });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
 
-  const dateLabel = dayStart.toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  const dateLabel = dayStart.toLocaleDateString("es-EC", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
-  doc.fontSize(20).text(org?.name ?? "Importadora Bella", { continued: false });
-  doc.fontSize(11).fillColor("#666").text(`Reporte diario — ${dateLabel}`);
-  doc.moveDown(1.5);
+  encabezado(doc, org?.name ?? "Importadora Bella", `Reporte del ${dateLabel}`);
 
-  doc.fillColor("#000").fontSize(14).text("Ventas (Shopify)");
-  doc.moveDown(0.3);
-  doc.fontSize(10).fillColor("#333");
-  doc.text(`Ventas totales: ${money(sales.totalSales)} (${sales.totalSalesChangePct >= 0 ? "+" : ""}${sales.totalSalesChangePct.toFixed(1)}% vs. ayer)`);
-  doc.text(`Ticket promedio: ${money(sales.aov)}`);
+  // --- Los cuatro numeros que definen el dia.
+  const gastoPauta = metaOverview.totalSpend + tiktokOverview.totalSpend;
+  const pesoPauta = sales.totalSales > 0 ? gastoPauta / sales.totalSales : null;
+
+  tarjetas(doc, [
+    {
+      label: "Facturado",
+      valor: moneda(sales.totalSales),
+      nota: `${sales.ordenes} ordenes`,
+    },
+    {
+      label: "Ticket promedio",
+      valor: moneda2(sales.aov),
+      nota: `${sales.totalSalesChangePct >= 0 ? "+" : ""}${sales.totalSalesChangePct}% vs. ayer`,
+    },
+    {
+      label: "Gasto en pauta",
+      valor: moneda(gastoPauta),
+      nota: pesoPauta == null ? undefined : `${Math.round(pesoPauta * 100)}% de lo facturado`,
+      tono: pesoPauta != null && pesoPauta > 0.35 ? "mal" : "neutro",
+    },
+    {
+      label: "Utilidad estimada",
+      valor: moneda(rentabilidad.totales.utilidad),
+      nota: "tras mercaderia y flete",
+      tono: rentabilidad.totales.utilidad >= 0 ? "bien" : "mal",
+    },
+  ]);
+
+  // --- Que hacer hoy. Va ARRIBA de los graficos a proposito: es lo unico que
+  // cambia lo que alguien hace despues de leer el reporte.
+  const paraApagar = alertas.filter((a) => a.tipo === "apagar");
+  const paraEscalar = alertas.filter((a) => a.tipo === "escalar");
+
+  if (paraApagar.length > 0) {
+    seccion(doc, "Apagar o corregir hoy");
+    recuadro(
+      doc,
+      `${paraApagar.length} ${paraApagar.length === 1 ? "producto esta" : "productos estan"} por encima de su punto de equilibrio`,
+      paraApagar.slice(0, 5).map((a) => `${a.name}: ${a.mensaje}`),
+      "mal"
+    );
+  }
+
+  if (paraEscalar.length > 0) {
+    seccion(doc, "Escalar hoy");
+    recuadro(
+      doc,
+      `${paraEscalar.length} ${paraEscalar.length === 1 ? "producto aguanta" : "productos aguantan"} mas presupuesto`,
+      paraEscalar.slice(0, 5).map((a) => `${a.name}: ${a.mensaje}`),
+      "bien"
+    );
+  }
+
+  // --- De donde vino la plata.
+  if (sales.channels.length > 0) {
+    seccion(doc, "Ventas por canal");
+    torta(
+      doc,
+      sales.channels.map((c) => ({ label: c.label, valor: c.value }))
+    );
+  }
+
   if (sales.topProducts.length > 0) {
-    doc.moveDown(0.3);
-    doc.text("Top productos:");
-    for (const p of sales.topProducts.slice(0, 5)) {
-      doc.text(`  • ${p.name} — ${money(p.value)}`);
-    }
-  }
-  doc.moveDown(1);
-
-  for (const [label, overview] of [
-    ["Meta Ads", metaOverview],
-    ["TikTok Ads", tiktokOverview],
-  ] as const) {
-    doc.fillColor("#000").fontSize(14).text(label);
-    doc.moveDown(0.3);
-    doc.fontSize(10).fillColor("#333");
-    doc.text(`Gasto: ${money(overview.totalSpend)} · Compras: ${overview.totalPurchases} · CTR: ${overview.ctr.toFixed(2)}%`);
-    if (overview.urgentRows.length > 0) {
-      doc.fillColor("#b03a2e").text(`Necesitan revisión (CPA por encima del objetivo): ${overview.urgentRows.map((p) => p.name).join(", ")}`);
-      doc.fillColor("#333");
-    }
-    doc.moveDown(1);
+    seccion(doc, "Productos que mas vendieron");
+    barras(
+      doc,
+      sales.topProducts.slice(0, 8).map((p) => ({ label: p.name, valor: p.value }))
+    );
   }
 
-  doc.fillColor("#000").fontSize(14).text("Alertas de hoy");
-  doc.moveDown(0.3);
-  doc.fontSize(10).fillColor("#333");
-  if (alerts.length === 0) {
-    doc.text("Sin alertas nuevas en las últimas 24 horas.");
-  } else {
-    for (const a of alerts.slice(0, 15)) {
-      doc.text(`• ${a.message}`);
-    }
+  // --- La lectura en palabras de esos numeros.
+  if (sales.lecturas.length > 0) {
+    seccion(doc, "Que dicen estas ventas");
+    semaforo(doc, sales.lecturas.map((l) => ({ texto: l, tono: "neutro" as const })));
   }
 
+  // --- La pauta, plataforma por plataforma.
+  seccion(doc, "Pauta");
+  tarjetas(doc, [
+    {
+      label: "Meta · gasto",
+      valor: moneda(metaOverview.totalSpend),
+      nota: `${metaOverview.totalPurchases} compras · CTR ${metaOverview.ctr.toFixed(2)}%`,
+    },
+    {
+      label: "TikTok · gasto",
+      valor: moneda(tiktokOverview.totalSpend),
+      nota: `${tiktokOverview.totalPurchases} compras · CTR ${tiktokOverview.ctr.toFixed(2)}%`,
+    },
+    {
+      label: "Compras atribuidas",
+      valor: String(metaOverview.totalPurchases + tiktokOverview.totalPurchases),
+      nota: `contra ${sales.ordenes} ordenes reales`,
+    },
+  ]);
+
+  // --- Salud de cada producto.
+  const conPauta = pulsos.filter((p) => p.state !== "SIN_DATOS");
+  if (conPauta.length > 0) {
+    seccion(doc, "Salud de los productos");
+    semaforo(
+      doc,
+      conPauta.slice(0, 12).map((p) => ({
+        texto: `${p.name} — ${moneda(p.spend)}${p.cpa == null ? ", sin compras" : `, CPA ${moneda2(p.cpa)}`}`,
+        detalle: p.motivos[0],
+        tono:
+          p.state === "SANO" ? ("bien" as const) : p.state === "RIESGO" ? ("mal" as const) : ("ojo" as const),
+      }))
+    );
+  }
+
+  // --- Rentabilidad: lo que gana y lo que pierde, con las barras en el mismo
+  // eje para que la comparacion sea visual y no aritmetica.
+  const conUtilidad = rentabilidad.filas.filter((f) => f.utilidad != null);
+  if (conUtilidad.length > 0) {
+    seccion(doc, "Utilidad por producto");
+    barras(
+      doc,
+      conUtilidad
+        .slice()
+        .sort((a, b) => (b.utilidad ?? 0) - (a.utilidad ?? 0))
+        .slice(0, 10)
+        .map((f) => ({ label: f.name, valor: f.utilidad ?? 0 }))
+    );
+  }
+
+  // --- Lo que aviso el sistema durante el dia.
+  if (alerts.length > 0) {
+    seccion(doc, "Avisos del dia");
+    semaforo(
+      doc,
+      alerts.slice(0, 10).map((a) => ({ texto: a.message, tono: "neutro" as const }))
+    );
+  }
+
+  pie(
+    doc,
+    `${org?.name ?? "Importadora Bella"} · generado el ${new Date().toLocaleString("es-EC", { timeZone: "America/Guayaquil" })} · hora de Ecuador`
+  );
   doc.end();
   return done;
 }
