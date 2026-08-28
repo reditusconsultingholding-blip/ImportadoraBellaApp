@@ -39,10 +39,18 @@ export async function GET(req: NextRequest) {
     // que es lo correcto para el día a día, pero deja el histórico vacío.
     const preset = p.get("windsor");
     if (preset && /^last_\d+[dmwy]T?$/.test(preset)) {
+      // Se puede pedir un conector solo. Traer los dos con un preset largo se
+      // pasa del tiempo del proxy y la petición muere a mitad de camino: la
+      // primera vez quedó Meta escrito con un año entero y TikTok con nada.
+      const cual = p.get("conector");
+      const conectores = (
+        cual === "facebook" || cual === "tiktok" ? [cual] : ["facebook", "tiktok"]
+      ) as ("facebook" | "tiktok")[];
+
       const orgs = await db.organization.findMany({ select: { id: true } });
       const hechos: unknown[] = [];
       for (const org of orgs) {
-        for (const conector of ["facebook", "tiktok"] as const) {
+        for (const conector of conectores) {
           hechos.push({ conector, preset, ...(await syncWindsorConnector(org.id, conector, preset)) });
         }
       }
