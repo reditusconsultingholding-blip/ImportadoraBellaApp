@@ -238,7 +238,16 @@ export function semaforo(
   doc.fillColor(COLOR.tinta).fontSize(10);
 }
 
-/** Un recuadro para lo que hay que hacer. */
+/**
+ * Un recuadro para lo que hay que hacer, partido en las páginas que haga falta.
+ *
+ * Antes dibujaba un solo bloque del alto de todas las líneas juntas. Con la
+ * lista recortada a cinco eso siempre entraba; desde que el reporte lleva TODAS
+ * las recomendaciones, un recuadro puede medir más que la página y lo de abajo
+ * terminaba encima del pie o directamente fuera del papel. Ahora se llena lo
+ * que queda de página, se corta y sigue en la siguiente diciendo que continúa —
+ * porque un recuadro cortado sin avisar se lee como si ahí terminara la lista.
+ */
 export function recuadro(
   doc: Doc,
   titulo: string,
@@ -246,36 +255,82 @@ export function recuadro(
   tono: "bien" | "mal" | "neutro" = "neutro"
 ) {
   if (lineas.length === 0) return;
-  if (doc.y > doc.page.height - 140) doc.addPage();
 
   const margen = 48;
   const ancho = doc.page.width - margen * 2;
-  const yInicio = doc.y;
+  const anchoTexto = ancho - 32;
 
   const fondo = tono === "bien" ? COLOR.bienFondo : tono === "mal" ? COLOR.malFondo : COLOR.fondo;
   const borde = tono === "bien" ? COLOR.bien : tono === "mal" ? COLOR.mal : COLOR.borde;
+  const colorTitulo = tono === "mal" ? COLOR.mal : tono === "bien" ? COLOR.bien : COLOR.tinta;
 
-  // Se mide primero para saber qué alto tiene que tener el recuadro, y recién
-  // después se dibuja el fondo: al revés, el texto queda tapado.
-  let alto = 30;
-  for (const l of lineas) {
-    alto += doc.fontSize(9).heightOfString(l, { width: ancho - 32 }) + 6;
+  // El alto del título dentro del recuadro y el aire que queda abajo.
+  const ALTO_TITULO = 28;
+  const AIRE = 8;
+  // Hasta dónde se puede dibujar sin pisar el pie de página.
+  const limite = () => doc.page.height - 56;
+  const altoDe = (l: string) => doc.fontSize(9).heightOfString(`• ${l}`, { width: anchoTexto }) + 6;
+
+  let i = 0;
+  let primero = true;
+
+  while (i < lineas.length) {
+    // Un recuadro que arranca a treinta píxeles del pie no se lee: si no entra
+    // ni el título con su primera línea, empieza en la página siguiente.
+    if (doc.y + ALTO_TITULO + altoDe(lineas[i]) + AIRE > limite()) doc.addPage();
+
+    const yInicio = doc.y;
+    const disponible = limite() - yInicio;
+
+    // Cuántas líneas entran en lo que queda. Siempre entra al menos una: sin
+    // eso, una línea larguísima haría girar el bucle para siempre.
+    const bloque: string[] = [];
+    let alto = ALTO_TITULO;
+    while (i < lineas.length) {
+      const h = altoDe(lineas[i]);
+      if (bloque.length > 0 && alto + h + AIRE > disponible) break;
+      bloque.push(lineas[i]);
+      alto += h;
+      i++;
+    }
+    alto += AIRE;
+
+    doc.roundedRect(margen, yInicio, ancho, alto, 5).fillAndStroke(fondo, borde);
+
+    doc
+      .fillColor(colorTitulo)
+      .fontSize(10)
+      .text(primero ? titulo : `${titulo} (continúa)`, margen + 16, yInicio + 12, {
+        width: anchoTexto,
+      });
+
+    let y = yInicio + ALTO_TITULO;
+    for (const l of bloque) {
+      doc.fillColor(COLOR.tinta).fontSize(9).text(`• ${l}`, margen + 16, y, { width: anchoTexto });
+      y = doc.y + 4;
+    }
+
+    doc.y = yInicio + alto + 12;
+    primero = false;
   }
 
-  doc.roundedRect(margen, yInicio, ancho, alto, 5).fillAndStroke(fondo, borde);
+  doc.fillColor(COLOR.tinta).fontSize(10);
+}
 
+/**
+ * Una línea chica al pie de una sección, para decir qué quedó afuera.
+ *
+ * Existe porque un ranking cortado en silencio se lee como "esto es todo": si
+ * de treinta productos se muestran ocho, hay que decir que son ocho de treinta
+ * y dónde están los otros.
+ */
+export function nota(doc: Doc, texto: string) {
+  if (doc.y > doc.page.height - 80) doc.addPage();
   doc
-    .fillColor(tono === "mal" ? COLOR.mal : tono === "bien" ? COLOR.bien : COLOR.tinta)
-    .fontSize(10)
-    .text(titulo, margen + 16, yInicio + 12, { width: ancho - 32 });
-
-  let y = yInicio + 28;
-  for (const l of lineas) {
-    doc.fillColor(COLOR.tinta).fontSize(9).text(`• ${l}`, margen + 16, y, { width: ancho - 32 });
-    y = doc.y + 4;
-  }
-
-  doc.y = yInicio + alto + 12;
+    .fillColor(COLOR.suave)
+    .fontSize(8)
+    .text(texto, 48, doc.y + 2, { width: doc.page.width - 96 });
+  doc.y += 6;
   doc.fillColor(COLOR.tinta).fontSize(10);
 }
 

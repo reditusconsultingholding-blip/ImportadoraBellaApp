@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { canApproveActions } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { executeApprovedAction } from "@/lib/integrations/actions";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Aprobar dispara una accion real sobre una campania: es decision de
+  // direccion, no de quien pase por la pantalla.
+  if (!canApproveActions(session.role)) {
+    return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
+  }
 
   const { id } = await params;
   const { decision } = (await req.json()) as { decision: "approve" | "reject" };

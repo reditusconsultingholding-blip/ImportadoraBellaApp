@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import UsersManager from "./users-manager";
+import CapacitacionEquipo from "./capacitacion-equipo";
 
 export default async function UsuariosPage() {
   const session = await getSession();
@@ -28,6 +29,7 @@ export default async function UsuariosPage() {
         role: true,
         canViewPayroll: true,
         mustChangePassword: true,
+        capacitacionVista: true,
         createdAt: true,
         employee: { select: { position: true } },
       },
@@ -60,6 +62,22 @@ export default async function UsuariosPage() {
           createdAt: u.createdAt.toISOString(),
         }))}
       />
+
+      {/* Va debajo de la tabla de usuarios y no en una pantalla aparte: es la
+          misma pregunta —quién es parte del equipo y en qué estado está— y así
+          el dueño ve de un vistazo si el que entró la semana pasada ya sabe
+          usar la herramienta. */}
+      <div className="border-t border-border pt-5">
+        <CapacitacionEquipo
+          currentUserId={session.userId}
+          personas={users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            capacitacionVista: u.capacitacionVista,
+          }))}
+        />
+      </div>
     </div>
   );
 }

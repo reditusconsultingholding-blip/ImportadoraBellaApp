@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ETIQUETA_CIERRE } from "@/lib/reporte-horario";
 
 type Report = { id: string; date: string; createdAt: string };
 
@@ -29,7 +30,15 @@ export default function ReportsList({ initialReports }: { initialReports: Report
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
+      {/* El título vive acá y no en la pantalla porque este bloque es el único
+          que habla de los PDF diarios: lo de arriba es el período elegido. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Reportes diarios</h2>
+          <p className="text-xs text-muted">
+            Un PDF por día, con el cierre de ese día. Se guardan los últimos 60.
+          </p>
+        </div>
         <button
           onClick={generateToday}
           disabled={generating}
@@ -42,7 +51,8 @@ export default function ReportsList({ initialReports }: { initialReports: Report
       <div className="bg-surface border border-border rounded overflow-hidden">
         {reports.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-muted">
-            Todavía no se generó ningún reporte. El primero sale automático a medianoche, o generalo ahora.
+            Todavía no se generó ningún reporte. El primero sale solo a las {ETIQUETA_CIERRE}, o
+            genéralo ahora.
           </p>
         ) : (
           reports.map((r) => (

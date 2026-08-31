@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { canManageConexiones } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import AccountCard from "./account-card";
 import AddAccountButton from "./add-account-button";
@@ -11,6 +12,8 @@ import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 export default async function ConexionesPage() {
   const session = await getSession();
   if (!session) redirect("/login");
+  // Esta pantalla guarda los tokens de produccion. Antes solo pedia sesion.
+  if (!canManageConexiones(session.role)) redirect("/dashboard");
 
   const [accounts, shopifyStore, dropiConnection] = await Promise.all([
     db.adAccount.findMany({

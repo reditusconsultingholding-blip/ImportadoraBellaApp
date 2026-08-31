@@ -7,11 +7,13 @@ import { getSalesOverview } from "@/lib/sales";
 import { getRentabilidad } from "@/lib/rentabilidad";
 import { getPulses } from "@/lib/pulse";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
+import { LIMITE_PESO_PAUTA } from "@/lib/reporte-medidas";
 import {
   barras,
   encabezado,
   moneda,
   moneda2,
+  nota,
   pie,
   recuadro,
   seccion,
@@ -20,9 +22,9 @@ import {
   torta,
 } from "@/lib/pdf-dibujo";
 
-// Arma el PDF del reporte diario para una organización. Se corre a
-// medianoche (ver /api/cron/daily-report) y también se puede disparar a
-// mano desde /dashboard/reportes ("Generar el de hoy").
+// Arma el PDF del reporte diario para una organización. Se genera solo al
+// cierre del día —23:59 de Ecuador, ver reporte-horario.ts— y también se puede
+// disparar a mano desde /dashboard/reportes ("Generar el de hoy").
 export async function buildDailyReportPdf(organizationId: string, date: Date): Promise<Buffer> {
   const org = await db.organization.findUnique({ where: { id: organizationId } });
   // El reporte del día cubre exactamente ese día, no los últimos treinta.
@@ -82,7 +84,7 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
     {
       label: "Facturado",
       valor: moneda(sales.totalSales),
-      nota: `${sales.ordenes} ordenes`,
+      nota: `${sales.ordenes} órdenes`,
     },
     {
       label: "Ticket promedio",
@@ -93,27 +95,40 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
       label: "Gasto en pauta",
       valor: moneda(gastoPauta),
       nota: pesoPauta == null ? undefined : `${Math.round(pesoPauta * 100)}% de lo facturado`,
-      tono: pesoPauta != null && pesoPauta > 0.35 ? "mal" : "neutro",
+      // El umbral sale de reporte-medidas.ts, el mismo que usa la línea de
+      // referencia del gráfico: si viviera acá suelto, pantalla y PDF podrían
+      // terminar pintando de rojo cosas distintas.
+      tono: pesoPauta != null && pesoPauta * 100 > LIMITE_PESO_PAUTA ? "mal" : "neutro",
     },
     {
       label: "Utilidad estimada",
       valor: moneda(rentabilidad.totales.utilidad),
-      nota: "tras mercaderia y flete",
+      nota: "tras mercadería y flete",
       tono: rentabilidad.totales.utilidad >= 0 ? "bien" : "mal",
     },
   ]);
 
-  // --- Que hacer hoy. Va ARRIBA de los graficos a proposito: es lo unico que
-  // cambia lo que alguien hace despues de leer el reporte.
+  // --- Qué hacer hoy. Va ARRIBA de los gráficos a propósito: es lo único que
+  // cambia lo que alguien hace después de leer el reporte.
+  //
+  // Van TODAS. Antes cada recuadro se cortaba en cinco y no decía que hubiera
+  // más: con seis productos perdiendo plata, el sexto no existía para quien
+  // leía el PDF, y un corte silencioso se lee como "esto es todo". Si la lista
+  // es larga, el recuadro se parte en varias páginas (ver pdf-dibujo.ts).
+  //
+  // "Vigilar" tampoco estaba: alertas-diarias.ts lo calcula desde siempre y el
+  // PDF lo tiraba a la basura sin nombrarlo.
   const paraApagar = alertas.filter((a) => a.tipo === "apagar");
   const paraEscalar = alertas.filter((a) => a.tipo === "escalar");
+  const paraVigilar = alertas.filter((a) => a.tipo === "revisar");
+  const linea = (a: (typeof alertas)[number]) => `${a.name}: ${a.mensaje}`;
 
   if (paraApagar.length > 0) {
     seccion(doc, "Apagar o corregir hoy");
     recuadro(
       doc,
-      `${paraApagar.length} ${paraApagar.length === 1 ? "producto esta" : "productos estan"} por encima de su punto de equilibrio`,
-      paraApagar.slice(0, 5).map((a) => `${a.name}: ${a.mensaje}`),
+      `${paraApagar.length} ${paraApagar.length === 1 ? "producto está" : "productos están"} por encima de su punto de equilibrio`,
+      paraApagar.map(linea),
       "mal"
     );
   }
@@ -122,8 +137,32 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
     seccion(doc, "Escalar hoy");
     recuadro(
       doc,
-      `${paraEscalar.length} ${paraEscalar.length === 1 ? "producto aguanta" : "productos aguantan"} mas presupuesto`,
-      paraEscalar.slice(0, 5).map((a) => `${a.name}: ${a.mensaje}`),
+      `${paraEscalar.length} ${paraEscalar.length === 1 ? "producto aguanta" : "productos aguantan"} más presupuesto`,
+      paraEscalar.map(linea),
+      "bien"
+    );
+  }
+
+  if (paraVigilar.length > 0) {
+    seccion(doc, "Vigilar");
+    recuadro(
+      doc,
+      `${paraVigilar.length} ${paraVigilar.length === 1 ? "producto todavía gana" : "productos todavía ganan"}, pero el CPA viene subiendo`,
+      paraVigilar.map(linea),
+      "neutro"
+    );
+  }
+
+  if (alertas.length === 0) {
+    // El silencio también es información: sin esto, un día sin alertas se lee
+    // igual que un día en el que el cálculo falló.
+    seccion(doc, "Qué hacer hoy");
+    recuadro(
+      doc,
+      "Nada para apagar ni para escalar",
+      [
+        "Ningún producto con pauta suficiente quedó fuera de su punto de equilibrio en los últimos 7 días.",
+      ],
       "bien"
     );
   }
@@ -138,16 +177,19 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
   }
 
   if (sales.topProducts.length > 0) {
-    seccion(doc, "Productos que mas vendieron");
+    seccion(doc, "Productos que más vendieron");
     barras(
       doc,
-      sales.topProducts.slice(0, 8).map((p) => ({ label: p.name, valor: p.value }))
+      sales.topProducts.map((p) => ({ label: p.name, valor: p.value }))
     );
+    // getSalesOverview ya devuelve solo la cabeza del ranking, así que acá no
+    // se sabe cuántos quedaron afuera. Se dice lo que sí se sabe: que hay más.
+    nota(doc, "Solo los que más facturaron. El listado completo está en Ventas, en el panel.");
   }
 
   // --- La lectura en palabras de esos numeros.
   if (sales.lecturas.length > 0) {
-    seccion(doc, "Que dicen estas ventas");
+    seccion(doc, "Qué dicen estas ventas");
     semaforo(doc, sales.lecturas.map((l) => ({ texto: l, tono: "neutro" as const })));
   }
 
@@ -167,28 +209,43 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
     {
       label: "Compras atribuidas",
       valor: String(metaOverview.totalPurchases + tiktokOverview.totalPurchases),
-      nota: `contra ${sales.ordenes} ordenes reales`,
+      nota: `contra ${sales.ordenes} órdenes reales`,
     },
   ]);
+  nota(
+    doc,
+    "Las compras de Meta y TikTok son ATRIBUIDAS: cada plataforma se cuelga la venta que cree suya, así que suelen sumar bastante más que las órdenes reales de Shopify. Toda utilidad calculada sobre ellas es una estimación optimista."
+  );
 
   // --- Salud de cada producto.
   const conPauta = pulsos.filter((p) => p.state !== "SIN_DATOS");
+  const TOPE_SALUD = 12;
   if (conPauta.length > 0) {
     seccion(doc, "Salud de los productos");
     semaforo(
       doc,
-      conPauta.slice(0, 12).map((p) => ({
+      conPauta.slice(0, TOPE_SALUD).map((p) => ({
         texto: `${p.name} — ${moneda(p.spend)}${p.cpa == null ? ", sin compras" : `, CPA ${moneda2(p.cpa)}`}`,
         detalle: p.motivos[0],
         tono:
           p.state === "SANO" ? ("bien" as const) : p.state === "RIESGO" ? ("mal" as const) : ("ojo" as const),
       }))
     );
+    // El ranking sí se corta —doce productos ya ocupan media página—, pero se
+    // dice en cuánto y dónde está el resto. Lo que no se corta nunca son las
+    // recomendaciones de arriba.
+    if (conPauta.length > TOPE_SALUD) {
+      nota(
+        doc,
+        `${TOPE_SALUD} de ${conPauta.length} productos con pauta. Los otros ${conPauta.length - TOPE_SALUD} están en Productos, en el panel.`
+      );
+    }
   }
 
   // --- Rentabilidad: lo que gana y lo que pierde, con las barras en el mismo
   // eje para que la comparacion sea visual y no aritmetica.
   const conUtilidad = rentabilidad.filas.filter((f) => f.utilidad != null);
+  const TOPE_UTILIDAD = 10;
   if (conUtilidad.length > 0) {
     seccion(doc, "Utilidad por producto");
     barras(
@@ -196,17 +253,24 @@ export async function buildDailyReportPdf(organizationId: string, date: Date): P
       conUtilidad
         .slice()
         .sort((a, b) => (b.utilidad ?? 0) - (a.utilidad ?? 0))
-        .slice(0, 10)
+        .slice(0, TOPE_UTILIDAD)
         .map((f) => ({ label: f.name, valor: f.utilidad ?? 0 }))
     );
+    if (conUtilidad.length > TOPE_UTILIDAD) {
+      nota(
+        doc,
+        `${TOPE_UTILIDAD} de ${conUtilidad.length} productos con economía cargada. Los otros ${conUtilidad.length - TOPE_UTILIDAD} están en Rentabilidad, en el panel.`
+      );
+    }
   }
 
-  // --- Lo que aviso el sistema durante el dia.
+  // --- Lo que avisó el sistema durante el día. Van todos: son de ese día y no
+  // hay tantos como para llenar una página.
   if (alerts.length > 0) {
-    seccion(doc, "Avisos del dia");
+    seccion(doc, "Avisos del día");
     semaforo(
       doc,
-      alerts.slice(0, 10).map((a) => ({ texto: a.message, tono: "neutro" as const }))
+      alerts.map((a) => ({ texto: a.message, tono: "neutro" as const }))
     );
   }
 

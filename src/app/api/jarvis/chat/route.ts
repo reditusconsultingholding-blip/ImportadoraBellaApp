@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { canUseJarvis } from "@/lib/permissions";
 import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canUseJarvis(session.role)) {
+    return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
+  }
 
   const { history, conversacionId } = (await req.json()) as {
     history: ChatTurn[];

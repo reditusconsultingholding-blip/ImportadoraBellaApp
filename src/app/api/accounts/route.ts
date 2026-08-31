@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canManageConexiones } from "@/lib/permissions";
 
 const PLATFORM_LABEL: Record<string, string> = {
   META: "Meta",
@@ -10,6 +11,9 @@ const PLATFORM_LABEL: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  if (!canManageConexiones(session.role)) {
+    return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
+  }
 
   const { platform } = (await req.json()) as { platform?: string };
   if (platform !== "META" && platform !== "TIKTOK") {

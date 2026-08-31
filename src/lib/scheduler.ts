@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { rellenarClientes } from "@/lib/relleno-clientes";
+import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
@@ -180,21 +181,19 @@ export async function sincronizarTodo() {
  * reloj por acá.
  */
 async function generarReporteDelDiaAnterior(organizationId: string) {
-  // "Ayer" es el de Ecuador. Con la hora del servidor (UTC), entre las 19:00 y
-  // la medianoche el reporte saldría con la fecha del día siguiente.
-  const enEcuador = new Date(Date.now() - 5 * 3600_000);
-  const ayer = new Date(
-    Date.UTC(enEcuador.getUTCFullYear(), enEcuador.getUTCMonth(), enEcuador.getUTCDate() - 1)
-  );
+  // El día que ya cerró: el reporte sale a las 23:59 de Ecuador, no a la
+  // medianoche. La cuenta vive en reporte-horario.ts para que la pantalla y el
+  // reloj afirmen el MISMO horario — antes cada uno lo calculaba por su lado.
+  const dia = diaDelReportePendiente();
 
   const yaEsta = await db.dailyReport.findUnique({
-    where: { organizationId_date: { organizationId, date: ayer } },
+    where: { organizationId_date: { organizationId, date: dia } },
     select: { id: true },
   });
   if (yaEsta) return null;
 
-  await generateAndStoreDailyReport(organizationId, ayer);
-  return `generado el del ${ayer.toISOString().slice(0, 10)}`;
+  await generateAndStoreDailyReport(organizationId, dia);
+  return `generado el del ${dia.toISOString().slice(0, 10)}`;
 }
 
 // El reloj se guarda en globalThis y no en un módulo: en desarrollo, Next

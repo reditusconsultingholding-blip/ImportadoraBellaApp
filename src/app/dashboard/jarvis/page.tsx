@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { canUseJarvis } from "@/lib/permissions";
 import { listarConversaciones } from "@/lib/jarvis-chats";
 import JarvisChat from "./jarvis-chat";
 
 export default async function JarvisPage() {
   const session = await getSession();
   if (!session) redirect("/login");
+  // Jarvis consulta la base entera: facturacion, utilidad, costos, clientes.
+  // Es la pantalla que mas datos expone y no miraba el rol.
+  if (!canUseJarvis(session.role)) redirect("/dashboard");
 
   // La lista se trae en el servidor y no al montar el componente: así la
   // pantalla ya llega con las conversaciones puestas, sin un parpadeo vacío.
