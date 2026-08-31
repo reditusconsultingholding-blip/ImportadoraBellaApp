@@ -246,7 +246,19 @@ export async function enviarAlertasDiarias(organizationId: string) {
       await db.notification.create({
         data: {
           userId: persona.id,
-          type: a.tipo === "escalar" ? "alert_escala" : "alert_fatiga",
+          // Un tipo por cada cosa, y "apagar" el suyo propio.
+          //
+          // Antes apagar y vigilar compartian "alert_fatiga", asi que la
+          // alerta mas urgente que produce el sistema —plata saliendo ahora—
+          // era indistinguible de un aviso de mirar de reojo. Cualquier
+          // pantalla que quisiera ordenar por urgencia tenia que adivinarlo
+          // leyendo el texto del mensaje.
+          type:
+            a.tipo === "escalar"
+              ? "alert_escala"
+              : a.tipo === "apagar"
+                ? "alert_apagar"
+                : "alert_fatiga",
           message: `${a.tipo === "escalar" ? "Escalar" : a.tipo === "apagar" ? "Apagar" : "Vigilar"} · ${a.name}: ${a.mensaje}`,
           link: `/dashboard/productos/${encodeURIComponent(a.code)}`,
         },

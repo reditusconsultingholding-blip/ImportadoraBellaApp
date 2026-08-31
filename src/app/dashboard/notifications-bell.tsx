@@ -2,8 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { etiquetaDe, nivelDe, nivelPorId } from "@/lib/notificaciones-orden";
 
-type Notification = { id: string; message: string; link: string | null; read: boolean; createdAt: string };
+type Notification = {
+  id: string;
+  message: string;
+  link: string | null;
+  type: string;
+  read: boolean;
+  createdAt: string;
+};
 
 export default function NotificationsBell() {
   const router = useRouter();
@@ -88,7 +96,11 @@ export default function NotificationsBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-80 bg-surface border border-border rounded shadow-lg z-20 max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <p className="font-mono text-xs uppercase tracking-wide text-muted">Notificaciones</p>
+            {/* El mismo número que muestra el centro de notificaciones: los dos
+                cuentan TODAS las sin leer, sin recorte por fecha. */}
+            <p className="font-mono text-xs uppercase tracking-wide text-muted">
+              {unreadCount > 0 ? `${unreadCount} sin leer` : "Notificaciones"}
+            </p>
             {unreadCount > 0 && (
               <button onClick={markAllRead} className="text-xs text-accent hover:underline">
                 Marcar todo leído
@@ -98,25 +110,37 @@ export default function NotificationsBell() {
           {items.length === 0 ? (
             <p className="px-4 py-6 text-xs text-muted text-center">No hay notificaciones.</p>
           ) : (
-            items.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => openNotification(n)}
-                className={`w-full text-left px-4 py-3 border-b border-border last:border-b-0 hover:bg-surface-2 transition ${
-                  n.read ? "" : "bg-accent/5"
-                }`}
-              >
-                <p className="text-xs">{n.message}</p>
-                <p className="text-[10px] text-muted mt-1 font-mono">
-                  {new Date(n.createdAt).toLocaleString("es-CO", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </button>
-            ))
+            items.map((n) => {
+              // Misma lectura de urgencia que el centro de notificaciones, y
+              // por eso sale de la librería compartida: si la campana pintara
+              // con su propio criterio, algo urgente ahí sería "normal" allá.
+              const nivel = nivelPorId(nivelDe(n));
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => openNotification(n)}
+                  className={`w-full text-left px-4 py-3 border-b border-l-2 border-border last:border-b-0 hover:bg-surface-2 transition ${
+                    nivel.borde
+                  } ${n.read ? "" : "bg-accent/5"}`}
+                >
+                  <p className="flex items-center gap-1.5 mb-1">
+                    <span className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${nivel.chip}`}>
+                      {nivel.label}
+                    </span>
+                    <span className="font-mono text-[9px] uppercase tracking-wide text-muted">{etiquetaDe(n)}</span>
+                  </p>
+                  <span className="text-xs block">{n.message}</span>
+                  <span className="text-[10px] text-muted mt-1 font-mono block">
+                    {new Date(n.createdAt).toLocaleString("es-EC", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </button>
+              );
+            })
           )}
           <a
             href="/dashboard/notificaciones"

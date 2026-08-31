@@ -58,6 +58,41 @@ export function messageWhere(session: SessionPayload, scope: Scope) {
   };
 }
 
+// Cuántos mensajes puede tener fijados una conversación a la vez. Es el mismo
+// tope que el de los anclados del canal (`/api/chat/pins`), a propósito: el
+// equipo llama "fijados" a las dos cosas, y que una aguantara tres y la otra
+// infinitas dejaba la barra de arriba como una lista que nadie mira.
+export const MAX_FIJADOS = 3;
+
+/**
+ * El filtro de la conversación a la que pertenece un mensaje, deducido del
+ * mensaje mismo y no de la sesión de quien pregunta. Sirve para contar lo que
+ * hay fijado a su alrededor sin tener que rearmar el scope desde afuera.
+ */
+export function conversacionDeMensaje(message: {
+  organizationId: string;
+  channelId: string | null;
+  authorId: string;
+  recipientId: string | null;
+}) {
+  if (message.channelId) {
+    return { organizationId: message.organizationId, channelId: message.channelId };
+  }
+
+  // Un mensaje sin canal siempre tiene destinatario; si faltara, el filtro se
+  // queda en la conversación de la persona consigo misma en vez de abrirse a
+  // todos los directos de la organización.
+  const otro = message.recipientId ?? message.authorId;
+  return {
+    organizationId: message.organizationId,
+    channelId: null,
+    OR: [
+      { authorId: message.authorId, recipientId: otro },
+      { authorId: otro, recipientId: message.authorId },
+    ],
+  };
+}
+
 export const MESSAGE_INCLUDE = {
   author: { select: { id: true, name: true, avatarUrl: true } },
   reactions: { select: { emoji: true, userId: true } },

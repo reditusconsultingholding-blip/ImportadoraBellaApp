@@ -264,24 +264,35 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
   const MAX_VUELTAS = 6;
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
-    const response = await client.messages.create({
-      model: MODEL,
-      // El tope estaba en 700 y ESE era el motivo de que Jarvis se quedara
-      // mudo con las preguntas difíciles.
-      //
-      // El modelo razona antes de contestar, y ese razonamiento se descuenta
-      // del mismo tope. Con 700, una pregunta como "¿qué hago para escalar a
-      // 50 mil?" se consumía el presupuesto pensando y no quedaba nada para
-      // la respuesta: llegaba un mensaje sin texto, y la pantalla mostraba
-      // "no encontré información suficiente" — que era falso y además el
-      // peor mensaje posible, porque suena a que no hay datos.
-      //
-      // Las respuestas se mantienen cortas por el prompt, no por asfixia.
-      max_tokens: 8000,
-      system: buildSystemPrompt(org.name, contextSummary, conocimiento),
-      tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...HERRAMIENTAS],
-      messages,
-    });
+    // Se pide en streaming aunque la respuesta se devuelva entera.
+    //
+    // No es para mostrarla letra por letra: es que con un tope alto y sin
+    // streaming la conexión se cae por tiempo antes de que el modelo termine.
+    // Pidiéndola así, la respuesta llega completa igual y no hay reloj
+    // corriendo en contra.
+    const response = await client.messages
+      .stream({
+        model: MODEL,
+        // El tope estaba en 700 y ESE era el motivo de que Jarvis se quedara
+        // mudo con las preguntas difíciles.
+        //
+        // El modelo razona antes de contestar, y ese razonamiento se descuenta
+        // del MISMO tope. Con 700, una pregunta como "¿qué hago para escalar a
+        // 50 mil?" se consumía el presupuesto pensando y no quedaba nada para
+        // la respuesta: llegaba un mensaje sin texto, y la pantalla mostraba
+        // "no encontré información suficiente" — falso, y encima el peor
+        // mensaje posible, porque suena a que no hay datos.
+        //
+        // 20.000 es un TECHO, no un gasto: se paga lo que de verdad se
+        // genera. Las respuestas se mantienen cortas por el prompt, no por
+        // asfixia, así que subirlo no encarece nada — solo deja de cortar las
+        // preguntas difíciles.
+        max_tokens: 20_000,
+        system: buildSystemPrompt(org.name, contextSummary, conocimiento),
+        tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...HERRAMIENTAS],
+        messages,
+      })
+      .finalMessage();
 
     const resultados: Anthropic.ToolResultBlockParam[] = [];
 

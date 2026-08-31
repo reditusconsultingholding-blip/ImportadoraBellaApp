@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline } from "@/lib/permissions";
 import {
+  MAX_FIJADOS,
   MESSAGE_INCLUDE,
+  conversacionDeMensaje,
   messageWhere,
   notifyMentions,
   parseScope,
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, message: toView(created, session.userId) });
 }
 
-// PATCH: editar el texto propio, o fijar/desfijar un mensaje del canal.
+// PATCH: editar el texto propio, o fijar/desfijar un mensaje.
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -142,32 +144,85 @@ export async function PATCH(req: NextRequest) {
 
   const message = await db.chatMessage.findUnique({
     where: { id },
-    select: { id: true, authorId: true, organizationId: true },
+    select: {
+      id: true,
+      authorId: true,
+      organizationId: true,
+      channelId: true,
+      recipientId: true,
+      pinned: true,
+      editedAt: true,
+    },
   });
   if (!message || message.organizationId !== session.organizationId) {
     return NextResponse.json({ error: "Mensaje no encontrado." }, { status: 404 });
   }
 
   if (body !== undefined) {
-    // Editar el mensaje de otro no lo puede hacer nadie, ni un administrador:
-    // quedaría texto con el nombre de alguien que no lo escribió.
-    if (message.authorId !== session.userId) {
-      return NextResponse.json({ error: "Solo puedes editar tus propios mensajes." }, { status: 403 });
-    }
     const text = body.trim();
     if (!text) return NextResponse.json({ error: "El mensaje está vacío." }, { status: 400 });
     if (text.length > MAX_BODY) {
       return NextResponse.json({ error: "El mensaje es demasiado largo." }, { status: 400 });
     }
-    const updated = await db.chatMessage.update({
-      where: { id },
+
+    // Las dos reglas de la edición —que sea tuyo y que todavía no lo hayas
+    // editado— van dentro del WHERE, no en un `if` previo. Editar el mensaje
+    // de otro no lo puede hacer nadie, ni un administrador: quedaría texto con
+    // el nombre de alguien que no lo escribió. Y la segunda edición tiene que
+    // rebotar en la misma escritura: comprobando antes y actualizando después,
+    // dos peticiones a la vez pasaban las dos el chequeo y el mensaje quedaba
+    // reescrito dos veces.
+    const { count } = await db.chatMessage.updateMany({
+      where: {
+        id,
+        organizationId: session.organizationId,
+        authorId: session.userId,
+        editedAt: null,
+      },
       data: { body: text, editedAt: new Date() },
+    });
+
+    if (count === 0) {
+      // Acá ya no se decide nada —la autorización la resolvió el WHERE—, solo
+      // se elige qué contestar: "no se pudo editar" a secas no le explica a
+      // nadie qué pasó.
+      if (message.authorId !== session.userId) {
+        return NextResponse.json(
+          { error: "Solo puedes editar tus propios mensajes." },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Este mensaje ya se editó una vez y no se puede volver a editar." },
+        { status: 409 }
+      );
+    }
+
+    const updated = await db.chatMessage.findUniqueOrThrow({
+      where: { id },
       include: MESSAGE_INCLUDE,
     });
     return NextResponse.json({ ok: true, message: toView(updated, session.userId) });
   }
 
   if (typeof pinned === "boolean") {
+    // El tope de fijados se cuenta acá y no en la pantalla: el botón se puede
+    // esconder, la petición no. Solo se mira al fijar algo que no lo estaba
+    // —desfijar y volver a fijar lo mismo no puede quedar trabado por sí
+    // mismo— y se cuenta dentro de la conversación del mensaje, para que un
+    // canal lleno no impida fijar nada en un directo.
+    if (pinned && !message.pinned) {
+      const fijados = await db.chatMessage.count({
+        where: { ...conversacionDeMensaje(message), pinned: true },
+      });
+      if (fijados >= MAX_FIJADOS) {
+        return NextResponse.json(
+          { error: `Ya hay ${MAX_FIJADOS} mensajes fijados aquí. Suelta uno para fijar este.` },
+          { status: 409 }
+        );
+      }
+    }
+
     const updated = await db.chatMessage.update({
       where: { id },
       data: { pinned },

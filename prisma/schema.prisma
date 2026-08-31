@@ -572,7 +572,8 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   message   String
   link      String? // ej. /dashboard/pipeline?open={requirementId}
-  // mention | alert_escala | alert_fatiga | alert_discrepancia | daily_report
+  // mention | alert_escala | alert_apagar | alert_fatiga | alert_discrepancia |
+  // daily_report | asignacion
   type      String   @default("mention")
   read      Boolean  @default(false)
   createdAt DateTime @default(now())

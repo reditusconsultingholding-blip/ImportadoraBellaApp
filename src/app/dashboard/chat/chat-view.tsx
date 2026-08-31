@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatPins from "./chat-pins";
+import { claveDia, esContinuacion, etiquetaDia, fechaHoraEc, horaEc } from "./dias";
 import VoiceRoom from "./voice-room";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,11 +26,10 @@ function initials(name: string) {
     .join("");
 }
 
-const timeOf = (iso: string) =>
-  new Date(iso).toLocaleTimeString("es-EC", { hour: "numeric", minute: "2-digit" });
-
-const dayOf = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-EC", { day: "numeric", month: "long", year: "numeric" });
+// Cuántos mensajes se pueden tener fijados en una conversación. El tope de
+// verdad lo aplica la API; acá se repite solo para no ofrecer un botón que va
+// a rebotar.
+const MAX_FIJADOS = 3;
 
 function Avatar({ name, url, size = 32 }: { name: string; url?: string | null; size?: number }) {
   if (url) {
@@ -208,13 +208,19 @@ export default function ChatView({
   }
 
   async function togglePin(message: ChatMessageView) {
+    setError(null);
     const res = await fetch("/api/chat", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: message.id, pinned: !message.pinned }),
     });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // El tope de fijados lo decide la API. Antes esto se tragaba el error y
+      // el botón parecía simplemente no funcionar.
+      setError(data.error ?? "No se pudo fijar el mensaje.");
+      return;
+    }
     setMessages((prev) => prev.map((m) => (m.id === message.id ? data.message : m)));
   }
 
@@ -267,7 +273,8 @@ export default function ChatView({
     router.push(`/dashboard/chat?c=channel:${data.id}`);
   }
 
-  const pinned = messages.filter((m) => m.pinned);
+  const fijados = messages.filter((m) => m.pinned);
+  const sinCupo = fijados.length >= MAX_FIJADOS;
 
   return (
     <div className="flex flex-col gap-4">
@@ -347,9 +354,10 @@ export default function ChatView({
         <section className="bg-surface border border-border rounded flex flex-col h-[calc(100vh-15rem)] min-h-[420px] overflow-hidden">
           <header className="px-4 py-3 border-b border-border shrink-0">
             <p className="font-medium text-sm">{activeTitle ?? "Elige una conversación"}</p>
-            {pinned.length > 0 && (
+            {fijados.length > 0 && (
               <p className="text-xs text-muted mt-0.5 truncate">
-                📌 {pinned[pinned.length - 1].body}
+                📌 {fijados.length > 1 && <span>{fijados.length} fijados · </span>}
+                {fijados[fijados.length - 1].body}
               </p>
             )}
           </header>
@@ -380,35 +388,59 @@ export default function ChatView({
             )}
 
             {messages.map((message, i) => {
-              const prev = messages[i - 1];
-              const newDay = !prev || dayOf(prev.createdAt) !== dayOf(message.createdAt);
-              // Mensajes seguidos de la misma persona en menos de 5 minutos se
-              // agrupan: no hace falta repetir el nombre y la foto cada vez.
-              const grouped =
-                !newDay &&
-                prev?.author.id === message.author.id &&
-                new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
+              const previo = messages[i - 1];
+              const nuevoDia =
+                !previo || claveDia(previo.createdAt) !== claveDia(message.createdAt);
+              const pegado = !nuevoDia && esContinuacion(previo, message);
+
+              // La línea va entre BLOQUES, no entre mensajes: separa a una
+              // persona de la siguiente sin rayar la conversación entera. El
+              // primer bloque del día no la lleva, que ahí ya separa la fecha.
+              const separador = pegado || nuevoDia ? "" : "mt-3 border-t border-border pt-3";
 
               return (
-                <div key={message.id}>
-                  {newDay && (
-                    <div className="flex items-center gap-3 my-4">
+                <div key={message.id} className={separador}>
+                  {nuevoDia && (
+                    <div className={`flex items-center gap-3 ${i === 0 ? "mb-4" : "mt-5 mb-4"}`}>
                       <span className="h-px flex-1 bg-border" />
-                      <span className="text-[11px] text-muted">{dayOf(message.createdAt)}</span>
+                      <span
+                        className="rounded-full border border-border bg-surface-2 px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                        title={fechaHoraEc(message.createdAt)}
+                      >
+                        {etiquetaDia(message.createdAt)}
+                      </span>
                       <span className="h-px flex-1 bg-border" />
                     </div>
                   )}
 
-                  <div className={`group flex gap-2.5 ${grouped ? "mt-0.5" : "mt-3"}`}>
+                  <div
+                    className={`group -mx-2 flex gap-2.5 rounded px-2 py-0.5 transition-colors hover:bg-surface-2/60 ${
+                      pegado ? "mt-0.5" : ""
+                    }`}
+                  >
                     <div className="w-8 shrink-0">
-                      {!grouped && <Avatar name={message.author.name} url={message.author.avatarUrl} />}
+                      {pegado ? (
+                        // En los mensajes pegados la hora ocupa el hueco del
+                        // avatar al pasar el mouse: así se puede saber cuándo
+                        // se dijo algo sin repetir la línea del nombre.
+                        <span className="hidden pt-1 text-right text-[10px] leading-none text-muted group-hover:block">
+                          {horaEc(message.createdAt)}
+                        </span>
+                      ) : (
+                        <Avatar name={message.author.name} url={message.author.avatarUrl} />
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      {!grouped && (
+                      {!pegado && (
                         <p className="flex items-baseline gap-2">
                           <span className="font-medium text-[13px]">{message.author.name}</span>
-                          <span className="text-[11px] text-muted">{timeOf(message.createdAt)}</span>
+                          <span
+                            className="text-[11px] text-muted"
+                            title={fechaHoraEc(message.createdAt)}
+                          >
+                            {horaEc(message.createdAt)}
+                          </span>
                         </p>
                       )}
 
@@ -447,7 +479,12 @@ export default function ChatView({
                         <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
                           {message.body}
                           {message.editedAt && (
-                            <span className="ml-1.5 text-[11px] text-muted">(editado)</span>
+                            <span
+                              className="ml-1.5 align-baseline text-[11px] text-muted"
+                              title={`Editado el ${fechaHoraEc(message.editedAt)}`}
+                            >
+                              (editado)
+                            </span>
                           )}
                         </p>
                       )}
@@ -488,15 +525,31 @@ export default function ChatView({
                           <path d="M4 10h7a5 5 0 0 1 5 5v1" />
                         </ActionButton>
                         <ActionButton
-                          title={message.pinned ? "Dejar de fijar" : "Fijar"}
+                          title={
+                            message.pinned
+                              ? "Dejar de fijar"
+                              : sinCupo
+                                ? `Ya hay ${MAX_FIJADOS} mensajes fijados aquí. Suelta uno para fijar este.`
+                                : "Fijar"
+                          }
+                          inactivo={!message.pinned && sinCupo}
                           onClick={() => togglePin(message)}
                         >
                           <path d="M8 3h4l-.5 5 2.5 2.5H6L8.5 8z" />
                           <path d="M10 10.5V17" />
                         </ActionButton>
+                        {/* El botón de editar se deja a la vista en gris en vez
+                            de esconderlo: desaparecido parece que la app se
+                            rompió, y así el texto al pasar el mouse explica por
+                            qué ya no se puede. */}
                         {message.mine && (
                           <ActionButton
-                            title="Editar"
+                            title={
+                              message.editedAt
+                                ? "Ya lo editaste. Cada mensaje se puede editar una sola vez."
+                                : "Editar"
+                            }
+                            inactivo={Boolean(message.editedAt)}
                             onClick={() => setEditing({ id: message.id, body: message.body })}
                           >
                             <path d="M13.5 3.5a1.8 1.8 0 0 1 2.5 2.5L7 15l-3.5 1L4.5 12.5z" />
@@ -600,19 +653,29 @@ function ActionButton({
   title,
   onClick,
   danger,
+  inactivo,
   children,
 }: {
   title: string;
   onClick: () => void;
   danger?: boolean;
+  inactivo?: boolean;
   children: React.ReactNode;
 }) {
+  // `aria-disabled` y no `disabled`: un botón deshabilitado de verdad no
+  // recibe el mouse en varios navegadores, y entonces nadie llega a leer el
+  // texto que explica por qué está apagado.
   return (
     <button
-      onClick={onClick}
+      onClick={inactivo ? undefined : onClick}
+      aria-disabled={inactivo || undefined}
       title={title}
-      className={`rounded px-1 py-0.5 hover:bg-surface-2 ${
-        danger ? "text-muted hover:text-critical" : "text-muted hover:text-foreground"
+      className={`rounded px-1 py-0.5 ${
+        inactivo
+          ? "cursor-not-allowed text-muted opacity-40"
+          : danger
+            ? "text-muted hover:bg-surface-2 hover:text-critical"
+            : "text-muted hover:bg-surface-2 hover:text-foreground"
       }`}
     >
       <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

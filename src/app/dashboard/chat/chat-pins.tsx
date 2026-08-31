@@ -126,7 +126,17 @@ export default function ChatPins({ channelId }: { channelId: string }) {
           </svg>
         </button>
 
-        {!lleno && (
+        {lleno ? (
+          // El botón no se esconde al llegar al tope: desaparecido, nadie sabe
+          // si el canal se quedó sin la opción o si algo se rompió. Se queda
+          // como contador, y explica al pasar el mouse por qué no se puede.
+          <span
+            title={`Ya hay ${MAXIMO} anclados en este canal. Suelta uno para anclar otro.`}
+            className="shrink-0 cursor-not-allowed text-xs text-muted opacity-70"
+          >
+            {MAXIMO}/{MAXIMO} anclados
+          </span>
+        ) : (
           <button
             onClick={() => {
               setCreando(true);
@@ -138,6 +148,10 @@ export default function ChatPins({ channelId }: { channelId: string }) {
           </button>
         )}
       </div>
+
+      {/* El error vive fuera del formulario: si no, un fallo al soltar un
+          anclado no se veía nunca, porque el formulario estaba cerrado. */}
+      {error && !creando && <p className="px-4 pb-2 text-xs text-critical">{error}</p>}
 
       {abierto && (
         <div className="flex flex-col gap-2 px-4 pb-3">
@@ -180,7 +194,8 @@ export default function ChatPins({ channelId }: { channelId: string }) {
 
           {lleno && !creando && (
             <p className="text-xs text-muted">
-              Este canal ya tiene {MAXIMO} anclados. Suelta uno para anclar otro.
+              Este canal ya tiene {MAXIMO} anclados, que es el máximo. Suelta uno para anclar
+              otro.
             </p>
           )}
 
