@@ -259,23 +259,29 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
 
   // Guardado automático con espera: mover un campo dispara un cambio por
   // tecla, y no hay por qué escribir la base en cada una.
+  //
+  // La nota va incluida. Antes se mandaba solo `valores`, así que el guardado
+  // automático PISABA la nota: escribías el análisis, lo guardabas, tocabas
+  // cualquier campo y setecientos milisegundos después la nota había
+  // desaparecido sin que nada lo dijera.
   useEffect(() => {
     if (!selectedProduct || !ajustesListos) return;
     const t = setTimeout(() => {
+      const cuerpo = { ...valores, nota };
       setGuardado("guardando");
       fetch("/api/calculadora", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ producto: selectedProduct, data: valores }),
+        body: JSON.stringify({ producto: selectedProduct, data: cuerpo }),
       })
         .then((r) => {
-          if (r.ok) ajustesRef.current[selectedProduct] = valores;
+          if (r.ok) ajustesRef.current[selectedProduct] = cuerpo;
           setGuardado(r.ok ? "guardado" : "limpio");
         })
         .catch(() => setGuardado("limpio"));
     }, 700);
     return () => clearTimeout(t);
-  }, [valores, selectedProduct, ajustesListos]);
+  }, [valores, nota, selectedProduct, ajustesListos]);
 
   const conf = Math.min(Math.max(num(confirmationPct) / 100, 0), 1);
   const dev = Math.min(Math.max(num(returnPct) / 100, 0), 1);
@@ -560,6 +566,36 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                 <input className={inputClass} type="number" value={fixedProfit} onChange={(e) => setFixedProfit(e.target.value)} />
               </label>
             )}
+
+            {/* Guardar acá abajo, al final del formulario.
+                Ya existía un botón, pero arriba junto al selector de producto,
+                a dos pantallas de donde se termina de ajustar. Quien llena todo
+                de arriba hacia abajo llega al final, no ve forma de guardar, y
+                concluye que no se guarda. */}
+            <div className="mt-4 border-t border-border pt-4">
+              {selectedProduct ? (
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={guardarAhora}
+                    disabled={guardado === "guardando"}
+                    className="w-full rounded bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-40"
+                  >
+                    {guardado === "guardando" ? "Guardando…" : "Guardar cambios"}
+                  </button>
+                  <p className="text-xs text-muted">
+                    {guardado === "guardado"
+                      ? `Guardado en ${selectedProduct} — todo el equipo ve estos valores.`
+                      : `Se guarda solo en ${selectedProduct}, pero puedes forzarlo aquí.`}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted">
+                  Elige un producto arriba para poder guardar esta estimación. Sin producto los
+                  números se calculan igual, pero no quedan asociados a nada.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

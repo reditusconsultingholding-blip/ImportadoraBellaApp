@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import { canManagePipeline } from "@/lib/permissions";
 import { fetchProductCatalog, type ShopifyCatalogProduct } from "@/lib/integrations/shopify";
 import PricingCalculator, { type CalcProduct } from "./pricing-calculator";
+import SinRentabilidad, { type FilaSinRentabilidad } from "./sin-rentabilidad";
+import { getRentabilidad } from "@/lib/rentabilidad";
+import { recomendar } from "@/lib/recomendaciones";
+import { economiaDe } from "@/lib/economia";
+import { resolveRange } from "@/lib/date-range";
 
 export default async function CalculadoraPage() {
   const session = await getSession();
@@ -18,6 +23,7 @@ export default async function CalculadoraPage() {
     db.product.findMany({
       where: { organizationId: session.organizationId, archived: false },
       select: {
+        code: true,
         name: true,
         salePrice: true,
         unitCost: true,
@@ -74,6 +80,64 @@ export default async function CalculadoraPage() {
   }
   const products = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
 
+  // Los que están perdiendo plata, con qué hacer.
+  //
+  // Se usa getRentabilidad y no una consulta propia: son los mismos números de
+  // la pantalla de Rentabilidad. Si acá dijera otra cosa, habría dos verdades
+  // sobre el mismo producto y ninguna forma de saber cuál creer.
+  const fichaPorCodigo = new Map(fichas.map((p) => [p.code, p]));
+
+  const rango = resolveRange("30d");
+  const rent = await getRentabilidad(session.organizationId, rango);
+
+  const ajustes = await db.calcSetting.findMany({
+    where: { organizationId: session.organizationId },
+    select: { producto: true, data: true },
+  });
+  const notaDe = new Map<string, string>();
+  for (const a of ajustes) {
+    try {
+      const d = JSON.parse(a.data) as { recomendacion?: unknown };
+      if (typeof d?.recomendacion === "string") notaDe.set(a.producto, d.recomendacion);
+    } catch {
+      continue;
+    }
+  }
+
+  const perdiendo: FilaSinRentabilidad[] = rent.filas
+    .filter((f) => f.tieneEconomia && f.utilidad != null && f.utilidad < 0)
+    .sort((a, b) => (a.utilidad ?? 0) - (b.utilidad ?? 0))
+    .map((f) => {
+      // El precio, el costo y el flete salen de la ficha del producto: la fila
+      // de rentabilidad trae la plata calculada, no los insumos con los que se
+      // calculo.
+      const ficha = f.code ? fichaPorCodigo.get(f.code) : undefined;
+      const eco = ficha
+        ? economiaDe({
+            salePrice: ficha.salePrice,
+            unitCost: ficha.unitCost,
+            efectividad: ficha.efectividad,
+            devoluciones: ficha.devoluciones,
+            flete: ficha.flete,
+            gastoAdmPorPedido: null,
+          })
+        : null;
+      return {
+        code: f.code,
+        name: f.name,
+        gastoPauta: f.gastoPauta,
+        cpa: f.cpa,
+        cpaBreakeven: f.cpaBreakeven ?? 0,
+        cpaObjetivo: f.cpaObjetivo ?? 0,
+        utilidad: f.utilidad ?? 0,
+        precio: ficha?.salePrice ?? 0,
+        efectividad: ficha?.efectividad ?? 0,
+        devoluciones: ficha?.devoluciones ?? 0,
+        recomendaciones: eco ? recomendar(eco, f.cpa, { gastoPauta: f.gastoPauta }) : [],
+        nota: notaDe.get(f.name) ?? "",
+      };
+    });
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -95,6 +159,8 @@ export default async function CalculadoraPage() {
         )}
       </div>
       <PricingCalculator products={products} />
+
+      <SinRentabilidad filas={perdiendo} periodo={rango.label} />
     </div>
   );
 }

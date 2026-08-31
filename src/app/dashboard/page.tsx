@@ -13,23 +13,14 @@ import PulsePanel from "./pulse-panel";
 import CatalogPicker from "./catalog-picker";
 import AttributionStrip from "./attribution-strip";
 import AlertasPanel from "./alertas-panel";
+import TablaFilas from "./tabla-filas";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-const money2 = (n: number) =>
-  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-
 // Las mismas palabras que el filtro del Pulso, para que la tabla y el
 // semáforo de arriba no parezcan dos cosas distintas.
-const ESTADO_FILA = {
-  sano: { texto: "Va bien", chip: "bg-good-bg text-good" },
-  vigilar: { texto: "Optimizar", chip: "bg-surface-2 text-warning" },
-  riesgo: { texto: "Va mal", chip: "bg-critical-bg text-critical" },
-  "sin-objetivo": { texto: "Sin producto", chip: "bg-surface-2 text-muted" },
-} as const;
-
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 // Se formatea en UTC a proposito: los limites del rango ya vienen como el dia
@@ -161,73 +152,7 @@ export default async function DashboardPage({
           </p>
         )}
 
-        <div className="bg-surface border border-border rounded overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border">
-            <h2 className="font-semibold text-sm">Por producto y campaña</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="table-cols w-full text-sm min-w-[720px]">
-              <thead>
-                <tr className="text-left border-b border-border">
-                  <th className="px-5 py-3">Producto / campaña</th>
-                  <th className="px-5 py-3 text-right">Gasto</th>
-                  <th className="px-5 py-3 text-right">Compras</th>
-                  <th className="px-5 py-3 text-right">Ingreso</th>
-                  <th className="px-5 py-3 text-right">CPA</th>
-                  <th className="px-5 py-3 text-right">Objetivo</th>
-                  <th className="px-5 py-3">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.rows.map((r) => (
-                  <tr key={r.key} className="border-t border-border">
-                    <td className="px-5 py-3">
-                      {r.code && canAccessPipeline(session.role) ? (
-                        <Link
-                          href={`/dashboard/productos/${r.code}`}
-                          className="font-medium hover:text-accent hover:underline"
-                        >
-                          {r.name}
-                        </Link>
-                      ) : (
-                        <p className="font-medium leading-snug">{r.name}</p>
-                      )}
-                      {r.code && <p className="text-xs font-mono text-muted">{r.code}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{r.purchases}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{money2(r.revenue)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {r.cpa !== null ? money2(r.cpa) : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-muted">
-                      {r.cpaTarget !== null ? money2(r.cpaTarget) : "—"}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.status === "sin-objetivo" ? (
-                        <span className="text-xs text-muted whitespace-nowrap">sin producto</span>
-                      ) : (
-                        <span
-                          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-1 text-xs ${ESTADO_FILA[r.status].chip}`}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                          {ESTADO_FILA[r.status].texto}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {overview.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-8 text-center text-muted">
-                      Sin datos de campañas para este período y esta plataforma.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TablaFilas filas={overview.rows} puedeAbrirProducto={canAccessPipeline(session.role)} />
       </div>
     </div>
   );
