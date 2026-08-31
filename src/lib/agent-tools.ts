@@ -373,3 +373,67 @@ export async function correrHerramienta(
       return JSON.stringify({ error: "No existe la herramienta " + nombre + "." });
   }
 }
+
+/**
+ * Las herramientas que puede usar quien NO ve el dinero.
+ *
+ * No alcanza con esconder la pantalla de Rentabilidad: si Jarvis puede
+ * consultarla, basta preguntarle "¿cuánto facturamos?" y la regla se cae por
+ * la puerta de atrás. Así que a quien no tiene el permiso se le entregan menos
+ * herramientas — no se le pide al modelo que se abstenga, que sería confiar en
+ * que obedezca.
+ *
+ * Quedan fuera las que devuelven plata: ventas, pauta, rentabilidad, campañas
+ * y clientes. Queda dentro el pulso, que dice si un producto está sano y si
+ * conviene escalar sin decir cuánto cuesta, y que es exactamente lo que el
+ * equipo creativo necesita para decidir qué producir.
+ */
+const SIN_DINERO = new Set(["pulso"]);
+
+/** Los campos con cifras se quitan del resultado, no se redondean. */
+const CAMPOS_CON_PLATA = new Set([
+  "gasto",
+  "gastoPauta",
+  "cpa",
+  "cpaObjetivo",
+  "cpaBreakeven",
+  "ingreso",
+  "ingresoAtribuido",
+  "facturado",
+  "utilidad",
+  "precio",
+  "precioVenta",
+  "costoUnitario",
+  "costoMercaderia",
+  "costoFlete",
+  "ticketPromedio",
+  "margen",
+]);
+
+export function herramientasPara(veFinanzas: boolean) {
+  return veFinanzas ? HERRAMIENTAS : HERRAMIENTAS.filter((h) => SIN_DINERO.has(h.name));
+}
+
+/**
+ * Saca las cifras de un resultado antes de dárselo al modelo.
+ *
+ * El pulso trae gasto y CPA junto al veredicto. Se podrían haber sacado dentro
+ * de cada herramienta, pero entonces cada herramienta nueva tendría que
+ * acordarse de hacerlo — y la que se olvide filtra. Acá pasa todo por un solo
+ * lugar.
+ *
+ * Se BORRA la clave en vez de ponerla en cero: un cero se lee como un dato y
+ * el modelo lo repetiría como si fuera cierto.
+ */
+export function sinCifras(valor: unknown): unknown {
+  if (Array.isArray(valor)) return valor.map(sinCifras);
+  if (valor && typeof valor === "object") {
+    const salida: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
+      if (CAMPOS_CON_PLATA.has(k)) continue;
+      salida[k] = sinCifras(v);
+    }
+    return salida;
+  }
+  return valor;
+}

@@ -38,8 +38,17 @@ export const ES_TIPO = (v: string): v is TipoAccion => v in TIPOS;
  * Es una sugerencia, no una orden: la escribe el sistema a partir de números
  * que ya calculó, y una persona decide. Se deja explícito el motivo para que
  * quien aprueba no tenga que ir a buscar el dato a otra pantalla.
+ *
+ * `verCifras` cambia cómo se redacta ese motivo, no cuál es la sugerencia:
+ * quien no ve dinero igual tiene que saber que conviene escalar o renovar
+ * creativos, pero el porqué se cuenta con el desvío contra el objetivo en
+ * porcentaje en vez de con el monto. El texto viaja al navegador dentro de la
+ * propuesta, así que recortarlo en la pantalla no serviría de nada.
  */
-export function sugerirAcciones(p: Pulse): { kind: TipoAccion; detail: string; reason: string }[] {
+export function sugerirAcciones(
+  p: Pulse,
+  verCifras = true
+): { kind: TipoAccion; detail: string; reason: string }[] {
   const plata = (n: number) =>
     n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
@@ -50,12 +59,16 @@ export function sugerirAcciones(p: Pulse): { kind: TipoAccion; detail: string; r
       {
         kind: "PAUSAR",
         detail: "Pausar hasta entender por qué no atribuye compras",
-        reason: `Gastó ${plata(p.spend)} sin una sola compra atribuida.`,
+        reason: verCifras
+          ? `Gastó ${plata(p.spend)} sin una sola compra atribuida.`
+          : "Tuvo pauta en el período y no atribuyó ni una compra.",
       },
       {
         kind: "MAS_CREATIVOS",
         detail: "Probar ángulos nuevos antes de descartarlo",
-        reason: `Gastó ${plata(p.spend)} sin compras: puede ser el creativo y no el producto.`,
+        reason: verCifras
+          ? `Gastó ${plata(p.spend)} sin compras: puede ser el creativo y no el producto.`
+          : "Tuvo pauta sin compras: puede ser el creativo y no el producto.",
       },
     ];
   }
@@ -66,16 +79,21 @@ export function sugerirAcciones(p: Pulse): { kind: TipoAccion; detail: string; r
     return [
       {
         kind: "MAS_CREATIVOS",
-        detail: "Tandas de creativos nuevos para bajar el CPA",
-        reason:
-          ratio != null
+        detail: "Tandas de creativos nuevos para bajar el costo por compra",
+        reason: verCifras
+          ? ratio != null
             ? `CPA de ${p.cpa.toFixed(2)} contra un objetivo de ${(p.cpaTarget ?? 0).toFixed(2)}: paga ${Math.round((ratio - 1) * 100)}% de más.`
-            : `CPA de ${p.cpa.toFixed(2)} y el pulso viene cayendo.`,
+            : `CPA de ${p.cpa.toFixed(2)} y el pulso viene cayendo.`
+          : ratio != null
+            ? `El costo por compra está ${Math.round((ratio - 1) * 100)}% por encima del objetivo del producto.`
+            : "El pulso viene cayendo.",
       },
       {
         kind: "PAUSAR",
         detail: "Pausar mientras se renuevan los creativos",
-        reason: `Está gastando ${plata(p.spend)} por encima de lo que el producto aguanta.`,
+        reason: verCifras
+          ? `Está gastando ${plata(p.spend)} por encima de lo que el producto aguanta.`
+          : "Está pagando por compra más de lo que el producto aguanta.",
       },
       {
         kind: "REVISAR_OFERTA",
@@ -89,11 +107,14 @@ export function sugerirAcciones(p: Pulse): { kind: TipoAccion; detail: string; r
     return [
       {
         kind: "ESCALAR",
-        detail: "Subir presupuesto mientras el CPA aguante",
-        reason:
-          ratio != null
+        detail: "Subir presupuesto mientras el costo por compra aguante",
+        reason: verCifras
+          ? ratio != null
             ? `CPA de ${p.cpa.toFixed(2)} contra un objetivo de ${(p.cpaTarget ?? 0).toFixed(2)}: sobra margen.`
-            : `CPA de ${p.cpa.toFixed(2)}, dentro de lo esperado.`,
+            : `CPA de ${p.cpa.toFixed(2)}, dentro de lo esperado.`
+          : ratio != null
+            ? `El costo por compra está ${Math.round((1 - ratio) * 100)}% por debajo del objetivo: sobra margen.`
+            : "El costo por compra está dentro de lo esperado.",
       },
       {
         kind: "MAS_CREATIVOS",
@@ -107,9 +128,12 @@ export function sugerirAcciones(p: Pulse): { kind: TipoAccion; detail: string; r
     {
       kind: "MAS_CREATIVOS",
       detail: "Renovar creativos antes de que empeore",
-      reason:
-        ratio != null
+      reason: verCifras
+        ? ratio != null
           ? `CPA de ${p.cpa.toFixed(2)} contra un objetivo de ${(p.cpaTarget ?? 0).toFixed(2)}.`
+          : "El pulso viene bajando."
+        : ratio != null
+          ? `El costo por compra está ${Math.round(Math.abs(ratio - 1) * 100)}% ${ratio >= 1 ? "por encima" : "por debajo"} del objetivo del producto.`
           : "El pulso viene bajando.",
     },
   ];

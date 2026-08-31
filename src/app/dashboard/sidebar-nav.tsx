@@ -121,12 +121,30 @@ export default function SidebarNav({
   showUsuarios,
   showPipeline,
   showRentabilidad,
+  showReportes,
+  showLogistica,
+  showConexiones,
+  showJarvis,
   showNomina,
   showCeo,
 }: {
   showUsuarios: boolean;
   showPipeline: boolean;
+  /**
+   * Las pantallas de plata: Rentabilidad, Clientes y la Calculadora.
+   *
+   * Estas tres ya redirigen a quien no tiene el permiso de finanzas, pero un
+   * enlace que lleva a un redirect es una pared que se ve: dice qué hay del
+   * otro lado y hace que la app se sienta rota. Si no se pueden abrir, no se
+   * listan.
+   */
   showRentabilidad: boolean;
+  /** Reportes sí se ve sin el permiso, pero sin las cifras de dinero. */
+  showReportes: boolean;
+  /** Torre logística: el dueño la puso del lado de la dirección. */
+  showLogistica: boolean;
+  showConexiones: boolean;
+  showJarvis: boolean;
   // Nómina no se muestra por rol: es un permiso por persona. Quien no lo
   // tenga no ve ni el link.
   showNomina: boolean;
@@ -169,10 +187,12 @@ export default function SidebarNav({
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
               { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
               { href: "/dashboard/calculadora", label: "Calculadora", icon: "calculadora" },
-              { href: "/dashboard/reportes", label: "Reportes diarios", icon: "reportes" },
             ]
           : []),
-        ...(showPipeline
+        ...(showReportes
+          ? [{ href: "/dashboard/reportes", label: "Reportes diarios", icon: "reportes" }]
+          : []),
+        ...(showLogistica
           ? [{ href: "/dashboard/logistica", label: "Torre logística", icon: "logistica" }]
           : []),
         ...(showNomina ? [{ href: "/dashboard/nomina", label: "Nómina", icon: "nomina" }] : []),
@@ -185,8 +205,14 @@ export default function SidebarNav({
           ? [{ href: "/dashboard/chat", label: "Chat interno", icon: "jarvis" }]
           : []),
         { href: "/dashboard/notificaciones", label: "Notificaciones", icon: "notificaciones" },
-        { href: "/dashboard/jarvis", label: "Preguntarle a Jarvis", icon: "jarvis" },
-        { href: "/dashboard/conexiones", label: "Conexiones", icon: "conexiones" },
+        // Jarvis y Conexiones ya estaban cerrados por rol, pero seguían
+        // apareciendo en el menú de todos: se entraba y rebotaba al Panel.
+        ...(showJarvis
+          ? [{ href: "/dashboard/jarvis", label: "Preguntarle a Jarvis", icon: "jarvis" }]
+          : []),
+        ...(showConexiones
+          ? [{ href: "/dashboard/conexiones", label: "Conexiones", icon: "conexiones" }]
+          : []),
         { href: "/dashboard/configuracion", label: "Configuraciones", icon: "cuenta" },
         ...(showUsuarios
           ? [{ href: "/dashboard/usuarios", label: "Usuarios", icon: "usuarios" }]

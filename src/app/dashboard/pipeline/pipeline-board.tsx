@@ -9,6 +9,7 @@ import type { ProductOption, RequirementRow, UserOption } from "./types";
 
 export default function PipelineBoard({
   canManage,
+  verCifras,
   currentUserId,
   currentUserName,
   initialRequirements,
@@ -20,6 +21,8 @@ export default function PipelineBoard({
   encabezado = true,
 }: {
   canManage: boolean;
+  /** Si esta persona ve dinero: decide si la tabla tiene columna de CPA. */
+  verCifras: boolean;
   currentUserId: string;
   currentUserName: string;
   initialRequirements: RequirementRow[];
@@ -177,7 +180,7 @@ export default function PipelineBoard({
       {view === "kanban" ? (
         <KanbanBoard requirements={filtered} onOpen={setOpenId} onStatusChange={changeStatus} canDrag />
       ) : (
-        <RequirementsTable requirements={filtered} onOpen={setOpenId} />
+        <RequirementsTable requirements={filtered} verCifras={verCifras} onOpen={setOpenId} />
       )}
 
       {showForm && (

@@ -13,10 +13,14 @@ export type PulsoConAcciones = {
   name: string;
   score: number;
   state: PulseTone;
-  spend: number;
   purchases: number;
-  cpa: number | null;
-  cpaTarget: number | null;
+  /**
+   * Gasto, CPA, objetivo, precio y costo llegan solo con el permiso de
+   * finanzas. No vienen en null: el servidor directamente no los manda.
+   */
+  spend?: number;
+  cpa?: number | null;
+  cpaTarget?: number | null;
   salePrice?: number | null;
   unitCost?: number | null;
   serie: number[];
@@ -62,12 +66,15 @@ const ETIQUETA_TIPO: Record<string, string> = {
  */
 export function DetalleProducto({
   p,
+  verCifras,
   onProponer,
   onCerrar,
   puedeConfigurar = false,
   onCambio,
 }: {
   p: PulsoConAcciones;
+  /** Si esta persona ve dinero. Define qué tarjetas existen. */
+  verCifras: boolean;
   onProponer: (s: Sugerencia, cantidad: number) => Promise<void>;
   /** Cerrar el detalle. Sin un control visible, quien lo abre queda sin
    *  saber como volver a la lista. */
@@ -110,13 +117,19 @@ export function DetalleProducto({
         )}
       </div>
 
+      {/* Sin el permiso queda una sola tarjeta, la de compras, en vez de
+          cuatro con tres guiones. Un guion donde iba el gasto se lee como
+          "no gastó", que es lo contrario de lo que pasa. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Gasto", valor: money(p.spend, 0) },
-          { label: "Compras", valor: p.purchases.toLocaleString("es-EC") },
-          { label: "CPA", valor: money(p.cpa) },
-          { label: "CPA objetivo", valor: money(p.cpaTarget) },
-        ].map((d) => (
+        {(verCifras
+          ? [
+              { label: "Gasto", valor: money(p.spend ?? null, 0) },
+              { label: "Compras", valor: p.purchases.toLocaleString("es-EC") },
+              { label: "CPA", valor: money(p.cpa ?? null) },
+              { label: "CPA objetivo", valor: money(p.cpaTarget ?? null) },
+            ]
+          : [{ label: "Compras atribuidas", valor: p.purchases.toLocaleString("es-EC") }]
+        ).map((d) => (
           <div key={d.label}>
             <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
               {d.label}
@@ -137,11 +150,13 @@ export function DetalleProducto({
         </ul>
       )}
 
-      {puedeConfigurar && p.productId && (
+      {/* Precio, costo y CPA objetivo: es la economía del producto, así que
+          el formulario tampoco aparece sin el permiso de finanzas. */}
+      {puedeConfigurar && verCifras && p.productId && (
         <ProductConfig
           inicial={{
             productId: p.productId,
-            cpaTarget: p.cpaTarget,
+            cpaTarget: p.cpaTarget ?? null,
             salePrice: p.salePrice ?? null,
             unitCost: p.unitCost ?? null,
           }}

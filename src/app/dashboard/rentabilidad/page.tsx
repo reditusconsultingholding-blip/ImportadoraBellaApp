@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
 import { getRentabilidad } from "@/lib/rentabilidad";
 import { resolveRange } from "@/lib/date-range";
 import RangePicker from "../range-picker";
@@ -16,6 +17,10 @@ export default async function RentabilidadPage({
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canManagePipeline(session.role)) redirect("/dashboard");
+  // Esta pantalla ES el dinero: utilidad, margen y punto de equilibrio por
+  // producto. Quien no tiene el permiso de finanzas no la abre, y el enlace
+  // tampoco le aparece en el menú.
+  if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const params = await searchParams;
   // Treinta días por defecto: es el período con el que se decide escalar o

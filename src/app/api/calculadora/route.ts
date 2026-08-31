@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
 
 // Los ajustes de la calculadora se guardan por producto y los ve todo el
 // equipo. Es la diferencia entre una calculadora y una planilla: si cada
@@ -11,7 +12,10 @@ import { canManagePipeline } from "@/lib/permissions";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (!canManagePipeline(session.role)) {
+  // La calculadora es precio, costo, flete y margen de punta a punta.
+  // Cerrar la pantalla sin cerrar su API dejaría los mismos números a un
+  // fetch de distancia.
+  if (!canManagePipeline(session.role) || !(await veLasCifras(session.userId))) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 
@@ -36,7 +40,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (!canManagePipeline(session.role)) {
+  // La calculadora es precio, costo, flete y margen de punta a punta.
+  // Cerrar la pantalla sin cerrar su API dejaría los mismos números a un
+  // fetch de distancia.
+  if (!canManagePipeline(session.role) || !(await veLasCifras(session.userId))) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 

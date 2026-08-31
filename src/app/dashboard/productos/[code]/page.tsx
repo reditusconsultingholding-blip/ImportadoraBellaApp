@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { getHistorialDecisiones } from "@/lib/historial-decisiones";
 import { puedeDecidir } from "@/lib/product-actions";
+import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import PipelineBoard from "../../pipeline/pipeline-board";
 import TablaCreativos, { type Creativo } from "./tabla-creativos";
 import Repositorio from "./repositorio";
@@ -33,11 +34,14 @@ export default async function ProductoDetailPage({
   if (!product) notFound();
 
   const canManage = canManagePipeline(session.role);
+  const verCifras = await veLasCifras(session.userId);
 
   // El historial solo se pide cuando se está mirando: son dos consultas más y
   // la ficha se abre casi siempre en la tabla de seguimiento.
   const historial =
-    vista === "historial" ? await getHistorialDecisiones(session.organizationId, product.id) : [];
+    vista === "historial"
+      ? await getHistorialDecisiones(session.organizationId, product.id, verCifras)
+      : [];
 
   const [requirements, users, historicos] = await Promise.all([
     db.requirement.findMany({
@@ -96,9 +100,11 @@ export default async function ProductoDetailPage({
     ctr: r.ctr,
     holdRate: r.holdRate,
     purchases: r.purchases,
-    cpa: r.cpa,
+    // CPA y CPM son plata por pieza: sin el permiso no se mandan, y la tabla
+    // tampoco dibuja esas dos columnas.
+    cpa: verCifras ? r.cpa : null,
     frequency: r.frequency,
-    cpm: r.cpm,
+    cpm: verCifras ? r.cpm : null,
     nextAction: r.nextAction,
     notes: r.notes,
   }));
@@ -119,7 +125,12 @@ export default async function ProductoDetailPage({
           <div>
             <h1 className="text-xl font-semibold">{product.name}</h1>
             <p className="text-xs font-mono text-muted">
-              {product.code} &middot; CPA objetivo ${product.cpaTarget.toFixed(2)}
+              {product.code}
+              {/* El CPA objetivo es el umbral en dólares del producto. Sin el
+                  permiso queda solo el código: el veredicto de cada pieza
+                  —buen o bajo rendimiento— sigue estando abajo, que es lo que
+                  el equipo creativo necesita. */}
+              {verCifras && ` · CPA objetivo ${product.cpaTarget.toFixed(2)}`}
             </p>
           </div>
         </div>
@@ -156,7 +167,9 @@ export default async function ProductoDetailPage({
               good.map((r) => (
                 <div key={r.id} className="px-4 py-2.5 border-b border-border last:border-b-0 text-sm flex justify-between">
                   <span>{r.adName}</span>
-                  <span className="tabular-nums text-good">${r.cpa?.toFixed(2)}</span>
+                  {verCifras && (
+                    <span className="tabular-nums text-good">${r.cpa?.toFixed(2)}</span>
+                  )}
                 </div>
               ))
             )}
@@ -171,7 +184,9 @@ export default async function ProductoDetailPage({
               bad.map((r) => (
                 <div key={r.id} className="px-4 py-2.5 border-b border-border last:border-b-0 text-sm flex justify-between">
                   <span>{r.adName}</span>
-                  <span className="tabular-nums text-critical">${r.cpa?.toFixed(2)}</span>
+                  {verCifras && (
+                    <span className="tabular-nums text-critical">${r.cpa?.toFixed(2)}</span>
+                  )}
                 </div>
               ))
             )}
@@ -223,9 +238,10 @@ export default async function ProductoDetailPage({
       ) : vista === "pipeline" ? (
         <PipelineBoard
           canManage={canManage}
+          verCifras={verCifras}
           currentUserId={session.userId}
           currentUserName={session.name}
-          initialRequirements={requirements.map((r) => ({
+          initialRequirements={creativosSinCifras(requirements, verCifras).map((r) => ({
             ...r,
             date: r.date.toISOString(),
             dueDate: r.dueDate ? r.dueDate.toISOString() : null,
@@ -238,6 +254,7 @@ export default async function ProductoDetailPage({
       ) : (
         <TablaCreativos
           inicial={creativos}
+          verCifras={verCifras}
           personas={users.map((u) => ({ id: u.id, name: u.name }))}
           puedeEditar={canManage || requirements.some((r) => r.ownerId === session.userId)}
           producto={{ id: product.id, code: product.code, name: product.name }}

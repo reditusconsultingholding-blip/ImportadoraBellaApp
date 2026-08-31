@@ -16,14 +16,17 @@ export type DirectoryRow = {
   code: string;
   name: string;
   folder: string | null;
-  salePrice: number | null;
-  unitCost: number | null;
-  margen: number | null;
-  cpaTarget: number;
+  // Estos seis solo llegan con el permiso de finanzas — ver getDirectory.
+  salePrice?: number | null;
+  unitCost?: number | null;
+  margen?: number | null;
+  cpaTarget?: number;
+  spend?: number;
+  cpa?: number | null;
   cpaTargetProvisional: boolean;
-  spend: number;
+  /** Si tuvo pauta en el período. Dice si corre, no cuánto costó. */
+  conPauta: boolean;
   purchases: number;
-  cpa: number | null;
   score: number;
   state: PulseTone;
   serie: number[];
@@ -45,13 +48,21 @@ const ESTADO: Record<PulseTone, { texto: string; chip: string }> = {
 
 type Orden = "pulso" | "gasto" | "nombre" | "creativos" | "margen";
 
-const ORDENES: { id: Orden; label: string }[] = [
-  { id: "pulso", label: "Pulso" },
-  { id: "gasto", label: "Gasto" },
-  { id: "margen", label: "Margen" },
-  { id: "creativos", label: "Creativos" },
-  { id: "nombre", label: "Nombre" },
-];
+// Ordenar por gasto o por margen no tiene sentido cuando esas columnas no
+// existen: el botón quedaría sin efecto visible y parecería roto.
+function ordenesPara(verCifras: boolean): { id: Orden; label: string }[] {
+  return [
+    { id: "pulso", label: "Pulso" },
+    ...(verCifras
+      ? ([
+          { id: "gasto", label: "Gasto" },
+          { id: "margen", label: "Margen" },
+        ] as { id: Orden; label: string }[])
+      : []),
+    { id: "creativos", label: "Creativos" },
+    { id: "nombre", label: "Nombre" },
+  ];
+}
 
 const money = (n: number | null, dec = 2) =>
   n == null
@@ -80,6 +91,7 @@ export default function ProductDirectory({
   carpetas,
   totales,
   puedeGestionar,
+  verCifras,
   pendientes,
   equipo,
   puedeDecidir,
@@ -88,6 +100,8 @@ export default function ProductDirectory({
   carpetas: string[];
   totales: { productos: number; conPauta: number; sinCosto: number };
   puedeGestionar: boolean;
+  /** Si esta persona ve dinero. Define qué columnas existen. */
+  verCifras: boolean;
   pendientes: Pendiente[];
   equipo: Persona[];
   puedeDecidir: boolean;
@@ -160,9 +174,9 @@ export default function ProductDirectory({
           SANO: 2,
           SIN_DATOS: 3,
         };
-        return rank[a.state] - rank[b.state] || b.spend - a.spend;
+        return rank[a.state] - rank[b.state] || (b.spend ?? 0) - (a.spend ?? 0);
       },
-      gasto: (a, b) => b.spend - a.spend,
+      gasto: (a, b) => (b.spend ?? 0) - (a.spend ?? 0),
       margen: (a, b) => (b.margen ?? -Infinity) - (a.margen ?? -Infinity),
       creativos: (a, b) => b.creativos - a.creativos,
       nombre: (a, b) => a.name.localeCompare(b.name, "es"),
@@ -171,8 +185,13 @@ export default function ProductDirectory({
     return [...filtradas].sort(orderBy[orden]);
   }, [rows, busqueda, carpeta, estado, orden]);
 
-  const gastoVisible = visibles.reduce((a, r) => a + r.spend, 0);
+  const gastoVisible = visibles.reduce((a, r) => a + (r.spend ?? 0), 0);
   const enRiesgo = visibles.filter((r) => r.state === "RIESGO").length;
+  const conPauta = visibles.filter((r) => r.conPauta).length;
+  const ORDENES = ordenesPara(verCifras);
+  // Ocho columnas cuando se ven las cifras; cinco cuando las cuatro de plata
+  // se reemplazan por una sola de compras.
+  const columnas = verCifras ? 8 : 5;
 
   return (
     <div className="flex flex-col gap-4">
@@ -241,9 +260,13 @@ export default function ProductDirectory({
         </div>
 
         <p className="text-xs text-muted">
-          {visibles.length} de {totales.productos} productos · {money(gastoVisible, 0)} de pauta
+          {visibles.length} de {totales.productos} productos ·{" "}
+          {/* Cuántos están corriendo en vez de cuánta plata mueven: sirve
+              para lo mismo —saber si la lista de abajo es la operación real
+              o el catálogo entero— y no dice un monto. */}
+          {verCifras ? `${money(gastoVisible, 0)} de pauta` : `${conPauta} con pauta`}
           {enRiesgo > 0 && <span className="text-critical"> · {enRiesgo} en riesgo</span>}
-          {totales.sinCosto > 0 && puedeGestionar && (
+          {verCifras && totales.sinCosto > 0 && puedeGestionar && (
             <span> · {totales.sinCosto} sin costo por artículo cargado</span>
           )}
         </p>
@@ -257,24 +280,31 @@ export default function ProductDirectory({
               <th className="w-10 px-3 py-2 text-right font-semibold">#</th>
               <th className="px-3 py-2 font-semibold">Producto</th>
               <th className="px-3 py-2 font-semibold">Pulso</th>
-              <th className="px-3 py-2 text-right font-semibold">Gasto</th>
-              <th className="px-3 py-2 text-right font-semibold">CPA / objetivo</th>
-              <th className="px-3 py-2 text-right font-semibold">Precio / costo</th>
-              <th className="px-3 py-2 text-right font-semibold">Margen</th>
+              {verCifras ? (
+                <>
+                  <th className="px-3 py-2 text-right font-semibold">Gasto</th>
+                  <th className="px-3 py-2 text-right font-semibold">CPA / objetivo</th>
+                  <th className="px-3 py-2 text-right font-semibold">Precio / costo</th>
+                  <th className="px-3 py-2 text-right font-semibold">Margen</th>
+                </>
+              ) : (
+                <th className="px-3 py-2 text-right font-semibold">Compras</th>
+              )}
               <th className="px-3 py-2 text-right font-semibold">Creativos</th>
             </tr>
           </thead>
           <tbody>
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-muted">
+                <td colSpan={columnas} className="px-3 py-10 text-center text-muted">
                   Ningún producto coincide con eso.
                 </td>
               </tr>
             )}
 
             {visibles.map((r, i) => {
-              const excedido = r.cpa != null && r.cpaTarget > 0 && r.cpa > r.cpaTarget;
+              const excedido =
+                r.cpa != null && (r.cpaTarget ?? 0) > 0 && r.cpa > (r.cpaTarget as number);
               const abierto = filaAbierta === r.id;
               return (
                 <Fragment key={r.id}>
@@ -329,36 +359,54 @@ export default function ProductDirectory({
                     </span>
                   </td>
 
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    {r.spend > 0 ? money(r.spend, 0) : "—"}
-                    {r.purchases > 0 && (
-                      <span className="block text-xs text-muted">{r.purchases} compras</span>
-                    )}
-                  </td>
+                  {verCifras ? (
+                    <>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {(r.spend ?? 0) > 0 ? money(r.spend ?? null, 0) : "—"}
+                        {r.purchases > 0 && (
+                          <span className="block text-xs text-muted">{r.purchases} compras</span>
+                        )}
+                      </td>
 
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    <span className={excedido ? "text-critical" : undefined}>
-                      {r.cpa == null ? "—" : money(r.cpa)}
-                    </span>
-                    <span className="block text-xs text-muted">
-                      obj {money(r.cpaTarget)}
-                      {r.cpaTargetProvisional && (
-                        <span
-                          className="text-warning"
-                          title="El objetivo se puso sin conocer el costo real del producto: revísalo"
-                        >
-                          {" · provisional"}
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        <span className={excedido ? "text-critical" : undefined}>
+                          {r.cpa == null ? "—" : money(r.cpa)}
                         </span>
+                        <span className="block text-xs text-muted">
+                          obj {money(r.cpaTarget ?? null)}
+                          {r.cpaTargetProvisional && (
+                            <span
+                              className="text-warning"
+                              title="El objetivo se puso sin conocer el costo real del producto: revísalo"
+                            >
+                              {" · provisional"}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {money(r.salePrice ?? null)}
+                        <span className="block text-xs text-muted">
+                          costo {money(r.unitCost ?? null)}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {money(r.margen ?? null)}
+                      </td>
+                    </>
+                  ) : (
+                    // Las compras atribuidas ocupan el lugar de las cuatro
+                    // columnas de plata: es la medida de volumen que sí
+                    // corresponde ver, y deja la tabla sin huecos.
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {r.purchases > 0 ? r.purchases.toLocaleString("es-EC") : "—"}
+                      {r.conPauta && r.purchases === 0 && (
+                        <span className="block text-xs text-warning">con pauta, sin compras</span>
                       )}
-                    </span>
-                  </td>
-
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    {money(r.salePrice)}
-                    <span className="block text-xs text-muted">costo {money(r.unitCost)}</span>
-                  </td>
-
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money(r.margen)}</td>
+                    </td>
+                  )}
 
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {r.creativos === 0 ? (
@@ -385,7 +433,7 @@ export default function ProductDirectory({
 
                 {abierto && (
                   <tr className="border-b border-border last:border-b-0">
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={columnas} className="p-0">
                       <DetalleProducto
                         p={{
                           productId: r.id,
@@ -403,6 +451,7 @@ export default function ProductDirectory({
                           motivos: r.motivos,
                           sugerencias: r.sugerencias,
                         }}
+                        verCifras={verCifras}
                         onProponer={proponer(r.id)}
                         onCerrar={() => setFilaAbierta(null)}
                         puedeConfigurar={puedeGestionar}

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ChatPins from "./chat-pins";
 import { claveDia, esContinuacion, etiquetaDia, fechaHoraEc, horaEc } from "./dias";
 import VoiceRoom from "./voice-room";
+import AnunciosPanel from "./anuncios-panel";
+import CalendarioPanel from "./calendario-panel";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChatMessageView } from "@/lib/chat";
@@ -33,8 +35,10 @@ const MAX_FIJADOS = 3;
 
 function Avatar({ name, url, size = 32 }: { name: string; url?: string | null; size?: number }) {
   if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // La foto es un data URL de 256px guardado en la base (ver el campo
+      // avatarUrl de User), así que next/image no tiene nada que optimizar.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={url}
         alt=""
@@ -62,6 +66,7 @@ export default function ChatView({
   activeScope,
   activeTitle,
   initialMessages,
+  puedePublicarAnuncios,
 }: {
   me: { id: string; name: string };
   canCreateChannels: boolean;
@@ -71,9 +76,15 @@ export default function ChatView({
   activeScope: string | null;
   activeTitle: string | null;
   initialMessages: ChatMessageView[];
+  puedePublicarAnuncios: boolean;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState(initialMessages);
+  // Qué apartado del chat se está mirando. Los anuncios y el calendario viven
+  // acá adentro y no en pantallas propias del menú porque el equipo ya entra
+  // al chat todo el día: sumarles dos entradas al menú lateral las escondería
+  // más de lo que las muestra.
+  const [vista, setVista] = useState<"conversacion" | "anuncios" | "calendario">("conversacion");
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
@@ -286,7 +297,51 @@ export default function ChatView({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 items-start">
+      {/* Las tres solapas. El calendario y los anuncios cambian la pantalla
+          entera y no se meten en una columna al costado: la rejilla de un mes
+          necesita el ancho, y un anuncio se lee, no se ojea. */}
+      <div className="flex gap-1 border-b border-border">
+        {(
+          [
+            ["conversacion", "Conversación"],
+            ["anuncios", "Anuncios"],
+            ["calendario", "Calendario"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setVista(id)}
+            className={`-mb-px border-b-2 px-3 py-1.5 text-[13px] transition ${
+              vista === id
+                ? "border-accent font-medium text-foreground"
+                : "border-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {vista === "anuncios" && (
+        <div className="rounded border border-border bg-surface">
+          <AnunciosPanel yoPuedoPublicar={puedePublicarAnuncios} />
+        </div>
+      )}
+
+      {vista === "calendario" && (
+        <div className="rounded border border-border bg-surface">
+          <CalendarioPanel />
+        </div>
+      )}
+
+      {/* La conversación se ESCONDE, no se desmonta. Adentro vive la sala de
+          voz: si se desmontara, mirar el calendario un segundo cortaría la
+          llamada de quien está hablando. */}
+      <div
+        className={`grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 items-start ${
+          vista === "conversacion" ? "" : "hidden"
+        }`}
+      >
         {/* Lista de conversaciones */}
         <aside className="bg-surface border border-border rounded overflow-hidden">
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5">

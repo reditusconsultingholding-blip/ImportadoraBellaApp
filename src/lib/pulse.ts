@@ -22,7 +22,81 @@ export type Pulse = {
   /** Serie diaria de gasto, para el trazo. Del más viejo al más nuevo. */
   serie: number[];
   motivos: string[];
+  /**
+   * Los mismos motivos, sin una sola cifra de dinero.
+   *
+   * No es el texto de arriba con los montos borrados: se redacta aparte porque
+   * quitarle los números a una frase deja huecos —"CPA de  contra un objetivo
+   * de "— que se leen como un error de la app. Quien no ve plata recibe solo
+   * este arreglo; el otro ni sale del servidor.
+   */
+  motivosSinCifras: string[];
 };
+
+/**
+ * El pulso tal como VIAJA al navegador.
+ *
+ * Sin el permiso de finanzas no lleva `spend`, `cpa` ni `cpaTarget`, y la
+ * serie del trazo va en escala relativa. Ese detalle importa: la serie son los
+ * dólares gastados día por día, y aunque el dibujo salga igual, los números
+ * crudos quedan en el HTML de la página y se leen con inspeccionar elemento.
+ */
+export type PulseVisible = {
+  productId: string | null;
+  code: string | null;
+  name: string;
+  score: number;
+  state: PulseState;
+  purchases: number;
+  serie: number[];
+  motivos: string[];
+  spend?: number;
+  cpa?: number | null;
+  cpaTarget?: number | null;
+};
+
+/**
+ * La misma forma del trazo, sin los montos.
+ *
+ * PulseLine ya normaliza contra el máximo de la serie que recibe, así que
+ * dividir por el pico dibuja exactamente lo mismo con números que no son
+ * plata.
+ */
+function serieRelativa(serie: number[]) {
+  const pico = Math.max(0, ...serie);
+  if (pico <= 0) return serie.map(() => 0);
+  return serie.map((v) => Number((v / pico).toFixed(4)));
+}
+
+export function pulsosVisibles(pulses: Pulse[], verCifras: boolean): PulseVisible[] {
+  return pulses.map((p) => {
+    if (verCifras) {
+      return {
+        productId: p.productId,
+        code: p.code,
+        name: p.name,
+        score: p.score,
+        state: p.state,
+        purchases: p.purchases,
+        serie: p.serie,
+        motivos: p.motivos,
+        spend: p.spend,
+        cpa: p.cpa,
+        cpaTarget: p.cpaTarget,
+      };
+    }
+    return {
+      productId: p.productId,
+      code: p.code,
+      name: p.name,
+      score: p.score,
+      state: p.state,
+      purchases: p.purchases,
+      serie: serieRelativa(p.serie),
+      motivos: p.motivosSinCifras,
+    };
+  });
+}
 
 /**
  * Umbral del semáforo.
@@ -125,17 +199,20 @@ export async function getPulses(organizationId: string, range: Range): Promise<P
         cpaTarget: p.cpaTarget,
         serie: [],
         motivos: ["No tuvo pauta en este período."],
+        motivosSinCifras: ["No tuvo pauta en este período."],
       });
       continue;
     }
 
     const cpa = purchases > 0 ? spend / purchases : null;
     const motivos: string[] = [];
+    const motivosSinCifras: string[] = [];
 
     let score: number;
     if (cpa == null) {
       score = 0;
       motivos.push(`Gastó ${spend.toFixed(0)} dólares sin una sola compra atribuida.`);
+      motivosSinCifras.push("Tuvo pauta en el período y no atribuyó ni una compra.");
     } else if (p.cpaTarget > 0) {
       const ratio = cpa / p.cpaTarget;
       score = puntajePorCpa(ratio);
@@ -144,11 +221,19 @@ export async function getPulses(organizationId: string, range: Range): Promise<P
           ? `CPA de ${cpa.toFixed(2)} contra un objetivo de ${p.cpaTarget.toFixed(2)}: paga menos de lo que puede.`
           : `CPA de ${cpa.toFixed(2)} contra un objetivo de ${p.cpaTarget.toFixed(2)}: paga ${Math.round((ratio - 1) * 100)}% de más.`
       );
+      // El desvío en porcentaje sí queda: dice si conviene escalar o corregir
+      // sin decir cuánto cuesta una compra ni cuánto se puede llegar a pagar.
+      motivosSinCifras.push(
+        ratio <= 1
+          ? `El costo por compra está ${Math.round((1 - ratio) * 100)}% por debajo del objetivo del producto.`
+          : `El costo por compra está ${Math.round((ratio - 1) * 100)}% por encima del objetivo del producto.`
+      );
     } else {
       // Sin objetivo cargado no hay contra qué comparar. Se dice, en vez de
       // mostrar un verde que no significa nada.
       score = 50;
       motivos.push("No tiene CPA objetivo cargado, así que el pulso es provisional.");
+      motivosSinCifras.push("No tiene objetivo cargado, así que el pulso es provisional.");
     }
 
     const tend = tendencia(serie, comprasSerie);
@@ -159,6 +244,11 @@ export async function getPulses(organizationId: string, range: Range): Promise<P
         tend < 0
           ? `El CPA viene bajando ${Math.round(Math.abs(tend) * 100)}% respecto al arranque del período.`
           : `El CPA viene subiendo ${Math.round(tend * 100)}% respecto al arranque del período.`
+      );
+      motivosSinCifras.push(
+        tend < 0
+          ? `El costo por compra viene bajando ${Math.round(Math.abs(tend) * 100)}% respecto al arranque del período.`
+          : `El costo por compra viene subiendo ${Math.round(tend * 100)}% respecto al arranque del período.`
       );
     }
 
@@ -174,6 +264,7 @@ export async function getPulses(organizationId: string, range: Range): Promise<P
       cpaTarget: p.cpaTarget,
       serie,
       motivos,
+      motivosSinCifras,
     });
   }
 

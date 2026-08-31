@@ -6,6 +6,7 @@ import CatalogPicker from "../catalog-picker";
 import { getDirectory } from "@/lib/product-directory";
 import { resolveRange } from "@/lib/date-range";
 import { puedeDecidir } from "@/lib/product-actions";
+import { veLasCifras } from "@/lib/finanzas";
 
 export default async function ProductosPage() {
   const session = await getSession();
@@ -18,7 +19,11 @@ export default async function ProductosPage() {
   // Ya no hay tablero libre: el directorio hace lo mismo y encima se puede
   // buscar y ordenar. Un lienzo con tarjetas sirve para pensar diez ideas;
   // para seguir ciento diecisiete productos hace falta una lista.
-  const directorio = await getDirectory(session.organizationId, resolveRange("30d"));
+  // El permiso viaja hasta getDirectory y no hasta el componente: las filas
+  // se arman ya sin precio, costo, margen, gasto ni CPA, así que esos
+  // números no llegan al navegador ni siquiera dentro del HTML.
+  const verCifras = await veLasCifras(session.userId);
+  const directorio = await getDirectory(session.organizationId, resolveRange("30d"), verCifras);
 
   return (
     <div className="flex flex-col gap-5">
@@ -38,6 +43,7 @@ export default async function ProductosPage() {
         carpetas={directorio.carpetas}
         totales={directorio.totales}
         puedeGestionar={canManage}
+        verCifras={verCifras}
         pendientes={directorio.pendientes}
         equipo={directorio.equipo}
         puedeDecidir={puedeDecidir(session.role)}

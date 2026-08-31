@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
 import { getLogisticsOverview } from "@/lib/logistics";
 import LogisticsTower from "./logistics-tower";
 
@@ -8,6 +9,9 @@ export default async function LogisticaPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canAccessPipeline(session.role)) redirect("/dashboard");
+  // "Ni Torre logística": va con el mismo permiso que Rentabilidad y la
+  // Calculadora, aunque acá lo que se mira sean entregas y no dólares.
+  if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const data = await getLogisticsOverview(session.organizationId);
 

@@ -37,6 +37,78 @@ export type Overview = {
 };
 
 /**
+ * La fila tal como VIAJA al navegador.
+ *
+ * Existe porque esconder el gasto con un `if` en el componente no lo esconde:
+ * la fila entera se serializa dentro del HTML de la página y se lee con
+ * inspeccionar elemento. Quien no ve dinero recibe un objeto que directamente
+ * no trae `spend`, `revenue`, `cpa` ni `cpaTarget` — no hay nada que ocultar
+ * porque no salió del servidor.
+ *
+ * Lo que sí viaja siempre es el rendimiento (impresiones, clics, CTR,
+ * compras), el veredicto y `desvio`, que dice CUÁNTO se aleja del objetivo sin
+ * decir de cuánto es el objetivo. Con eso se sostienen los filtros de "las
+ * mejores" y "las peores", que sin un número contra el cual ordenar no se
+ * podrían verificar mirando la tabla.
+ */
+export type FilaVisible = {
+  key: string;
+  name: string;
+  code: string | null;
+  purchases: number;
+  clicks: number;
+  impressions: number;
+  /** Porcentaje, ya calculado: el navegador no tiene por qué rehacer la cuenta. */
+  ctr: number | null;
+  status: RowMetric["status"];
+  /** Razón CPA/objetivo. 1 es justo en el objetivo; 1,2 es 20% por encima. */
+  desvio: number | null;
+  /** Si gastó algo en el período. Dice si está corriendo, no cuánto cuesta. */
+  activa: boolean;
+  spend?: number;
+  revenue?: number;
+  cpa?: number | null;
+  cpaTarget?: number | null;
+};
+
+/** Qué tan lejos está el CPA de su objetivo. */
+function desvioDe(r: RowMetric) {
+  if (r.cpa == null || r.cpaTarget == null || r.cpaTarget <= 0) return null;
+  return r.cpa / r.cpaTarget;
+}
+
+/**
+ * Deja las filas listas para mandar al navegador, con o sin plata.
+ *
+ * El orden que traiga `rows` se respeta: getOverview ya las devuelve por
+ * gasto, y ordenar por volumen no dice cuánto es ese volumen.
+ */
+export function filasVisibles(rows: RowMetric[], verCifras: boolean): FilaVisible[] {
+  return rows.map((r) => {
+    const comun: FilaVisible = {
+      key: r.key,
+      name: r.name,
+      code: r.code,
+      purchases: r.purchases,
+      clicks: r.clicks,
+      impressions: r.impressions,
+      ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null,
+      status: r.status,
+      desvio: desvioDe(r),
+      activa: r.spend > 0,
+    };
+    if (!verCifras) return comun;
+    return {
+      ...comun,
+      spend: r.spend,
+      revenue: r.revenue,
+      cpa: r.cpa,
+      cpaTarget: r.cpaTarget,
+    };
+  });
+}
+
+/**
  * Resumen de pauta para un rango de fechas.
  *
  * Antes esto tomaba solo el snapshot MÁS RECIENTE de cada campaña y descartaba

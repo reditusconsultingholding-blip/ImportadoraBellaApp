@@ -34,6 +34,13 @@ export type PasoCapacitacion = {
    * la base — ver `payroll-access.ts`. Un administrador puede no tenerlo.
    */
   requierePermisoNomina?: boolean;
+  /**
+   * Igual que nómina: Rentabilidad, Clientes, la Calculadora, la Torre
+   * logística y el panel del CEO dependen de un permiso por persona que se
+   * relee de la base — ver `finanzas.ts`. Sin esto el recorrido llevaría a
+   * una pantalla que rebota al panel y se cortaría a la mitad.
+   */
+  requierePermisoFinanzas?: boolean;
 };
 
 const ROLES: RolUsuario[] = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"];
@@ -107,6 +114,7 @@ export const PASOS: PasoCapacitacion[] = [
   },
   {
     id: "ceo",
+    requierePermisoFinanzas: true,
     ruta: "/dashboard/ceo",
     seccion: "Panel del CEO",
     titulo: "El negocio entero sin abrir seis pantallas",
@@ -182,6 +190,7 @@ export const PASOS: PasoCapacitacion[] = [
   },
   {
     id: "rentabilidad",
+    requierePermisoFinanzas: true,
     ruta: "/dashboard/rentabilidad",
     seccion: "Rentabilidad",
     titulo: "Qué producto deja plata de verdad",
@@ -196,6 +205,7 @@ export const PASOS: PasoCapacitacion[] = [
   },
   {
     id: "clientes",
+    requierePermisoFinanzas: true,
     ruta: "/dashboard/clientes",
     seccion: "Clientes",
     titulo: "Si el negocio recompra, y dónde vende",
@@ -210,6 +220,7 @@ export const PASOS: PasoCapacitacion[] = [
   },
   {
     id: "calculadora",
+    requierePermisoFinanzas: true,
     ruta: "/dashboard/calculadora",
     seccion: "Calculadora",
     titulo: "A qué precio vender, y qué ya no da",
@@ -239,6 +250,7 @@ export const PASOS: PasoCapacitacion[] = [
   },
   {
     id: "logistica",
+    requierePermisoFinanzas: true,
     ruta: "/dashboard/logistica",
     seccion: "Torre logística",
     titulo: "Todavía no está en funcionamiento",
@@ -372,13 +384,16 @@ export const PASOS: PasoCapacitacion[] = [
 export function pasosParaUsuario({
   rol,
   vePayroll,
+  veCifras,
 }: {
   rol: RolUsuario;
   vePayroll: boolean;
+  veCifras: boolean;
 }): PasoCapacitacion[] {
   return PASOS.filter((paso) => {
     if (!paso.roles.includes(rol)) return false;
     if (paso.requierePermisoNomina && !vePayroll) return false;
+    if (paso.requierePermisoFinanzas && !veCifras) return false;
     return true;
   });
 }

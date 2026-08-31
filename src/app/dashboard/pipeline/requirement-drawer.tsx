@@ -36,6 +36,11 @@ const METRIC_FIELDS: { key: keyof RequirementRow; label: string; suffix?: string
   { key: "cpm", label: "CPM" },
 ];
 
+// Las dos que son dólares por pieza. Quien no ve dinero no las recibe de la
+// API y tampoco las puede escribir: si el campo quedara en pantalla, vacío,
+// guardar la ficha borraría lo que cargó la dirección.
+const METRICAS_CON_PLATA = new Set(["cpa", "cpm"]);
+
 const LINK_FIELDS: { key: keyof RequirementRow; label: string }[] = [
   { key: "originalVideoLink", label: "Video original Fase 2" },
   { key: "tiktokPostLink", label: "Publicación TikTok" },
@@ -80,6 +85,9 @@ export default function RequirementDrawer({
   onUpdated: (requirement: RequirementRow) => void;
 }) {
   const [detail, setDetail] = useState<Detail | null>(null);
+  // Arranca en false: si la petición falla, la ficha se queda del lado
+  // seguro en vez de dibujar dos campos vacíos donde iba plata.
+  const [verCifras, setVerCifras] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState("");
@@ -101,6 +109,7 @@ export default function RequirementDrawer({
         if (cancelled) return;
         if (data.requirement) {
           setDetail(data.requirement);
+          setVerCifras(Boolean(data.verCifras));
           setEditValues({
             nextAction: data.requirement.nextAction ?? "",
             notes: data.requirement.notes ?? "",
@@ -494,7 +503,9 @@ export default function RequirementDrawer({
             <div className={TARJETA}>
               <p className={TITULO_SECCION}>Métricas &amp; decisión</p>
               <div className="grid grid-cols-2 gap-3">
-                {METRIC_FIELDS.map((f) => (
+                {METRIC_FIELDS.filter(
+                  (f) => verCifras || !METRICAS_CON_PLATA.has(f.key as string)
+                ).map((f) => (
                   <label key={f.key} className="block">
                     <span className={ROTULO}>
                       {f.label}

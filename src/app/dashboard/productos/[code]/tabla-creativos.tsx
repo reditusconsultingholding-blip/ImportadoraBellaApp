@@ -65,6 +65,10 @@ type Columna = {
   opciones?: readonly string[];
 };
 
+// Las columnas de plata por pieza. Se sacan de la planilla para quien no ve
+// dinero, y sus valores tampoco viajan: la ficha los manda en null.
+const COLUMNAS_CON_PLATA = new Set(["cpa", "cpm"]);
+
 const COLUMNAS: Columna[] = [
   { id: "date", titulo: "Fecha", ancho: "8rem", tipo: "fecha" },
   { id: "adName", titulo: "Nombre", ancho: "16rem", tipo: "texto" },
@@ -97,6 +101,7 @@ const celdaBase =
 
 export default function TablaCreativos({
   inicial,
+  verCifras,
   personas,
   puedeEditar,
   producto,
@@ -106,6 +111,8 @@ export default function TablaCreativos({
   historicos,
 }: {
   inicial: Creativo[];
+  /** Si esta persona ve dinero: decide si existen las columnas CPA y CPM. */
+  verCifras: boolean;
   personas: Persona[];
   puedeEditar: boolean;
   producto: ProductOption;
@@ -122,6 +129,13 @@ export default function TablaCreativos({
   const [guardando, setGuardando] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+
+  // Sin el permiso de finanzas la planilla no tiene columna de CPA ni de
+  // CPM. No quedan vacías: dejar el encabezado con las celdas en blanco se
+  // leería como que a esas piezas les falta cargar el dato.
+  const columnas = verCifras
+    ? COLUMNAS
+    : COLUMNAS.filter((c) => !COLUMNAS_CON_PLATA.has(c.id as string));
 
   // El servidor manda la verdad en cada refresh; el estado local existe para
   // que escribir en una celda se sienta inmediato.
@@ -253,7 +267,7 @@ export default function TablaCreativos({
                 <th className="sticky left-0 z-10 whitespace-nowrap bg-surface px-2 py-2 font-semibold">
                   Pieza
                 </th>
-                {COLUMNAS.map((c) => (
+                {columnas.map((c) => (
                   <th key={c.id} className="whitespace-nowrap px-2 py-2 font-semibold" style={{ minWidth: c.ancho }}>
                     {c.titulo}
                   </th>
@@ -266,7 +280,7 @@ export default function TablaCreativos({
                   <td className="sticky left-0 z-10 whitespace-nowrap bg-surface px-2 py-6 text-muted">
                     Sin coincidencias
                   </td>
-                  <td colSpan={COLUMNAS.length} />
+                  <td colSpan={columnas.length} />
                 </tr>
               )}
 
@@ -281,7 +295,7 @@ export default function TablaCreativos({
                       Abrir
                     </button>
                   </td>
-                  {COLUMNAS.map((c) => (
+                  {columnas.map((c) => (
                     <td key={c.id} className="p-0" style={{ minWidth: c.ancho }}>
                       <Celda
                         columna={c}

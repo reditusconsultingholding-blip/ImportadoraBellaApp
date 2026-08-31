@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { EntradaHistorial } from "@/lib/historial-formato";
+import { textoSinCifras } from "@/lib/finanzas";
 
 // La trazabilidad de un producto: qué se le propuso a dirección, quién lo
 // pidió, qué se decidió y con qué nota.
@@ -27,8 +28,20 @@ const TIPO_JARVIS: Record<string, string> = {
 const plata = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
-/** Qué proponía Jarvis, en palabras. El payload es JSON libre y puede venir roto. */
-function detalleJarvis(tipo: string, payload: string, campana: string): string {
+/**
+ * Qué proponía Jarvis, en palabras. El payload es JSON libre y puede venir
+ * roto.
+ *
+ * Sin el permiso de finanzas se dice QUÉ se propuso y no CUÁNTO: subir el
+ * presupuesto de una campaña es una decisión de pauta, el monto diario es
+ * plata.
+ */
+function detalleJarvis(
+  tipo: string,
+  payload: string,
+  campana: string,
+  verCifras: boolean
+): string {
   if (tipo === "PAUSE_CAMPAIGN") return `Pausar la campaña ${campana}`;
   if (tipo === "RESUME_CAMPAIGN") return `Reanudar la campaña ${campana}`;
 
@@ -41,14 +54,21 @@ function detalleJarvis(tipo: string, payload: string, campana: string): string {
     // sin el monto, que es peor que tenerlo pero mucho mejor que no ver nada.
   }
 
-  return diario == null
+  return diario == null || !verCifras
     ? `Cambiar el presupuesto de ${campana}`
     : `Subir el presupuesto de ${campana} a ${plata(diario)} al día`;
 }
 
+/**
+ * @param verCifras si quien va a leer el historial tiene el permiso de
+ * finanzas. Los motivos son texto guardado: una propuesta que escribió
+ * alguien de dirección puede traer el CPA adentro aunque hoy la mire otra
+ * persona.
+ */
 export async function getHistorialDecisiones(
   organizationId: string,
-  productId: string
+  productId: string,
+  verCifras: boolean
 ): Promise<EntradaHistorial[]> {
   const [acciones, propuestasJarvis] = await Promise.all([
     db.productAction.findMany({
@@ -119,14 +139,14 @@ export async function getHistorialDecisiones(
       origen: "PRODUCTO",
       tipo: TIPO_PRODUCTO[a.kind] ?? a.kind,
       detalle: a.detail,
-      motivo: a.reason,
+      motivo: textoSinCifras(a.reason, verCifras) ?? a.reason,
       pedidaPor: a.proposedBy.name,
       pedidaEl: a.createdAt.toISOString(),
       desenlace,
       matiz: a.status === "HECHA" ? "ya realizada" : null,
       resueltaPor: a.decidedBy?.name ?? null,
       resueltaEl: a.decidedAt?.toISOString() ?? null,
-      nota: a.decisionNote,
+      nota: textoSinCifras(a.decisionNote, verCifras),
       admiteNota: true,
       resolubleAqui: a.status === "PROPUESTA",
       asignadaA: a.assignee?.name ?? null,
@@ -156,8 +176,8 @@ export async function getHistorialDecisiones(
       id: p.id,
       origen: "JARVIS",
       tipo: TIPO_JARVIS[p.type] ?? p.type,
-      detalle: detalleJarvis(p.type, p.payload, p.campaign.name),
-      motivo: p.reason,
+      detalle: detalleJarvis(p.type, p.payload, p.campaign.name, verCifras),
+      motivo: textoSinCifras(p.reason, verCifras) ?? p.reason,
       pedidaPor:
         p.requestedBy === "jarvis"
           ? "Jarvis"

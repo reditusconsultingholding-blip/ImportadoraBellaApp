@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { construirInformeDePeriodo, nombreDelInforme } from "@/lib/reporte-periodo";
+import { veLasCifras } from "@/lib/finanzas";
 
 // El informe del período que se eligió en la pantalla de Reportes.
 //
@@ -21,6 +22,16 @@ export async function GET(req: NextRequest) {
   if (!canManagePipeline(session.role)) {
     return NextResponse.json(
       { error: "Solo un Director u Administrador puede descargar informes." },
+      { status: 403 }
+    );
+  }
+  // El PDF es facturado, pauta y utilidad estimada de punta a punta: no es
+  // un informe con algunas cifras adentro, es el informe DE las cifras. Se
+  // deja fuera entero en vez de armar una versión mutilada, y la pantalla lo
+  // dice antes de que nadie apriete el botón.
+  if (!(await veLasCifras(session.userId))) {
+    return NextResponse.json(
+      { error: "El informe con cifras lo descarga la dirección." },
       { status: 403 }
     );
   }

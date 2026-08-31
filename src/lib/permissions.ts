@@ -57,3 +57,19 @@ export function canUseJarvis(role: SessionPayload["role"]) {
 export function canApproveActions(role: SessionPayload["role"]) {
   return canManagePipeline(role);
 }
+
+/**
+ * Quién ve el dinero: ingresos, rentabilidad, costos, la calculadora.
+ *
+ * No es una preferencia de pantalla, es una regla del negocio. El equipo
+ * creativo trabaja con rendimiento —si una pieza funciona, si conviene
+ * escalar, qué producir— y esas decisiones no necesitan saber cuánto factura
+ * la empresa. Quien no lo tiene sigue viendo el pulso, el veredicto de escalar
+ * y las recomendaciones; lo que no ve son las cifras.
+ *
+ * Va por persona y no por rol para que sumar a alguien no le abra la
+ * facturación de rebote. Por defecto no lo tiene nadie.
+ */
+export function canViewFinancials(usuario: { canViewFinancials: boolean } | null | undefined) {
+  return usuario?.canViewFinancials === true;
+}

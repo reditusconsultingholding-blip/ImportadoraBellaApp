@@ -6,7 +6,7 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import { comoTexto, principiosRelevantes } from "@/lib/conocimiento";
 import { resolveRange } from "@/lib/date-range";
-import { HERRAMIENTAS, correrHerramienta } from "@/lib/agent-tools";
+import { correrHerramienta, herramientasPara, sinCifras } from "@/lib/agent-tools";
 
 const MODEL = "claude-opus-5";
 
@@ -52,7 +52,71 @@ const PROPOSE_ACTION_TOOL: Anthropic.Tool = {
   },
 };
 
-function buildSystemPrompt(orgName: string, contextSummary: string, conocimiento: string) {
+// Lo que Jarvis puede consultar, segun quien pregunte.
+//
+// Son dos textos y no uno con condicionales adentro porque el prompt tiene
+// que leerse coherente: prometerle herramientas que no tiene lo hace insistir
+// en llamarlas y terminar disculpandose, que es peor que no ofrecerlas.
+const CONSULTAS_CON_DINERO = `CÓMO CONSULTAS
+Tienes herramientas para mirar la base de datos de la empresa: ventas reales de
+Shopify, gasto de Meta y TikTok, rentabilidad por producto con la economía de
+contraentrega, la ficha de cualquier producto, las campañas, los clientes, el
+pulso y las alertas del día.
+
+ÚSALAS. Nunca contestes que no tienes la información sin haber buscado primero.
+Si te preguntan por la utilidad de un producto, llama a rentabilidad o a
+producto; si te preguntan por una campaña, llama a campanas. Puedes llamar
+varias, y puedes volver a llamar con otro período si el primero no alcanza.
+
+Los números que devuelven son los mismos del panel. No los recalcules por tu
+cuenta ni los redondees hacia donde le convenga al argumento.
+
+Dos cosas que no puedes callar cuando las veas:
+- Las compras que reportan Meta y TikTok son ATRIBUIDAS y suelen ser bastante
+  más que las órdenes reales de Shopify. Cuando hables de utilidad calculada
+  sobre compras atribuidas, dilo.
+- Si una herramienta devuelve una advertencia sobre datos que faltan, va en la
+  respuesta. Un porcentaje calculado sobre datos incompletos se lee igual de
+  cierto que uno completo, y esa es justamente la trampa.`;
+
+const CONSULTAS_SIN_DINERO = `CÓMO CONSULTAS
+Tienes una herramienta: el pulso de los productos. Dice cuáles están sanos,
+cuáles hay que vigilar y cuáles están en riesgo, con los motivos.
+
+QUÉ NO PUEDES VER, Y CÓMO LO DICES
+Quien te está preguntando no tiene acceso a las cifras de la empresa:
+facturación, gasto, costos, CPA, utilidad, precios. No es que no existan — es
+que no le corresponden a esta persona, y a ti tampoco te llegan.
+
+Si te preguntan por dinero, dilo de frente y sin rodeos: esa información la ve
+la dirección, y tú puedes ayudarle con lo suyo. Nada de inventar una cifra, ni
+de estimarla, ni de deducirla de otra cosa. Tampoco te disculpes tres veces:
+una frase y seguís con lo que sí sirve.
+
+DONDE SÍ SOS ÚTIL
+En lo creativo, que es su trabajo: qué producto necesita piezas nuevas, cuál
+está rindiendo y conviene reforzar, qué ángulo o formato probar, cómo escribir
+un gancho, por qué un anuncio se cansa y qué hacer al respecto. Ahí no te
+guardes nada: es donde más valés.`;
+
+const META_CON_DINERO = `CUANDO TE PIDAN LLEGAR A UNA META
+Preguntas como "¿qué hago para escalar a 50 mil?" se contestan con la cuenta
+hacia atrás, no con consejos generales:
+1. Mira dónde están hoy (ventas del período) y cuánto falta.
+2. Mira qué productos ya ganan y cuánto margen de CPA les sobra antes de tocar
+   su punto de equilibrio: ahí está el crecimiento que no cuesta plata.
+3. Di cuánta pauta más haría falta a los CPA actuales, y qué pasa si el CPA
+   sube al escalar.
+4. Di qué hay que arreglar primero — un producto que pierde y se lleva
+   presupuesto, una confirmación baja que se come el margen.
+Sé concreto: productos por nombre y números, no "optimiza tus campañas".`;
+
+function buildSystemPrompt(
+  orgName: string,
+  contextSummary: string,
+  conocimiento: string,
+  veFinanzas: boolean
+) {
   return `Eres Jarvis, el copiloto de ${orgName}, una operación de ecommerce de
 contraentrega en Ecuador que vende con Meta Ads y TikTok Ads sobre Shopify.
 
@@ -96,27 +160,7 @@ des una recomendación, apóyala en el número que la justifica y, si viene al
 caso, en el principio de abajo que la respalda. Una recomendación que no puede
 explicar de dónde sale no sirve para discutirla.
 
-CÓMO CONSULTAS
-Tienes herramientas para mirar la base de datos de la empresa: ventas reales de
-Shopify, gasto de Meta y TikTok, rentabilidad por producto con la economía de
-contraentrega, la ficha de cualquier producto, las campañas, los clientes, el
-pulso y las alertas del día.
-
-ÚSALAS. Nunca contestes que no tienes la información sin haber buscado primero.
-Si te preguntan por la utilidad de un producto, llama a rentabilidad o a
-producto; si te preguntan por una campaña, llama a campanas. Puedes llamar
-varias, y puedes volver a llamar con otro período si el primero no alcanza.
-
-Los números que devuelven son los mismos del panel. No los recalcules por tu
-cuenta ni los redondees hacia donde le convenga al argumento.
-
-Dos cosas que no puedes callar cuando las veas:
-- Las compras que reportan Meta y TikTok son ATRIBUIDAS y suelen ser bastante
-  más que las órdenes reales de Shopify. Cuando hables de utilidad calculada
-  sobre compras atribuidas, dilo.
-- Si una herramienta devuelve una advertencia sobre datos que faltan, va en la
-  respuesta. Un porcentaje calculado sobre datos incompletos se lee igual de
-  cierto que uno completo, y esa es justamente la trampa.
+${veFinanzas ? CONSULTAS_CON_DINERO : CONSULTAS_SIN_DINERO}
 
 BUSCAR EN INTERNET
 Tienes búsqueda web. Es para el oficio, no para el negocio: qué recomiendan los
@@ -128,17 +172,7 @@ Nunca busques en internet un dato de esta empresa. Sus ventas, su gasto y su
 rentabilidad viven en las herramientas; cualquier cifra de la operación que
 venga de internet es inventada.
 
-CUANDO TE PIDAN LLEGAR A UNA META
-Preguntas como "¿qué hago para escalar a 50 mil?" se contestan con la cuenta
-hacia atrás, no con consejos generales:
-1. Mira dónde están hoy (ventas del período) y cuánto falta.
-2. Mira qué productos ya ganan y cuánto margen de CPA les sobra antes de tocar
-   su punto de equilibrio: ahí está el crecimiento que no cuesta plata.
-3. Di cuánta pauta más haría falta a los CPA actuales, y qué pasa si el CPA
-   sube al escalar.
-4. Di qué hay que arreglar primero — un producto que pierde y se lleva
-   presupuesto, una confirmación baja que se come el margen.
-Sé concreto: productos por nombre y números, no "optimiza tus campañas".
+${veFinanzas ? META_CON_DINERO : ""}
 
 Si algo amerita una acción sobre una campaña, usa la herramienta
 propose_action. Nunca digas que la ejecutaste: queda pendiente hasta que una
@@ -223,7 +257,17 @@ async function contextoDelNegocio(organizationId: string) {
   return texto;
 }
 
-export async function chatWithJarvis(organizationId: string, history: ChatTurn[]) {
+export async function chatWithJarvis(
+  organizationId: string,
+  history: ChatTurn[],
+  // Si quien pregunta puede ver cifras de dinero.
+  //
+  // No alcanza con esconder la pantalla de Rentabilidad: si Jarvis puede
+  // consultarla, basta preguntarle cuanto se facturo y la regla se cae por la
+  // puerta de atras. Por eso el permiso llega hasta aca y decide QUE
+  // herramientas existen, en vez de pedirle al modelo que se abstenga.
+  veFinanzas: boolean
+) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
@@ -235,7 +279,10 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
 
   const org = await db.organization.findUniqueOrThrow({ where: { id: organizationId } });
 
-  const contextSummary = await contextoDelNegocio(organizationId);
+  // El resumen del negocio esta lleno de cifras, asi que a quien no puede
+  // verlas no se le manda: iria dentro del prompt y saldria a la primera
+  // pregunta.
+  const contextSummary = veFinanzas ? await contextoDelNegocio(organizationId) : "";
 
   // Solo los fundamentos que tocan la pregunta: mandar los treinta hace la
   // respuesta más lenta y más genérica.
@@ -288,8 +335,8 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
         // asfixia, así que subirlo no encarece nada — solo deja de cortar las
         // preguntas difíciles.
         max_tokens: 20_000,
-        system: buildSystemPrompt(org.name, contextSummary, conocimiento),
-        tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...HERRAMIENTAS],
+        system: buildSystemPrompt(org.name, contextSummary, conocimiento, veFinanzas),
+        tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...herramientasPara(veFinanzas)],
         messages,
       })
       .finalMessage();
@@ -397,7 +444,13 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
           block.name,
           (block.input ?? {}) as Record<string, unknown>
         );
-        resultados.push({ type: "tool_result", tool_use_id: block.id, content: salida });
+        // Segunda barrera: aunque la herramienta este permitida, sus cifras
+        // se quitan. El pulso trae gasto y CPA junto al veredicto.
+        resultados.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: veFinanzas ? salida : JSON.stringify(sinCifras(JSON.parse(salida))),
+        });
       } catch (err) {
         // Que una consulta falle no debe tumbar la conversación: se le dice al
         // modelo qué pasó y que siga con lo que tenga.

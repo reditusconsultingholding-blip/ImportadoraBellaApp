@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { buildInsights } from "@/lib/insights";
+import { veLasCifras } from "@/lib/finanzas";
 
 // El análisis se pide aparte y no dentro del renderizado de la página: una
 // llamada al modelo tarda varios segundos, y no tiene sentido que el panel
@@ -13,7 +14,13 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   // Habla de plata: mismo criterio que Rentabilidad.
-  if (!canManagePipeline(session.role)) {
+  //
+  // Y además pide el permiso de finanzas. Este es el único texto de la app
+  // que redacta el modelo con la facturación y el gasto delante: no hay
+  // forma de garantizar que no nombre una cifra, así que sin el permiso no
+  // se genera. Las recomendaciones que sí llegan son las calculadas — el
+  // pulso por producto y las alertas del día.
+  if (!canManagePipeline(session.role) || !(await veLasCifras(session.userId))) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 

@@ -5,6 +5,7 @@ import { canManagePipeline } from "@/lib/permissions";
 import { fetchProductCatalog } from "@/lib/integrations/shopify";
 import { normalizar } from "@/lib/product-code";
 import { relinkCampaignsToProducts } from "@/lib/integrations/windsor-sync";
+import { veLasCifras } from "@/lib/finanzas";
 
 // El catálogo vivo de Shopify, para poder buscar un producto y empezar a
 // seguirlo desde el panel. La caché de fetchProductCatalog es de 5 minutos:
@@ -26,6 +27,7 @@ async function tiendaDe(organizationId: string) {
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  const verCifras = await veLasCifras(session.userId);
 
   const tienda = await tiendaDe(session.organizationId);
   if (!tienda) {
@@ -60,17 +62,19 @@ export async function GET(req: NextRequest) {
   const items = catalogo
     .map((c) => {
       const ficha = yaSeguido.get(normalizar(c.title));
+      // Precio y costo solo si corresponde: el buscador sirve igual para
+      // elegir qué producto seguir, y sin el permiso esas dos cifras no
+      // tienen por qué salir del servidor.
       return {
         title: c.title,
-        price: c.price,
-        unitCost: c.unitCost,
+        ...(verCifras ? { price: c.price, unitCost: c.unitCost } : {}),
         seguido: Boolean(ficha),
         code: ficha?.code ?? null,
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title, "es"));
 
-  return NextResponse.json({ items, total: items.length, tienda: tienda.shopDomain });
+  return NextResponse.json({ items, total: items.length, tienda: tienda.shopDomain, verCifras });
 }
 
 /** Empieza a seguir un producto del catálogo: le crea la ficha. */

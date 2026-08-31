@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { canUseJarvis } from "@/lib/permissions";
+import { db } from "@/lib/db";
 import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
 
@@ -20,7 +21,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await chatWithJarvis(session.organizationId, history);
+    // El permiso se lee de la base y no de la sesion: la sesion es un token
+    // firmado que dura 30 dias, asi que quitarle el acceso a alguien no
+    // tendria efecto hasta que vuelva a entrar.
+    const me = await db.user.findUnique({
+      where: { id: session.userId },
+      select: { canViewFinancials: true },
+    });
+
+    const result = await chatWithJarvis(
+      session.organizationId,
+      history,
+      me?.canViewFinancials === true
+    );
 
     // La conversación se guarda después de responder, no antes: si Jarvis
     // falla, no queda una conversación a medias con una pregunta sin respuesta.

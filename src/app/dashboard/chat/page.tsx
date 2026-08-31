@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { canAccessPipeline } from "@/lib/permissions";
+import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import {
   MESSAGE_INCLUDE,
   messageWhere,
@@ -124,6 +124,10 @@ export default async function ChatPage({
       activeScope={resolved ? scopeKey(resolved.scope) : null}
       activeTitle={resolved?.title ?? null}
       initialMessages={messages}
+      // Solo para no ofrecerle el formulario a quien no lo puede usar. El
+      // permiso de verdad lo vuelve a decidir /api/chat/anuncios en cada
+      // publicación.
+      puedePublicarAnuncios={canManagePipeline(session.role)}
     />
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PulseLine, { type PulseTone } from "./pulse-line";
+import { AVISO_SIN_CIFRAS } from "@/lib/finanzas-textos";
 import {
   ColaDeAprobacion,
   DetalleProducto,
@@ -23,10 +24,12 @@ type Pulse = {
   name: string;
   score: number;
   state: PulseTone;
-  spend: number;
   purchases: number;
-  cpa: number | null;
-  cpaTarget: number | null;
+  /** Solo con el permiso de finanzas — ver /api/pulse. */
+  spend?: number;
+  cpa?: number | null;
+  cpaTarget?: number | null;
+  /** En dólares por día para la dirección; en escala relativa para el resto. */
   serie: number[];
   motivos: string[];
   sugerencias: Sugerencia[];
@@ -76,6 +79,7 @@ export default function PulsePanel({ query }: { query: string }) {
     equipo: Persona[];
     pendientes: Pendiente[];
     puedoDecidir: boolean;
+    verCifras: boolean;
   } | null>(null);
   const [analisis, setAnalisis] = useState<
     { q: string; data: Insights } | { q: string; motivo: string } | null
@@ -101,11 +105,19 @@ export default function PulsePanel({ query }: { query: string }) {
           equipo: d.equipo ?? [],
           pendientes: d.pendientes ?? [],
           puedoDecidir: Boolean(d.puedoDecidir),
+          verCifras: Boolean(d.verCifras),
         });
       })
       .catch(() => {
         if (!cancelado) {
-          setPulsos({ q: query, data: [], equipo: [], pendientes: [], puedoDecidir: false });
+          setPulsos({
+            q: query,
+            data: [],
+            equipo: [],
+            pendientes: [],
+            puedoDecidir: false,
+            verCifras: false,
+          });
         }
       });
     return () => {
@@ -113,10 +125,19 @@ export default function PulsePanel({ query }: { query: string }) {
     };
   }, [query, recarga]);
 
+  const datos = pulsos?.q === query ? pulsos : null;
+  // Mientras no llegó la respuesta se asume que NO: así, si la petición falla,
+  // la pantalla se queda del lado seguro en vez de dibujar huecos donde iría
+  // plata. Se resuelve acá arriba porque de esto depende si se pide o no el
+  // análisis del modelo.
+  const verCifras = datos?.verCifras ?? false;
+
   // El análisis de IA solo cuando alguien abre: cuesta una llamada al modelo y
-  // nadie la pidió mientras el panel estaba cerrado.
+  // nadie la pidió mientras el panel estaba cerrado. Y solo si el servidor lo
+  // va a contestar: sin el permiso de finanzas /api/insights responde 403,
+  // así que pedirlo sería garantizar un error en la consola.
   useEffect(() => {
-    if (!abierto) return;
+    if (!abierto || !verCifras) return;
     let cancelado = false;
     fetch(`/api/insights?${query}`)
       .then((r) => r.json())
@@ -131,9 +152,8 @@ export default function PulsePanel({ query }: { query: string }) {
     return () => {
       cancelado = true;
     };
-  }, [abierto, query]);
+  }, [abierto, query, verCifras]);
 
-  const datos = pulsos?.q === query ? pulsos : null;
   const pulses = datos?.data ?? null;
   const equipo = datos?.equipo ?? [];
   const pendientes = datos?.pendientes ?? [];
@@ -185,11 +205,18 @@ export default function PulsePanel({ query }: { query: string }) {
 
   // El pulso general se pondera por gasto: un producto que se lleva la mitad
   // del presupuesto pesa la mitad del resultado.
-  const gastoTotal = conPauta.reduce((a, p) => a + p.spend, 0);
+  //
+  // Sin el permiso de finanzas el gasto no llegó, así que se promedia parejo.
+  // Da un número algo distinto del que ve la dirección, y está bien que así
+  // sea: la alternativa era mandar el gasto igual para poder ponderar, que
+  // es exactamente lo que no se puede hacer.
+  const gastoTotal = conPauta.reduce((a, p) => a + (p.spend ?? 0), 0);
   const general =
-    gastoTotal > 0
-      ? Math.round(conPauta.reduce((a, p) => a + p.score * p.spend, 0) / gastoTotal)
-      : null;
+    conPauta.length === 0
+      ? null
+      : gastoTotal > 0
+        ? Math.round(conPauta.reduce((a, p) => a + p.score * (p.spend ?? 0), 0) / gastoTotal)
+        : Math.round(conPauta.reduce((a, p) => a + p.score, 0) / conPauta.length);
   const estadoGeneral: PulseTone =
     general == null ? "SIN_DATOS" : general >= 70 ? "SANO" : general >= 40 ? "VIGILAR" : "RIESGO";
 
@@ -227,8 +254,12 @@ export default function PulsePanel({ query }: { query: string }) {
                 {enRiesgo.length} {enRiesgo.length === 1 ? "producto" : "productos"} en riesgo
               </strong>
               <span className="text-muted">
-                {" · "}
-                {money(enRiesgo.reduce((a, p) => a + p.spend, 0))} en juego
+                {verCifras && (
+                  <>
+                    {" · "}
+                    {money(enRiesgo.reduce((a, p) => a + (p.spend ?? 0), 0))} en juego
+                  </>
+                )}
                 {vigilar.length > 0 ? ` · ${vigilar.length} a vigilar` : ""}
               </span>
             </>
@@ -327,9 +358,17 @@ export default function PulsePanel({ query }: { query: string }) {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm">{p.name}</span>
                           <span className="block text-xs tabular-nums text-muted">
-                            {money(p.spend)} ·{" "}
-                            {p.cpa == null ? "sin compras" : `CPA ${p.cpa.toFixed(2)}`}
-                            {p.cpaTarget ? ` / obj ${p.cpaTarget.toFixed(2)}` : ""}
+                            {verCifras ? (
+                              <>
+                                {money(p.spend ?? 0)} ·{" "}
+                                {p.cpa == null ? "sin compras" : `CPA ${p.cpa.toFixed(2)}`}
+                                {p.cpaTarget ? ` / obj ${p.cpaTarget.toFixed(2)}` : ""}
+                              </>
+                            ) : p.purchases > 0 ? (
+                              `${p.purchases.toLocaleString("es-EC")} ${p.purchases === 1 ? "compra atribuida" : "compras atribuidas"}`
+                            ) : (
+                              "sin compras atribuidas"
+                            )}
                           </span>
                         </span>
                         <span
@@ -357,6 +396,7 @@ export default function PulsePanel({ query }: { query: string }) {
                       {abiertoEste && (
                         <DetalleProducto
                           p={p}
+                          verCifras={verCifras}
                           onProponer={proponer(p)}
                           onCerrar={() => setProductoAbierto(null)}
                           puedeConfigurar={puedoDecidir}
@@ -375,7 +415,19 @@ export default function PulsePanel({ query }: { query: string }) {
               Qué está pasando
             </p>
 
-            {analisisDelPeriodo == null && (
+            {/* Es el único texto de la app que redacta el modelo con la
+                facturación delante, así que no hay forma de garantizar que
+                no nombre una cifra: sin el permiso no se pide. Lo que sí
+                queda son las recomendaciones calculadas, arriba, producto
+                por producto. */}
+            {!verCifras && (
+              <p className="text-sm text-muted">
+                {AVISO_SIN_CIFRAS} Los motivos y las propuestas de cada producto están
+                arriba, en su fila.
+              </p>
+            )}
+
+            {verCifras && analisisDelPeriodo == null && (
               <div className="flex flex-col gap-2">
                 {[0, 1, 2].map((i) => (
                   <span
@@ -387,11 +439,11 @@ export default function PulsePanel({ query }: { query: string }) {
               </div>
             )}
 
-            {analisisDelPeriodo != null && "motivo" in analisisDelPeriodo && (
+            {verCifras && analisisDelPeriodo != null && "motivo" in analisisDelPeriodo && (
               <p className="text-sm text-muted">{analisisDelPeriodo.motivo}</p>
             )}
 
-            {analisisDelPeriodo != null && "data" in analisisDelPeriodo && (
+            {verCifras && analisisDelPeriodo != null && "data" in analisisDelPeriodo && (
               <div className="flex flex-col gap-4">
                 <p className="text-[15px] font-medium leading-snug">
                   {analisisDelPeriodo.data.headline}

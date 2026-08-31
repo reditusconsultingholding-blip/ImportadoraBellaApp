@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { RowMetric } from "@/lib/metrics";
+import type { FilaVisible } from "@/lib/metrics";
 
 // La tabla de producto y campaña, con filtro.
 //
@@ -13,6 +13,12 @@ import type { RowMetric } from "@/lib/metrics";
 // El orden que importa no es el gasto sino CUÁNTO SE ALEJA DEL OBJETIVO. Una
 // campaña que gasta $2.000 a la mitad de su CPA objetivo no es un problema;
 // una que gasta $200 al doble, sí.
+//
+// Las filas llegan ya recortadas del servidor (ver `filasVisibles`): sin el
+// permiso de finanzas no traen gasto, ingreso, CPA ni objetivo, y por eso acá
+// no hay ningún `if` tapando columnas que igual habrían viajado dentro del
+// HTML. Lo que sí llega siempre es `desvio` —cuántas veces el objetivo se está
+// pagando—, que es lo que sostiene los filtros sin nombrar un monto.
 
 const ESTADO_FILA = {
   sano: { texto: "Va bien", chip: "bg-good-bg text-good" },
@@ -24,57 +30,63 @@ const ESTADO_FILA = {
 const money2 = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
+const entero = (n: number) => n.toLocaleString("es-EC");
+
 type Filtro = "gasto" | "mejores" | "peores" | "revisar";
 
-const FILTROS: { id: Filtro; label: string; ayuda: string }[] = [
-  { id: "gasto", label: "Más gasto", ayuda: "Dónde se está yendo la plata" },
-  { id: "mejores", label: "Las mejores", ayuda: "Las que más lejos están de su techo de CPA" },
-  { id: "peores", label: "Las peores", ayuda: "Las que más se pasan de su CPA objetivo" },
-  { id: "revisar", label: "Solo las que van mal", ayuda: "Las que piden una decisión hoy" },
-];
-
-/**
- * Qué tan lejos está el CPA del objetivo.
- *
- * Menor que 1 es que paga menos de lo que puede; mayor que 1 es que se pasa.
- * Se compara la RAZÓN y no la resta porque un exceso de $3 es grave en un
- * producto de CPA $4 y despreciable en uno de CPA $30.
- */
-function razon(r: RowMetric) {
-  if (r.cpa == null || r.cpaTarget == null || r.cpaTarget <= 0) return null;
-  return r.cpa / r.cpaTarget;
+function filtrosPara(verCifras: boolean): { id: Filtro; label: string; ayuda: string }[] {
+  return [
+    {
+      id: "gasto",
+      label: verCifras ? "Más gasto" : "Las que más mueven",
+      ayuda: verCifras
+        ? "Dónde se está yendo la plata"
+        : "Ordenadas por volumen de pauta, de mayor a menor",
+    },
+    { id: "mejores", label: "Las mejores", ayuda: "Las que más lejos están de su techo de costo" },
+    { id: "peores", label: "Las peores", ayuda: "Las que más se pasan de su objetivo" },
+    { id: "revisar", label: "Solo las que van mal", ayuda: "Las que piden una decisión hoy" },
+  ];
 }
 
-function ordenar(filas: RowMetric[], filtro: Filtro) {
+function ordenar(filas: FilaVisible[], filtro: Filtro) {
+  // El orden que llega del servidor ya es por gasto, y mostrarlo así no dice
+  // cuánto gastó ninguna.
   if (filtro === "gasto") return filas;
 
   // Las que no tienen objetivo no se pueden juzgar: quedan al final en vez de
   // colarse arriba como si fueran las mejores.
-  const conObjetivo = filas.filter((f) => razon(f) != null);
-  const sinObjetivo = filas.filter((f) => razon(f) == null);
+  const conObjetivo = filas.filter((f) => f.desvio != null);
+  const sinObjetivo = filas.filter((f) => f.desvio == null);
 
   if (filtro === "revisar") {
     return conObjetivo
       .filter((f) => f.status === "riesgo" || f.status === "vigilar")
-      .sort((a, b) => razon(b)! - razon(a)!);
+      .sort((a, b) => b.desvio! - a.desvio!);
   }
 
   const ordenadas = [...conObjetivo].sort((a, b) =>
-    filtro === "peores" ? razon(b)! - razon(a)! : razon(a)! - razon(b)!
+    filtro === "peores" ? b.desvio! - a.desvio! : a.desvio! - b.desvio!
   );
   return [...ordenadas, ...sinObjetivo];
 }
 
 export default function TablaFilas({
   filas,
+  verCifras,
   puedeAbrirProducto,
 }: {
-  filas: RowMetric[];
+  filas: FilaVisible[];
+  /** Si esta persona ve dinero. Define qué columnas existen, no cuáles se tapan. */
+  verCifras: boolean;
   puedeAbrirProducto: boolean;
 }) {
   const [filtro, setFiltro] = useState<Filtro>("gasto");
+  const FILTROS = filtrosPara(verCifras);
   const visibles = ordenar(filas, filtro);
   const ayuda = FILTROS.find((f) => f.id === filtro)?.ayuda;
+  // Ocho columnas con plata, siete sin ella: hace falta para la fila vacía.
+  const columnas = verCifras ? 8 : 7;
 
   return (
     <div className="overflow-hidden rounded border border-border bg-surface">
@@ -110,18 +122,29 @@ export default function TablaFilas({
           <thead>
             <tr className="border-b border-border text-left">
               <th className="px-5 py-3">Producto / campaña</th>
-              <th className="px-5 py-3 text-right">Gasto</th>
+              {verCifras ? (
+                <th className="px-5 py-3 text-right">Gasto</th>
+              ) : (
+                <>
+                  <th className="px-5 py-3 text-right">Impresiones</th>
+                  <th className="px-5 py-3 text-right">CTR</th>
+                </>
+              )}
               <th className="px-5 py-3 text-right">Compras</th>
-              <th className="px-5 py-3 text-right">Ingreso</th>
-              <th className="px-5 py-3 text-right">CPA</th>
-              <th className="px-5 py-3 text-right">Objetivo</th>
+              {verCifras && (
+                <>
+                  <th className="px-5 py-3 text-right">Ingreso</th>
+                  <th className="px-5 py-3 text-right">CPA</th>
+                  <th className="px-5 py-3 text-right">Objetivo</th>
+                </>
+              )}
               <th className="px-5 py-3 text-right">vs. objetivo</th>
               <th className="px-5 py-3">Estado</th>
             </tr>
           </thead>
           <tbody>
             {visibles.map((r) => {
-              const z = razon(r);
+              const z = r.desvio;
               return (
                 <tr key={r.key} className="border-t border-border">
                   <td className="px-5 py-3">
@@ -137,18 +160,38 @@ export default function TablaFilas({
                     )}
                     {r.code && <p className="font-mono text-xs text-muted">{r.code}</p>}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend)}</td>
+                  {verCifras ? (
+                    <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend ?? 0)}</td>
+                  ) : (
+                    <>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {entero(r.impressions)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {r.ctr == null ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          `${r.ctr.toFixed(2)}%`
+                        )}
+                      </td>
+                    </>
+                  )}
                   <td className="px-5 py-3 text-right tabular-nums">{r.purchases}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">{money2(r.revenue)}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">
-                    {r.cpa !== null ? money2(r.cpa) : "—"}
-                  </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-muted">
-                    {r.cpaTarget !== null ? money2(r.cpaTarget) : "—"}
-                  </td>
+                  {verCifras && (
+                    <>
+                      <td className="px-5 py-3 text-right tabular-nums">{money2(r.revenue ?? 0)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {r.cpa != null ? money2(r.cpa) : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-muted">
+                        {r.cpaTarget != null ? money2(r.cpaTarget) : "—"}
+                      </td>
+                    </>
+                  )}
                   {/* La columna que hace comparable una campaña de CPA $4 con una
                       de CPA $30. Sin ella, ordenar por "peores" no se puede
-                      verificar mirando la tabla. */}
+                      verificar mirando la tabla — y para quien no ve los montos
+                      es lo único que dice cuán lejos está del objetivo. */}
                   <td className="px-5 py-3 text-right tabular-nums">
                     {z == null ? (
                       <span className="text-muted">—</span>
@@ -180,7 +223,7 @@ export default function TablaFilas({
             })}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-sm text-muted">
+                <td colSpan={columnas} className="px-5 py-8 text-center text-sm text-muted">
                   {filtro === "revisar"
                     ? "Ninguna campaña se está pasando de su objetivo en este período."
                     : "No hay campañas con datos en este período."}

@@ -2,8 +2,14 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
-import { getOverview } from "@/lib/metrics";
-import { getPulsoCreativos, VENTANA_DIAS, ventanasDelPulso } from "@/lib/pulso-creativos";
+import { filasVisibles, getOverview } from "@/lib/metrics";
+import {
+  getPulsoCreativos,
+  pulsosCreativosVisibles,
+  VENTANA_DIAS,
+  ventanasDelPulso,
+} from "@/lib/pulso-creativos";
+import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import PipelineBoard from "./pipeline-board";
 import CampanasActivas from "./campanas-activas";
 import ProductosPulso from "./productos-pulso";
@@ -70,7 +76,8 @@ export default async function PipelinePage({
     // creativos, no una equivalente: las dos pestañas tienen que hablar del
     // mismo período o sus números no se pueden cruzar.
     const range = ventanasDelPulso().actual;
-    const [meta, tiktok] = await Promise.all([
+    const [verCifras, meta, tiktok] = await Promise.all([
+      veLasCifras(session.userId),
       getOverview(session.organizationId, "META", range),
       getOverview(session.organizationId, "TIKTOK", range),
     ]);
@@ -78,17 +85,27 @@ export default async function PipelinePage({
     return (
       <div className="flex flex-col gap-6">
         {encabezado}
+        {/* Las filas se recortan en el servidor: sin el permiso de finanzas
+            el gasto, el ingreso y el CPA no salen de acá. */}
         <CampanasActivas
-          meta={meta}
-          tiktok={tiktok}
+          meta={{
+            filas: filasVisibles(meta.rows, verCifras),
+            sinProducto: meta.campaignsWithoutProduct,
+          }}
+          tiktok={{
+            filas: filasVisibles(tiktok.rows, verCifras),
+            sinProducto: tiktok.campaignsWithoutProduct,
+          }}
           periodo={`Últimos ${VENTANA_DIAS} días · ${range.label}`}
+          verCifras={verCifras}
         />
       </div>
     );
   }
 
   if (vista === "productos") {
-    const [pulsos, requirements, users] = await Promise.all([
+    const [verCifras, pulsos, requirements, users] = await Promise.all([
+      veLasCifras(session.userId),
       getPulsoCreativos(session.organizationId),
       db.requirement.findMany({
         where: dondeRequerimientos,
@@ -108,8 +125,9 @@ export default async function PipelinePage({
       <div className="flex flex-col gap-6">
         {encabezado}
         <ProductosPulso
-          pulsos={pulsos}
-          initialRequirements={requirements.map((r) => ({
+          pulsos={pulsosCreativosVisibles(pulsos, verCifras)}
+          verCifras={verCifras}
+          initialRequirements={creativosSinCifras(requirements, verCifras).map((r) => ({
             ...r,
             date: r.date.toISOString(),
             dueDate: r.dueDate ? r.dueDate.toISOString() : null,
@@ -123,7 +141,8 @@ export default async function PipelinePage({
     );
   }
 
-  const [requirements, products, users] = await Promise.all([
+  const [verCifras, requirements, products, users] = await Promise.all([
+    veLasCifras(session.userId),
     db.requirement.findMany({
       where: dondeRequerimientos,
       include: {
@@ -144,11 +163,14 @@ export default async function PipelinePage({
       {encabezado}
       <PipelineBoard
         canManage={canManage}
+        verCifras={verCifras}
         currentUserId={session.userId}
         currentUserName={session.name}
         vista={vista === "tabla" ? "table" : "kanban"}
         encabezado={false}
-        initialRequirements={requirements.map((r) => ({
+        // El CPA de cada pieza se corta acá: la vista de tabla lo mostraba en
+        // una columna, y la fila entera viaja al navegador dentro del HTML.
+        initialRequirements={creativosSinCifras(requirements, verCifras).map((r) => ({
           ...r,
           date: r.date.toISOString(),
           dueDate: r.dueDate ? r.dueDate.toISOString() : null,

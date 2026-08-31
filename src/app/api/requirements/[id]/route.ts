@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessRequirement, canManagePipeline } from "@/lib/permissions";
+import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
 
 async function loadOwned(id: string, organizationId: string) {
@@ -31,7 +32,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 
-  return NextResponse.json({ requirement });
+  const verCifras = await veLasCifras(session.userId);
+  // El flag viaja con la ficha para que el panel de detalle sepa si dibujar
+  // los campos de CPA y CPM o directamente no ponerlos.
+  return NextResponse.json({
+    requirement: creativosSinCifras([requirement], verCifras)[0],
+    verCifras,
+  });
 }
 
 const EDITABLE_FIELDS = [
@@ -95,6 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Un Editor puede actualizar lo suyo (status, métricas, links) pero no
   // reasignar el requerimiento a otra persona ni cambiar el producto.
   const isEditorSelf = !canManagePipeline(session.role);
+  const verCifras = await veLasCifras(session.userId);
 
   const body = (await req.json()) as Record<string, string | number | null | undefined>;
   if (body.status && !REQUIREMENT_STATUSES.includes(body.status as never)) {
@@ -105,6 +113,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   for (const field of EDITABLE_FIELDS) {
     if (!(field in body)) continue;
     if (isEditorSelf && (field === "ownerId" || field === "productId")) continue;
+    // Quien no ve el CPA ni el CPM tampoco los escribe. No es una precaución
+    // de más: el panel de detalle manda todos sus campos juntos, y como a esa
+    // persona los dos le llegan vacíos, guardar cualquier otra cosa borraría
+    // los valores reales que cargó la dirección.
+    if (!verCifras && (field === "cpa" || field === "cpm")) continue;
     const value = body[field];
     if (NUMERIC_FIELDS.has(field)) {
       data[field] = value === "" || value === null || value === undefined ? null : Number(value);
@@ -151,7 +164,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  return NextResponse.json({ requirement });
+  return NextResponse.json({
+    requirement: creativosSinCifras([requirement], verCifras)[0],
+  });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

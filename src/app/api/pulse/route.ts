@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
-import { getPulses } from "@/lib/pulse";
+import { getPulses, pulsosVisibles } from "@/lib/pulse";
+import { textoSinCifras, veLasCifras } from "@/lib/finanzas";
 import { puedeDecidir, sugerirAcciones } from "@/lib/product-actions";
 
 // El pulso por producto, con lo que se puede hacer al respecto.
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   if (!canManagePipeline(session.role)) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
+
+  const verCifras = await veLasCifras(session.userId);
 
   const params = req.nextUrl.searchParams;
   const range = resolveRange(
@@ -56,12 +59,27 @@ export async function GET(req: NextRequest) {
   // Las sugerencias se calculan del lado del servidor y viajan con el pulso: si
   // la pantalla las dedujera sola, el criterio viviría en dos lugares y tarde o
   // temprano dirían cosas distintas.
-  const conSugerencias = pulses.map((p) => ({ ...p, sugerencias: sugerirAcciones(p) }));
+  //
+  // Y se recortan acá mismo: el pulso trae gasto, CPA, objetivo y la serie
+  // diaria en dólares, y todo eso terminaría en el HTML de la pantalla si
+  // solo se escondiera al dibujar.
+  const visibles = pulsosVisibles(pulses, verCifras).map((p, i) => ({
+    ...p,
+    sugerencias: sugerirAcciones(pulses[i], verCifras),
+  }));
+
+  // El motivo de una propuesta es texto guardado: si la escribió alguien de
+  // dirección, puede traer el CPA adentro aunque hoy la mire otra persona.
+  const pendientesVisibles = pendientes.map((p) => ({
+    ...p,
+    reason: textoSinCifras(p.reason, verCifras) ?? p.reason,
+  }));
 
   return NextResponse.json({
-    pulses: conSugerencias,
+    pulses: visibles,
+    verCifras,
     equipo,
-    pendientes,
+    pendientes: pendientesVisibles,
     puedoDecidir: puedeDecidir(session.role),
   });
 }

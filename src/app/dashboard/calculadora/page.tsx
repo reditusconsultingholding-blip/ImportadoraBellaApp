@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canManagePipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
 import { fetchProductCatalog, type ShopifyCatalogProduct } from "@/lib/integrations/shopify";
 import PricingCalculator, { type CalcProduct } from "./pricing-calculator";
 import SinRentabilidad, { type FilaSinRentabilidad } from "./sin-rentabilidad";
@@ -14,6 +15,9 @@ export default async function CalculadoraPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canManagePipeline(session.role)) redirect("/dashboard");
+  // Precio, costo, flete y margen de punta a punta: es una de las tres
+  // pantallas que el dueño cerró a la dirección.
+  if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const [fichas, store] = await Promise.all([
     // La economía real de cada producto, que es lo que el equipo lleva en su

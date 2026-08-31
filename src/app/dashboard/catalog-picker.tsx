@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 
 type Item = {
   title: string;
-  price: number | null;
-  unitCost: number | null;
+  // Llegan solo con el permiso de finanzas — ver /api/catalogo.
+  price?: number | null;
+  unitCost?: number | null;
   seguido: boolean;
   code: string | null;
 };
@@ -32,7 +33,11 @@ const plano = (s: string) =>
 export default function CatalogPicker() {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
-  const [datos, setDatos] = useState<{ items: Item[]; error?: string } | null>(null);
+  const [datos, setDatos] = useState<{
+    items: Item[];
+    error?: string;
+    verCifras: boolean;
+  } | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
   const [guardando, setGuardando] = useState(false);
@@ -45,10 +50,12 @@ export default function CatalogPicker() {
     fetch("/api/catalogo")
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelado) setDatos({ items: d.items ?? [], error: d.error });
+        if (!cancelado)
+          setDatos({ items: d.items ?? [], error: d.error, verCifras: Boolean(d.verCifras) });
       })
       .catch(() => {
-        if (!cancelado) setDatos({ items: [], error: "No se pudo leer el catálogo." });
+        if (!cancelado)
+          setDatos({ items: [], error: "No se pudo leer el catálogo.", verCifras: false });
       });
     return () => {
       cancelado = true;
@@ -117,7 +124,7 @@ export default function CatalogPicker() {
     setDatos(null);
     const r = await fetch("/api/catalogo?refrescar=1");
     const d = await r.json();
-    setDatos({ items: d.items ?? [], error: d.error });
+    setDatos({ items: d.items ?? [], error: d.error, verCifras: Boolean(d.verCifras) });
   }
 
   return (
@@ -213,9 +220,14 @@ export default function CatalogPicker() {
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{i.title}</span>
-                        <span className="block text-xs tabular-nums text-muted">
-                          Precio {money(i.price)} · Costo {money(i.unitCost)}
-                        </span>
+                        {/* Sin el permiso de finanzas el renglón no lleva un
+                            precio en cero ni un guion: directamente no está,
+                            porque el dato no viajó. */}
+                        {datos?.verCifras && (
+                          <span className="block text-xs tabular-nums text-muted">
+                            Precio {money(i.price ?? null)} · Costo {money(i.unitCost ?? null)}
+                          </span>
+                        )}
                       </span>
                       {i.seguido && (
                         <span className="shrink-0 rounded-full border border-good/30 bg-good-bg px-1.5 py-0.5 text-[10px] font-medium text-good">

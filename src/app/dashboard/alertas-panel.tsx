@@ -8,10 +8,14 @@ type Alerta = {
   productId: string;
   code: string;
   name: string;
+  /**
+   * Ya viene redactado según quién pregunta: con montos para la dirección,
+   * con porcentajes y cantidades para el resto. Ver alertas-diarias.ts.
+   */
   mensaje: string;
-  gasto: number;
-  cpa: number | null;
-  equilibrio: number;
+  gasto?: number;
+  cpa?: number | null;
+  equilibrio?: number;
 };
 
 const ESTILO = {
@@ -46,6 +50,9 @@ const money = (n: number) =>
  */
 export default function AlertasPanel() {
   const [alertas, setAlertas] = useState<Alerta[] | null>(null);
+  // Arranca en false: si la petición falla, el encabezado se queda del lado
+  // seguro en vez de sumar montos que nunca llegaron.
+  const [verCifras, setVerCifras] = useState(false);
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
@@ -53,7 +60,9 @@ export default function AlertasPanel() {
     fetch("/api/alertas")
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelado) setAlertas(d.alertas ?? []);
+        if (cancelado) return;
+        setAlertas(d.alertas ?? []);
+        setVerCifras(Boolean(d.verCifras));
       })
       .catch(() => {
         if (!cancelado) setAlertas([]);
@@ -71,8 +80,8 @@ export default function AlertasPanel() {
   // todos los días deja de mirarse, y con ella se pierden las que sí importan.
   if (alertas != null && apagar.length === 0 && escalar.length === 0) return null;
 
-  const enJuego = apagar.reduce((s, a) => s + a.gasto, 0);
-  const margen = escalar.reduce((s, a) => s + a.gasto, 0);
+  const enJuego = apagar.reduce((s, a) => s + (a.gasto ?? 0), 0);
+  const margen = escalar.reduce((s, a) => s + (a.gasto ?? 0), 0);
 
   return (
     <section className="overflow-hidden rounded border border-border bg-surface">
@@ -99,10 +108,15 @@ export default function AlertasPanel() {
               {escalar.length > 0 && (
                 <strong className="font-medium text-good">{escalar.length} para escalar</strong>
               )}
-              <span className="text-muted">
-                {apagar.length > 0 ? ` · ${money(enJuego)} en juego` : ""}
-                {escalar.length > 0 ? ` · ${money(margen)} con margen` : ""}
-              </span>
+              {/* Cuánta plata hay en juego solo para quien la puede ver. La
+                  cuenta de productos, que es lo que dice si hay que hacer
+                  algo hoy, la ven todos. */}
+              {verCifras && (
+                <span className="text-muted">
+                  {apagar.length > 0 ? ` · ${money(enJuego)} en juego` : ""}
+                  {escalar.length > 0 ? ` · ${money(margen)} con margen` : ""}
+                </span>
+              )}
             </>
           )}
         </span>
@@ -146,8 +160,9 @@ export default function AlertasPanel() {
           })}
 
           <p className="px-4 py-2 text-[11px] text-muted">
-            Se compara el CPA de los últimos 7 días contra el punto de equilibrio real del producto
-            —precio, costo, flete, efectividad y devoluciones—, no contra un umbral estimado.
+            Se compara el costo por venta de los últimos 7 días contra el punto de equilibrio real
+            del producto —precio, costo, flete, efectividad y devoluciones—, no contra un umbral
+            estimado.
           </p>
         </div>
       )}

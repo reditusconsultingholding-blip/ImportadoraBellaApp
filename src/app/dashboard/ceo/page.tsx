@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolveRange } from "@/lib/date-range";
 import { getPanelCeo } from "@/lib/ceo";
+import { veLasCifras } from "@/lib/finanzas";
 import RangePicker from "../range-picker";
 import PanelCeoVista from "./panel-ceo";
 
@@ -18,6 +19,10 @@ export default async function PanelCeoPage({
   // Es el panel del dueño: solo OWNER. Un director ve lo suyo en las pantallas
   // de siempre.
   if (session.role !== "OWNER") redirect("/dashboard");
+  // Y además el permiso de finanzas: el panel del dueño es facturación,
+  // utilidad y costos de punta a punta. Ser OWNER no alcanza si el permiso
+  // por persona no está puesto.
+  if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const params = await searchParams;
   const range = resolveRange(params.rango ?? "30d", params.desde, params.hasta);

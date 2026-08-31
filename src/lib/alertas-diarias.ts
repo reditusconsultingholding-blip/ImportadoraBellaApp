@@ -33,10 +33,47 @@ export type Alerta = {
   code: string;
   name: string;
   mensaje: string;
+  /**
+   * El mismo aviso, sin una sola cifra de dinero.
+   *
+   * Acá es donde la regla se caía más fácil: la decisión —escalar, apagar,
+   * vigilar— es exactamente lo que el equipo creativo TIENE que ver, pero
+   * venía envuelta en "CPA de $17,28 contra un equilibrio de $12,16", y esa
+   * frase viajaba entera al panel y al centro de notificaciones de todos.
+   * Se escribe aparte en vez de tacharle los montos al original: una frase con
+   * huecos se lee como un error de la app.
+   */
+  mensajeSinCifras: string;
   gasto: number;
   cpa: number | null;
   equilibrio: number;
 };
+
+/** La alerta tal como viaja al navegador: sin montos cuando no corresponde. */
+export type AlertaVisible = {
+  tipo: Alerta["tipo"];
+  productId: string;
+  code: string;
+  name: string;
+  mensaje: string;
+  gasto?: number;
+  cpa?: number | null;
+  equilibrio?: number;
+};
+
+export function alertasVisibles(alertas: Alerta[], verCifras: boolean): AlertaVisible[] {
+  return alertas.map((a) => {
+    const comun = {
+      tipo: a.tipo,
+      productId: a.productId,
+      code: a.code,
+      name: a.name,
+    };
+    return verCifras
+      ? { ...comun, mensaje: a.mensaje, gasto: a.gasto, cpa: a.cpa, equilibrio: a.equilibrio }
+      : { ...comun, mensaje: a.mensajeSinCifras };
+  });
+}
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -109,6 +146,7 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
         code: p.code,
         name: p.name,
         mensaje: `Gastó ${money(gasto)} en ${VENTANA_DIAS} días sin una sola compra atribuida.`,
+        mensajeSinCifras: `Estuvo en pauta ${VENTANA_DIAS} días sin una sola compra atribuida.`,
         gasto,
         cpa: null,
         equilibrio: cpaBreakeven,
@@ -129,6 +167,17 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
             ? ` Y viene subiendo ${Math.round(tendencia * 100)}% contra la semana anterior.`
             : "";
 
+    // La misma tendencia dicha sin nombrar el CPA. El porcentaje se conserva:
+    // no revela cuánto cuesta una venta, y es lo que dice si hay que actuar.
+    const comoVieneSinCifras =
+      tendencia == null
+        ? ""
+        : tendencia <= -0.1
+          ? ` El costo por venta viene bajando ${Math.round(Math.abs(tendencia) * 100)}% contra la semana anterior.`
+          : tendencia >= 0.1
+            ? ` Y viene subiendo ${Math.round(tendencia * 100)}% contra la semana anterior.`
+            : "";
+
     if (cpa <= cpaBreakeven * MARGEN_PARA_ESCALAR) {
       // Cuánto más se podría gastar antes de tocar el equilibrio: es la pregunta
       // que sigue a "escalá", y responderla acá evita que la haga otro.
@@ -139,6 +188,7 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
         code: p.code,
         name: p.name,
         mensaje: `CPA de ${money2(cpa)} contra un equilibrio de ${money2(cpaBreakeven)}: aguanta ${Math.round(margen)}% más de costo por venta antes de dejar de ganar. Gastó ${money(gasto)} en ${VENTANA_DIAS} días.${comoViene}`,
+        mensajeSinCifras: `Aguanta ${Math.round(margen)}% más de costo por venta antes de dejar de ganar, con ${compras} compras atribuidas en ${VENTANA_DIAS} días.${comoVieneSinCifras}`,
         gasto,
         cpa,
         equilibrio: cpaBreakeven,
@@ -156,6 +206,7 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
         code: p.code,
         name: p.name,
         mensaje: `CPA de ${money2(cpa)} contra un equilibrio de ${money2(cpaBreakeven)}: paga ${Math.round(exceso)}% de más y lleva ${money(perdida)} perdidos en ${VENTANA_DIAS} días.${comoViene}`,
+        mensajeSinCifras: `Está pagando ${Math.round(exceso)}% de más por venta contra su punto de equilibrio, y así lleva ${VENTANA_DIAS} días.${comoVieneSinCifras}`,
         gasto,
         cpa,
         equilibrio: cpaBreakeven,
@@ -172,6 +223,7 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
         code: p.code,
         name: p.name,
         mensaje: `CPA de ${money2(cpa)} contra un equilibrio de ${money2(cpaBreakeven)}, y subiendo ${Math.round(tendencia * 100)}% contra la semana anterior. Todavía gana, pero va camino a no hacerlo.`,
+        mensajeSinCifras: `El costo por venta está cerca de su punto de equilibrio y viene subiendo ${Math.round(tendencia * 100)}% contra la semana anterior. Todavía gana, pero va camino a no hacerlo.`,
         gasto,
         cpa,
         equilibrio: cpaBreakeven,
@@ -184,14 +236,22 @@ export async function calcularAlertasDiarias(organizationId: string): Promise<Al
   return alertas.sort((a, b) => orden[a.tipo] - orden[b.tipo] || b.gasto - a.gasto);
 }
 
-/** Una línea con lo que hay que hacer, para el aviso del celular. */
-function resumenCorto(alertas: Alerta[]) {
+/**
+ * Una línea con lo que hay que hacer, para el aviso del celular.
+ *
+ * Sin el permiso de finanzas se dice cuántos productos piden decisión pero no
+ * cuánta plata hay en juego: el aviso del celular llega igual y sigue sirviendo
+ * para lo mismo.
+ */
+function resumenCorto(alertas: Alerta[], verCifras: boolean) {
   const apagar = alertas.filter((a) => a.tipo === "apagar");
   const escalar = alertas.filter((a) => a.tipo === "escalar");
   const partes: string[] = [];
   if (apagar.length > 0) {
     partes.push(
-      `${apagar.length} para apagar (${money(apagar.reduce((s, a) => s + a.gasto, 0))} en juego)`
+      verCifras
+        ? `${apagar.length} para apagar (${money(apagar.reduce((s, a) => s + a.gasto, 0))} en juego)`
+        : `${apagar.length} para apagar`
     );
   }
   if (escalar.length > 0) partes.push(`${escalar.length} para escalar`);
@@ -227,17 +287,23 @@ export async function enviarAlertasDiarias(organizationId: string) {
     return null;
   }
 
+  // Se trae también el permiso de finanzas: el aviso se escribe distinto
+  // según quién lo va a recibir. Un director sin acceso a los números recibía
+  // hasta ahora "CPA de $17,28 contra un equilibrio de $12,16" dentro del
+  // texto, y por ahí se caía la regla entera sin que nadie tocara una pantalla.
   const direccion = await db.user.findMany({
     where: { organizationId, role: { in: ["OWNER", "DIRECTOR"] } },
-    select: { id: true },
+    select: { id: true, canViewFinancials: true },
   });
 
   for (const persona of direccion) {
+    const verCifras = persona.canViewFinancials === true;
+
     // Un solo push con el resumen, no uno por alerta: doce notificaciones
     // seguidas se descartan todas juntas sin leer ninguna.
     await avisarA(persona.id, {
       titulo: "Qué hacer hoy",
-      cuerpo: resumenCorto(alertas),
+      cuerpo: resumenCorto(alertas, verCifras),
       url: "/dashboard",
       etiqueta: "alertas-diarias",
     });
@@ -259,7 +325,7 @@ export async function enviarAlertasDiarias(organizationId: string) {
               : a.tipo === "apagar"
                 ? "alert_apagar"
                 : "alert_fatiga",
-          message: `${a.tipo === "escalar" ? "Escalar" : a.tipo === "apagar" ? "Apagar" : "Vigilar"} · ${a.name}: ${a.mensaje}`,
+          message: `${a.tipo === "escalar" ? "Escalar" : a.tipo === "apagar" ? "Apagar" : "Vigilar"} · ${a.name}: ${verCifras ? a.mensaje : a.mensajeSinCifras}`,
           link: `/dashboard/productos/${encodeURIComponent(a.code)}`,
         },
       });

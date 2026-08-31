@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { getOverview } from "@/lib/metrics";
+import { filasVisibles, getOverview } from "@/lib/metrics";
 import { getSalesOverview } from "@/lib/sales";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
+import { AVISO_SIN_CIFRAS } from "@/lib/finanzas-textos";
 import { resolveRange } from "@/lib/date-range";
 import PlatformTabs from "./platform-tabs";
 import StatTile from "./stat-tile";
@@ -46,15 +48,27 @@ export default async function DashboardPage({
   const platform: Platform = params.platform === "TIKTOK" ? "TIKTOK" : "META";
   const range = resolveRange(params.rango, params.desde, params.hasta);
 
+  // Se pregunta una vez y baja por props. De la BASE, no del token: la
+  // sesión dura 30 días y quitarle el acceso a alguien tiene que valer hoy.
+  const verCifras = await veLasCifras(session.userId);
+
   // Se piden las dos plataformas aunque solo se muestre una en la tabla: el
   // bloque de comparación de arriba necesita las dos para poder confrontarlas
   // contra lo que de verdad se vendió en Shopify.
+  //
+  // Las ventas de Shopify ni se consultan sin el permiso: los dos bloques que
+  // las usan no se dibujan, así que traerlas sería pagar la consulta para
+  // tirarla.
   const [overview, sales, meta, tiktok] = await Promise.all([
     getOverview(session.organizationId, platform, range),
-    getSalesOverview(session.organizationId, range),
+    verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
     getOverview(session.organizationId, "TIKTOK", range),
   ]);
+
+  // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
+  const impresiones = overview.rows.reduce((s, r) => s + r.impressions, 0);
+  const clics = overview.rows.reduce((s, r) => s + r.clicks, 0);
 
   const query =
     range.id === "personalizado"
@@ -84,9 +98,12 @@ export default async function DashboardPage({
         />
       </div>
 
-      <SalesOverview data={sales} periodo={range.label} />
+      {/* Ventas de Shopify: facturación, ticket promedio y desglose por canal.
+          No hay nada que recortar acá dentro —la sección ES el dinero—, así
+          que sin el permiso no se pide ni se dibuja. */}
+      {sales && <SalesOverview data={sales} periodo={range.label} />}
 
-      {canManagePipeline(session.role) && (
+      {sales && canManagePipeline(session.role) && (
         <AttributionStrip
           ventasReales={sales.totalSales}
           ordenesReales={sales.ordenes}
@@ -98,6 +115,8 @@ export default async function DashboardPage({
         />
       )}
 
+      {/* Qué escalar y qué apagar: esto lo ven todos los que entran acá. Las
+          cifras de adentro las recorta /api/alertas según quién pregunta. */}
       {canManagePipeline(session.role) && <AlertasPanel />}
 
       {canManagePipeline(session.role) && <PulsePanel query={query} />}
@@ -121,25 +140,51 @@ export default async function DashboardPage({
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatTile label="Gasto total" value={money(overview.totalSpend)} />
+          {/* Gasto y ROAS salen de la grilla cuando no corresponde, y su lugar
+              lo toman impresiones y CTR. No se ponen en cero ni en guion: un
+              cero se lee como un dato, y "—" en una tarjeta de gasto se lee
+              como que la campaña no gastó. */}
+          {verCifras ? (
+            <StatTile label="Gasto total" value={money(overview.totalSpend)} />
+          ) : (
+            <StatTile
+              label="Impresiones"
+              value={impresiones.toLocaleString("es-EC")}
+              note={`${clics.toLocaleString("es-EC")} clics`}
+            />
+          )}
           <StatTile label="Compras atribuidas" value={overview.totalPurchases.toLocaleString("es-EC")} />
-          <StatTile
-            label="ROAS"
-            value={overview.roas !== null ? overview.roas.toFixed(2) : "—"}
-            note="ingreso atribuido ÷ gasto"
-            tone={overview.roas !== null && overview.roas >= 1 ? "good" : overview.roas !== null ? "bad" : "neutral"}
-          />
+          {verCifras ? (
+            <StatTile
+              label="ROAS"
+              value={overview.roas !== null ? overview.roas.toFixed(2) : "—"}
+              note="ingreso atribuido ÷ gasto"
+              tone={overview.roas !== null && overview.roas >= 1 ? "good" : overview.roas !== null ? "bad" : "neutral"}
+            />
+          ) : (
+            <StatTile
+              label="CTR"
+              value={impresiones > 0 ? `${overview.ctr.toFixed(2)}%` : "—"}
+              note="clics ÷ impresiones"
+            />
+          )}
           <StatTile
             label="Necesitan revisión"
             value={overview.urgentRows.length.toString()}
             note={
               overview.urgentRows.length > 0
-                ? "CPA por encima del objetivo"
+                ? "Por encima de su objetivo de costo por compra"
                 : "Todo dentro de rango"
             }
             tone={overview.urgentRows.length > 0 ? "bad" : "neutral"}
           />
         </div>
+
+        {!verCifras && (
+          <p className="rounded border border-border bg-surface px-3 py-2 text-xs text-muted">
+            {AVISO_SIN_CIFRAS}
+          </p>
+        )}
 
         {overview.campaignsWithoutProduct > 0 && (
           <p className="rounded border border-border bg-pending-bg px-3 py-2 text-xs text-warning">
@@ -152,7 +197,11 @@ export default async function DashboardPage({
           </p>
         )}
 
-        <TablaFilas filas={overview.rows} puedeAbrirProducto={canAccessPipeline(session.role)} />
+        <TablaFilas
+          filas={filasVisibles(overview.rows, verCifras)}
+          verCifras={verCifras}
+          puedeAbrirProducto={canAccessPipeline(session.role)}
+        />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
-import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
+import { alertasVisibles, calcularAlertasDiarias } from "@/lib/alertas-diarias";
+import { veLasCifras } from "@/lib/finanzas";
 
 // Qué escalar y qué apagar, calculado al momento.
 //
@@ -16,6 +17,11 @@ export async function GET() {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 
+  // Qué escalar y qué apagar es justo lo que el equipo creativo tiene que
+  // saber, así que la alerta se manda igual — lo que cambia es cómo está
+  // redactada. Sin el permiso viaja la versión sin montos, y ni el gasto ni
+  // el CPA ni el punto de equilibrio salen del servidor.
+  const verCifras = await veLasCifras(session.userId);
   const alertas = await calcularAlertasDiarias(session.organizationId);
-  return NextResponse.json({ alertas });
+  return NextResponse.json({ alertas: alertasVisibles(alertas, verCifras), verCifras });
 }

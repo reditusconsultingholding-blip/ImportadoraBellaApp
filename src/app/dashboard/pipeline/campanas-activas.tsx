@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { Overview, RowMetric } from "@/lib/metrics";
+import type { FilaVisible } from "@/lib/metrics";
 
 // Las campañas que están corriendo, dentro del pipeline.
 //
@@ -14,6 +14,11 @@ import type { Overview, RowMetric } from "@/lib/metrics";
 // "Activa" quiere decir que gastó dentro del período. No es el estado que
 // devuelve la plataforma: una campaña puede figurar como ACTIVE y llevar dos
 // semanas sin entregar una impresión, y esa no es la que hay que mirar.
+//
+// Las filas vienen recortadas del servidor (`filasVisibles`): sin el permiso
+// de finanzas no traen gasto, ingreso, CPA ni objetivo. `activa` existe justo
+// por eso — antes se deducía con `spend > 0`, que obligaba a mandar el gasto
+// para poder filtrar.
 
 const ESTADO_FILA = {
   sano: { texto: "Va bien", chip: "bg-good-bg text-good" },
@@ -28,6 +33,8 @@ const money = (n: number) =>
 const money2 = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
+const entero = (n: number) => n.toLocaleString("es-EC");
+
 const plano = (s: string) =>
   s
     .normalize("NFD")
@@ -41,20 +48,23 @@ const PLATAFORMAS: { id: Plataforma; label: string }[] = [
   { id: "TIKTOK", label: "TikTok" },
 ];
 
-/** Qué tan lejos del objetivo está el CPA. Menor que 1 paga menos de lo que puede. */
-function razon(r: RowMetric) {
-  if (r.cpa == null || r.cpaTarget == null || r.cpaTarget <= 0) return null;
-  return r.cpa / r.cpaTarget;
-}
+export type CampanasDePlataforma = {
+  filas: FilaVisible[];
+  /** Cuántas campañas todavía no están asociadas a un producto. */
+  sinProducto: number;
+};
 
 export default function CampanasActivas({
   meta,
   tiktok,
   periodo,
+  verCifras,
 }: {
-  meta: Overview;
-  tiktok: Overview;
+  meta: CampanasDePlataforma;
+  tiktok: CampanasDePlataforma;
   periodo: string;
+  /** Si esta persona ve dinero. Define qué columnas existen. */
+  verCifras: boolean;
 }) {
   const [plataforma, setPlataforma] = useState<Plataforma>("META");
   const [busqueda, setBusqueda] = useState("");
@@ -65,17 +75,18 @@ export default function CampanasActivas({
   const visibles = useMemo(() => {
     // Sin gasto no está corriendo: la fila existe porque la campaña tiene
     // métricas del período, no porque esté entregando hoy.
-    const activas = overview.rows.filter((r) => r.spend > 0);
+    const activas = overview.filas.filter((r) => r.activa);
     const q = plano(busqueda.trim());
     return activas.filter((r) => {
       if (soloProblemas && r.status !== "riesgo" && r.status !== "vigilar") return false;
       if (!q) return true;
       return plano(r.name).includes(q) || (r.code != null && plano(r.code).includes(q));
     });
-  }, [overview.rows, busqueda, soloProblemas]);
+  }, [overview.filas, busqueda, soloProblemas]);
 
-  const activas = overview.rows.filter((r) => r.spend > 0);
-  const gastoVisible = visibles.reduce((s, r) => s + r.spend, 0);
+  const activas = overview.filas.filter((r) => r.activa);
+  const gastoVisible = visibles.reduce((s, r) => s + (r.spend ?? 0), 0);
+  const columnas = verCifras ? 8 : 7;
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,14 +126,15 @@ export default function CampanasActivas({
         </button>
 
         <span className="ml-auto text-xs text-muted">
-          {visibles.length} de {activas.length} · {money(gastoVisible)}
+          {visibles.length} de {activas.length}
+          {verCifras ? ` · ${money(gastoVisible)}` : " corriendo"}
         </span>
       </div>
 
       <p className="rounded border border-border bg-surface px-4 py-2.5 text-xs text-muted">
-        {periodo}. Las compras y el ingreso son los que se ATRIBUYE {plataforma === "META" ? "Meta" : "TikTok"},
-        no las órdenes que se cobraron: suelen ser bastantes más, porque las dos plataformas se
-        cuelgan la misma venta. Lo que de verdad entró está en el Panel, y sale de Shopify.
+        {periodo}. Las compras{verCifras ? " y el ingreso son las" : " son las"} que se ATRIBUYE{" "}
+        {plataforma === "META" ? "Meta" : "TikTok"}, no las órdenes que se cobraron: suelen ser
+        bastantes más, porque las dos plataformas se cuelgan la misma venta.
       </p>
 
       <div className="overflow-hidden rounded border border-border bg-surface">
@@ -131,18 +143,29 @@ export default function CampanasActivas({
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="px-5 py-3">Producto / campaña</th>
-                <th className="px-5 py-3 text-right">Gasto</th>
+                {verCifras ? (
+                  <th className="px-5 py-3 text-right">Gasto</th>
+                ) : (
+                  <>
+                    <th className="px-5 py-3 text-right">Impresiones</th>
+                    <th className="px-5 py-3 text-right">CTR</th>
+                  </>
+                )}
                 <th className="px-5 py-3 text-right">Compras</th>
-                <th className="px-5 py-3 text-right">Ingreso</th>
-                <th className="px-5 py-3 text-right">CPA</th>
-                <th className="px-5 py-3 text-right">Objetivo</th>
+                {verCifras && (
+                  <>
+                    <th className="px-5 py-3 text-right">Ingreso</th>
+                    <th className="px-5 py-3 text-right">CPA</th>
+                    <th className="px-5 py-3 text-right">Objetivo</th>
+                  </>
+                )}
                 <th className="px-5 py-3 text-right">vs. objetivo</th>
                 <th className="px-5 py-3">Estado</th>
               </tr>
             </thead>
             <tbody>
               {visibles.map((r) => {
-                const z = razon(r);
+                const z = r.desvio;
                 return (
                   <tr key={r.key} className="border-t border-border">
                     <td className="px-5 py-3">
@@ -160,15 +183,36 @@ export default function CampanasActivas({
                         {r.code ?? "campaña sin producto asociado"}
                       </p>
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend)}</td>
+                    {verCifras ? (
+                      <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend ?? 0)}</td>
+                    ) : (
+                      <>
+                        <td className="px-5 py-3 text-right tabular-nums">
+                          {entero(r.impressions)}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums">
+                          {r.ctr == null ? (
+                            <span className="text-muted">—</span>
+                          ) : (
+                            `${r.ctr.toFixed(2)}%`
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className="px-5 py-3 text-right tabular-nums">{r.purchases}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{money2(r.revenue)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">
-                      {r.cpa != null ? money2(r.cpa) : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-muted">
-                      {r.cpaTarget != null ? money2(r.cpaTarget) : "—"}
-                    </td>
+                    {verCifras && (
+                      <>
+                        <td className="px-5 py-3 text-right tabular-nums">
+                          {money2(r.revenue ?? 0)}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums">
+                          {r.cpa != null ? money2(r.cpa) : "—"}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums text-muted">
+                          {r.cpaTarget != null ? money2(r.cpaTarget) : "—"}
+                        </td>
+                      </>
+                    )}
                     <td className="px-5 py-3 text-right tabular-nums">
                       {z == null ? (
                         <span className="text-muted">—</span>
@@ -194,9 +238,9 @@ export default function CampanasActivas({
               })}
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-8 text-center text-sm text-muted">
+                  <td colSpan={columnas} className="px-5 py-8 text-center text-sm text-muted">
                     {activas.length === 0
-                      ? "Ninguna campaña de esta plataforma gastó en el período."
+                      ? "Ninguna campaña de esta plataforma estuvo corriendo en el período."
                       : "Ninguna campaña coincide con el filtro."}
                   </td>
                 </tr>
@@ -206,11 +250,11 @@ export default function CampanasActivas({
         </div>
       </div>
 
-      {overview.campaignsWithoutProduct > 0 && (
+      {overview.sinProducto > 0 && (
         <p className="rounded border border-border bg-pending-bg px-3 py-2 text-xs text-warning">
-          {overview.campaignsWithoutProduct} campañas de esta plataforma todavía no están asociadas a
-          un producto, así que aparecen sueltas y sin semáforo de CPA. Se enlazan solas por el
-          código que llevan en el nombre, apenas el producto exista en{" "}
+          {overview.sinProducto} campañas de esta plataforma todavía no están asociadas a un
+          producto, así que aparecen sueltas y sin semáforo. Se enlazan solas por el código que
+          llevan en el nombre, apenas el producto exista en{" "}
           <Link href="/dashboard/productos" className="underline">
             Productos
           </Link>

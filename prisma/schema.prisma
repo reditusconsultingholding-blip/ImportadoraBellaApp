@@ -78,6 +78,8 @@ model Organization {
   referencias       Referencia[]
   jarvisChats       JarvisConversacion[]
   rondas            Ronda[]
+  anuncios          Anuncio[]
+  eventos           EventoCalendario[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -248,6 +250,12 @@ model User {
   // aparte porque el pago solo lo miran Fabricio y Katherine, y puede haber
   // otros administradores que no deban verlo.
   canViewPayroll     Boolean      @default(false)
+  // Si ve el dinero: ingresos, rentabilidad, costos, la calculadora.
+  //
+  // Va por persona y no por rol a proposito. Si dependiera del rol, crear un
+  // OWNER nuevo le daria acceso a la facturacion sin que nadie lo decidiera.
+  // Por defecto NADIE lo ve; se concede a mano.
+  canViewFinancials  Boolean      @default(false)
   // Foto de perfil como data URL. Se guarda en la base y no en un bucket
   // porque es una miniatura de 256px (~30 KB): montar almacenamiento de
   // archivos para eso sería más infraestructura que valor.
@@ -280,6 +288,10 @@ model User {
   noteComments            BoardNoteComment[]
   chatPins                ChatPin[]            @relation("ChatPinsCreated")
   vozPresencia            VoicePresence[]
+  vozSilenciosAplicados   VoicePresence[]      @relation("VozSilenciadoPor")
+  anunciosPublicados      Anuncio[]
+  anunciosVistos          AnuncioVisto[]
+  eventosCreados          EventoCalendario[]
   senalesEnviadas         VoiceSignal[]        @relation("VozDe")
   senalesRecibidas        VoiceSignal[]        @relation("VozPara")
   accionesPropuestas      ProductAction[]      @relation("AccionPropuesta")
@@ -821,16 +833,32 @@ model CalcSetting {
 // segundos, que para un equipo de diez personas alcanza y evita montar
 // infraestructura nueva.
 model VoicePresence {
-  id         String      @id @default(cuid())
-  channelId  String
-  channel    ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  muted      Boolean     @default(false)
-  joinedAt   DateTime    @default(now())
+  id              String      @id @default(cuid())
+  channelId       String
+  channel         ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  muted           Boolean     @default(false)
+  // Camara encendida. Es una columna y no un dato que viaje suelto entre
+  // navegadores porque el tope de camaras se cuenta en el servidor: si cada
+  // navegador llevara su propia cuenta, dos personas prendiendo a la vez
+  // pasarian el limite sin que nadie las frenara.
+  camara          Boolean     @default(false)
+  // Cuando levanto la mano. Es un instante y no un si/no porque la lista se
+  // ordena por quien la levanto primero: con un booleano el turno quedaria en
+  // orden arbitrario y la mano dejaria de servir para repartir la palabra.
+  manoLevantadaAt DateTime?
+  // Silencio impuesto por direccion. Se guarda QUIEN lo puso, no solo que
+  // paso: un microfono que deja de andar sin explicacion se reporta como que
+  // la app esta rota. Mientras este puesto el servidor ignora el `muted` que
+  // manda el navegador — si no, bastaria con tocar el boton para deshacerlo.
+  silenciadoPorId String?
+  silenciadoPor   User?       @relation("VozSilenciadoPor", fields: [silenciadoPorId], references: [id])
+  silenciadoEnAt  DateTime?
+  joinedAt        DateTime    @default(now())
   // Latido. Si se deja de actualizar, la persona se cayo: cerro la pestana o
   // se quedo sin red. Sin esto la sala quedaria llena de fantasmas.
-  lastSeenAt DateTime    @default(now())
+  lastSeenAt      DateTime    @default(now())
 
   @@unique([channelId, userId])
   @@index([channelId, lastSeenAt])
@@ -850,6 +878,79 @@ model VoiceSignal {
   createdAt  DateTime    @default(now())
 
   @@index([toUserId, channelId, createdAt])
+}
+
+// --- Anuncios al equipo --------------------------------------------------
+//
+// Un aviso que direccion le manda a TODA la empresa y que aparece al entrar a
+// la app hasta que cada persona lo marca como visto.
+//
+// Es distinto de un mensaje al canal general, y por eso no se resolvio con
+// uno: un mensaje se pierde bajo la conversacion del dia y nadie sabe quien lo
+// leyo. Aca la app corta el paso hasta que la persona lo acusa, y queda la
+// lista de quien lo vio.
+model Anuncio {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  autorId        String
+  autor          User         @relation(fields: [autorId], references: [id])
+  titulo         String
+  cuerpo         String
+  createdAt      DateTime     @default(now())
+  // Retirar un anuncio NO lo borra: deja de aparecerle a quien todavia no lo
+  // vio, pero se conserva quien ya lo habia acusado. Borrarlo de verdad seria
+  // perder la unica prueba de que el equipo se entero.
+  archivadoAt    DateTime?
+
+  vistos AnuncioVisto[]
+
+  @@index([organizationId, createdAt])
+}
+
+// Que persona ya acuso que vio que anuncio. Sin fila, el anuncio le sigue
+// apareciendo al entrar.
+model AnuncioVisto {
+  id        String   @id @default(cuid())
+  anuncioId String
+  anuncio   Anuncio  @relation(fields: [anuncioId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vistoAt   DateTime @default(now())
+
+  @@unique([anuncioId, userId])
+  @@index([userId])
+}
+
+// --- Calendario de la empresa --------------------------------------------
+//
+// Un evento empresarial: reunion, feriado, lanzamiento, cierre de mes.
+//
+// `inicio` y `fin` son INSTANTES REALES en UTC, no marcas de dia. El servidor
+// corre en UTC y el negocio es de Ecuador (UTC-5): un evento del "1 de
+// septiembre" guardado como 2026-09-01T00:00Z se lee de vuelta como 31 de
+// agosto a las 19:00 en Guayaquil y aparece el dia equivocado en el
+// calendario. Por eso el dia y la hora que escribe la persona se convierten a
+// instante en el servidor con el desfase de Ecuador (src/lib/calendario-fechas.ts),
+// que es la misma distincion que hacen date-range.ts y chat/dias.ts.
+//
+// Cuando `todoElDia` es true, `inicio` es la medianoche ecuatoriana de ese dia
+// (05:00 UTC) y la hora no se muestra.
+model EventoCalendario {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  titulo         String
+  descripcion    String?
+  lugar          String?
+  inicio         DateTime
+  fin            DateTime?
+  todoElDia      Boolean      @default(true)
+  creadoPorId    String
+  creadoPor      User         @relation(fields: [creadoPorId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, inicio])
 }
 
 // El puente entre "este producto esta en riesgo" y "alguien hizo algo al

@@ -20,9 +20,12 @@ function isOverdue(r: RequirementRow) {
 
 export default function RequirementsTable({
   requirements,
+  verCifras,
   onOpen,
 }: {
   requirements: RequirementRow[];
+  /** El CPA de una pieza es plata: sin el permiso, la columna no existe. */
+  verCifras: boolean;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -39,7 +42,7 @@ export default function RequirementsTable({
               <th className="px-4 py-3">Awareness</th>
               <th className="px-4 py-3">Editor</th>
               <th className="px-4 py-3">Entrega</th>
-              <th className="px-4 py-3">CPA</th>
+              {verCifras && <th className="px-4 py-3">CPA</th>}
               <th className="px-4 py-3">Hook Rate</th>
               <th className="px-4 py-3">Estado</th>
             </tr>
@@ -63,7 +66,9 @@ export default function RequirementsTable({
                     ? new Date(r.dueDate).toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" })
                     : "—"}
                 </td>
-                <td className="px-4 py-3 tabular-nums text-xs">{r.cpa ?? "—"}</td>
+                {verCifras && (
+                  <td className="px-4 py-3 tabular-nums text-xs">{r.cpa ?? "—"}</td>
+                )}
                 <td className="px-4 py-3 tabular-nums text-xs">{r.hookRate !== null ? `${r.hookRate}%` : "—"}</td>
                 <td className="px-4 py-3">
                   <span

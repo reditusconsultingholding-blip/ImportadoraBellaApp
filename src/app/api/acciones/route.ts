@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline } from "@/lib/permissions";
+import { textoSinCifras, veLasCifras } from "@/lib/finanzas";
 import {
   ES_TIPO,
   aprobarAccion,
@@ -51,7 +52,17 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ acciones, puedoDecidir: puedeDecidir(session.role) });
+  // El motivo de cada propuesta es texto guardado y puede traer el CPA o el
+  // gasto adentro: si lo escribió alguien de dirección, sigue ahí aunque hoy
+  // lo lea otra persona.
+  const verCifras = await veLasCifras(session.userId);
+  return NextResponse.json({
+    acciones: acciones.map((a) => ({
+      ...a,
+      reason: textoSinCifras(a.reason, verCifras) ?? a.reason,
+    })),
+    puedoDecidir: puedeDecidir(session.role),
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
+import { veLasCifras } from "@/lib/finanzas";
 
 // Un solo endpoint para todo el tablero de Productos. Los tres tipos de
 // tarjeta (carpeta, producto, nota) se crean, mueven y borran igual, así que
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
   if (!canManagePipeline(session.role)) {
     return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
+  const verCifras = await veLasCifras(session.userId);
 
   const body = (await req.json()) as {
     kind?: string;
@@ -117,9 +119,14 @@ export async function POST(req: NextRequest) {
         name,
         // El CPA objetivo se puede afinar después; arrancar en 0 sería peor
         // que un valor evidentemente provisorio.
-        cpaTarget: Number.isFinite(body.cpaTarget) ? (body.cpaTarget as number) : 10,
-        salePrice: Number.isFinite(body.salePrice) ? (body.salePrice as number) : null,
-        unitCost: Number.isFinite(body.unitCost) ? (body.unitCost as number) : null,
+        cpaTarget:
+          verCifras && Number.isFinite(body.cpaTarget) ? (body.cpaTarget as number) : 10,
+        // La economía del producto la carga quien la puede ver. Sin el
+        // permiso el producto nace sin precio ni costo y la dirección los
+        // completa después, que es mejor que dejar entrar un número que
+        // quien lo escribió no puede verificar contra nada.
+        salePrice: verCifras && Number.isFinite(body.salePrice) ? (body.salePrice as number) : null,
+        unitCost: verCifras && Number.isFinite(body.unitCost) ? (body.unitCost as number) : null,
         notes: body.notes?.trim() || null,
         folderId,
         positionX,
@@ -157,6 +164,7 @@ export async function PATCH(req: NextRequest) {
   if (!canManagePipeline(session.role)) {
     return NextResponse.json({ error: "No tienes permiso para editar el catálogo." }, { status: 403 });
   }
+  const verCifras = await veLasCifras(session.userId);
 
   const body = (await req.json()) as {
     kind?: string;
@@ -232,11 +240,16 @@ export async function PATCH(req: NextRequest) {
       data: {
         ...position,
         ...(body.name?.trim() ? { name: body.name.trim() } : {}),
-        ...(Number.isFinite(body.cpaTarget) ? { cpaTarget: body.cpaTarget as number } : {}),
-        ...(body.salePrice !== undefined
+        // Precio, costo y CPA objetivo solo los toca quien los ve: el
+        // formulario que los edita ya no se le dibuja a nadie más, y sin esta
+        // guarda un PATCH a mano seguiría pudiendo cambiarlos.
+        ...(verCifras && Number.isFinite(body.cpaTarget)
+          ? { cpaTarget: body.cpaTarget as number }
+          : {}),
+        ...(verCifras && body.salePrice !== undefined
           ? { salePrice: Number.isFinite(body.salePrice) ? (body.salePrice as number) : null }
           : {}),
-        ...(body.unitCost !== undefined
+        ...(verCifras && body.unitCost !== undefined
           ? { unitCost: Number.isFinite(body.unitCost) ? (body.unitCost as number) : null }
           : {}),
         ...(body.notes !== undefined ? { notes: body.notes?.trim() || null } : {}),

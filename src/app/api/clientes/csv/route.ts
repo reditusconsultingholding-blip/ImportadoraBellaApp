@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { getPatronesClientes } from "@/lib/clientes";
+import { veLasCifras } from "@/lib/finanzas";
 
 // Descarga de la lista de clientes en CSV.
 //
@@ -19,7 +20,9 @@ function celda(v: string | number | null) {
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (!canManagePipeline(session.role)) {
+  // El CSV lleva cuánto compró cada persona, así que va con el mismo permiso
+  // que la pantalla de Clientes.
+  if (!canManagePipeline(session.role) || !(await veLasCifras(session.userId))) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 

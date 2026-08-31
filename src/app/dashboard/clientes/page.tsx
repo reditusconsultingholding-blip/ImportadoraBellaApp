@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange, rangeToParams } from "@/lib/date-range";
 import { getPatronesClientes } from "@/lib/clientes";
+import { veLasCifras } from "@/lib/finanzas";
 import RangePicker from "../range-picker";
 import TablaClientes from "./tabla-clientes";
 
@@ -20,6 +21,11 @@ export default async function ClientesPage({
   if (!session) redirect("/login");
   // Son datos personales de los compradores: queda del lado de dirección.
   if (!canManagePipeline(session.role)) redirect("/dashboard");
+  // Y además es facturación por persona —cuánto gastó cada cliente, su
+  // ticket, cuánto repite—, así que va con el mismo permiso que
+  // Rentabilidad. No estaba en la lista que dictó el dueño porque la
+  // pantalla no se llama "plata", pero es plata igual.
+  if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const params = await searchParams;
   const range = resolveRange(params.rango ?? "3m", params.desde, params.hasta);

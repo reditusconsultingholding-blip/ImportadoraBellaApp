@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { limitesDePeriodos } from "@/lib/notificaciones-orden";
 import { canManagePipeline } from "@/lib/permissions";
+import { notificacionesVisibles, veLasCifras } from "@/lib/finanzas";
 import NotificationCenter from "./notification-center";
 
 // El período más largo de la pantalla es el mes, así que no tiene sentido
@@ -24,14 +25,32 @@ export default async function NotificacionesPage() {
   // de la organización.
   const delMes = { userId: session.userId, createdAt: { gte: new Date(limites.mes) } };
 
-  const [notificaciones, totalDelMes, sinLeerTotal] = await Promise.all([
+  const [verCifras, filasDelMes, totalCrudoDelMes, sinLeer] = await Promise.all([
+    veLasCifras(session.userId),
     db.notification.findMany({ where: delMes, orderBy: { createdAt: "desc" }, take: TOPE }),
     db.notification.count({ where: delMes }),
     // La misma cuenta que hace la campanita —todas las sin leer, sin importar
     // la antigüedad—. Si cada una sacara su número por su lado, la campana
     // diría 7 y la pantalla 4.
-    db.notification.count({ where: { userId: session.userId, read: false } }),
+    db.notification.findMany({
+      where: { userId: session.userId, read: false },
+      select: { message: true },
+      take: TOPE,
+    }),
   ]);
+
+  // Las alertas del día viejas llevan el CPA y el punto de equilibrio dentro
+  // del texto. Desde ahora se escriben según quién las va a recibir, pero las
+  // que ya están guardadas no se pueden reescribir: se dejan de mostrar a
+  // quien no ve cifras. Los totales se cuentan sobre lo mismo que se muestra,
+  // para que el número del encabezado y la lista no se contradigan.
+  const notificaciones = notificacionesVisibles(filasDelMes, verCifras);
+  // Con el permiso, el total sigue saliendo de un count() y puede pasar el
+  // tope: es lo que hace que la pantalla avise "hay 640 en el mes, se cargaron
+  // las 500 más recientes". Sin el permiso se cuenta sobre lo que de verdad se
+  // muestra, porque un total mayor que la lista se leería como filas perdidas.
+  const totalDelMes = verCifras ? totalCrudoDelMes : notificaciones.length;
+  const sinLeerTotal = notificacionesVisibles(sinLeer, verCifras).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,7 +66,11 @@ export default async function NotificacionesPage() {
         limites={limites}
         totalDelMes={totalDelMes}
         sinLeerTotal={sinLeerTotal}
-        canCheckAlerts={canManagePipeline(session.role)}
+        // "Revisar alertas ahora" dispara el motor viejo de alertas, que
+        // escribe avisos con el CPA y el gasto adentro. Sin el permiso de
+        // finanzas ese botón generaría notificaciones que la propia pantalla
+        // después esconde: mejor no ofrecerlo.
+        canCheckAlerts={canManagePipeline(session.role) && verCifras}
       />
     </div>
   );

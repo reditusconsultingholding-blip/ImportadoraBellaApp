@@ -4,7 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import PulseLine, { type PulseTone } from "../pulse-line";
 import { STATUS_LABEL } from "@/lib/pipeline-options";
-import type { PulsoCreativos, VeredictoCreativos } from "@/lib/pulso-creativos";
+import type { PulsoCreativosVisible, VeredictoCreativos } from "@/lib/pulso-creativos";
 import RequirementDrawer from "./requirement-drawer";
 import RequirementForm from "./requirement-form";
 import type { ProductOption, RequirementRow, UserOption } from "./types";
@@ -66,13 +66,16 @@ const TERMINADO = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
 export default function ProductosPulso({
   pulsos,
+  verCifras,
   initialRequirements,
   users,
   canManage,
   currentUserId,
   ventanaDias,
 }: {
-  pulsos: PulsoCreativos[];
+  /** Ya recortados en el servidor: sin cifras no traen gasto ni CPA. */
+  pulsos: PulsoCreativosVisible[];
+  verCifras: boolean;
   initialRequirements: RequirementRow[];
   users: UserOption[];
   canManage: boolean;
@@ -119,6 +122,9 @@ export default function ProductosPulso({
     return c;
   }, [pulsos]);
 
+  // Siete columnas con gasto y CPA; seis cuando esas dos se vuelven una.
+  const columnas = verCifras ? 7 : 6;
+
   const visibles = useMemo(() => {
     const q = plano(busqueda.trim());
     return pulsos.filter((p) => {
@@ -152,9 +158,9 @@ export default function ProductosPulso({
           .
         </p>
         <p className="mt-1 text-xs text-muted">
-          Últimos {ventanaDias} días contra los {ventanaDias} anteriores. El CPA sale de las compras
-          que ATRIBUYE cada plataforma, no de las órdenes cobradas en Shopify: sirven para comparar
-          una semana contra otra, no para contar ventas.
+          Últimos {ventanaDias} días contra los {ventanaDias} anteriores. El costo por compra sale
+          de las compras que ATRIBUYE cada plataforma, no de las órdenes cobradas en Shopify:
+          sirven para comparar una semana contra otra, no para contar ventas.
         </p>
       </div>
 
@@ -198,8 +204,18 @@ export default function ProductosPulso({
               <tr className="border-b border-border text-left">
                 <th className="px-5 py-3">Producto</th>
                 <th className="px-5 py-3">Veredicto</th>
-                <th className="px-5 py-3 text-right">Gasto {ventanaDias}d</th>
-                <th className="px-5 py-3 text-right">CPA</th>
+                {/* Gasto y CPA solo con el permiso de finanzas. Las compras
+                    ocupan su lugar: es la medida de volumen que sí
+                    corresponde ver, y sin ella la fila quedaría sin nada que
+                    diga de qué tamaño es el producto. */}
+                {verCifras ? (
+                  <>
+                    <th className="px-5 py-3 text-right">Gasto {ventanaDias}d</th>
+                    <th className="px-5 py-3 text-right">CPA</th>
+                  </>
+                ) : (
+                  <th className="px-5 py-3 text-right">Compras {ventanaDias}d</th>
+                )}
                 <th className="px-5 py-3 text-right">vs. semana previa</th>
                 <th className="px-5 py-3 text-right">Creativos vivos</th>
                 <th className="px-5 py-3 text-right">Piezas</th>
@@ -239,10 +255,20 @@ export default function ProductosPulso({
                           {v.corto}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right tabular-nums">{money(p.gasto)}</td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        {p.cpa != null ? money2(p.cpa) : "—"}
-                      </td>
+                      {verCifras ? (
+                        <>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {money(p.gasto ?? 0)}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {p.cpa != null ? money2(p.cpa) : "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="px-5 py-3 text-right tabular-nums">
+                          {p.compras > 0 ? p.compras.toLocaleString("es-EC") : "—"}
+                        </td>
+                      )}
                       <td className="px-5 py-3 text-right tabular-nums">
                         {p.variacionCpa == null ? (
                           <span className="text-muted" title="No hay compras suficientes en las dos semanas">
@@ -271,7 +297,7 @@ export default function ProductosPulso({
 
                     {estaAbierto && (
                       <tr className="border-t border-border bg-surface-2/60">
-                        <td colSpan={7} className="px-5 py-4">
+                        <td colSpan={columnas} className="px-5 py-4">
                           <div className="flex flex-col gap-4">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted">
@@ -382,7 +408,7 @@ export default function ProductosPulso({
               })}
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted">
+                  <td colSpan={columnas} className="px-5 py-8 text-center text-sm text-muted">
                     Ningún producto coincide con el filtro.
                   </td>
                 </tr>

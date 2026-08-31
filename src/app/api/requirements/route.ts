@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 
 export async function GET() {
@@ -24,7 +25,12 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ requirements });
+  // El CPA y el CPM de cada pieza son plata: se cortan acá, no al dibujar.
+  const verCifras = await veLasCifras(session.userId);
+  return NextResponse.json({
+    requirements: creativosSinCifras(requirements, verCifras),
+    verCifras,
+  });
 }
 
 export async function POST(req: NextRequest) {

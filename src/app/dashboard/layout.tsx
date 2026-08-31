@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import {
+  canAccessPipeline,
+  canManageConexiones,
+  canManagePipeline,
+  canUseJarvis,
+  canViewFinancials,
+} from "@/lib/permissions";
 import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
 import LogoutButton from "./logout-button";
@@ -10,6 +16,8 @@ import LiveRefresher from "./live-refresher";
 import SidebarNav from "./sidebar-nav";
 import NotificationsBell from "./notifications-bell";
 import MobileNav from "./mobile-nav";
+import AvisoLlamada from "./chat/aviso-llamada";
+import AnunciosGlobales from "./anuncios-globales";
 
 function initials(name: string) {
   return name
@@ -30,12 +38,21 @@ export default async function DashboardLayout({
 
   const [org, me] = await Promise.all([
     db.organization.findUnique({ where: { id: session.organizationId } }),
-    // El permiso de nómina se lee de la base, no del JWT — ver payroll-access.ts.
+    // Los permisos por persona —nómina y finanzas— se leen de la base y no del
+    // JWT: la sesión dura 30 días, así que quitarle un acceso a alguien no
+    // tendría efecto hasta que volviera a entrar.
     db.user.findUnique({
       where: { id: session.userId },
-      select: { canViewPayroll: true, avatarUrl: true, capacitacionVista: true },
+      select: {
+        canViewPayroll: true,
+        canViewFinancials: true,
+        avatarUrl: true,
+        capacitacionVista: true,
+      },
     }),
   ]);
+
+  const veCifras = canViewFinancials(me);
 
   // Qué le toca ver del recorrido se resuelve en el servidor, con el rol y el
   // permiso ya leídos de la base. Mandarle la lista entera al navegador para
@@ -44,6 +61,7 @@ export default async function DashboardLayout({
   const pasosCapacitacion = pasosParaUsuario({
     rol: session.role,
     vePayroll: Boolean(me?.canViewPayroll),
+    veCifras,
   });
 
   // El menú y la ficha del usuario se arman una sola vez y se usan en los dos
@@ -68,9 +86,13 @@ export default async function DashboardLayout({
     <SidebarNav
       showUsuarios={session.role === "OWNER"}
       showPipeline={canAccessPipeline(session.role)}
-      showRentabilidad={canManagePipeline(session.role)}
+      showRentabilidad={canManagePipeline(session.role) && veCifras}
+      showReportes={canManagePipeline(session.role)}
+      showLogistica={canAccessPipeline(session.role) && veCifras}
+      showConexiones={canManageConexiones(session.role)}
+      showJarvis={canUseJarvis(session.role)}
       showNomina={Boolean(me?.canViewPayroll)}
-      showCeo={session.role === "OWNER"}
+      showCeo={session.role === "OWNER" && veCifras}
     />
   );
 
@@ -112,6 +134,11 @@ export default async function DashboardLayout({
       </MobileNav>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Van arriba de todo y en el layout porque tienen que verse desde
+            cualquier pantalla: una llamada en curso o un anuncio nuevo no
+            sirven de nada si solo aparecen dentro del chat. */}
+        <AvisoLlamada />
+        <AnunciosGlobales />
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur-sm">
           <div className="flex h-14 items-center justify-end gap-3 px-4 md:px-8">
             {/* El recorrido va en el encabezado y no en el menú lateral porque

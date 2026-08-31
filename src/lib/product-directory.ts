@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getPulses, type PulseState } from "@/lib/pulse";
 import { sugerirAcciones } from "@/lib/product-actions";
+import { textoSinCifras } from "@/lib/finanzas";
 import type { Range } from "@/lib/date-range";
 
 // El directorio de productos: una fila por producto con todo lo que hace falta
@@ -15,18 +16,27 @@ export type DirectoryRow = {
   code: string;
   name: string;
   folder: string | null;
-  salePrice: number | null;
-  unitCost: number | null;
+  /**
+   * Precio, costo, margen, objetivo, gasto y CPA solo llegan cuando quien mira
+   * tiene el permiso de finanzas. No están puestos en `null`: directamente no
+   * existen en el objeto, porque esta fila se serializa dentro del HTML de la
+   * página y un null igual habría dicho "acá hay un dato que no te muestro".
+   */
+  salePrice?: number | null;
+  unitCost?: number | null;
   /** Margen bruto por unidad, cuando se conocen precio y costo. */
-  margen: number | null;
-  cpaTarget: number;
+  margen?: number | null;
+  cpaTarget?: number;
   cpaTargetProvisional: boolean;
 
-  spend: number;
+  spend?: number;
+  /** Si tuvo pauta en el período: dice si está corriendo, no cuánto costó. */
+  conPauta: boolean;
   purchases: number;
-  cpa: number | null;
+  cpa?: number | null;
   score: number;
   state: PulseState;
+  /** En dólares por día para la dirección; en escala relativa para el resto. */
   serie: number[];
   motivos: string[];
   sugerencias: { kind: string; detail: string; reason: string }[];
@@ -54,11 +64,19 @@ export type Directory = {
   equipo: { id: string; name: string; role: string }[];
   /** Cuántos productos de la tienda todavía no se siguen. */
   totales: { productos: number; conPauta: number; sinCosto: number };
+  /** Se arrastra hasta la pantalla para que sepa qué columnas puede dibujar. */
+  verCifras: boolean;
 };
 
+/**
+ * @param verCifras si quien va a mirar tiene el permiso de finanzas. Se filtra
+ * ACÁ y no en la pantalla: el directorio es un componente de servidor y sus
+ * filas viajan enteras al navegador dentro del HTML.
+ */
 export async function getDirectory(
   organizationId: string,
-  range: Range
+  range: Range,
+  verCifras: boolean
 ): Promise<Directory> {
   // "Hoy" es el de Ecuador, no el del servidor: Railway corre en UTC y
   // setHours() haría que el día arrancara a las 19:00 de la víspera.
@@ -155,28 +173,39 @@ export async function getDirectory(
     const margen =
       p.salePrice != null && p.unitCost != null ? p.salePrice - p.unitCost : null;
 
+    // El trazo se dibuja igual con la serie dividida por su pico —PulseLine
+    // normaliza contra el máximo de lo que recibe—, pero así los dólares de
+    // cada día no viajan al navegador.
+    const serie = pulso?.serie ?? [];
+    const pico = Math.max(0, ...serie);
+
     return {
       id: p.id,
       code: p.code,
       name: p.name,
       folder: p.folder?.name ?? null,
-      salePrice: p.salePrice,
-      unitCost: p.unitCost,
-      margen,
-      cpaTarget: p.cpaTarget,
+      ...(verCifras
+        ? {
+            salePrice: p.salePrice,
+            unitCost: p.unitCost,
+            margen,
+            cpaTarget: p.cpaTarget,
+            spend: pulso?.spend ?? 0,
+            cpa: pulso?.cpa ?? null,
+          }
+        : {}),
       // La ficha dice si el objetivo se puso sin conocer la economía real.
       // Marcarlo importa: un semáforo verde contra un umbral inventado no
       // significa nada.
       cpaTargetProvisional: Boolean(p.notes?.includes("provisional")),
 
-      spend: pulso?.spend ?? 0,
+      conPauta: (pulso?.spend ?? 0) > 0,
       purchases: pulso?.purchases ?? 0,
-      cpa: pulso?.cpa ?? null,
       score: pulso?.score ?? 0,
       state: pulso?.state ?? "SIN_DATOS",
-      serie: pulso?.serie ?? [],
-      motivos: pulso?.motivos ?? [],
-      sugerencias: pulso ? sugerirAcciones(pulso) : [],
+      serie: verCifras || pico <= 0 ? serie : serie.map((v) => Number((v / pico).toFixed(4))),
+      motivos: (verCifras ? pulso?.motivos : pulso?.motivosSinCifras) ?? [],
+      sugerencias: pulso ? sugerirAcciones(pulso, verCifras) : [],
 
       campanas: p._count.campaigns,
       creativos: conteo?.total ?? 0,
@@ -194,13 +223,23 @@ export async function getDirectory(
     rows,
     carpetas,
     // Las fechas viajan como texto: cruzan del servidor al navegador y un Date
-    // no sobrevive ese viaje sin convertirse en string igual.
-    pendientes: pendientes.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
+    // no sobrevive ese viaje sin convertirse en string igual. El motivo va
+    // por el mismo filtro que el resto: lo escribió otra persona y puede
+    // traer el CPA adentro.
+    pendientes: pendientes.map((a) => ({
+      ...a,
+      reason: textoSinCifras(a.reason, verCifras) ?? a.reason,
+      createdAt: a.createdAt.toISOString(),
+    })),
     equipo,
     totales: {
       productos: rows.length,
-      conPauta: rows.filter((r) => r.spend > 0).length,
-      sinCosto: rows.filter((r) => r.unitCost == null).length,
+      conPauta: rows.filter((r) => r.conPauta).length,
+      // Cuántos productos no tienen cargado su costo. Es un aviso de carga
+      // pendiente para la dirección, así que cuando no se ven cifras no se
+      // cuenta ni se manda: la pantalla no tendría dónde ponerlo.
+      sinCosto: verCifras ? productos.filter((p) => p.unitCost == null).length : 0,
     },
+    verCifras,
   };
 }

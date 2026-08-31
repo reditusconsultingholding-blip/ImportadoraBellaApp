@@ -1,5 +1,4 @@
 import PDFDocument from "pdfkit";
-import { dailyReportHtml, emailConfigured, reportRecipients, sendEmail } from "@/lib/email";
 import { db } from "@/lib/db";
 import { getOverview } from "@/lib/metrics";
 import { resolveRange } from "@/lib/date-range";
@@ -293,8 +292,11 @@ export async function generateAndStoreDailyReport(organizationId: string, date: 
     update: { pdf },
   });
 
+  // El aviso enlaza directo al PDF con las cifras, así que se manda solo a
+  // quien lo puede abrir: sin esto quedaría una notificación que al tocarla
+  // devuelve 'sin permiso'.
   const owners = await db.user.findMany({
-    where: { organizationId, role: "OWNER" },
+    where: { organizationId, role: "OWNER", canViewFinancials: true },
     select: { id: true },
   });
   const dateLabel = dayStart.toLocaleDateString("es-EC", { day: "2-digit", month: "long", timeZone: "UTC" });
@@ -309,71 +311,14 @@ export async function generateAndStoreDailyReport(organizationId: string, date: 
     });
   }
 
-  // Además del aviso dentro de la app, el reporte sale por correo — que es lo
-  // que hace que llegue aunque nadie tenga el panel abierto. Si el envío falla
-  // NO se corta la generación: el PDF ya quedó guardado y la notificación
-  // interna también, así que perder el correo no debe perder el reporte.
-  if (emailConfigured()) {
-    try {
-      const to = await reportRecipients(organizationId);
-      const totals = await dayTotals(organizationId, dayStart);
-      const result = await sendEmail({
-        to,
-        subject: `Reporte del ${dateLabel} · Importadora Bella`,
-        html: dailyReportHtml({
-          date: dayStart,
-          appUrl: process.env.APP_URL?.trim() || "https://jarvis-production-0120.up.railway.app",
-          ...totals,
-        }),
-        attachment: {
-          filename: `reporte-${dayStart.toISOString().slice(0, 10)}.pdf`,
-          content: pdfBuffer,
-        },
-      });
-      if (!result.ok) console.error("[reporte diario] no se pudo enviar el correo:", result.error);
-    } catch (err) {
-      console.error("[reporte diario] error enviando el correo:", err);
-    }
-  }
-
+  // El reporte NO sale por correo.
+  //
+  // Se saco a pedido del dueno: el dominio nunca se verifico, asi que en la
+  // practica el correo no salio nunca, y mantener el camino vivo solo dejaba
+  // un error recurrente en los registros y la duda de si algo se habia
+  // enviado. El PDF queda guardado y el aviso dentro de la app y el push son
+  // los que avisan.
   return report;
 }
 
-// Los cuatro números que van en el cuerpo del correo.
-async function dayTotals(organizationId: string, dayStart: Date) {
-  const dayEnd = new Date(dayStart);
-  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
-  // Las ordenes guardan el instante real de la compra, asi que su dia se corta
-  // a la medianoche de Ecuador (05:00 UTC) y no a la medianoche UTC. Los
-  // snapshots de pauta no: ahi la fecha es una marca de dia, y se compara tal
-  // cual. Mezclarlos hacia que el reporte de la noche se comiera cinco horas
-  // del dia siguiente.
-  const ventasDesde = new Date(dayStart.getTime() + 5 * 3600_000);
-  const ventasHasta = new Date(dayEnd.getTime() + 5 * 3600_000);
-
-  const [orders, metrics] = await Promise.all([
-    db.shopifyOrder.aggregate({
-      where: {
-        store: { organizationId },
-        occurredAt: { gte: ventasDesde, lt: ventasHasta },
-      },
-      _count: { _all: true },
-      _sum: { netSales: true },
-    }),
-    db.metricSnapshot.aggregate({
-      where: {
-        campaign: { adAccount: { organizationId } },
-        capturedAt: { gte: dayStart, lt: dayEnd },
-      },
-      _sum: { spend: true, purchases: true },
-    }),
-  ]);
-
-  return {
-    orders: orders._count._all,
-    revenue: orders._sum.netSales ?? 0,
-    spend: metrics._sum.spend ?? 0,
-    purchases: metrics._sum.purchases ?? 0,
-  };
-}

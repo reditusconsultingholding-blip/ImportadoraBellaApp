@@ -130,6 +130,13 @@ export type PulsoCreativos = {
   veredicto: VeredictoCreativos;
   /** Cada uno trae el número que lo sostiene. Sin número, no va. */
   motivos: string[];
+  /**
+   * Los mismos motivos contados sin plata: porcentajes, cantidad de compras y
+   * cantidad de piezas, que es con lo que se decide producir. Se redactan
+   * aparte y no tachando montos, porque una frase con huecos se lee como un
+   * error de la app.
+   */
+  motivosSinCifras: string[];
 
   gasto: number;
   /** Atribuidas por la plataforma, no órdenes cobradas de Shopify. */
@@ -155,6 +162,46 @@ export type PulsoCreativos = {
   /** Cuántos pide su nivel de gasto. 0 cuando no hay pauta que sostener. */
   creativosExigidos: number;
 };
+
+/** El pulso de creativos tal como viaja al navegador. */
+export type PulsoCreativosVisible = Omit<
+  PulsoCreativos,
+  "motivosSinCifras" | "gasto" | "cpa" | "cpaPrevio" | "equilibrio" | "margenSobreEquilibrio"
+> & {
+  gasto?: number;
+  cpa?: number | null;
+  cpaPrevio?: number | null;
+  equilibrio?: number | null;
+  margenSobreEquilibrio?: number | null;
+};
+
+/**
+ * Saca la plata de la lista antes de mandarla a la pantalla.
+ *
+ * La serie del trazo va en escala relativa: son los dólares del día, y aunque
+ * el dibujo salga idéntico los números crudos quedan en el HTML de la página.
+ */
+export function pulsosCreativosVisibles(
+  lista: PulsoCreativos[],
+  verCifras: boolean
+): PulsoCreativosVisible[] {
+  return lista.map((p) => {
+    const { motivosSinCifras, ...resto } = p;
+    if (verCifras) return resto;
+
+    const pico = Math.max(0, ...p.serie);
+    return {
+      ...resto,
+      motivos: motivosSinCifras,
+      serie: pico > 0 ? p.serie.map((v) => Number((v / pico).toFixed(4))) : p.serie.map(() => 0),
+      gasto: undefined,
+      cpa: undefined,
+      cpaPrevio: undefined,
+      equilibrio: undefined,
+      margenSobreEquilibrio: undefined,
+    };
+  });
+}
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -294,6 +341,11 @@ export async function getPulsoCreativos(organizationId: string): Promise<PulsoCr
             ? `No tuvo pauta en los últimos ${VENTANA_DIAS} días, así que no hay nada que diga si le faltan creativos.`
             : `Solo gastó ${money(gasto)} en ${VENTANA_DIAS} días: por debajo de ${money(GASTO_MINIMO)} cualquier lectura del CPA es ruido.`,
         ],
+        motivosSinCifras: [
+          gasto <= 0
+            ? `No tuvo pauta en los últimos ${VENTANA_DIAS} días, así que no hay nada que diga si le faltan creativos.`
+            : `Tuvo muy poca pauta en ${VENTANA_DIAS} días: por debajo de ese piso, cualquier lectura del costo por compra es ruido.`,
+        ],
       });
       continue;
     }
@@ -333,88 +385,112 @@ export async function getPulsoCreativos(organizationId: string): Promise<PulsoCr
       equilibrio != null && cpa != null && cpa > 0 ? ((equilibrio - cpa) / cpa) * 100 : null;
 
     const motivos: string[] = [];
+    const motivosSinCifras: string[] = [];
+    // Los dos textos se escriben en el mismo lugar para que no se
+    // desincronicen: si mañana alguien cambia el criterio de fatiga y toca un
+    // solo motivo, el otro queda al lado y se nota.
+    const agregar = (conCifras: string, sinCifras: string) => {
+      motivos.push(conCifras);
+      motivosSinCifras.push(sinCifras);
+    };
     let veredicto: VeredictoCreativos;
 
     if (cpa == null) {
       veredicto = "NECESITA";
-      motivos.push(
-        `Gastó ${money(gasto)} en ${VENTANA_DIAS} días sin una sola compra atribuida. Puede ser el creativo, pero también la oferta o la página: conviene mirarlo antes de mandar a editar.`
+      agregar(
+        `Gastó ${money(gasto)} en ${VENTANA_DIAS} días sin una sola compra atribuida. Puede ser el creativo, pero también la oferta o la página: conviene mirarlo antes de mandar a editar.`,
+        `Estuvo en pauta ${VENTANA_DIAS} días sin una sola compra atribuida. Puede ser el creativo, pero también la oferta o la página: conviene mirarlo antes de mandar a editar.`
       );
     } else if (fatiga) {
       // La fatiga gana sobre todo lo demás, incluso si el CPA todavía está por
       // debajo del umbral. Producir una tanda tarda días: si se espera a que
       // cruce, para cuando las piezas estén listas ya se perdió la plata.
       veredicto = "NECESITA";
-      motivos.push(
-        `CPA de ${money2(cpa)} en los últimos ${VENTANA_DIAS} días contra ${money2(cpaPrevio!)} en los ${VENTANA_DIAS} anteriores: subió ${pct(variacionCpa!)} con ${compras} compras atribuidas de por medio. Así se ve un creativo gastándose.`
+      agregar(
+        `CPA de ${money2(cpa)} en los últimos ${VENTANA_DIAS} días contra ${money2(cpaPrevio!)} en los ${VENTANA_DIAS} anteriores: subió ${pct(variacionCpa!)} con ${compras} compras atribuidas de por medio. Así se ve un creativo gastándose.`,
+        `El costo por compra subió ${pct(variacionCpa!)} contra los ${VENTANA_DIAS} días anteriores, con ${compras} compras atribuidas de por medio. Así se ve un creativo gastándose.`
       );
     } else if (puedeEscalar) {
       veredicto = "ESCALAR";
-      motivos.push(
-        `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "punto de equilibrio"} de ${money2(equilibrio!)}: aguanta ${Math.round(margenSobreEquilibrio!)}% más de costo por compra antes de dejar de ganar.`
+      agregar(
+        `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "punto de equilibrio"} de ${money2(equilibrio!)}: aguanta ${Math.round(margenSobreEquilibrio!)}% más de costo por compra antes de dejar de ganar.`,
+        `Aguanta ${Math.round(margenSobreEquilibrio!)}% más de costo por compra antes de dejar de ganar.`
       );
-      motivos.push(
+      const tendenciaDicha =
+        variacionCpa == null
+          ? "."
+          : variacionCpa <= 0
+            ? ` y el costo por compra todavía viene bajando ${pct(variacionCpa)}.`
+            : ` y el costo por compra subió apenas ${pct(variacionCpa)}, por debajo del ${pct(SUBIDA_CPA_FATIGA)} que marca fatiga.`;
+      agregar(
         `Gastó ${money(gasto)} en ${VENTANA_DIAS} días con ${compras} compras atribuidas${
           variacionCpa == null
             ? "."
             : variacionCpa <= 0
               ? ` y el CPA todavía viene bajando ${pct(variacionCpa)}.`
               : ` y el CPA subió apenas ${pct(variacionCpa)}, por debajo del ${pct(SUBIDA_CPA_FATIGA)} que marca fatiga.`
-        }`
+        }`,
+        `Lleva ${compras} compras atribuidas en ${VENTANA_DIAS} días${tendenciaDicha}`
       );
-      motivos.push(
+      const sobreGanadores =
         conteo.ganadores > 0
           ? `Tiene ${conteo.ganadores} ${conteo.ganadores === 1 ? "pieza declarada ganadora" : "piezas declaradas ganadoras"} en el pipeline: las variaciones salen de esas, no de un ángulo nuevo.`
-          : "Ninguna de sus piezas está marcada como ganadora en el pipeline, así que primero hay que ver cuál está trayendo las ventas y recién después producir variaciones de esa."
-      );
+          : "Ninguna de sus piezas está marcada como ganadora en el pipeline, así que primero hay que ver cuál está trayendo las ventas y recién después producir variaciones de esa.";
+      agregar(sobreGanadores, sobreGanadores);
     } else if (faltan > 0) {
       veredicto = "NECESITA";
-      motivos.push(
-        `Tiene ${conteo.vivos} ${conteo.vivos === 1 ? "creativo vivo" : "creativos vivos"} para ${money(gastoDiario)} de pauta al día: a razón de una pieza por cada ${money(GASTO_DIARIO_POR_CREATIVO)} diarios harían falta ${exigidos}, y faltan ${faltan}.`
+      agregar(
+        `Tiene ${conteo.vivos} ${conteo.vivos === 1 ? "creativo vivo" : "creativos vivos"} para ${money(gastoDiario)} de pauta al día: a razón de una pieza por cada ${money(GASTO_DIARIO_POR_CREATIVO)} diarios harían falta ${exigidos}, y faltan ${faltan}.`,
+        `Tiene ${conteo.vivos} ${conteo.vivos === 1 ? "creativo vivo" : "creativos vivos"} y el nivel de pauta que sostiene pide ${exigidos}: faltan ${faltan}.`
       );
     } else {
       veredicto = "SUFICIENTE";
-      motivos.push(
-        `Tiene ${cubiertos} ${cubiertos === 1 ? "pieza" : "piezas"} entre vivas y en edición, que cubre las ${exigidos} que pide su nivel de gasto.`
-      );
+      const cobertura = `Tiene ${cubiertos} ${cubiertos === 1 ? "pieza" : "piezas"} entre vivas y en edición, que cubre las ${exigidos} que pide su nivel de pauta.`;
+      agregar(cobertura, cobertura);
       if (cpa != null && equilibrio != null) {
-        motivos.push(
-          umbralEscalar != null && cpa > umbralEscalar && cpa <= equilibrio
-            ? `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "equilibrio"} de ${money2(equilibrio)}: gana, pero no lo suficiente como para escalar — el corte está en ${money2(umbralEscalar)}.`
-            : `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "equilibrio"} de ${money2(equilibrio)}.`
+        const gana = umbralEscalar != null && cpa > umbralEscalar && cpa <= equilibrio;
+        agregar(
+          gana
+            ? `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "equilibrio"} de ${money2(equilibrio)}: gana, pero no lo suficiente como para escalar — el corte está en ${money2(umbralEscalar!)}.`
+            : `CPA de ${money2(cpa)} contra un ${umbralProvisional ? "objetivo" : "equilibrio"} de ${money2(equilibrio)}.`,
+          gana
+            ? "Gana, pero no lo suficiente como para escalar: el costo por compra está por encima del corte."
+            : `El costo por compra está dentro de su ${umbralProvisional ? "objetivo" : "punto de equilibrio"}.`
         );
       }
     }
 
     // Lo que matiza el veredicto va después del motivo principal, no antes.
     if (conteo.quemados > 0) {
-      motivos.push(
-        `De sus ${conteo.quemados + conteo.vivos} piezas producidas, ${conteo.quemados} están marcadas como saturadas, killeadas o reemplazadas, así que no cuentan como creativo vivo.`
-      );
+      const quemados = `De sus ${conteo.quemados + conteo.vivos} piezas producidas, ${conteo.quemados} están marcadas como saturadas, killeadas o reemplazadas, así que no cuentan como creativo vivo.`;
+      agregar(quemados, quemados);
     }
     if (veredicto === "NECESITA" && conteo.produccion > 0) {
-      motivos.push(
-        `Ya hay ${conteo.produccion} ${conteo.produccion === 1 ? "pieza" : "piezas"} en producción para este producto: mira la cola antes de pedir otra tanda.`
-      );
+      const enCola = `Ya hay ${conteo.produccion} ${conteo.produccion === 1 ? "pieza" : "piezas"} en producción para este producto: mira la cola antes de pedir otra tanda.`;
+      agregar(enCola, enCola);
     }
     if (equilibrio == null) {
-      motivos.push(
-        "No tiene economía cargada ni CPA objetivo, así que el veredicto se apoya solo en la cantidad de creativos. Carga precio, costo, flete y efectividad para que el umbral sea real."
+      agregar(
+        "No tiene economía cargada ni CPA objetivo, así que el veredicto se apoya solo en la cantidad de creativos. Carga precio, costo, flete y efectividad para que el umbral sea real.",
+        "No tiene su economía cargada, así que el veredicto se apoya solo en la cantidad de creativos. La dirección tiene que completarla para que el umbral sea real."
       );
     } else if (umbralProvisional) {
-      motivos.push(
-        `El umbral es el CPA objetivo cargado a mano (${money2(equilibrio)}), no el punto de equilibrio real: falta cargar efectividad, flete o devoluciones.`
+      agregar(
+        `El umbral es el CPA objetivo cargado a mano (${money2(equilibrio)}), no el punto de equilibrio real: falta cargar efectividad, flete o devoluciones.`,
+        "El umbral es un objetivo cargado a mano, no el punto de equilibrio real: falta cargar efectividad, flete o devoluciones."
       );
     }
     if (cpa != null && !datosFirmes) {
-      motivos.push(
-        `Solo ${compras} compras atribuidas en la ventana: alcanza para un CPA aproximado, no para hablar de tendencia contra la semana anterior.`
+      agregar(
+        `Solo ${compras} compras atribuidas en la ventana: alcanza para un CPA aproximado, no para hablar de tendencia contra la semana anterior.`,
+        `Solo ${compras} compras atribuidas en la ventana: alcanza para una lectura aproximada, no para hablar de tendencia contra la semana anterior.`
       );
     }
 
     lista.push({
       ...base,
       veredicto,
+      motivosSinCifras,
       variacionCpa,
       equilibrio,
       umbralProvisional,
