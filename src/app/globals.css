@@ -201,3 +201,36 @@ tbody tr:hover {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
+
+/* La barra fina de arriba mientras una pantalla se está cargando.
+   Recorre el ancho en vez de llenarse: no sabemos cuánto falta, y una barra
+   que se llena al 90% y se queda ahí miente sobre el progreso. */
+@keyframes correr {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* El latido de los bloques grises que ocupan el lugar del contenido mientras
+   llega. */
+@keyframes latir {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Quien pidió menos movimiento no debería recibir dos animaciones infinitas
+   en cada carga. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[correr_1\.1s_ease-in-out_infinite\],
+  .animate-\[latir_1\.4s_ease-in-out_infinite\] {
+    animation: none;
+  }
+}

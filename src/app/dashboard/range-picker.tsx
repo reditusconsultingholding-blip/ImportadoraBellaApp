@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { RANGES, type RangeId } from "@/lib/date-range";
+import { BarraDeCarga, Girando, useNavegar } from "./navegar";
 
 // Selector de fechas del Panel. El rango viaja en la URL y no en estado local
 // a propósito: así se puede compartir un link con el período ya puesto, y la
@@ -27,7 +27,7 @@ export default function RangePicker({
    */
   basePath?: string;
 }) {
-  const router = useRouter();
+  const { navegar, pendiente, destino } = useNavegar();
   const [open, setOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState(from);
   const [customTo, setCustomTo] = useState(to);
@@ -38,39 +38,57 @@ export default function RangePicker({
       return;
     }
     setOpen(false);
-    router.push(`${basePath}?platform=${platform}&rango=${rango}`, { scroll: false });
+    navegar(`${basePath}?platform=${platform}&rango=${rango}`, rango);
   }
 
   function applyCustom() {
     setOpen(false);
-    router.push(
+    navegar(
       `${basePath}?platform=${platform}&rango=personalizado&desde=${customFrom}&hasta=${customTo}`,
-      { scroll: false }
+      "personalizado"
     );
   }
 
   return (
     <div className="relative">
+      <BarraDeCarga activa={pendiente} />
+
       <div className="flex flex-wrap items-center gap-1.5">
         {RANGES.map((r) => {
           const on = active === r.id;
+          // Solo se marca el que se apretó. Marcar los ocho pondría en duda
+          // todo el selector cuando lo que se pidió fue un período.
+          const cargando = destino === r.id;
           return (
             <button
               key={r.id}
               onClick={() => go(r.id)}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                on
+              disabled={pendiente}
+              aria-busy={cargando}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                on || cargando
                   ? "border-accent bg-good-bg text-accent-strong"
                   : "border-border text-muted hover:border-border-strong hover:text-foreground"
-              }`}
+              } ${pendiente && !cargando ? "opacity-50" : ""}`}
             >
+              {cargando && <Girando />}
               {r.label}
             </button>
           );
         })}
       </div>
 
-      {active === "personalizado" && !open && (
+      {/* El aviso en palabras, además del circulito. Los períodos largos tardan
+          varios segundos, y en ese rato la pantalla sigue mostrando los números
+          del período anterior: sin decirlo, se leen como si fueran los nuevos. */}
+      {pendiente && (
+        <p className="mt-1.5 text-xs text-muted">
+          Cargando {RANGES.find((r) => r.id === destino)?.label ?? "el período"}… lo de abajo
+          todavía es del período anterior.
+        </p>
+      )}
+
+      {!pendiente && active === "personalizado" && !open && (
         <p className="mt-1.5 text-xs text-muted">Mostrando {label}</p>
       )}
 

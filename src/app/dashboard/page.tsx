@@ -121,7 +121,12 @@ export default async function DashboardPage({
               Solo lo que atribuye la plataforma. Las ventas reales están arriba, y salen de Shopify.
             </p>
           </div>
-          <PlatformTabs active={platform} />
+          <PlatformTabs
+            active={platform}
+            rango={range.id}
+            desde={isoDay(range.from)}
+            hasta={isoDay(range.to)}
+          />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

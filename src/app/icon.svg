@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Importadora Bella">
+  <!--
+    El icono de la pestaña: la B de Bella sobre el verde de la marca.
+
+    Las proporciones están puestas mirando el resultado A 16 PÍXELES, que es
+    donde se ve casi siempre. La primera versión tenía la letra chica dentro
+    del recuadro y los huecos de la B se cerraban a ese tamaño: quedaba una
+    mancha verde con algo blanco adentro.
+
+    Por eso acá la letra ocupa casi todo el alto y los huecos son grandes en
+    relación al trazo. Un trazo fino o un remate elegante no sobreviven a 16
+    píxeles; lo único que sobrevive es el contraste.
+
+    El fondo va relleno y no transparente para que se distinga igual en una
+    barra clara que en una oscura.
+  -->
+  <rect width="32" height="32" rx="7" fill="#008060"/>
+
+  <!-- La B: astil más dos panzas. Los huecos se pintan del verde del fondo
+       encima del blanco, que sale más parejo que recortarlos con fill-rule. -->
+  <g fill="#ffffff">
+    <path d="M8.9 4.5h7.5a5.45 5.45 0 0 1 0 10.9H8.9z"/>
+    <path d="M8.9 15.4h7.7a6.05 6.05 0 0 1 0 12.1H8.9z"/>
+    <rect x="8.9" y="4.5" width="4.8" height="23" rx="0.6"/>
+  </g>
+
+  <g fill="#008060">
+    <path d="M13.7 8.1h2.7a1.85 1.85 0 0 1 0 3.7h-2.7z"/>
+    <path d="M13.7 19h2.9a2.45 2.45 0 0 1 0 4.9h-2.9z"/>
+  </g>
+</svg>

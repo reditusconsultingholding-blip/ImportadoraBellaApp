@@ -1,4 +1,4 @@
-import Link from "next/link";
+import LinkCargando from "./link-cargando";
 import type { Platform } from "@/generated/prisma/client";
 
 // Los logos van dibujados como SVG, no como imagen ni emoji: se reconocen de
@@ -22,16 +22,34 @@ const TABS: { value: Platform; label: string; short: string }[] = [
   { value: "TIKTOK", label: "TikTok", short: "TikTok Ads" },
 ];
 
-export default function PlatformTabs({ active }: { active: Platform }) {
+// El período viaja en el enlace. Sin esto, elegir "12 meses" y despues cambiar
+// de plataforma devolvia el panel al período por defecto sin avisar, y los
+// numeros nuevos se leian como si fueran los de doce meses.
+export default function PlatformTabs({
+  active,
+  rango,
+  desde,
+  hasta,
+}: {
+  active: Platform;
+  rango: string;
+  desde?: string;
+  hasta?: string;
+}) {
+  const extra =
+    rango === "personalizado" && desde && hasta
+      ? `&rango=personalizado&desde=${desde}&hasta=${hasta}`
+      : `&rango=${rango}`;
+
   return (
     <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1">
       {TABS.map((tab) => {
         const on = active === tab.value;
         return (
-          <Link
+          <LinkCargando
             key={tab.value}
-            href={`/dashboard?platform=${tab.value}`}
-            aria-current={on ? "page" : undefined}
+            href={`/dashboard?platform=${tab.value}${extra}`}
+            ariaCurrent={on ? "page" : undefined}
             title={tab.short}
             className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
               on
@@ -41,7 +59,7 @@ export default function PlatformTabs({ active }: { active: Platform }) {
           >
             <span className={on ? "text-accent" : "text-muted"}>{ICONS[tab.value]}</span>
             {tab.label}
-          </Link>
+          </LinkCargando>
         );
       })}
     </div>
