@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   Bar,
   BarChart,
@@ -48,7 +50,11 @@ const FACTURADO = "var(--chart-1)";
 const PAUTA = "var(--chart-3)";
 
 const money = (n: number) =>
-  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("es-EC", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
 
 /** Para el eje y las etiquetas sobre las barras, donde no entra "$21.480". */
 function moneyCorta(n: number) {
@@ -71,30 +77,54 @@ type Fila = SerieDelPeriodo["cubos"][number] & {
   etiquetaPeso: string;
 };
 
-function TooltipCubo({ active, payload }: { active?: boolean; payload?: { payload: Fila }[] }) {
-  const c = payload?.[0]?.payload;
-  if (!active || !c) return null;
+/**
+ * La lectura del cubo sobre el que está el cursor.
+ *
+ * Va FUERA del área con scroll y en un lugar fijo, no como globo flotante.
+ * El globo lo dibujaba el gráfico adentro del contenedor con scroll, y
+ * `overflow` recorta todo lo que se sale: cerca del borde derecho quedaba
+ * cortado a la mitad y no se podía leer.
+ *
+ * De paso se lee mejor para comparar: los números aparecen siempre en el
+ * mismo lugar en vez de saltar con el cursor.
+ */
+function Lectura({
+  c,
+  granularidad,
+}: {
+  c: Fila | null;
+  granularidad: string;
+}) {
+  if (!c) {
+    return (
+      <p className="text-xs text-muted">
+        Pasa el cursor por una barra para ver el detalle {granularidad}.
+      </p>
+    );
+  }
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2 text-xs shadow-[var(--shadow-pop)]">
-      <p className="mb-1 font-medium">{c.detalle}</p>
-      {/* El valor manda y el nombre acompaña: acá el lector ya sabe qué serie
-          miró, lo que le falta es el número. */}
-      <p className="tabular-nums">
-        {money(c.facturado)} <span className="text-muted">facturado · {c.ordenes} órdenes</span>
-      </p>
-      <p className="tabular-nums">
+    <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs tabular-nums">
+      <span className="font-medium">{c.detalle}</span>
+      <span>
+        {money(c.facturado)}{" "}
+        <span className="text-muted">facturado · {c.ordenes} órdenes</span>
+      </span>
+      <span>
         {money(c.gasto)} <span className="text-muted">en pauta</span>
-      </p>
-      <p className="tabular-nums">
+      </span>
+      <span>
         {c.pesoPauta == null ? (
-          <span className="text-muted">Sin ventas: el porcentaje no existe</span>
+          <span className="text-muted">
+            sin ventas: el porcentaje no existe
+          </span>
         ) : (
           <>
-            {pct(c.pesoPauta)} <span className="text-muted">de lo facturado</span>
+            {pct(c.pesoPauta)}{" "}
+            <span className="text-muted">de lo facturado</span>
           </>
         )}
-      </p>
-    </div>
+      </span>
+    </p>
   );
 }
 
@@ -106,15 +136,25 @@ export default function GraficoPeriodo({
   /** Qué período cubre. Sin esto el gráfico no dice de cuándo habla. */
   periodo: string;
 }) {
+  // Sobre qué barra está el cursor. Se guarda acá arriba y no dentro del
+  // gráfico para poder dibujar la lectura FUERA del contenedor con scroll.
+  const [encima, setEncima] = useState<Fila | null>(null);
+
   const { cubos, granularidad, totales, hayTienda } = serie;
 
   if (!hayTienda) {
     return (
-      <Tarjeta periodo={periodo} granularidad={NOMBRE_GRANULARIDAD[granularidad]}>
+      <Tarjeta
+        periodo={periodo}
+        granularidad={NOMBRE_GRANULARIDAD[granularidad]}
+      >
         <p className="py-8 text-center text-sm text-muted">
-          No hay una tienda de Shopify conectada, así que no hay facturación contra la cual medir
-          la pauta.{" "}
-          <a href="/dashboard/conexiones" className="text-accent hover:underline">
+          No hay una tienda de Shopify conectada, así que no hay facturación
+          contra la cual medir la pauta.{" "}
+          <a
+            href="/dashboard/conexiones"
+            className="text-accent hover:underline"
+          >
             Ir a Conexiones
           </a>
         </p>
@@ -124,9 +164,13 @@ export default function GraficoPeriodo({
 
   if (cubos.length === 0 || (totales.facturado === 0 && totales.gasto === 0)) {
     return (
-      <Tarjeta periodo={periodo} granularidad={NOMBRE_GRANULARIDAD[granularidad]}>
+      <Tarjeta
+        periodo={periodo}
+        granularidad={NOMBRE_GRANULARIDAD[granularidad]}
+      >
         <p className="py-8 text-center text-sm text-muted">
-          No hay ventas ni gasto en pauta registrados en {periodo.toLowerCase()}.
+          No hay ventas ni gasto en pauta registrados en {periodo.toLowerCase()}
+          .
         </p>
       </Tarjeta>
     );
@@ -154,8 +198,10 @@ export default function GraficoPeriodo({
 
   const datos: Fila[] = cubos.map((c, i) => ({
     ...c,
-    etiquetaFacturado: aEtiquetar.has(i) && c.facturado > 0 ? moneyCorta(c.facturado) : "",
-    etiquetaPeso: pesoAEtiquetar.has(i) && c.pesoPauta != null ? pct(c.pesoPauta) : "",
+    etiquetaFacturado:
+      aEtiquetar.has(i) && c.facturado > 0 ? moneyCorta(c.facturado) : "",
+    etiquetaPeso:
+      pesoAEtiquetar.has(i) && c.pesoPauta != null ? pct(c.pesoPauta) : "",
   }));
 
   // El techo del eje del porcentaje deja siempre visible el límite: ajustado
@@ -168,7 +214,10 @@ export default function GraficoPeriodo({
   const techoBruto = Math.max(LIMITE_PESO_PAUTA + 15, maxPeso * 1.15);
   const paso = [5, 10, 20, 25, 50, 100].find((p) => techoBruto / p <= 5) ?? 200;
   const techoPeso = Math.ceil(techoBruto / paso) * paso;
-  const marcasPeso = Array.from({ length: techoPeso / paso + 1 }, (_, i) => i * paso);
+  const marcasPeso = Array.from(
+    { length: techoPeso / paso + 1 },
+    (_, i) => i * paso,
+  );
 
   const anchoMinimo = cubos.length * ANCHO_POR_CUBO;
   // Los puntos ayudan mientras se distingan; con dos meses de días encima se
@@ -210,6 +259,10 @@ export default function GraficoPeriodo({
         </span>
       </div>
 
+      <div className="mb-2 min-h-[2.25rem] rounded border border-border bg-surface-2 px-3 py-1.5">
+        <Lectura c={encima} granularidad={NOMBRE_GRANULARIDAD[granularidad]} />
+      </div>
+
       {/* Un solo contenedor con scroll para los dos gráficos: separados, se
           podrían desplazar distinto y las columnas dejarían de coincidir. El
           scroll vive acá adentro, así el cuerpo de la página nunca scrollea en
@@ -219,16 +272,34 @@ export default function GraficoPeriodo({
           <p className="mb-1 text-xs font-medium">Facturado</p>
           <div style={{ width: "100%", height: 190 }}>
             <ResponsiveContainer>
-              <BarChart data={datos} margin={margenes} barCategoryGap="18%">
+              <BarChart
+                data={datos}
+                margin={margenes}
+                barCategoryGap="18%"
+                // Recharts entrega el ÍNDICE del cubo activo, no su contenido.
+                onMouseMove={(e) =>
+                  setEncima(
+                    typeof e.activeTooltipIndex === "number"
+                      ? (datos[e.activeTooltipIndex] ?? null)
+                      : null,
+                  )
+                }
+                onMouseLeave={() => setEncima(null)}
+              >
                 <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                 <XAxis dataKey="etiqueta" hide />
                 <YAxis {...ejeY} tickFormatter={moneyCorta} />
                 <Tooltip
-                  content={<TooltipCubo />}
+                  content={() => null}
                   cursor={{ fill: "var(--surface-2)" }}
                   wrapperStyle={{ outline: "none" }}
                 />
-                <Bar dataKey="facturado" fill={FACTURADO} radius={[4, 4, 0, 0]} maxBarSize={24}>
+                <Bar
+                  dataKey="facturado"
+                  fill={FACTURADO}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
+                >
                   {/* El texto no se pinta del color de la serie: el verde de la
                       barra sobre el fondo de la tarjeta no se lee como texto. */}
                   <LabelList
@@ -243,11 +314,24 @@ export default function GraficoPeriodo({
           </div>
 
           <p className="mb-1 mt-3 text-xs font-medium">
-            Gasto en pauta <span className="text-muted">· % de lo facturado</span>
+            Gasto en pauta{" "}
+            <span className="text-muted">· % de lo facturado</span>
           </p>
           <div style={{ width: "100%", height: 150 }}>
             <ResponsiveContainer>
-              <ComposedChart data={datos} margin={margenes}>
+              <ComposedChart
+                data={datos}
+                margin={margenes}
+                // Recharts entrega el ÍNDICE del cubo activo, no su contenido.
+                onMouseMove={(e) =>
+                  setEncima(
+                    typeof e.activeTooltipIndex === "number"
+                      ? (datos[e.activeTooltipIndex] ?? null)
+                      : null,
+                  )
+                }
+                onMouseLeave={() => setEncima(null)}
+              >
                 <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                 <XAxis
                   dataKey="etiqueta"
@@ -264,7 +348,7 @@ export default function GraficoPeriodo({
                   tickFormatter={(v: number) => `${v}%`}
                 />
                 <Tooltip
-                  content={<TooltipCubo />}
+                  content={() => null}
                   cursor={{ stroke: "var(--border-strong)", strokeWidth: 1 }}
                   wrapperStyle={{ outline: "none" }}
                 />
@@ -291,10 +375,20 @@ export default function GraficoPeriodo({
                   connectNulls={false}
                   dot={
                     conPuntos
-                      ? { r: 4, fill: PAUTA, stroke: "var(--surface)", strokeWidth: 2 }
+                      ? {
+                          r: 4,
+                          fill: PAUTA,
+                          stroke: "var(--surface)",
+                          strokeWidth: 2,
+                        }
                       : false
                   }
-                  activeDot={{ r: 5, fill: PAUTA, stroke: "var(--surface)", strokeWidth: 2 }}
+                  activeDot={{
+                    r: 5,
+                    fill: PAUTA,
+                    stroke: "var(--surface)",
+                    strokeWidth: 2,
+                  }}
                 >
                   <LabelList
                     dataKey="etiquetaPeso"
@@ -311,9 +405,9 @@ export default function GraficoPeriodo({
 
       {sinDatos > 0 && (
         <p className="mt-2 text-xs text-muted">
-          {sinDatos === 1 ? "Un período queda" : `${sinDatos} períodos quedan`} sin punto de
-          porcentaje: no hubo facturación, así que el porcentaje no existe. Un cero ahí diría que
-          la pauta no costó nada.
+          {sinDatos === 1 ? "Un período queda" : `${sinDatos} períodos quedan`}{" "}
+          sin punto de porcentaje: no hubo facturación, así que el porcentaje no
+          existe. Un cero ahí diría que la pauta no costó nada.
         </p>
       )}
 
@@ -338,12 +432,20 @@ export default function GraficoPeriodo({
               {cubos.map((c) => (
                 <tr key={c.clave} className="border-t border-border">
                   <td className="whitespace-nowrap px-2 py-1.5">{c.detalle}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{money(c.facturado)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{c.ordenes}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{money(c.gasto)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {money(c.facturado)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {c.ordenes}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {money(c.gasto)}
+                  </td>
                   <td
                     className={`px-2 py-1.5 text-right tabular-nums ${
-                      c.pesoPauta != null && c.pesoPauta > LIMITE_PESO_PAUTA ? "text-critical" : ""
+                      c.pesoPauta != null && c.pesoPauta > LIMITE_PESO_PAUTA
+                        ? "text-critical"
+                        : ""
                     }`}
                   >
                     {c.pesoPauta == null ? "—" : pct(c.pesoPauta)}

@@ -26,7 +26,36 @@ const ENFOCABLES =
   "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 /**
- * Cuantas veces se abre sola antes de esperar a que la pidan.
+ * Donde esta, en pantalla, el enlace del menu que este paso explica.
+ *
+ * Se devuelve un TEXTO y no un objeto a proposito: useSyncExternalStore
+ * compara por identidad, y un objeto nuevo en cada lectura lo haria girar sin
+ * parar. Con una cadena, dos medidas iguales son iguales.
+ */
+function medirDestino(ruta: string | undefined) {
+  if (typeof document === "undefined" || !ruta) return "";
+  // El menu lateral esta oculto en el telefono; ahi no hay nada que iluminar
+  // y el recorrido cae al velo parejo de siempre.
+  const el = document.querySelector<HTMLElement>(`aside a[href="${ruta}"]`);
+  if (!el) return "";
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return "";
+  return [r.left, r.top, r.width, r.height].map((n) => Math.round(n)).join(",");
+}
+
+/** Vuelve a medir cuando algo puede haber movido el enlace. */
+function alMoverse(avisar: () => void) {
+  window.addEventListener("resize", avisar);
+  // En captura, para enterarse tambien del scroll de la barra lateral y no
+  // solo del de la ventana.
+  window.addEventListener("scroll", avisar, true);
+  return () => {
+    window.removeEventListener("resize", avisar);
+    window.removeEventListener("scroll", avisar, true);
+  };
+}
+
+/** Cuantas veces se abre sola antes de esperar a que la pidan.
  *
  * Una sola vez es poco: quien entra por primera vez suele estar apurado por
  * ver la herramienta y la cierra sin leerla. Tres da margen para retomarla
@@ -74,7 +103,8 @@ export default function CapacitacionTour({
   // "Saltarla": quien la cerraba con la equis para atender algo urgente se la
   // encontraba de nuevo al dia siguiente, y al otro. Una ayuda que aparece
   // sin que la pidan y no se va deja de leerse como ayuda.
-  const seAbreSola = !yaVista && pasos.length > 0 && aperturas < MAXIMO_APERTURAS;
+  const seAbreSola =
+    !yaVista && pasos.length > 0 && aperturas < MAXIMO_APERTURAS;
   const [abierto, setAbierto] = useState(() => seAbreSola);
   const [indice, setIndice] = useState(0);
 
@@ -103,6 +133,15 @@ export default function CapacitacionTour({
   }, []);
 
   const paso = pasos[indice];
+
+  // Dónde iluminar. Se lee con useSyncExternalStore y no con un efecto: la
+  // posición es un dato del navegador, no del estado de React, y así se vuelve
+  // a leer sola cuando la ventana cambia de tamaño o algo se desplaza.
+  const recorte = useSyncExternalStore(
+    alMoverse,
+    () => medirDestino(paso?.ruta),
+    () => "",
+  );
   const esUltimo = indice === pasos.length - 1;
 
   /**
@@ -247,14 +286,43 @@ export default function CapacitacionTour({
         enElNavegador &&
         createPortal(
           <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:justify-end sm:p-5">
-            {/* Velo flojo a propósito: el recorrido habla de la pantalla que está
-              detrás, taparla del todo sería explicarla a ciegas. Igual come los
-              clics, que es la mitad de lo que sostiene el foco atrapado. */}
+            {/* Atrapa los clics de toda la pantalla. Va aparte del oscurecido
+                porque el oscurecido se dibuja con una sombra, y las sombras no
+                reciben clics. */}
             <div
-              className="absolute inset-0 bg-black/25"
+              className="absolute inset-0"
               aria-hidden="true"
               onClick={cerrarPorAhora}
             />
+
+            {/* Lo que se explica queda a plena luz y el resto se apaga.
+
+                El oscurecido es una sombra enorme HACIA AFUERA de este
+                recuadro, no una capa encima: así el enlace del menú se ve tal
+                cual, sin ningún filtro de por medio. Con una capa translúcida
+                encima habría que redibujar el enlace más claro, y serían dos
+                verdades sobre cómo se ve un mismo botón.
+
+                Sin destino que medir —en el teléfono el menú está oculto— cae
+                al velo parejo, que sigue siendo legible. */}
+            {recorte ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none fixed rounded-md ring-2 ring-accent transition-all duration-200"
+                style={{
+                  left: Number(recorte.split(",")[0]) - 4,
+                  top: Number(recorte.split(",")[1]) - 4,
+                  width: Number(recorte.split(",")[2]) + 8,
+                  height: Number(recorte.split(",")[3]) + 8,
+                  boxShadow: "0 0 0 9999px rgb(0 0 0 / 0.55)",
+                }}
+              />
+            ) : (
+              <div
+                className="pointer-events-none absolute inset-0 bg-black/45"
+                aria-hidden="true"
+              />
+            )}
 
             <div
               ref={globoRef}
