@@ -127,7 +127,7 @@ export default function ShopifyCard({
             />
             {appCredentials && (
               <span className="block text-xs text-muted mt-1">
-                La app de Shopify ya está configurada en el servidor — si dejás esto vacío, el
+                La app de Shopify ya está configurada en el servidor — si dejas esto vacío, el
                 token se pide y se renueva solo cada 24 horas.
               </span>
             )}

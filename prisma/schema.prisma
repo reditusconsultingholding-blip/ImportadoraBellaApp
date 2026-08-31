@@ -252,6 +252,12 @@ model User {
   // porque es una miniatura de 256px (~30 KB): montar almacenamiento de
   // archivos para eso sería más infraestructura que valor.
   avatarUrl          String?
+  // Si ya vio el recorrido de la herramienta.
+  //
+  // Va en la base y no en el navegador porque el dueno tiene que poder
+  // reiniciarla desde Usuarios: una capacitacion que solo vive en el equipo de
+  // quien la vio no se puede volver a mandar.
+  capacitacionVista  Boolean      @default(false)
   birthDate          DateTime?
   phone              String?
   organizationId     String

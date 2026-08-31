@@ -143,7 +143,7 @@ export default async function CalculadoraPage() {
       <div>
         <h1 className="text-xl font-semibold">Calculadora de precios — dropshipping Ecuador</h1>
         <p className="text-sm text-muted">
-          Calculá el precio de venta sugerido a partir de costos, comisión de pasarela, IVA y el margen que
+          Calcula el precio de venta sugerido a partir de costos, comisión de pasarela, IVA y el margen que
           quieres ganar — y mira abajo qué pasa con ese precio una vez que se descuentan los pedidos que no se
           confirman y los que se devuelven.
         </p>

@@ -193,7 +193,7 @@ export default function SinRentabilidad({
         <p className="border-t border-border px-5 py-2.5 text-xs text-muted">
           La utilidad se calcula sobre las compras que se atribuyen Meta y TikTok, que suelen ser
           más que las órdenes reales de Shopify. Sirve para comparar productos entre sí; para plata
-          contada, mirá Ventas.
+          contada, mira Ventas.
         </p>
       )}
     </div>

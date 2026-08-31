@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 type Conversacion = { id: string; titulo: string; updatedAt: string };
 
 function cuando(iso: string) {
@@ -24,6 +26,9 @@ export default function ListaChats({
   onNueva: () => void;
   onBorrar: (id: string) => void;
 }) {
+  // Cuál está esperando confirmación de borrado.
+  const [porBorrar, setPorBorrar] = useState<string | null>(null);
+
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-border">
       <button
@@ -60,17 +65,43 @@ export default function ListaChats({
               <span className="block text-[11px] text-muted">{cuando(c.updatedAt)}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => onBorrar(c.id)}
-              aria-label={`Borrar la conversación ${c.titulo}`}
-              title="Borrar"
-              // Aparece al pasar por encima, pero con foco de teclado también:
-              // si solo respondiera al mouse, no habría forma de borrar sin él.
-              className="shrink-0 rounded px-1.5 py-1 text-xs text-muted opacity-0 transition hover:bg-critical-bg hover:text-critical focus:opacity-100 group-hover:opacity-100"
-            >
-              ✕
-            </button>
+            {/* Preguntar antes de borrar.
+                Borrar una conversación no se deshace, y la ✕ vive pegada al
+                renglón que se abre: un clic de más y se pierde el razonamiento
+                de por qué se apagó un producto. */}
+            {porBorrar === c.id ? (
+              <span className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBorrar(c.id);
+                    setPorBorrar(null);
+                  }}
+                  className="rounded bg-critical px-2 py-1 text-[11px] font-medium text-white transition hover:opacity-90"
+                >
+                  Borrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPorBorrar(null)}
+                  className="rounded px-1.5 py-1 text-[11px] text-muted transition hover:text-foreground"
+                >
+                  No
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPorBorrar(c.id)}
+                aria-label={`Borrar la conversación ${c.titulo}`}
+                title="Borrar"
+                // Aparece al pasar por encima, pero con foco de teclado también:
+                // si solo respondiera al mouse, no habría forma de borrar sin él.
+                className="shrink-0 rounded px-1.5 py-1 text-xs text-muted opacity-0 transition hover:bg-critical-bg hover:text-critical focus:opacity-100 group-hover:opacity-100"
+              >
+                ✕
+              </button>
+            )}
           </div>
         ))}
       </div>

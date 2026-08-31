@@ -261,7 +261,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   // tecla, y no hay por qué escribir la base en cada una.
   //
   // La nota va incluida. Antes se mandaba solo `valores`, así que el guardado
-  // automático PISABA la nota: escribías el análisis, lo guardabas, tocabas
+  // automático PISABA la nota: escribias el analisis, lo guardabas, tocabas
   // cualquier campo y setecientos milisegundos después la nota había
   // desaparecido sin que nada lo dijera.
   useEffect(() => {

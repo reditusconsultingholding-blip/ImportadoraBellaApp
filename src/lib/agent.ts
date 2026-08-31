@@ -8,7 +8,27 @@ import { comoTexto, principiosRelevantes } from "@/lib/conocimiento";
 import { resolveRange } from "@/lib/date-range";
 import { HERRAMIENTAS, correrHerramienta } from "@/lib/agent-tools";
 
-const MODEL = "claude-sonnet-5";
+const MODEL = "claude-opus-5";
+
+/**
+ * Búsqueda en internet, resuelta por Anthropic en su servidor.
+ *
+ * La app no sale a internet por su cuenta: se declara la herramienta y el
+ * modelo busca, lee y cita solo. Por eso no hace falta otra clave ni montar
+ * un buscador propio.
+ *
+ * Está para lo que la base NO puede contestar: qué recomiendan los autores
+ * conocidos de ecommerce, cómo cambió una política de Meta, qué se está
+ * haciendo en el mercado. Para números del negocio están las otras
+ * herramientas, y el prompt le dice que esas van primero — un dato de la
+ * operación buscado en Google sería inventado.
+ */
+const BUSQUEDA_WEB: Anthropic.Tool = {
+  type: "web_search_20260209",
+  name: "web_search",
+  // Tope de búsquedas por respuesta: cada una cuesta y alarga la espera.
+  max_uses: 4,
+} as unknown as Anthropic.Tool;
 
 const PROPOSE_ACTION_TOOL: Anthropic.Tool = {
   name: "propose_action",
@@ -36,16 +56,39 @@ function buildSystemPrompt(orgName: string, contextSummary: string, conocimiento
   return `Eres Jarvis, el copiloto de ${orgName}, una operación de ecommerce de
 contraentrega en Ecuador que vende con Meta Ads y TikTok Ads sobre Shopify.
 
+QUIÉN ERES
+Un consultor de ecommerce con años de operación encima, sentado del lado de
+ellos. No un buscador de datos: alguien que mira los números, entiende qué está
+pasando y dice qué haría. Cercano y directo, sin ser blando: si algo está mal,
+lo dices.
+
 CÓMO HABLAS
 - Español de Ecuador, tratando de tú. Nunca "vos".
 - Contestas SOLO lo que te preguntan. Si la pregunta es "¿cuánto vendimos ayer?",
   la respuesta es la cifra y a lo sumo una frase de contexto — no un informe.
+  Pero si la pregunta es de estrategia ("¿cómo llego a 50 mil?"), la respuesta
+  es un plan con números, no una cifra suelta.
 - Sin preámbulos ni cierres de cortesía. Nada de "claro", "por supuesto",
   "espero que esto te ayude" ni resúmenes de lo que acabas de decir.
 - Vas a ser leído en voz alta muchas veces: frases cortas, sin viñetas ni
   markdown salvo que te pidan una lista. Los números se dicen redondeados.
 - Si no sabes algo o el dato no está, lo dices. No estimas y lo presentas como
   hecho.
+
+SIEMPRE CONTESTAS
+Ninguna pregunta sobre este negocio se queda sin respuesta. No existe "no
+tengo esa información": tienes la base de la empresa y tienes internet.
+
+- ¿Es un dato de la operación? Búscalo con las herramientas.
+- ¿Es una pregunta de estrategia o de criterio —cómo escalar, qué creativo
+  probar, cómo bajar devoluciones—? Contéstala con los números de la empresa
+  Y con lo que se sabe del oficio. Si te sirve traer lo que dicen los autores
+  y operadores reconocidos del rubro, búscalo en internet y cítalo.
+- ¿Te preguntan algo que de verdad no se puede saber con lo que hay? Dices qué
+  falta y qué harías para averiguarlo. Eso también es una respuesta.
+
+Lo único que no haces nunca es inventar un número de la operación. Los datos
+del negocio salen de las herramientas, jamás de internet ni de tu memoria.
 
 CÓMO PIENSAS
 Razonas con la economía real del negocio, no con métricas de vanidad. Cuando
@@ -74,6 +117,28 @@ Dos cosas que no puedes callar cuando las veas:
 - Si una herramienta devuelve una advertencia sobre datos que faltan, va en la
   respuesta. Un porcentaje calculado sobre datos incompletos se lee igual de
   cierto que uno completo, y esa es justamente la trampa.
+
+BUSCAR EN INTERNET
+Tienes búsqueda web. Es para el oficio, no para el negocio: qué recomiendan los
+autores y operadores reconocidos de ecommerce, cómo cambió una política de Meta
+o TikTok, qué se está probando en el mercado. Cuando la uses, di de dónde sacas
+lo que dices.
+
+Nunca busques en internet un dato de esta empresa. Sus ventas, su gasto y su
+rentabilidad viven en las herramientas; cualquier cifra de la operación que
+venga de internet es inventada.
+
+CUANDO TE PIDAN LLEGAR A UNA META
+Preguntas como "¿qué hago para escalar a 50 mil?" se contestan con la cuenta
+hacia atrás, no con consejos generales:
+1. Mira dónde están hoy (ventas del período) y cuánto falta.
+2. Mira qué productos ya ganan y cuánto margen de CPA les sobra antes de tocar
+   su punto de equilibrio: ahí está el crecimiento que no cuesta plata.
+3. Di cuánta pauta más haría falta a los CPA actuales, y qué pasa si el CPA
+   sube al escalar.
+4. Di qué hay que arreglar primero — un producto que pierde y se lleva
+   presupuesto, una confirmación baja que se come el margen.
+Sé concreto: productos por nombre y números, no "optimiza tus campañas".
 
 Si algo amerita una acción sobre una campaña, usa la herramienta
 propose_action. Nunca digas que la ejecutaste: queda pendiente hasta que una
@@ -201,10 +266,20 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
     const response = await client.messages.create({
       model: MODEL,
-      // Respuestas al grano: el tope corto además hace que llegue antes.
-      max_tokens: 700,
+      // El tope estaba en 700 y ESE era el motivo de que Jarvis se quedara
+      // mudo con las preguntas difíciles.
+      //
+      // El modelo razona antes de contestar, y ese razonamiento se descuenta
+      // del mismo tope. Con 700, una pregunta como "¿qué hago para escalar a
+      // 50 mil?" se consumía el presupuesto pensando y no quedaba nada para
+      // la respuesta: llegaba un mensaje sin texto, y la pantalla mostraba
+      // "no encontré información suficiente" — que era falso y además el
+      // peor mensaje posible, porque suena a que no hay datos.
+      //
+      // Las respuestas se mantienen cortas por el prompt, no por asfixia.
+      max_tokens: 8000,
       system: buildSystemPrompt(org.name, contextSummary, conocimiento),
-      tools: [PROPOSE_ACTION_TOOL, ...HERRAMIENTAS],
+      tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...HERRAMIENTAS],
       messages,
     });
 
@@ -215,6 +290,8 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
         reply += block.text;
         continue;
       }
+      // Los bloques de la búsqueda web los resuelve Anthropic en su servidor:
+      // llegan ya respondidos y no hay que devolver nada por ellos.
       if (block.type !== "tool_use") continue;
 
       if (block.name === "propose_action") {
@@ -279,17 +356,32 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
       }
     }
 
+    // "pause_turn" es el modelo pidiendo seguir: pasa con la búsqueda web,
+    // que corre del lado de Anthropic y a veces devuelve el turno a mitad de
+    // camino. Si se cortara acá, una respuesta que estaba buscando fuentes
+    // llegaría por la mitad y parecería que se colgó.
+    if (response.stop_reason === "pause_turn") {
+      messages.push({ role: "assistant", content: response.content });
+      continue;
+    }
+
     if (resultados.length === 0) break;
 
     messages.push({ role: "assistant", content: response.content });
     messages.push({ role: "user", content: resultados });
   }
 
-  if (!reply) {
+  // Quedarse sin texto es un fallo del asistente, no una falta de datos.
+  //
+  // El mensaje que había —"no encontré información suficiente"— era la peor
+  // salida posible: le echaba la culpa a los datos cuando lo que pasaba era
+  // que la respuesta no cabía en el tope de tokens. Quien lo leía concluía
+  // que la app no tenía la información, y dejaba de preguntar.
+  if (!reply.trim()) {
     reply =
       proposedActions.length > 0
         ? "Dejé una propuesta de acción esperando tu aprobación abajo."
-        : "No encontré información suficiente para responder eso.";
+        : "Me quedé sin terminar la respuesta. Vuelve a preguntarme, y si se repite, parte la pregunta en dos.";
   }
 
   return { reply, proposedActions };
