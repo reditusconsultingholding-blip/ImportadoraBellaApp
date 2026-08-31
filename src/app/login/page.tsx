@@ -63,13 +63,13 @@ export default function LoginPage() {
         className="w-full max-w-sm bg-surface border border-border rounded p-8"
       >
         <div className="mb-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted leading-none">
-            Importadora
-          </p>
+          {/* El nombre entero en una línea. Partido en "Importadora" chiquito y
+              "Bella" grande se leía como si la empresa se llamara Bella. */}
           <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-foreground">
-            Bella
+            Importadora Bella
           </h1>
-          <p className="text-sm text-muted mt-1">
+          <p className="mt-1 text-[11px] leading-none text-muted">by Reditus Developers</p>
+          <p className="mt-2 text-sm text-muted">
             Panel de campañas, ventas y pipeline creativo.
           </p>
         </div>

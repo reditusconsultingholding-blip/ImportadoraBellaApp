@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
+import CapacitacionTour from "./capacitacion-tour";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
 import LiveRefresher from "./live-refresher";
@@ -31,19 +33,34 @@ export default async function DashboardLayout({
     // El permiso de nómina se lee de la base, no del JWT — ver payroll-access.ts.
     db.user.findUnique({
       where: { id: session.userId },
-      select: { canViewPayroll: true, avatarUrl: true },
+      select: { canViewPayroll: true, avatarUrl: true, capacitacionVista: true },
     }),
   ]);
+
+  // Qué le toca ver del recorrido se resuelve en el servidor, con el rol y el
+  // permiso ya leídos de la base. Mandarle la lista entera al navegador para
+  // filtrarla allá sería contarle a un editor qué hay en las pantallas que no
+  // puede abrir.
+  const pasosCapacitacion = pasosParaUsuario({
+    rol: session.role,
+    vePayroll: Boolean(me?.canViewPayroll),
+  });
 
   // El menú y la ficha del usuario se arman una sola vez y se usan en los dos
   // lados: la barra fija de escritorio y el cajón del teléfono. Duplicarlos
   // sería garantizar que en algún momento digan cosas distintas.
+  // El nombre entero en una línea, no partido en dos.
+  //
+  // Antes decía "Importadora" chiquito arriba y "Bella" grande abajo, que se
+  // lee como si la empresa se llamara Bella. Va con la misma tipografía del
+  // acceso —Geist, semibold, con el espaciado ajustado— para que la marca se
+  // vea igual antes y después de entrar.
   const brand = (
     <>
-      <p className="text-white/50 font-semibold uppercase tracking-[0.14em] text-[10px] leading-none">
-        Importadora
+      <p className="text-[19px] font-semibold leading-tight tracking-tight text-white">
+        Importadora Bella
       </p>
-      <p className="text-white font-semibold text-[22px] leading-tight tracking-tight">Bella</p>
+      <p className="mt-0.5 text-[11px] leading-none text-white/45">by Reditus Developers</p>
     </>
   );
 
@@ -97,6 +114,19 @@ export default async function DashboardLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur-sm">
           <div className="flex h-14 items-center justify-end gap-3 px-4 md:px-8">
+            {/* El recorrido va en el encabezado y no en el menú lateral porque
+                es lo único que se puede necesitar estando en cualquier
+                pantalla: desde acá se abre sin perder dónde estabas, y en el
+                teléfono el menú está cerrado. */}
+            {/* La clave depende de si ya la vio para que reiniciarla desde
+                Usuarios tenga efecto sin recargar el navegador: sin esto el
+                componente conserva su estado y el recorrido no se vuelve a
+                abrir solo. */}
+            <CapacitacionTour
+              key={String(Boolean(me?.capacitacionVista))}
+              pasos={pasosCapacitacion}
+              yaVista={Boolean(me?.capacitacionVista)}
+            />
             <LiveIndicator />
             <NotificationsBell />
           </div>
