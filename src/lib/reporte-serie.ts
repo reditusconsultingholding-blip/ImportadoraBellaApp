@@ -1,6 +1,14 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
 import type { CuboSerie, Granularidad, SerieDelPeriodo } from "@/lib/reporte-medidas";
+import {
+  cubosDelPeriodo,
+  detalleDe,
+  diaEcuador,
+  etiquetaDe,
+  inicioDeCubo,
+  isoDia,
+} from "@/lib/serie-cubos";
 
 // La serie del período para la pantalla de Reportes: cuánto se facturó y
 // cuánto pesó la pauta, día por día.
@@ -17,28 +25,19 @@ import type { CuboSerie, Granularidad, SerieDelPeriodo } from "@/lib/reporte-med
 // va en pauta, y eso vive naturalmente entre 0 y 100.
 
 // Las formas y el umbral viven en reporte-medidas.ts: el gráfico es cliente y
-// desde acá se arrastraría Prisma al navegador.
-
-const isoDia = (d: Date) => d.toISOString().slice(0, 10);
-
-/** El día de Ecuador al que pertenece un instante real (una orden). */
-function diaEcuador(instante: Date) {
-  return isoDia(new Date(instante.getTime() - 5 * 3600_000));
-}
-
-const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-
-/** El lunes de la semana de un día, como marca de día UTC. */
-function lunesDe(dia: Date) {
-  const dow = dia.getUTCDay(); // 0 domingo … 6 sábado
-  const atras = dow === 0 ? 6 : dow - 1;
-  return new Date(Date.UTC(dia.getUTCFullYear(), dia.getUTCMonth(), dia.getUTCDate() - atras));
-}
+// desde acá se arrastraría Prisma al navegador. El calendario —en qué barra
+// cae cada instante y cómo se llama— vive en serie-cubos.ts, compartido con la
+// serie de ventas del Panel: era el mismo código escrito dos veces.
 
 /**
  * Cuántos días agrupa cada barra. Con un año de historia, 366 barras no se
  * leen ni con scroll: pasado cierto largo lo honesto es agrupar y decirlo,
  * no dibujar rayas de un píxel.
+ *
+ * No usa el criterio del Panel aunque los cortes coincidan: allá se puede
+ * abrir por hora y acá no. El gasto de Meta y TikTok llega por día, así que
+ * una barra por hora tendría facturación real contra una pauta repartida a
+ * ojo.
  */
 function granularidadPara(dias: number): Granularidad {
   if (dias <= 62) return "dia";
@@ -52,13 +51,7 @@ export async function serieDelPeriodo(
 ): Promise<SerieDelPeriodo> {
   // Los días del período, como marcas de día UTC — el mismo formato con el que
   // se guardan los MetricSnapshot.
-  const dias: Date[] = [];
-  const cursor = new Date(Date.UTC(range.from.getUTCFullYear(), range.from.getUTCMonth(), range.from.getUTCDate()));
-  const ultimo = Date.UTC(range.to.getUTCFullYear(), range.to.getUTCMonth(), range.to.getUTCDate());
-  while (cursor.getTime() <= ultimo) {
-    dias.push(new Date(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
+  const dias = cubosDelPeriodo(range, "dia");
 
   const granularidad = granularidadPara(dias.length);
 
@@ -109,12 +102,7 @@ export async function serieDelPeriodo(
   const indice = new Map<string, number>();
 
   for (const dia of dias) {
-    const inicio =
-      granularidad === "dia"
-        ? dia
-        : granularidad === "semana"
-          ? lunesDe(dia)
-          : new Date(Date.UTC(dia.getUTCFullYear(), dia.getUTCMonth(), 1));
+    const inicio = inicioDeCubo(dia, granularidad);
     const clave = isoDia(inicio);
 
     let pos = indice.get(clave);
@@ -161,21 +149,3 @@ export async function serieDelPeriodo(
     hayTienda: tiendas > 0,
   };
 }
-
-function etiquetaDe(inicio: Date, granularidad: Granularidad) {
-  const d = inicio.getUTCDate();
-  const m = MES_CORTO[inicio.getUTCMonth()];
-  if (granularidad === "mes") return `${m} ${String(inicio.getUTCFullYear()).slice(2)}`;
-  // Con el día y el mes juntos no hace falta adivinar dónde cambió el mes.
-  return `${d} ${m}`;
-}
-
-function detalleDe(inicio: Date, fin: Date, granularidad: Granularidad) {
-  const largo = (d: Date) => `${d.getUTCDate()} ${MES_CORTO[d.getUTCMonth()]}`;
-  if (granularidad === "dia") return largo(inicio);
-  if (granularidad === "mes") {
-    return `${MES_CORTO[inicio.getUTCMonth()]} ${inicio.getUTCFullYear()}`;
-  }
-  return `${largo(inicio)} — ${largo(fin)}`;
-}
-

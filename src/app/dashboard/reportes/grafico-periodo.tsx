@@ -22,6 +22,7 @@ import {
   NOMBRE_GRANULARIDAD,
   type SerieDelPeriodo,
 } from "@/lib/reporte-medidas";
+import { cuboBajoElCursor } from "@/lib/serie-cubos";
 
 // El gráfico de la pantalla de Reportes.
 //
@@ -56,15 +57,23 @@ const money = (n: number) =>
     maximumFractionDigits: 0,
   });
 
-/** Para el eje y las etiquetas sobre las barras, donde no entra "$21.480". */
+/**
+ * Para el eje y las etiquetas sobre las barras, donde no entra "$21.480".
+ *
+ * La "K" va PEGADA al número. Recharts parte el texto de una etiqueta en los
+ * espacios y lo apila en dos renglones: "$38,0 K" quedaba como "$38,0" arriba
+ * de "K", el doble de alto, y a la barra más alta se le cortaba el número
+ * contra el borde de arriba del gráfico.
+ */
 function moneyCorta(n: number) {
   if (Math.abs(n) >= 1000) {
     const miles = n / 1000;
-    // El decimal solo cuando aporta: "$5,0 K" al lado de "$10 K" se lee como
-    // si midieran distinto. Y va con COMA, como el resto de la app: con punto,
-    // "$21.5 K" se lee en es-EC como veintiún mil quinientos.
-    const entero = Number.isInteger(miles) || Math.abs(miles) >= 100;
-    return `$${miles.toFixed(entero ? 0 : 1).replace(".", ",")} K`;
+    // El decimal solo cuando aporta: "$5,0K" al lado de "$10K" se lee como si
+    // midieran distinto. Se mira el decimal YA REDONDEADO, porque 38.043 no es
+    // entero pero se escribe igual. Y va con COMA, como el resto de la app:
+    // con punto, "$21.5K" se lee en es-EC como veintiún mil quinientos.
+    const entero = Math.abs(miles) >= 100 || Math.round(miles * 10) % 10 === 0;
+    return `$${miles.toFixed(entero ? 0 : 1).replace(".", ",")}K`;
   }
   return `$${Math.round(n)}`;
 }
@@ -230,7 +239,9 @@ export default function GraficoPeriodo({
     axisLine: false,
     tickLine: false,
   } as const;
-  const margenes = { top: 18, right: 12, left: 0, bottom: 0 };
+  // Arriba entra el número de la barra más alta: sin ese margen la etiqueta se
+  // corta contra el borde del gráfico.
+  const margenes = { top: 22, right: 12, left: 0, bottom: 0 };
 
   const sinDatos = cubos.filter((c) => c.pesoPauta == null).length;
 
@@ -277,13 +288,7 @@ export default function GraficoPeriodo({
                 margin={margenes}
                 barCategoryGap="18%"
                 // Recharts entrega el ÍNDICE del cubo activo, no su contenido.
-                onMouseMove={(e) =>
-                  setEncima(
-                    typeof e.activeTooltipIndex === "number"
-                      ? (datos[e.activeTooltipIndex] ?? null)
-                      : null,
-                  )
-                }
+                onMouseMove={(e) => setEncima(cuboBajoElCursor(e.activeTooltipIndex, datos))}
                 onMouseLeave={() => setEncima(null)}
               >
                 <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -323,13 +328,7 @@ export default function GraficoPeriodo({
                 data={datos}
                 margin={margenes}
                 // Recharts entrega el ÍNDICE del cubo activo, no su contenido.
-                onMouseMove={(e) =>
-                  setEncima(
-                    typeof e.activeTooltipIndex === "number"
-                      ? (datos[e.activeTooltipIndex] ?? null)
-                      : null,
-                  )
-                }
+                onMouseMove={(e) => setEncima(cuboBajoElCursor(e.activeTooltipIndex, datos))}
                 onMouseLeave={() => setEncima(null)}
               >
                 <CartesianGrid stroke="var(--chart-grid)" vertical={false} />

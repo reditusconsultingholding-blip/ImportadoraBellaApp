@@ -7,7 +7,11 @@
 // no puede correr ahí. Los tipos solos no molestan —`import type` desaparece al
 // compilar—, pero una constante sí viaja.
 
-export type Granularidad = "dia" | "semana" | "mes";
+// La hora entró con la serie de ventas del Panel, que en "hoy" y "ayer" abre
+// por hora. Acá no cambia nada: la serie de Reportes nunca la pide, porque
+// medir el peso de la pauta hora por hora no significaría nada — Meta y TikTok
+// reportan el gasto por día, no por instante.
+export type Granularidad = "hora" | "dia" | "semana" | "mes";
 
 export type CuboSerie = {
   /** Primer día del cubo, ISO. Sirve de clave estable en React. */
@@ -37,6 +41,7 @@ export type SerieDelPeriodo = {
 
 /** Cómo se llama la unidad de la serie, para escribirla en pantalla. */
 export const NOMBRE_GRANULARIDAD: Record<Granularidad, string> = {
+  hora: "por hora",
   dia: "por día",
   semana: "por semana",
   mes: "por mes",

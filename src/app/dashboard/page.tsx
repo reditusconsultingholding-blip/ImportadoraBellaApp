@@ -7,7 +7,9 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { AVISO_SIN_CIFRAS } from "@/lib/finanzas-textos";
 import { resolveRange } from "@/lib/date-range";
+import { ventasEnElTiempo } from "@/lib/ventas-serie";
 import PlatformTabs from "./platform-tabs";
+import VentasEnElTiempo from "./ventas-en-el-tiempo";
 import StatTile from "./stat-tile";
 import SalesOverview from "./sales-overview";
 import RangePicker from "./range-picker";
@@ -59,11 +61,17 @@ export default async function DashboardPage({
   // Las ventas de Shopify ni se consultan sin el permiso: los dos bloques que
   // las usan no se dibujan, así que traerlas sería pagar la consulta para
   // tirarla.
-  const [overview, sales, meta, tiktok] = await Promise.all([
+  //
+  // La serie en el tiempo sí se pide siempre, y con `verCifras` adentro: sin
+  // el permiso devuelve la CANTIDAD de órdenes y ni siquiera trae el campo de
+  // facturación, así que es la única parte de las ventas que ve todo el
+  // equipo.
+  const [overview, sales, meta, tiktok, ventas] = await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
     getOverview(session.organizationId, "TIKTOK", range),
+    ventasEnElTiempo(session.organizationId, range, verCifras),
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -102,6 +110,11 @@ export default async function DashboardPage({
           No hay nada que recortar acá dentro —la sección ES el dinero—, así
           que sin el permiso no se pide ni se dibuja. */}
       {sales && <SalesOverview data={sales} periodo={range.label} />}
+
+      {/* Cuándo se vende, dentro del período elegido. Va acá arriba y no al
+          final porque es lo primero que se mira después del total: el total
+          dice cuánto, esto dice qué días —o qué horas— lo hicieron. */}
+      <VentasEnElTiempo serie={ventas} periodo={range.label} verCifras={verCifras} />
 
       {sales && canManagePipeline(session.role) && (
         <AttributionStrip
