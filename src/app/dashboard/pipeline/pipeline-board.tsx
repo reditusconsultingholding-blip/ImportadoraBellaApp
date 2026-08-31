@@ -16,6 +16,8 @@ export default function PipelineBoard({
   users,
   title = "Pipeline creativo",
   subtitle,
+  vista,
+  encabezado = true,
 }: {
   canManage: boolean;
   currentUserId: string;
@@ -25,9 +27,18 @@ export default function PipelineBoard({
   users: UserOption[];
   title?: string;
   subtitle?: string;
+  /**
+   * Cuando viene, la vista la manda quien nos usa (en el Pipeline, la URL) y
+   * el selector propio desaparece. Sin esto habría dos controles para lo mismo
+   * y uno de los dos siempre mostraría el estado equivocado.
+   */
+  vista?: "kanban" | "table";
+  /** La ficha de producto trae su propio título arriba; el Pipeline también. */
+  encabezado?: boolean;
 }) {
   const [requirements, setRequirements] = useState(initialRequirements);
-  const [view, setView] = useState<"kanban" | "table">("kanban");
+  const [vistaLocal, setVistaLocal] = useState<"kanban" | "table">("kanban");
+  const view = vista ?? vistaLocal;
   const [showForm, setShowForm] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -80,34 +91,38 @@ export default function PipelineBoard({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{title}</h1>
-          <p className="text-sm text-muted">
-            {subtitle ??
-              (canManage
-                ? "Todos los requerimientos de Importadora Bella."
-                : `Lo que tienes asignado, ${currentUserName}.`)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center border border-border rounded p-1">
-            <button
-              onClick={() => setView("kanban")}
-              className={`text-xs font-medium px-3 py-1.5 rounded transition ${
-                view === "kanban" ? "bg-accent text-white" : "text-muted hover:bg-surface-2"
-              }`}
-            >
-              Kanban
-            </button>
-            <button
-              onClick={() => setView("table")}
-              className={`text-xs font-medium px-3 py-1.5 rounded transition ${
-                view === "table" ? "bg-accent text-white" : "text-muted hover:bg-surface-2"
-              }`}
-            >
-              Tabla
-            </button>
+        {encabezado && (
+          <div>
+            <h1 className="text-xl font-semibold">{title}</h1>
+            <p className="text-sm text-muted">
+              {subtitle ??
+                (canManage
+                  ? "Todos los requerimientos de Importadora Bella."
+                  : `Lo que tienes asignado, ${currentUserName}.`)}
+            </p>
           </div>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {vista == null && (
+            <div className="flex items-center border border-border rounded p-1">
+              <button
+                onClick={() => setVistaLocal("kanban")}
+                className={`text-xs font-medium px-3 py-1.5 rounded transition ${
+                  view === "kanban" ? "bg-accent text-white" : "text-muted hover:bg-surface-2"
+                }`}
+              >
+                Kanban
+              </button>
+              <button
+                onClick={() => setVistaLocal("table")}
+                className={`text-xs font-medium px-3 py-1.5 rounded transition ${
+                  view === "table" ? "bg-accent text-white" : "text-muted hover:bg-surface-2"
+                }`}
+              >
+                Tabla
+              </button>
+            </div>
+          )}
           {canManage && (
             <button
               onClick={() => setShowForm(true)}
@@ -168,17 +183,24 @@ export default function PipelineBoard({
       {showForm && (
         <div className="fixed inset-0 z-30 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowForm(false)} />
-          <div className="relative bg-background border border-border rounded max-w-md w-full max-h-[90vh] overflow-y-auto p-5">
-            <h2 className="text-sm font-semibold mb-4">Nuevo requerimiento</h2>
-            <RequirementForm
-              products={products}
-              users={users}
-              onCreated={(r) => {
-                upsert(r);
-                setShowForm(false);
-              }}
-              onCancel={() => setShowForm(false)}
-            />
+          {/* Mismo marco verde que el panel de detalle: los dos son "esto es
+              lo que estás editando", y con dos cromos distintos parecían dos
+              partes de la app que no se hablan. */}
+          <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded bg-brand-navy">
+            <h2 className="border-b border-white/10 px-5 py-4 text-sm font-semibold text-white">
+              Nuevo requerimiento
+            </h2>
+            <div className="m-4 rounded border border-white/10 bg-surface p-4">
+              <RequirementForm
+                products={products}
+                users={users}
+                onCreated={(r) => {
+                  upsert(r);
+                  setShowForm(false);
+                }}
+                onCancel={() => setShowForm(false)}
+              />
+            </div>
           </div>
         </div>
       )}

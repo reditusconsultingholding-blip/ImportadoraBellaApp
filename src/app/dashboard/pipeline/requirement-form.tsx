@@ -45,18 +45,27 @@ function Select({
 }
 
 export default function RequirementForm({
-  products,
+  products = [],
+  productoFijo,
   users,
   onCreated,
   onCancel,
 }: {
-  products: ProductOption[];
+  products?: ProductOption[];
+  /**
+   * Cuando se entra desde un producto, el producto ya está decidido.
+   *
+   * Elegirlo de nuevo en un desplegable de ciento diecisiete es la forma más
+   * fácil de cargar la pieza en el producto equivocado, y una pieza mal
+   * asignada desordena el conteo de creativos de dos productos a la vez.
+   */
+  productoFijo?: ProductOption;
   users: UserOption[];
   onCreated: (requirement: RequirementRow) => void;
   onCancel: () => void;
 }) {
   const [adName, setAdName] = useState("");
-  const [productId, setProductId] = useState("");
+  const [productId, setProductId] = useState(productoFijo?.id ?? "");
   const [externalId1, setExternalId1] = useState("");
   const [externalId2, setExternalId2] = useState("");
   const [adType, setAdType] = useState("");
@@ -125,21 +134,35 @@ export default function RequirementForm({
         />
       </label>
 
-      <label className="block">
-        <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">Producto</span>
-        <select
-          value={productId}
-          onChange={(e) => setProductId(e.target.value)}
-          className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
-        >
-          <option value="">Sin producto</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.code} — {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {productoFijo ? (
+        <div>
+          <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
+            Producto
+          </span>
+          <p className="rounded border border-border bg-surface-2 px-3 py-2 text-sm">
+            <span className="font-mono text-xs text-muted">{productoFijo.code}</span>{" "}
+            {productoFijo.name}
+          </p>
+        </div>
+      ) : (
+        <label className="block">
+          <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
+            Producto
+          </span>
+          <select
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
+          >
+            <option value="">Sin producto</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.code} — {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">

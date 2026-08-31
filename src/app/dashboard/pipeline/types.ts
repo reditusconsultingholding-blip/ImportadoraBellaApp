@@ -15,6 +15,11 @@ export type RequirementRow = {
   ownerId: string | null;
   owner: { id: string; name: string } | null;
   status: string;
+  // Qué está haciendo la pieza EN LA PAUTA, y a qué ronda de cuatro pertenece.
+  // Las dos ya existían en la base y la API ya las dejaba editar; faltaban en
+  // este tipo, y por eso el panel de detalle no las mostraba.
+  estado: string | null;
+  ronda: string | null;
   originalVideoLink: string | null;
   tiktokPostLink: string | null;
   fbPostLink: string | null;

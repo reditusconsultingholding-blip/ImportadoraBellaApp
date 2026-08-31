@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
+import {
+  ESTADOS_CREATIVO,
+  PROXIMAS_ACCIONES,
+  REQUIREMENT_STATUSES,
+  STATUS_LABEL,
+  leerHookRate,
+} from "@/lib/pipeline-options";
 import type { RequirementRow, UserOption } from "./types";
+
+// El panel de una pieza.
+//
+// El marco va en el verde de marca —el mismo `--brand-navy` de la barra
+// lateral— y no en el gris de la app: abierto sobre el tablero, un panel gris
+// sobre fondo gris se lee como parte de la tabla y no como "esto es lo que
+// estás editando". Lo que NO se pinta de verde es lo editable: un input con
+// texto blanco sobre verde pierde el estado de foco y se vuelve ilegible, así
+// que cada bloque con campos va en una tarjeta de superficie normal adentro del
+// marco. La ficha de solo lectura sí va sobre el verde, que es justo la parte
+// que se mira sin tocar.
 
 type Comment = { id: string; body: string; createdAt: string; author: { id: string; name: string } };
 type Version = { id: string; label: string; link: string; note: string | null; isFinal: boolean; authorName: string; createdAt: string };
@@ -24,6 +41,28 @@ const LINK_FIELDS: { key: keyof RequirementRow; label: string }[] = [
   { key: "tiktokPostLink", label: "Publicación TikTok" },
   { key: "fbPostLink", label: "Publicación FB" },
 ];
+
+const CAMPO =
+  "w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent";
+const TARJETA = "rounded border border-white/10 bg-surface p-4";
+const ROTULO = "block text-[10px] font-semibold uppercase tracking-[0.07em] text-muted mb-1";
+const TITULO_SECCION = "text-[10px] font-semibold uppercase tracking-[0.07em] text-muted mb-3";
+
+/**
+ * Las listas del proceso creativo son cerradas, pero la planilla vieja trae
+ * valores que ya no están en ellas. Se agrega el actual adelante en vez de
+ * perderlo: abrir una pieza histórica no puede borrarle el estado que tenía.
+ */
+function conValorActual(lista: readonly string[], valor: string | null) {
+  if (!valor || lista.includes(valor)) return lista;
+  return [valor, ...lista];
+}
+
+const HOOK_TONO: Record<"bueno" | "medio" | "malo", string> = {
+  bueno: "text-good",
+  medio: "text-warning",
+  malo: "text-critical",
+};
 
 export default function RequirementDrawer({
   requirementId,
@@ -65,6 +104,7 @@ export default function RequirementDrawer({
           setEditValues({
             nextAction: data.requirement.nextAction ?? "",
             notes: data.requirement.notes ?? "",
+            ronda: data.requirement.ronda ?? "",
             originalVideoLink: data.requirement.originalVideoLink ?? "",
             tiktokPostLink: data.requirement.tiktokPostLink ?? "",
             fbPostLink: data.requirement.fbPostLink ?? "",
@@ -75,6 +115,7 @@ export default function RequirementDrawer({
             cpa: data.requirement.cpa?.toString() ?? "",
             frequency: data.requirement.frequency?.toString() ?? "",
             cpm: data.requirement.cpm?.toString() ?? "",
+            date: data.requirement.date ? data.requirement.date.slice(0, 10) : "",
             dueDate: data.requirement.dueDate ? data.requirement.dueDate.slice(0, 10) : "",
             thumbnailUrl: data.requirement.thumbnailUrl ?? "",
           });
@@ -110,6 +151,7 @@ export default function RequirementDrawer({
     await patch({
       nextAction: editValues.nextAction || null,
       notes: editValues.notes || null,
+      ronda: editValues.ronda || null,
       originalVideoLink: editValues.originalVideoLink || null,
       tiktokPostLink: editValues.tiktokPostLink || null,
       fbPostLink: editValues.fbPostLink || null,
@@ -120,6 +162,7 @@ export default function RequirementDrawer({
       cpa: editValues.cpa,
       frequency: editValues.frequency,
       cpm: editValues.cpm,
+      date: editValues.date || null,
       dueDate: editValues.dueDate || null,
       thumbnailUrl: editValues.thumbnailUrl || null,
     });
@@ -174,113 +217,175 @@ export default function RequirementDrawer({
     }
   }
 
+  const hookLeido = leerHookRate(
+    editValues.hookRate ? Number(editValues.hookRate) : (detail?.hookRate ?? null)
+  );
+
+  const ficha = detail
+    ? [
+        {
+          rotulo: "Producto",
+          valor: detail.product ? `${detail.product.code} — ${detail.product.name}` : "Sin producto",
+        },
+        { rotulo: "Tipo", valor: detail.adType },
+        { rotulo: "Fase", valor: detail.phase },
+        { rotulo: "Formato visual", valor: detail.visualFormat },
+        { rotulo: "Ángulo", valor: detail.angle },
+        { rotulo: "Awareness", valor: detail.awarenessLevel },
+        { rotulo: "Mercado origen", valor: detail.marketOrigin },
+        {
+          rotulo: "IDs",
+          valor: [detail.externalId1, detail.externalId2].filter(Boolean).join(" / ") || "—",
+        },
+      ]
+    : [];
+
   return (
     <div className="fixed inset-0 z-30 flex justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-lg h-full bg-background border-l border-border overflow-y-auto flex flex-col">
-        <div className="sticky top-0 bg-background border-b border-border px-5 py-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold truncate pr-4">{detail?.adName ?? "Cargando…"}</h2>
-          <button onClick={onClose} className="text-muted hover:text-foreground text-xl leading-none">
+      <div className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-brand-navy">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-brand-navy px-5 py-4">
+          <div className="min-w-0 pr-4">
+            <h2 className="truncate text-sm font-semibold text-white">
+              {detail?.adName ?? "Cargando…"}
+            </h2>
+            {detail && (
+              <p className="mt-0.5 truncate text-xs text-white/70">
+                {STATUS_LABEL[detail.status] ?? detail.status}
+                {detail.estado ? ` · ${detail.estado}` : ""}
+                {detail.ronda ? ` · Ronda ${detail.ronda}` : ""}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="text-xl leading-none text-white/70 transition hover:text-white"
+          >
             ×
           </button>
         </div>
 
-        {loading && <p className="p-5 text-sm text-muted">Cargando…</p>}
-        {error && <p className="p-5 text-sm text-critical">{error}</p>}
+        {loading && <p className="p-5 text-sm text-white/70">Cargando…</p>}
+        {error && (
+          <p className="mx-5 mt-5 rounded border border-critical/40 bg-critical-bg px-3 py-2 text-sm text-critical">
+            {error}
+          </p>
+        )}
 
         {detail && (
-          <div className="flex flex-col gap-6 p-5">
-            <div>
-              <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">Estado</span>
-              <select
-                value={detail.status}
-                onChange={(e) => patch({ status: e.target.value })}
-                disabled={saving}
-                className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
-              >
-                {REQUIREMENT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col gap-4 p-5">
+            {/* La ficha sí va sobre el verde: es lo que se lee de un vistazo y
+                no tiene nada que se pueda escribir mal por contraste. */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {ficha.map((f) => (
+                <div key={f.rotulo}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-white/70">
+                    {f.rotulo}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-snug text-white">{f.valor}</p>
+                </div>
+              ))}
             </div>
 
-            {canManage && (
-              <div>
-                <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
-                  Editor asignado
-                </span>
-                <select
-                  value={detail.ownerId ?? ""}
-                  onChange={(e) => patch({ ownerId: e.target.value || null })}
-                  disabled={saving}
-                  className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
-                >
-                  <option value="">Sin asignar</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Situación y responsable</p>
+              <div className="flex flex-col gap-3">
+                <label className="block">
+                  <span className={ROTULO}>Situación en producción</span>
+                  <select
+                    value={detail.status}
+                    onChange={(e) => patch({ status: e.target.value })}
+                    disabled={saving}
+                    className={CAMPO}
+                  >
+                    {REQUIREMENT_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Producto</p>
-                <p>{detail.product ? `${detail.product.code} — ${detail.product.name}` : "—"}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Tipo</p>
-                <p>{detail.adType}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Fase</p>
-                <p>{detail.phase}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Formato visual</p>
-                <p>{detail.visualFormat}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Ángulo</p>
-                <p>{detail.angle}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Awareness</p>
-                <p>{detail.awarenessLevel}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">Mercado</p>
-                <p>{detail.marketOrigin}</p>
-              </div>
-              <div>
-                <p className="font-mono uppercase tracking-wide text-muted mb-1">IDs</p>
-                <p>{[detail.externalId1, detail.externalId2].filter(Boolean).join(" / ") || "—"}</p>
+                <label className="block">
+                  {/* Es OTRA cosa que la situación: una pieza puede estar
+                      "testeada" y ser un winner validado o un kill definitivo.
+                      Faltaba en el panel, así que solo se podía cargar por API
+                      — y de ahí sale el conteo de ganadores del pulso. */}
+                  <span className={ROTULO}>Estado en la pauta</span>
+                  <select
+                    value={detail.estado ?? ""}
+                    onChange={(e) => patch({ estado: e.target.value || null })}
+                    disabled={saving}
+                    className={CAMPO}
+                  >
+                    <option value="">Sin estado todavía</option>
+                    {conValorActual(ESTADOS_CREATIVO, detail.estado).map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {canManage && (
+                  <label className="block">
+                    <span className={ROTULO}>Editor asignado</span>
+                    <select
+                      value={detail.ownerId ?? ""}
+                      onChange={(e) => patch({ ownerId: e.target.value || null })}
+                      disabled={saving}
+                      className={CAMPO}
+                    >
+                      <option value="">Sin asignar</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Producción</p>
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Producción</p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="block text-[11px] text-muted mb-1">Fecha de entrega</span>
+                  <span className={ROTULO}>Fecha de la pieza</span>
+                  <input
+                    type="date"
+                    value={editValues.date ?? ""}
+                    onChange={(e) => setEditValues((v) => ({ ...v, date: e.target.value }))}
+                    className={CAMPO}
+                  />
+                </label>
+                <label className="block">
+                  <span className={ROTULO}>Fecha de entrega</span>
                   <input
                     type="date"
                     value={editValues.dueDate ?? ""}
                     onChange={(e) => setEditValues((v) => ({ ...v, dueDate: e.target.value }))}
-                    className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                    className={CAMPO}
                   />
                 </label>
                 <label className="block">
-                  <span className="block text-[11px] text-muted mb-1">Miniatura (URL de imagen)</span>
+                  <span className={ROTULO}>Ronda</span>
+                  <input
+                    value={editValues.ronda ?? ""}
+                    onChange={(e) => setEditValues((v) => ({ ...v, ronda: e.target.value }))}
+                    placeholder="A qué tanda de cuatro pertenece"
+                    className={CAMPO}
+                  />
+                </label>
+                <label className="block">
+                  <span className={ROTULO}>Miniatura (URL)</span>
                   <input
                     value={editValues.thumbnailUrl ?? ""}
                     onChange={(e) => setEditValues((v) => ({ ...v, thumbnailUrl: e.target.value }))}
                     placeholder="https://…"
-                    className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                    className={CAMPO}
                   />
                 </label>
               </div>
@@ -289,7 +394,7 @@ export default function RequirementDrawer({
                 <img
                   src={editValues.thumbnailUrl}
                   alt=""
-                  className="w-full h-32 object-cover rounded bg-surface-2 mt-3"
+                  className="mt-3 h-32 w-full rounded bg-surface-2 object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -298,17 +403,15 @@ export default function RequirementDrawer({
               <button
                 onClick={saveFields}
                 disabled={saving}
-                className="mt-3 text-xs font-medium bg-accent text-white rounded px-3 py-1.5 disabled:opacity-60"
+                className="mt-3 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">
-                Versiones &middot; historial de iteraciones
-              </p>
-              <div className="flex flex-col gap-2 mb-3">
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Versiones · historial de iteraciones</p>
+              <div className="mb-3 flex flex-col gap-2">
                 {detail.versions.length === 0 && (
                   <p className="text-xs text-muted">Todavía no se subió ninguna versión.</p>
                 )}
@@ -320,23 +423,31 @@ export default function RequirementDrawer({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <a href={v.link} target="_blank" rel="noreferrer" className="font-mono font-semibold text-accent-deep hover:underline">
+                      <a
+                        href={v.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono font-semibold text-accent-strong hover:underline"
+                      >
                         {v.label}
                       </a>
                       <div className="flex items-center gap-2">
                         {v.isFinal ? (
-                          <span className="text-good font-medium">✓ Final</span>
+                          <span className="font-medium text-good">✓ Final</span>
                         ) : (
                           canManage && (
-                            <button onClick={() => markVersionFinal(v.id, true)} className="text-muted hover:text-accent-deep">
+                            <button
+                              onClick={() => markVersionFinal(v.id, true)}
+                              className="text-muted hover:text-accent-strong"
+                            >
                               Marcar final
                             </button>
                           )
                         )}
                       </div>
                     </div>
-                    {v.note && <p className="text-muted mt-1">{v.note}</p>}
-                    <p className="text-[10px] text-muted mt-1 font-mono">{v.authorName}</p>
+                    {v.note && <p className="mt-1 text-muted">{v.note}</p>}
+                    <p className="mt-1 font-mono text-[10px] text-muted">{v.authorName}</p>
                   </div>
                 ))}
               </div>
@@ -345,19 +456,19 @@ export default function RequirementDrawer({
                   value={versionLink}
                   onChange={(e) => setVersionLink(e.target.value)}
                   placeholder="Link de la nueva versión…"
-                  className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  className={CAMPO}
                 />
                 <div className="flex gap-2">
                   <input
                     value={versionNote}
                     onChange={(e) => setVersionNote(e.target.value)}
                     placeholder="Nota (opcional)"
-                    className="flex-1 border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                    className={`${CAMPO} flex-1`}
                   />
                   <button
                     type="submit"
                     disabled={sendingVersion}
-                    className="text-xs font-medium bg-accent text-white rounded px-3 py-2 disabled:opacity-60"
+                    className="rounded bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
                   >
                     Subir
                   </button>
@@ -365,8 +476,8 @@ export default function RequirementDrawer({
               </form>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Enlaces</p>
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Enlaces</p>
               <div className="flex flex-col gap-2">
                 {LINK_FIELDS.map((f) => (
                   <input
@@ -374,20 +485,18 @@ export default function RequirementDrawer({
                     value={editValues[f.key as string] ?? ""}
                     onChange={(e) => setEditValues((v) => ({ ...v, [f.key]: e.target.value }))}
                     placeholder={f.label}
-                    className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                    className={CAMPO}
                   />
                 ))}
               </div>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">
-                Métricas &amp; decisión
-              </p>
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Métricas &amp; decisión</p>
               <div className="grid grid-cols-2 gap-3">
                 {METRIC_FIELDS.map((f) => (
                   <label key={f.key} className="block">
-                    <span className="block text-[11px] text-muted mb-1">
+                    <span className={ROTULO}>
                       {f.label}
                       {f.suffix ? ` (${f.suffix})` : ""}
                     </span>
@@ -396,47 +505,65 @@ export default function RequirementDrawer({
                       step="any"
                       value={editValues[f.key as string] ?? ""}
                       onChange={(e) => setEditValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                      className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                      className={CAMPO}
                     />
+                    {/* El hook rate no se lee igual en todos los tramos, y la
+                        regla ya estaba escrita en pipeline-options sin que
+                        ninguna pantalla la mostrara. */}
+                    {f.key === "hookRate" && hookLeido && (
+                      <span className={`mt-1 block text-[10px] ${HOOK_TONO[hookLeido.tono]}`}>
+                        {hookLeido.texto}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>
-              <label className="block mt-3">
-                <span className="block text-[11px] text-muted mb-1">Próxima acción</span>
-                <input
+              <label className="mt-3 block">
+                <span className={ROTULO}>Próxima acción</span>
+                <select
                   value={editValues.nextAction ?? ""}
                   onChange={(e) => setEditValues((v) => ({ ...v, nextAction: e.target.value }))}
-                  className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
-                />
+                  className={CAMPO}
+                >
+                  <option value="">Sin definir</option>
+                  {conValorActual(PROXIMAS_ACCIONES, detail.nextAction).map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label className="block mt-3">
-                <span className="block text-[11px] text-muted mb-1">Notas / aprendizaje</span>
+              <label className="mt-3 block">
+                <span className={ROTULO}>Notas / aprendizaje</span>
                 <textarea
                   value={editValues.notes ?? ""}
                   onChange={(e) => setEditValues((v) => ({ ...v, notes: e.target.value }))}
                   rows={3}
-                  className="w-full border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  className={CAMPO}
                 />
               </label>
               <button
                 onClick={saveFields}
                 disabled={saving}
-                className="mt-3 text-xs font-medium bg-accent text-white rounded px-3 py-1.5 disabled:opacity-60"
+                className="mt-3 rounded bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted mb-2">Actividad</p>
-              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Actividad</p>
+              <div className="flex max-h-40 flex-col gap-2 overflow-y-auto">
                 {detail.activity.length === 0 && (
                   <p className="text-xs text-muted">Sin cambios registrados todavía.</p>
                 )}
                 {detail.activity.map((a) => (
-                  <div key={a.id} className="text-xs flex items-baseline gap-2">
-                    <span className="text-muted font-mono text-[10px] shrink-0">
-                      {new Date(a.createdAt).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
+                  <div key={a.id} className="flex items-baseline gap-2 text-xs">
+                    <span className="shrink-0 font-mono text-[10px] text-muted">
+                      {new Date(a.createdAt).toLocaleDateString("es-EC", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
                     </span>
                     <span>
                       <span className="font-medium">{a.actorName}</span>{" "}
@@ -447,37 +574,37 @@ export default function RequirementDrawer({
               </div>
             </div>
 
-            <div className="border-t border-border pt-4 flex flex-col gap-3">
-              <p className="font-mono text-xs uppercase tracking-wide text-muted">
-                Chat interno &middot; usa @nombre para mencionar
-              </p>
-              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+            <div className={TARJETA}>
+              <p className={TITULO_SECCION}>Chat interno · usa @nombre para mencionar</p>
+              <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
                 {detail.comments.length === 0 && (
                   <p className="text-xs text-muted">Todavía no hay comentarios.</p>
                 )}
                 {detail.comments.map((c) => (
                   <div
                     key={c.id}
-                    className={`rounded px-3 py-2 text-xs max-w-[85%] ${
-                      c.author.id === currentUserId ? "self-end bg-accent text-white" : "self-start bg-surface-2"
+                    className={`max-w-[85%] rounded px-3 py-2 text-xs ${
+                      c.author.id === currentUserId
+                        ? "self-end bg-accent text-white"
+                        : "self-start bg-surface-2"
                     }`}
                   >
-                    <p className="font-mono opacity-70 mb-0.5">{c.author.name}</p>
+                    <p className="mb-0.5 font-mono opacity-70">{c.author.name}</p>
                     <p className="whitespace-pre-wrap">{c.body}</p>
                   </div>
                 ))}
               </div>
-              <form onSubmit={sendComment} className="flex gap-2">
+              <form onSubmit={sendComment} className="mt-3 flex gap-2">
                 <input
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Escribe un comentario… @Valentina"
-                  className="flex-1 border border-border rounded px-3 py-2 text-xs bg-transparent outline-none focus:border-accent"
+                  className={`${CAMPO} flex-1`}
                 />
                 <button
                   type="submit"
                   disabled={sendingComment}
-                  className="text-xs font-medium bg-accent text-white rounded px-3 py-2 disabled:opacity-60"
+                  className="rounded bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
                 >
                   Enviar
                 </button>
