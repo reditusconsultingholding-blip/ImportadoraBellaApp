@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
 
@@ -15,7 +22,8 @@ import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
 // la mecánica: moverse, navegar, cerrar y avisarle al servidor.
 
 /** Lo que se puede enfocar con Tab dentro del globo. */
-const ENFOCABLES = "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])";
+const ENFOCABLES =
+  "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 export default function CapacitacionTour({
   pasos,
@@ -25,6 +33,23 @@ export default function CapacitacionTour({
   /** Si ya la hizo. Cuando no, el recorrido se abre solo al entrar. */
   yaVista: boolean;
 }) {
+  // El globo se dibuja en el <body>, no donde vive este componente.
+  //
+  // El boton "Capacitacion" esta dentro del encabezado, y el encabezado
+  // tiene backdrop-blur. Un elemento con backdrop-filter pasa a ser el marco
+  // de referencia de todo lo que tenga position: fixed adentro, asi que el
+  // "fixed inset-0" del velo no ocupaba la pantalla: ocupaba los 56 pixeles
+  // del encabezado. El globo aparecia arriba y cortado.
+  //
+  // Se pregunta si hay navegador con useSyncExternalStore y no con un efecto:
+  // en el servidor no existe document, y hace falta una respuesta distinta
+  // para cada lado sin que la hidratacion se queje.
+  const enElNavegador = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
   const router = useRouter();
   const pathname = usePathname();
 
@@ -64,7 +89,7 @@ export default function CapacitacionTour({
       // vuelve a pedirle la pantalla entera al servidor para nada.
       if (destino.ruta !== pathname) router.push(destino.ruta);
     },
-    [pasos, pathname, router]
+    [pasos, pathname, router],
   );
 
   function abrir() {
@@ -99,7 +124,8 @@ export default function CapacitacionTour({
     // leerlo acá es lo que espera la regla de los efectos.
     const lanzador = lanzadorRef.current;
 
-    const enfocables = () => Array.from(globo.querySelectorAll<HTMLElement>(ENFOCABLES));
+    const enfocables = () =>
+      Array.from(globo.querySelectorAll<HTMLElement>(ENFOCABLES));
     enfocables()[0]?.focus();
 
     // Declarada como constante y no con `function`: una función declarada se
@@ -168,107 +194,128 @@ export default function CapacitacionTour({
         </svg>
         <span className="hidden sm:inline">Capacitación</span>
         {/* El puntito solo mientras esté pendiente: después es un botón más. */}
-        {!yaVista && <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />}
+        {!yaVista && (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-accent"
+            aria-hidden="true"
+          />
+        )}
       </button>
 
-      {abierto && paso && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:justify-end sm:p-5">
-          {/* Velo flojo a propósito: el recorrido habla de la pantalla que está
+      {abierto &&
+        paso &&
+        enElNavegador &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:justify-end sm:p-5">
+            {/* Velo flojo a propósito: el recorrido habla de la pantalla que está
               detrás, taparla del todo sería explicarla a ciegas. Igual come los
               clics, que es la mitad de lo que sostiene el foco atrapado. */}
-          <div
-            className="absolute inset-0 bg-black/25"
-            aria-hidden="true"
-            onClick={cerrarPorAhora}
-          />
+            <div
+              className="absolute inset-0 bg-black/25"
+              aria-hidden="true"
+              onClick={cerrarPorAhora}
+            />
 
-          <div
-            ref={globoRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="capacitacion-titulo"
-            className="relative w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-[var(--shadow-pop)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                {paso.seccion} · paso {indice + 1} de {pasos.length}
-              </p>
-              <button
-                type="button"
-                onClick={cerrarPorAhora}
-                aria-label="Cerrar por ahora"
-                className="-mt-1 -mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-muted transition hover:bg-surface-2 hover:text-foreground"
-              >
-                <svg
-                  viewBox="0 0 20 20"
-                  width="15"
-                  height="15"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 5l10 10M15 5L5 15" />
-                </svg>
-              </button>
-            </div>
-
-            {/* El texto se anuncia al cambiar de paso: el foco se queda en
-                "Siguiente" para poder recorrerlo entero con Enter, y sin esto
-                un lector de pantalla no leería nada de lo que cambió. */}
-            <div aria-live="polite">
-              <h2 id="capacitacion-titulo" className="mt-2 text-[17px] font-semibold leading-snug">
-                {paso.titulo}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{paso.texto}</p>
-              {paso.puntos.length > 0 && (
-                <ul className="mt-3 flex flex-col gap-1.5">
-                  {paso.puntos.map((punto) => (
-                    <li key={punto} className="flex gap-2 text-[13px] leading-relaxed">
-                      <span
-                        aria-hidden="true"
-                        className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-accent"
-                      />
-                      <span>{punto}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
-              <button
-                type="button"
-                onClick={terminar}
-                className="text-left text-xs text-muted transition hover:text-foreground hover:underline"
-              >
-                {esUltimo ? "No volver a mostrarla" : "Saltarla y no volver a mostrarla"}
-              </button>
-              <div className="flex shrink-0 items-center gap-2">
+            <div
+              ref={globoRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="capacitacion-titulo"
+              className="relative w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-[var(--shadow-pop)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
+                  {paso.seccion} · paso {indice + 1} de {pasos.length}
+                </p>
                 <button
                   type="button"
-                  onClick={() => irAPaso(indice - 1)}
-                  disabled={indice === 0}
-                  className="rounded border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+                  onClick={cerrarPorAhora}
+                  aria-label="Cerrar por ahora"
+                  className="-mt-1 -mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-muted transition hover:bg-surface-2 hover:text-foreground"
                 >
-                  Atrás
-                </button>
-                {/* Un solo botón que cambia de texto en el último paso, en vez
-                    de dos que se turnan: así React conserva el mismo nodo y el
-                    foco no se cae al llegar al final. */}
-                <button
-                  type="button"
-                  onClick={() => (esUltimo ? terminar() : irAPaso(indice + 1))}
-                  className="rounded bg-accent px-4 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
-                >
-                  {esUltimo ? "Terminar" : "Siguiente"}
+                  <svg
+                    viewBox="0 0 20 20"
+                    width="15"
+                    height="15"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 5l10 10M15 5L5 15" />
+                  </svg>
                 </button>
               </div>
+
+              {/* El texto se anuncia al cambiar de paso: el foco se queda en
+                "Siguiente" para poder recorrerlo entero con Enter, y sin esto
+                un lector de pantalla no leería nada de lo que cambió. */}
+              <div aria-live="polite">
+                <h2
+                  id="capacitacion-titulo"
+                  className="mt-2 text-[17px] font-semibold leading-snug"
+                >
+                  {paso.titulo}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
+                  {paso.texto}
+                </p>
+                {paso.puntos.length > 0 && (
+                  <ul className="mt-3 flex flex-col gap-1.5">
+                    {paso.puntos.map((punto) => (
+                      <li
+                        key={punto}
+                        className="flex gap-2 text-[13px] leading-relaxed"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-accent"
+                        />
+                        <span>{punto}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={terminar}
+                  className="text-left text-xs text-muted transition hover:text-foreground hover:underline"
+                >
+                  {esUltimo
+                    ? "No volver a mostrarla"
+                    : "Saltarla y no volver a mostrarla"}
+                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => irAPaso(indice - 1)}
+                    disabled={indice === 0}
+                    className="rounded border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    Atrás
+                  </button>
+                  {/* Un solo botón que cambia de texto en el último paso, en vez
+                    de dos que se turnan: así React conserva el mismo nodo y el
+                    foco no se cae al llegar al final. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      esUltimo ? terminar() : irAPaso(indice + 1)
+                    }
+                    className="rounded bg-accent px-4 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
+                  >
+                    {esUltimo ? "Terminar" : "Siguiente"}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
