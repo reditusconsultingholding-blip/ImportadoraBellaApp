@@ -48,6 +48,7 @@ export default async function DashboardLayout({
         canViewFinancials: true,
         avatarUrl: true,
         capacitacionVista: true,
+        capacitacionAperturas: true,
       },
     }),
   ]);
@@ -153,6 +154,7 @@ export default async function DashboardLayout({
               key={String(Boolean(me?.capacitacionVista))}
               pasos={pasosCapacitacion}
               yaVista={Boolean(me?.capacitacionVista)}
+              aperturas={me?.capacitacionAperturas ?? 0}
             />
             <LiveIndicator />
             <NotificationsBell />

@@ -32,8 +32,13 @@ export async function POST(req: NextRequest) {
   // empresa entraría por el `where` y se reiniciaría una capacitación ajena.
   if (todos === true) {
     const { count } = await db.user.updateMany({
-      where: { organizationId: session.organizationId, capacitacionVista: true },
-      data: { capacitacionVista: false },
+      // Sin el filtro por vista tambien alcanza a quien nunca la termino pero
+      // ya gasto sus tres aperturas: a esa persona reiniciar tiene que
+      // servirle igual.
+      where: { organizationId: session.organizationId },
+      // Las aperturas vuelven a cero: si no, reiniciarle el recorrido a quien
+      // ya lo vio tres veces no se lo abriria nunca y el boton pareceria roto.
+      data: { capacitacionVista: false, capacitacionAperturas: 0 },
     });
     return NextResponse.json({ reiniciados: count });
   }
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const { count } = await db.user.updateMany({
     where: { id: userId, organizationId: session.organizationId },
-    data: { capacitacionVista: false },
+    data: { capacitacionVista: false, capacitacionAperturas: 0 },
   });
   if (count === 0) {
     return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });

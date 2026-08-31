@@ -25,13 +25,25 @@ import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
 const ENFOCABLES =
   "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
+/**
+ * Cuantas veces se abre sola antes de esperar a que la pidan.
+ *
+ * Una sola vez es poco: quien entra por primera vez suele estar apurado por
+ * ver la herramienta y la cierra sin leerla. Tres da margen para retomarla
+ * sin que se vuelva un peaje diario.
+ */
+const MAXIMO_APERTURAS = 3;
+
 export default function CapacitacionTour({
   pasos,
   yaVista,
+  aperturas,
 }: {
   pasos: PasoCapacitacion[];
-  /** Si ya la hizo. Cuando no, el recorrido se abre solo al entrar. */
+  /** Si ya la terminó o la saltó. Entonces no se abre sola nunca más. */
   yaVista: boolean;
+  /** Cuántas veces se le abrió sola hasta ahora. */
+  aperturas: number;
 }) {
   // El globo se dibuja en el <body>, no donde vive este componente.
   //
@@ -56,11 +68,39 @@ export default function CapacitacionTour({
   // Se abre solo la primera vez. Es el valor inicial del estado y no un
   // efecto: desde un efecto, el panel se pintaría un cuadro sin el globo y
   // este aparecería de golpe encima.
-  const [abierto, setAbierto] = useState(() => !yaVista && pasos.length > 0);
+  // Se abre sola solo las primeras veces. Despues hay que pedirla.
+  //
+  // Antes se abria en CADA entrada hasta que apretaran "Terminar" o
+  // "Saltarla": quien la cerraba con la equis para atender algo urgente se la
+  // encontraba de nuevo al dia siguiente, y al otro. Una ayuda que aparece
+  // sin que la pidan y no se va deja de leerse como ayuda.
+  const seAbreSola = !yaVista && pasos.length > 0 && aperturas < MAXIMO_APERTURAS;
+  const [abierto, setAbierto] = useState(() => seAbreSola);
   const [indice, setIndice] = useState(0);
 
   const globoRef = useRef<HTMLDivElement>(null);
   const lanzadorRef = useRef<HTMLButtonElement>(null);
+
+  // Se anota en la base que se abrio sola, para que la proxima cuente.
+  //
+  // Va en un efecto y no al construir el estado porque es un pedido al
+  // servidor: durante el render no se sale a la red. La regla del lint prohibe
+  // setState dentro de un efecto, no un fetch — sincronizar con un sistema
+  // externo es justamente para lo que existen.
+  //
+  // Si el pedido falla no se hace nada: la cuenta se queda como estaba y el
+  // recorrido se abre una vez de mas. Es el lado seguro del error.
+  useEffect(() => {
+    if (!seAbreSola) return;
+    fetch("/api/capacitacion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apertura: true }),
+    }).catch(() => {});
+    // Solo al montar: si dependiera de `seAbreSola`, un re-render con el mismo
+    // valor volveria a contar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const paso = pasos[indice];
   const esUltimo = indice === pasos.length - 1;
