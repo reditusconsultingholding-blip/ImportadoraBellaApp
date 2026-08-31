@@ -28,18 +28,44 @@ const ESTADO_FILA = {
 } as const;
 
 const money = (n: number) =>
-  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("es-EC", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
 
 const money2 = (n: number) =>
-  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  n.toLocaleString("es-EC", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  });
 
 const entero = (n: number) => n.toLocaleString("es-EC");
 
 const plano = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+type Filtro = "todas" | "sano" | "vigilar" | "riesgo" | "mejores" | "peores";
+
+// Las mismas palabras que usa el panel para lo mismo. Dos vocabularios para
+// un solo semáforo obligan a traducir mentalmente en cada pantalla.
+const FILTROS: { id: Filtro; label: string; ayuda: string }[] = [
+  { id: "todas", label: "Todas", ayuda: "Las que gastaron en el período" },
+  {
+    id: "peores",
+    label: "Las peores",
+    ayuda: "Las que más se pasan de su CPA objetivo",
+  },
+  {
+    id: "mejores",
+    label: "Las mejores",
+    ayuda: "Las que más lejos están de su techo de CPA",
+  },
+  { id: "riesgo", label: "Van mal", ayuda: "Piden una decisión hoy" },
+  { id: "vigilar", label: "Optimizar", ayuda: "Se están acercando al límite" },
+  { id: "sano", label: "Van bien", ayuda: "Pagan menos de lo que pueden" },
+];
 
 type Plataforma = "META" | "TIKTOK";
 
@@ -68,7 +94,7 @@ export default function CampanasActivas({
 }) {
   const [plataforma, setPlataforma] = useState<Plataforma>("META");
   const [busqueda, setBusqueda] = useState("");
-  const [soloProblemas, setSoloProblemas] = useState(false);
+  const [filtro, setFiltro] = useState<Filtro>("todas");
 
   const overview = plataforma === "META" ? meta : tiktok;
 
@@ -77,12 +103,28 @@ export default function CampanasActivas({
     // métricas del período, no porque esté entregando hoy.
     const activas = overview.filas.filter((r) => r.activa);
     const q = plano(busqueda.trim());
-    return activas.filter((r) => {
-      if (soloProblemas && r.status !== "riesgo" && r.status !== "vigilar") return false;
-      if (!q) return true;
-      return plano(r.name).includes(q) || (r.code != null && plano(r.code).includes(q));
-    });
-  }, [overview.filas, busqueda, soloProblemas]);
+
+    const porTexto = activas.filter(
+      (r) =>
+        !q ||
+        plano(r.name).includes(q) ||
+        (r.code != null && plano(r.code).includes(q)),
+    );
+
+    if (filtro === "todas") return porTexto;
+    if (filtro === "sano" || filtro === "vigilar" || filtro === "riesgo") {
+      return porTexto.filter((r) => r.status === filtro);
+    }
+
+    // Mejores y peores se ordenan por CUÁNTO SE ALEJAN DEL OBJETIVO, no por
+    // gasto: una campaña que gasta $2.000 a la mitad de su objetivo no es un
+    // problema, y una que gasta $200 al doble sí. Además así el orden es el
+    // mismo vea o no vea cifras quien mira.
+    const conObjetivo = porTexto.filter((r) => r.desvio != null);
+    return [...conObjetivo].sort((a, b) =>
+      filtro === "peores" ? b.desvio! - a.desvio! : a.desvio! - b.desvio!,
+    );
+  }, [overview.filas, busqueda, filtro]);
 
   const activas = overview.filas.filter((r) => r.activa);
   const gastoVisible = visibles.reduce((s, r) => s + (r.spend ?? 0), 0);
@@ -114,16 +156,20 @@ export default function CampanasActivas({
           className="min-w-[200px] rounded border border-border bg-transparent px-3 py-1.5 text-xs outline-none focus:border-accent"
         />
 
-        <button
-          onClick={() => setSoloProblemas((v) => !v)}
-          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-            soloProblemas
-              ? "border-accent bg-good-bg text-accent-strong"
-              : "border-border text-muted hover:border-border-strong hover:text-foreground"
-          }`}
-        >
-          Solo las que piden decisión
-        </button>
+        {FILTROS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFiltro(f.id)}
+            title={f.ayuda}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+              filtro === f.id
+                ? "border-accent bg-good-bg text-accent-strong"
+                : "border-border text-muted hover:border-border-strong hover:text-foreground"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
 
         <span className="ml-auto text-xs text-muted">
           {visibles.length} de {activas.length}
@@ -131,10 +177,20 @@ export default function CampanasActivas({
         </span>
       </div>
 
+      {/* Qué significa el filtro elegido, escrito. El nombre corto del chip
+          entra en el ancho, pero "Las peores" no dice contra qué. */}
+      {filtro !== "todas" && (
+        <p className="-mt-2 text-xs text-muted">
+          {FILTROS.find((f) => f.id === filtro)?.ayuda}
+          {(filtro === "mejores" || filtro === "peores") &&
+            " · las que no tienen objetivo cargado quedan fuera: no se pueden juzgar"}
+        </p>
+      )}
       <p className="rounded border border-border bg-surface px-4 py-2.5 text-xs text-muted">
-        {periodo}. Las compras{verCifras ? " y el ingreso son las" : " son las"} que se ATRIBUYE{" "}
-        {plataforma === "META" ? "Meta" : "TikTok"}, no las órdenes que se cobraron: suelen ser
-        bastantes más, porque las dos plataformas se cuelgan la misma venta.
+        {periodo}. Las compras{verCifras ? " y el ingreso son las" : " son las"}{" "}
+        que se ATRIBUYE {plataforma === "META" ? "Meta" : "TikTok"}, no las
+        órdenes que se cobraron: suelen ser bastantes más, porque las dos
+        plataformas se cuelgan la misma venta.
       </p>
 
       <div className="overflow-hidden rounded border border-border bg-surface">
@@ -184,7 +240,9 @@ export default function CampanasActivas({
                       </p>
                     </td>
                     {verCifras ? (
-                      <td className="px-5 py-3 text-right tabular-nums">{money2(r.spend ?? 0)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {money2(r.spend ?? 0)}
+                      </td>
                     ) : (
                       <>
                         <td className="px-5 py-3 text-right tabular-nums">
@@ -199,7 +257,9 @@ export default function CampanasActivas({
                         </td>
                       </>
                     )}
-                    <td className="px-5 py-3 text-right tabular-nums">{r.purchases}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {r.purchases}
+                    </td>
                     {verCifras && (
                       <>
                         <td className="px-5 py-3 text-right tabular-nums">
@@ -218,7 +278,13 @@ export default function CampanasActivas({
                         <span className="text-muted">—</span>
                       ) : (
                         <span
-                          className={z > 1.15 ? "text-critical" : z > 1 ? "text-warning" : "text-good"}
+                          className={
+                            z > 1.15
+                              ? "text-critical"
+                              : z > 1
+                                ? "text-warning"
+                                : "text-good"
+                          }
                         >
                           {z >= 1 ? "+" : "−"}
                           {Math.abs(Math.round((z - 1) * 100))}%
@@ -238,10 +304,15 @@ export default function CampanasActivas({
               })}
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={columnas} className="px-5 py-8 text-center text-sm text-muted">
+                  <td
+                    colSpan={columnas}
+                    className="px-5 py-8 text-center text-sm text-muted"
+                  >
                     {activas.length === 0
                       ? "Ninguna campaña de esta plataforma estuvo corriendo en el período."
-                      : "Ninguna campaña coincide con el filtro."}
+                      : filtro === "riesgo"
+                        ? "Ninguna campaña de esta plataforma se está pasando de su objetivo. Es una buena noticia."
+                        : "Ninguna campaña coincide con el filtro."}
                   </td>
                 </tr>
               )}
@@ -252,9 +323,10 @@ export default function CampanasActivas({
 
       {overview.sinProducto > 0 && (
         <p className="rounded border border-border bg-pending-bg px-3 py-2 text-xs text-warning">
-          {overview.sinProducto} campañas de esta plataforma todavía no están asociadas a un
-          producto, así que aparecen sueltas y sin semáforo. Se enlazan solas por el código que
-          llevan en el nombre, apenas el producto exista en{" "}
+          {overview.sinProducto} campañas de esta plataforma todavía no están
+          asociadas a un producto, así que aparecen sueltas y sin semáforo. Se
+          enlazan solas por el código que llevan en el nombre, apenas el
+          producto exista en{" "}
           <Link href="/dashboard/productos" className="underline">
             Productos
           </Link>
