@@ -316,9 +316,52 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
         const product = await db.product.findFirst({
           where: { organizationId, code: input.product_code },
         });
-        const campaign = product
-          ? await db.campaign.findFirst({ where: { productId: product.id } })
-          : null;
+
+        // Cuál campaña, de las varias que suele tener un producto.
+        //
+        // Antes era `findFirst` sin orden: de las cinco campañas de un
+        // producto agarraba una cualquiera, la que la base devolviera
+        // primero. La propuesta decía "pausar la campaña de NIDA" y quedaba
+        // apuntando a una que quizá ni estaba gastando — y quien la aprobaba
+        // no tenía cómo darse cuenta.
+        //
+        // Ahora se elige la que más gastó en la última semana: si hay que
+        // tocar una sola, es esa. Y el nombre vuelve al modelo para que lo
+        // diga en la respuesta, en vez de hablar de "la campaña" en singular
+        // como si hubiera una.
+        const desde = new Date();
+        desde.setDate(desde.getDate() - 7);
+
+        const campanas = product
+          ? await db.campaign.findMany({
+              where: {
+                productId: product.id,
+                adAccount: { organizationId },
+              },
+              select: {
+                id: true,
+                name: true,
+                metrics: {
+                  where: { capturedAt: { gte: desde } },
+                  select: { spend: true },
+                },
+              },
+            })
+          : [];
+
+        const campaign =
+          campanas.length === 0
+            ? null
+            : campanas
+                .map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  gasto: c.metrics.reduce((s, m) => s + m.spend, 0),
+                }))
+                // El desempate por nombre hace la elección repetible: sin él,
+                // dos campañas con gasto cero podían salir en orden distinto
+                // en dos llamadas seguidas.
+                .sort((a, b) => b.gasto - a.gasto || a.name.localeCompare(b.name, "es"))[0];
 
         if (campaign) {
           const action = await db.pendingAction.create({
@@ -340,7 +383,7 @@ export async function chatWithJarvis(organizationId: string, history: ChatTurn[]
           type: "tool_result",
           tool_use_id: block.id,
           content: campaign
-            ? "Propuesta registrada, esperando aprobación humana."
+            ? `Propuesta registrada sobre la campaña "${campaign.name}" (la de mayor gasto en los últimos 7 días, de ${campanas.length} que tiene el producto), esperando aprobación humana. Di CUÁL campaña es${campanas.length > 1 ? ", y que el producto tiene otras" : ""}.`
             : `No hay campaña asociada al producto ${input.product_code}. La propuesta NO quedó registrada; dilo así.`,
           is_error: !campaign,
         });

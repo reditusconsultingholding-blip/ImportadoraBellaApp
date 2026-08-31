@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AD_TYPES,
   ANGLES,
@@ -14,6 +15,13 @@ import {
   VISUAL_FORMATS,
   leerHookRate,
 } from "@/lib/pipeline-options";
+// El alta y el panel de detalle son los del Pipeline, importados tal cual. Si
+// la ficha tuviera su propio formulario, las dos pantallas se irían separando
+// campo a campo y el equipo acabaría con dos maneras distintas de cargar la
+// misma pieza.
+import RequirementForm from "../../pipeline/requirement-form";
+import RequirementDrawer from "../../pipeline/requirement-drawer";
+import type { ProductOption, UserOption } from "../../pipeline/types";
 
 export type Creativo = {
   id: string;
@@ -91,11 +99,25 @@ export default function TablaCreativos({
   inicial,
   personas,
   puedeEditar,
+  producto,
+  usuarios,
+  puedeCrear,
+  currentUserId,
+  historicos,
 }: {
   inicial: Creativo[];
   personas: Persona[];
   puedeEditar: boolean;
+  producto: ProductOption;
+  usuarios: UserOption[];
+  puedeCrear: boolean;
+  currentUserId: string;
+  /** Piezas del archivo histórico de este producto, que la tabla no muestra. */
+  historicos: number;
 }) {
+  const router = useRouter();
+  const [creando, setCreando] = useState(false);
+  const [piezaAbierta, setPiezaAbierta] = useState<string | null>(null);
   const [filas, setFilas] = useState(inicial);
   const [guardando, setGuardando] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -146,6 +168,13 @@ export default function TablaCreativos({
     }
   }
 
+  function recienCreada() {
+    setCreando(false);
+    // El servidor manda la verdad: refrescar es lo que hace aparecer la fila
+    // nueva y recalcular las tarjetas de arriba, que se cuentan allá.
+    router.refresh();
+  }
+
   function valorDe(f: Creativo, c: Columna): string {
     if (c.id === "ownerId") return f.ownerId ?? "";
     const v = f[c.id as keyof Creativo];
@@ -156,59 +185,154 @@ export default function TablaCreativos({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar en las piezas…"
-          className="flex-1 rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent sm:max-w-xs"
-        />
-        <span className="text-xs text-muted">
-          {visibles.length} de {filas.length} piezas
-        </span>
-        {guardando.size > 0 && <span className="text-xs text-muted">Guardando…</span>}
-      </div>
+      {/* Sin piezas no hay nada que buscar ni que contar: la barra desaparece y
+          el estado vacío se queda con la única acción que tiene sentido. */}
+      {filas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar en las piezas…"
+            className="flex-1 rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent sm:max-w-xs"
+          />
+          <span className="text-xs text-muted">
+            {visibles.length} de {filas.length} piezas
+          </span>
+          {guardando.size > 0 && <span className="text-xs text-muted">Guardando…</span>}
+          {puedeCrear && (
+            <button
+              onClick={() => setCreando(true)}
+              className="ml-auto rounded bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
+            >
+              + Nueva pieza
+            </button>
+          )}
+        </div>
+      )}
 
       {error && <p className="text-sm text-critical">{error}</p>}
 
-      <div className="overflow-x-auto rounded border border-border bg-surface">
-        <table className="table-cols w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.07em] text-muted">
-              {COLUMNAS.map((c) => (
-                <th key={c.id} className="whitespace-nowrap px-2 py-2 font-semibold" style={{ minWidth: c.ancho }}>
-                  {c.titulo}
+      {filas.length === 0 ? (
+        // El vacío se muestra FUERA de la tabla a propósito. Antes era una celda
+        // con colSpan sobre 26 columnas: el texto quedaba centrado a dos mil
+        // píxeles de la izquierda, o sea fuera de la pantalla, y la ficha se veía
+        // como una fila de encabezados sin explicación ni salida.
+        <div className="rounded border border-border bg-surface px-5 py-10 text-center">
+          <p className="text-sm">Este producto todavía no tiene ninguna pieza cargada.</p>
+          <p className="mt-1 text-xs text-muted">
+            Los cuatro contadores de arriba están en cero porque no hay nada que contar, no
+            porque falte cargar un dato.
+          </p>
+          {historicos > 0 && (
+            <p className="mt-1 text-xs text-muted">
+              Sí hay {historicos} {historicos === 1 ? "pieza" : "piezas"} en el archivo histórico
+              importado, que no se mezclan con el seguimiento activo.
+            </p>
+          )}
+          {puedeCrear && (
+            <button
+              onClick={() => setCreando(true)}
+              className="mt-4 rounded bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong"
+            >
+              + Crear la primera pieza
+            </button>
+          )}
+        </div>
+      ) : (
+        // `min-w-0` no es decorativo: sin él la tabla —26 columnas con ancho
+        // mínimo— empuja el ancho de su contenedor, la página entera se corre y
+        // la primera columna queda cortada fuera de la vista en vez de poder
+        // volver a ella con el scroll de la caja.
+        <div className="min-w-0 max-w-full overflow-x-auto rounded border border-border bg-surface">
+          <table className="table-cols w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.07em] text-muted">
+                {/* Queda pegada al borde izquierdo: con la tabla corrida hacia
+                    la derecha hay que poder abrir la pieza sin volver al
+                    principio para saber cuál es cuál. */}
+                <th className="sticky left-0 z-10 whitespace-nowrap bg-surface px-2 py-2 font-semibold">
+                  Pieza
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.length === 0 && (
-              <tr>
-                <td colSpan={COLUMNAS.length} className="px-3 py-10 text-center text-muted">
-                  Todavía no hay piezas para este producto.
-                </td>
-              </tr>
-            )}
-
-            {visibles.map((f) => (
-              <tr key={f.id} className="border-b border-border last:border-b-0 align-top">
                 {COLUMNAS.map((c) => (
-                  <td key={c.id} className="p-0" style={{ minWidth: c.ancho }}>
-                    <Celda
-                      columna={c}
-                      valor={valorDe(f, c)}
-                      personas={personas}
-                      puedeEditar={puedeEditar}
-                      onGuardar={(v) => guardar(f.id, c.id === "ownerId" ? "ownerId" : (c.id as string), v)}
-                    />
-                  </td>
+                  <th key={c.id} className="whitespace-nowrap px-2 py-2 font-semibold" style={{ minWidth: c.ancho }}>
+                    {c.titulo}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {visibles.length === 0 && (
+                <tr>
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-surface px-2 py-6 text-muted">
+                    Sin coincidencias
+                  </td>
+                  <td colSpan={COLUMNAS.length} />
+                </tr>
+              )}
+
+              {visibles.map((f) => (
+                <tr key={f.id} className="border-b border-border last:border-b-0 align-top">
+                  <td className="sticky left-0 z-10 bg-surface p-0">
+                    <button
+                      onClick={() => setPiezaAbierta(f.id)}
+                      title={`Abrir ${f.adName}`}
+                      className="w-full px-2 py-1.5 text-left text-xs font-medium text-accent-strong transition hover:underline"
+                    >
+                      Abrir
+                    </button>
+                  </td>
+                  {COLUMNAS.map((c) => (
+                    <td key={c.id} className="p-0" style={{ minWidth: c.ancho }}>
+                      <Celda
+                        columna={c}
+                        valor={valorDe(f, c)}
+                        personas={personas}
+                        puedeEditar={puedeEditar}
+                        onGuardar={(v) => guardar(f.id, c.id === "ownerId" ? "ownerId" : (c.id as string), v)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {creando && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setCreando(false)} />
+          <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded border border-border bg-background p-5">
+            <h2 className="text-sm font-semibold">Nueva pieza</h2>
+            <p className="mb-4 mt-0.5 text-xs text-muted">
+              Se crea dentro de {producto.name} ({producto.code}).
+            </p>
+            {/* `productoFijo` en vez de la lista completa: desde la ficha el
+                producto ya está decidido, y volver a elegirlo era la puerta de
+                entrada a cargar la pieza en el producto equivocado. */}
+            <RequirementForm
+              productoFijo={producto}
+              users={usuarios}
+              onCreated={recienCreada}
+              onCancel={() => setCreando(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {piezaAbierta && (
+        <RequirementDrawer
+          requirementId={piezaAbierta}
+          canManage={puedeCrear}
+          currentUserId={currentUserId}
+          users={usuarios}
+          onClose={() => setPiezaAbierta(null)}
+          // El panel guarda contra la API; la tabla se vuelve a pedir al
+          // servidor en vez de reconstruir la fila a mano, que es como se
+          // desincronizan las dos vistas de lo mismo.
+          onUpdated={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

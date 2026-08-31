@@ -3,11 +3,14 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { getHistorialDecisiones } from "@/lib/historial-decisiones";
+import { puedeDecidir } from "@/lib/product-actions";
 import PipelineBoard from "../../pipeline/pipeline-board";
 import TablaCreativos, { type Creativo } from "./tabla-creativos";
 import Repositorio from "./repositorio";
 import BancoReferencias from "./banco-referencias";
 import MatrixRondas from "./matrix-rondas";
+import HistorialDecisiones from "./historial-decisiones";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
@@ -31,7 +34,12 @@ export default async function ProductoDetailPage({
 
   const canManage = canManagePipeline(session.role);
 
-  const [requirements, users] = await Promise.all([
+  // El historial solo se pide cuando se está mirando: son dos consultas más y
+  // la ficha se abre casi siempre en la tabla de seguimiento.
+  const historial =
+    vista === "historial" ? await getHistorialDecisiones(session.organizationId, product.id) : [];
+
+  const [requirements, users, historicos] = await Promise.all([
     db.requirement.findMany({
       where: {
         organizationId: session.organizationId,
@@ -51,6 +59,16 @@ export default async function ProductoDetailPage({
     db.user.findMany({
       where: { organizationId: session.organizationId },
       select: { id: true, name: true, role: true },
+    }),
+    // Cuántas piezas del archivo importado quedan fuera de la vista activa.
+    // Se cuenta para poder decirlo: si no, un producto con historia se ve
+    // idéntico a uno que nunca se trabajó.
+    db.requirement.count({
+      where: {
+        organizationId: session.organizationId,
+        productId: product.id,
+        origen: { not: null },
+      },
     }),
   ]);
 
@@ -171,6 +189,7 @@ export default async function ProductoDetailPage({
           { id: "referencias", label: "Referencias" },
           { id: "pipeline", label: "Pipeline" },
           { id: "repositorio", label: "Dirección creativa" },
+          { id: "historial", label: "Historial de decisiones" },
         ].map((v) => {
           const activo = (vista ?? "tabla") === v.id;
           return (
@@ -189,7 +208,13 @@ export default async function ProductoDetailPage({
         })}
       </div>
 
-      {vista === "rondas" ? (
+      {vista === "historial" ? (
+        <HistorialDecisiones
+          entradas={historial}
+          equipo={users.map((u) => ({ id: u.id, name: u.name }))}
+          puedeDecidir={puedeDecidir(session.role)}
+        />
+      ) : vista === "rondas" ? (
         <MatrixRondas productId={product.id} />
       ) : vista === "referencias" ? (
         <BancoReferencias productId={product.id} />
@@ -215,6 +240,11 @@ export default async function ProductoDetailPage({
           inicial={creativos}
           personas={users.map((u) => ({ id: u.id, name: u.name }))}
           puedeEditar={canManage || requirements.some((r) => r.ownerId === session.userId)}
+          producto={{ id: product.id, code: product.code, name: product.name }}
+          usuarios={users}
+          puedeCrear={canManage}
+          currentUserId={session.userId}
+          historicos={historicos}
         />
       )}
     </div>

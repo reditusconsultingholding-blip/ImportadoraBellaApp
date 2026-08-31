@@ -264,29 +264,31 @@ model User {
   organization       Organization @relation(fields: [organizationId], references: [id])
   createdAt          DateTime     @default(now())
 
-  requestedActions     PendingAction[]
-  assignedRequirements Requirement[]        @relation("RequirementOwner")
-  comments             Comment[]
-  notifications        Notification[]
-  employee             Employee?
-  chatAuthored         ChatMessage[]        @relation("ChatAuthored")
-  chatReceived         ChatMessage[]        @relation("ChatReceived")
-  chatReactions        ChatReaction[]
-  chatReads            ChatRead[]
-  assignedNotes        BoardNote[]          @relation("BoardNoteAssignee")
-  jarvisChats          JarvisConversacion[]
-  noteComments         BoardNoteComment[]
-  chatPins             ChatPin[]            @relation("ChatPinsCreated")
-  vozPresencia         VoicePresence[]
-  senalesEnviadas      VoiceSignal[]        @relation("VozDe")
-  senalesRecibidas     VoiceSignal[]        @relation("VozPara")
-  accionesPropuestas   ProductAction[]      @relation("AccionPropuesta")
-  accionesDecididas    ProductAction[]      @relation("AccionDecidida")
-  accionesAsignadas    ProductAction[]      @relation("AccionAsignada")
-  assetsCreados        ProductAsset[]
-  referenciasCreadas   Referencia[]
-  rondasACargo         Ronda[]
-  pushSubscriptions    PushSubscription[]
+  requestedActions        PendingAction[]
+  accionesJarvisPedidas   PendingAction[]      @relation("PendingActionPedida")
+  accionesJarvisResueltas PendingAction[]      @relation("PendingActionResuelta")
+  assignedRequirements    Requirement[]        @relation("RequirementOwner")
+  comments                Comment[]
+  notifications           Notification[]
+  employee                Employee?
+  chatAuthored            ChatMessage[]        @relation("ChatAuthored")
+  chatReceived            ChatMessage[]        @relation("ChatReceived")
+  chatReactions           ChatReaction[]
+  chatReads               ChatRead[]
+  assignedNotes           BoardNote[]          @relation("BoardNoteAssignee")
+  jarvisChats             JarvisConversacion[]
+  noteComments            BoardNoteComment[]
+  chatPins                ChatPin[]            @relation("ChatPinsCreated")
+  vozPresencia            VoicePresence[]
+  senalesEnviadas         VoiceSignal[]        @relation("VozDe")
+  senalesRecibidas        VoiceSignal[]        @relation("VozPara")
+  accionesPropuestas      ProductAction[]      @relation("AccionPropuesta")
+  accionesDecididas       ProductAction[]      @relation("AccionDecidida")
+  accionesAsignadas       ProductAction[]      @relation("AccionAsignada")
+  assetsCreados           ProductAsset[]
+  referenciasCreadas      Referencia[]
+  rondasACargo            Ronda[]
+  pushSubscriptions       PushSubscription[]
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -746,18 +748,34 @@ model Shipment {
 // queda acá como PENDING hasta que el usuario la aprueba explícitamente.
 // Nunca se ejecuta sola — decisión tomada el 16 jul.
 model PendingAction {
-  id           String       @id @default(cuid())
-  campaignId   String
-  campaign     Campaign     @relation(fields: [campaignId], references: [id])
-  requestedBy  String // "jarvis" o el id del User si la pidió una persona
-  approvedById String?
-  approvedBy   User?        @relation(fields: [approvedById], references: [id])
-  type         ActionType
-  payload      String // JSON con el detalle (ej. nuevo presupuesto)
-  reason       String // por qué Jarvis lo sugiere
-  status       ActionStatus @default(PENDING)
-  createdAt    DateTime     @default(now())
-  resolvedAt   DateTime?
+  id              String       @id @default(cuid())
+  campaignId      String
+  campaign        Campaign     @relation(fields: [campaignId], references: [id])
+  requestedBy     String // "jarvis" o el id del User si la pidió una persona
+  // El User que la pidió, cuando la pidió una persona. `requestedBy` es texto
+  // suelto y no se puede unir con nada; esto sí.
+  requestedById   String?
+  requestedByUser User?        @relation("PendingActionPedida", fields: [requestedById], references: [id])
+  approvedById    String?
+  approvedBy      User?        @relation(fields: [approvedById], references: [id])
+  // Quién resolvió y por qué.
+  //
+  // `approvedById` se escribe también al RECHAZAR, así que su nombre miente y
+  // no sirve para leer la historia. Y sin la nota, un rechazo es un dato
+  // muerto: nadie sabe si fue porque el número estaba mal o porque ya se había
+  // hecho otra cosa, y la misma propuesta vuelve a aparecer la semana
+  // siguiente.
+  resolvedById    String?
+  resolvedBy      User?        @relation("PendingActionResuelta", fields: [resolvedById], references: [id])
+  resolutionNote  String?
+  type            ActionType
+  payload         String // JSON con el detalle (ej. nuevo presupuesto)
+  reason          String // por qué Jarvis lo sugiere
+  status          ActionStatus @default(PENDING)
+  createdAt       DateTime     @default(now())
+  resolvedAt      DateTime?
+
+  @@index([campaignId, createdAt])
 }
 
 // Hasta 3 cosas ancladas por canal: una nota, un link, una carpeta. Es el
