@@ -70,7 +70,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-1 text-[11px] leading-none text-muted">by Reditus Developers</p>
           <p className="mt-2 text-sm text-muted">
-            Panel de campañas, ventas y pipeline creativo.
+            Panel de campañas, ventas y contenido creativo.
           </p>
         </div>
 
