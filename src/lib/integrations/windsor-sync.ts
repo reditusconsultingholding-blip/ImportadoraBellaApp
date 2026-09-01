@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { fetchWindsorRows, type WindsorConnector, type WindsorRow } from "./windsor";
 import type { Platform } from "@/generated/prisma/client";
-import { parseCampaignRef } from "@/lib/product-code";
+import { normalizar, parseCampaignRef } from "@/lib/product-code";
 
 // Vuelca lo que trae Windsor en el modelo de la app: una AdAccount por cuenta
 // publicitaria, una Campaign por campaña y un MetricSnapshot por campaña y día.
@@ -24,7 +24,7 @@ const PLATFORM: Record<WindsorConnector, Platform> = {
 // Para el resto queda el cruce por nombre, probando primero los más largos:
 // si existieran "TE" y "TE GINSENG", el corto haría match con todo y ganaría
 // el equivocado.
-function matchProduct(
+export function matchProduct(
   campaignName: string,
   products: { id: string; code: string; name: string }[]
 ) {
@@ -108,6 +108,29 @@ export async function syncWindsorConnector(
 
     let campaignId = campaignIds.get(row.campaign_id);
     if (!campaignId) {
+      const ref = parseCampaignRef(row.campaign);
+      const productIdAuto = matchProduct(row.campaign, products);
+
+      // Si alguien ya asignó el producto a mano desde Gestión de campañas, la
+      // sincronización NO lo pisa — si no, la siguiente vuelta de 5 minutos
+      // deshace la corrección.
+      const existing = await db.campaign.findUnique({
+        where: { adAccountId_externalId: { adAccountId: accountId, externalId: row.campaign_id } },
+        select: { id: true, productManual: true, productId: true },
+      });
+      const productIdFinal = existing?.productManual ? existing.productId : productIdAuto;
+
+      // A qué lote pertenece, si el nombre trae la nomenclatura {código}-{n}.
+      // Es lo que permite saber después quién hizo esta campaña.
+      let rondaId: string | null = null;
+      if (ref?.lote != null && productIdFinal) {
+        const ronda = await db.ronda.findFirst({
+          where: { organizationId, productId: productIdFinal, numero: ref.lote },
+          select: { id: true },
+        });
+        rondaId = ronda?.id ?? null;
+      }
+
       const campaign = await db.campaign.upsert({
         where: { adAccountId_externalId: { adAccountId: accountId, externalId: row.campaign_id } },
         create: {
@@ -115,16 +138,38 @@ export async function syncWindsorConnector(
           externalId: row.campaign_id,
           name: row.campaign,
           status: "ACTIVE",
-          productId: matchProduct(row.campaign, products),
+          productId: productIdAuto,
+          rondaId,
+          tipoCampana: ref?.tipo ?? null,
         },
         update: {
           name: row.campaign,
-          productId: matchProduct(row.campaign, products),
+          ...(existing?.productManual ? {} : { productId: productIdAuto }),
+          ...(rondaId ? { rondaId } : {}),
+          ...(ref?.tipo ? { tipoCampana: ref.tipo } : {}),
         },
         select: { id: true },
       });
       campaignId = campaign.id;
       campaignIds.set(row.campaign_id, campaignId);
+
+      // La campaña recién apareció: si había una fila manual de "gestión de
+      // campañas" (importada de Notion) esperándola por nombre, ya no hace
+      // falta — se borra para no duplicarla en la lista. Se compara por
+      // nombre normalizado porque mayúsculas y espacios casi nunca coinciden
+      // letra por letra entre lo que escribió el equipo en Notion y el
+      // nombre real de la campaña.
+      if (!existing) {
+        const candidatas = await db.campanaManual.findMany({
+          where: { organizationId },
+          select: { id: true, nombre: true },
+        });
+        const objetivo = normalizar(row.campaign);
+        const aBorrar = candidatas.filter((c) => normalizar(c.nombre) === objetivo).map((c) => c.id);
+        if (aBorrar.length > 0) {
+          await db.campanaManual.deleteMany({ where: { id: { in: aBorrar } } });
+        }
+      }
     }
 
     // La fecha se guarda a medianoche UTC y es parte de la clave: volver a
@@ -177,12 +222,14 @@ export async function relinkCampaignsToProducts(organizationId: string) {
     }),
     db.campaign.findMany({
       where: { adAccount: { organizationId } },
-      select: { id: true, name: true, productId: true },
+      select: { id: true, name: true, productId: true, productManual: true },
     }),
   ]);
 
   let linked = 0;
   for (const campaign of campaigns) {
+    // Asignada a mano: se respeta, el auto-match no la toca.
+    if (campaign.productManual) continue;
     const productId = matchProduct(campaign.name, products);
     if (productId && productId !== campaign.productId) {
       await db.campaign.update({ where: { id: campaign.id }, data: { productId } });

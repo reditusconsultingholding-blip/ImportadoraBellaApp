@@ -50,22 +50,25 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Cuáles ya se están siguiendo, para no ofrecer duplicados. Se compara por
-  // nombre normalizado: el mismo producto puede estar cargado con acentos o
-  // sin ellos.
+  // Cuáles ya se están siguiendo, para no ofrecer duplicados. Primero por el
+  // vínculo explícito (shopifyProductId, cuando alguien lo ancló a mano) y si
+  // no por nombre normalizado — el mismo producto puede estar cargado con
+  // acentos o sin ellos.
   const seguidos = await db.product.findMany({
     where: { organizationId: session.organizationId },
-    select: { id: true, code: true, name: true },
+    select: { id: true, code: true, name: true, shopifyProductId: true },
   });
-  const yaSeguido = new Map(seguidos.map((p) => [normalizar(p.name), p]));
+  const porId = new Map(seguidos.filter((p) => p.shopifyProductId).map((p) => [p.shopifyProductId, p]));
+  const porNombre = new Map(seguidos.map((p) => [normalizar(p.name), p]));
 
   const items = catalogo
     .map((c) => {
-      const ficha = yaSeguido.get(normalizar(c.title));
+      const ficha = porId.get(c.id) ?? porNombre.get(normalizar(c.title));
       // Precio y costo solo si corresponde: el buscador sirve igual para
       // elegir qué producto seguir, y sin el permiso esas dos cifras no
       // tienen por qué salir del servidor.
       return {
+        shopifyProductId: c.id,
         title: c.title,
         ...(verCifras ? { price: c.price, unitCost: c.unitCost } : {}),
         seguido: Boolean(ficha),
@@ -139,6 +142,8 @@ export async function POST(req: NextRequest) {
         organizationId: session.organizationId,
         code,
         name: enCatalogo.title,
+        shopifyProductId: enCatalogo.id,
+        shopifyProductTitle: enCatalogo.title,
         cpaTarget: margen != null ? Math.round(margen * 100) / 100 : 10,
         salePrice: enCatalogo.price,
         unitCost: enCatalogo.unitCost,

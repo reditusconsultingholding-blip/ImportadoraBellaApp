@@ -19,9 +19,33 @@
 //
 // Cubre el 89,9% de las campañas y el 96,6% del gasto.
 
-export type CampaignRef = { code: string; name: string };
+export type CampaignRef = {
+  code: string;
+  name: string;
+  /** Número de lote, cuando el código trae el sufijo "-N" (134142-1). */
+  lote: number | null;
+  /** TESTEO | OPTIMIZACION | ESCALADO, cuando algún segmento lo dice. */
+  tipo: string | null;
+};
 
-/** Saca código y nombre de producto del nombre de una campaña. */
+// El código a veces trae el lote pegado con un guion: "134142-1 / NIDA / ...".
+// Es la nomenclatura que el equipo copia al nombrar la campaña (ver
+// src/lib/nomenclatura.ts) — retrocompatible: sin el sufijo, lote queda null
+// y el resto sigue funcionando igual que antes.
+const CODE_CON_LOTE = /^(\d{3,8})-(\d{1,3})$/;
+
+const TIPO_RE = /\b(TESTEO|TEST|OPTIMIZACION|OPTIMIZACIÓN|OPT|ESCALADO|ESC|SCALING|SURFING SCALING)\b/;
+
+function tipoDesde(texto: string): string | null {
+  const m = TIPO_RE.exec(texto.toUpperCase());
+  if (!m) return null;
+  const palabra = m[1];
+  if (palabra === "TESTEO" || palabra === "TEST") return "TESTEO";
+  if (palabra.startsWith("OPT")) return "OPTIMIZACION";
+  return "ESCALADO";
+}
+
+/** Saca código, lote y nombre de producto del nombre de una campaña. */
 export function parseCampaignRef(campaignName: string): CampaignRef | null {
   const parts = campaignName
     .split("/")
@@ -29,13 +53,25 @@ export function parseCampaignRef(campaignName: string): CampaignRef | null {
     .filter(Boolean);
   if (parts.length < 2) return null;
 
-  const code = parts[0];
-  if (!/^\d{3,8}$/.test(code)) return null;
+  const primerSegmento = parts[0];
+  let code: string;
+  let lote: number | null = null;
+  const conLote = CODE_CON_LOTE.exec(primerSegmento);
+  if (conLote) {
+    code = conLote[1];
+    lote = Number(conLote[2]);
+  } else if (/^\d{3,8}$/.test(primerSegmento)) {
+    code = primerSegmento;
+  } else {
+    return null;
+  }
 
   const name = limpiarNombre(parts[1]);
   if (name.length < 2) return null;
 
-  return { code, name };
+  const tipo = tipoDesde(campaignName);
+
+  return { code, name, lote, tipo };
 }
 
 // "ARENCIA MOCHI TESTEO" -> "ARENCIA MOCHI". Las campañas a veces arrastran la

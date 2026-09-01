@@ -15,13 +15,13 @@ import {
   VISUAL_FORMATS,
   leerHookRate,
 } from "@/lib/pipeline-options";
-// El alta y el panel de detalle son los del Pipeline, importados tal cual. Si
-// la ficha tuviera su propio formulario, las dos pantallas se irían separando
-// campo a campo y el equipo acabaría con dos maneras distintas de cargar la
-// misma pieza.
-import RequirementForm from "../../pipeline/requirement-form";
-import RequirementDrawer from "../../pipeline/requirement-drawer";
-import type { ProductOption, UserOption } from "../../pipeline/types";
+// El alta y el panel de detalle son los mismos que usa el resto de Contenido,
+// importados tal cual. Si la ficha tuviera su propio formulario, las dos
+// pantallas se irían separando campo a campo y el equipo acabaría con dos
+// maneras distintas de cargar la misma pieza.
+import RequirementForm from "../../_creativos/requirement-form";
+import RequirementDrawer from "../../_creativos/requirement-drawer";
+import type { ProductOption, UserOption } from "../../_creativos/types";
 
 export type Creativo = {
   id: string;

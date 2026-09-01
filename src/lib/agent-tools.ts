@@ -7,6 +7,8 @@ import { getPatronesClientes } from "@/lib/clientes";
 import { getPulses } from "@/lib/pulse";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import { resolveRange, type RangeId } from "@/lib/date-range";
+import { resumenDelDia, localToday } from "@/lib/contenido";
+import { reporteDeProducto } from "@/lib/reportes-producto";
 
 // Las herramientas con las que Jarvis consulta el negocio.
 //
@@ -103,6 +105,22 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
     description:
       "Las alertas del día: qué campañas conviene escalar y cuáles apagar, con el porqué de cada una medido contra el CPA de equilibrio real.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "tareas_hoy",
+    description:
+      "El tablero de tareas de hoy del equipo creativo, por persona: cuántas tareas tiene cada quien, cuántas hechas, cuántas pendientes, cuántas por pautar y cuántos creativos entregó. Sin cifras de dinero.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "mejor_campana_producto",
+    description:
+      "Para un producto, cuál de sus campañas rinde mejor y cuál peor, qué formato es el winner y el resumen del período (quincenal). Se busca por código o nombre del producto.",
+    input_schema: {
+      type: "object",
+      properties: { busqueda: { type: "string", description: "Código o parte del nombre del producto." } },
+      required: ["busqueda"],
+    },
   },
 ];
 
@@ -369,6 +387,58 @@ export async function correrHerramienta(
       });
     }
 
+    case "tareas_hoy": {
+      const res = await resumenDelDia(organizationId, localToday());
+      return JSON.stringify({
+        totalTareas: res.totalTareas,
+        totalHechas: res.totalHechas,
+        totalPendientes: res.totalPendientes,
+        totalPorPautar: res.totalPorPautar,
+        totalCreativos: res.totalCreativos,
+        sinResponsable: res.sinResponsable,
+        porPersona: res.porPersona.map((p) => ({
+          nombre: p.nombre,
+          tareas: p.tareas,
+          hechas: p.hechas,
+          pendientes: p.pendientes,
+          porPautar: p.porPautar,
+          noCumplidas: p.noCumplidas,
+          creativos: p.creativos,
+        })),
+      });
+    }
+
+    case "mejor_campana_producto": {
+      const busqueda = String(entrada.busqueda ?? "").trim();
+      if (!busqueda) return JSON.stringify({ error: "Falta qué producto buscar." });
+      const p = await db.product.findFirst({
+        where: {
+          organizationId,
+          archived: false,
+          OR: [
+            { code: { contains: busqueda, mode: "insensitive" } },
+            { name: { contains: busqueda, mode: "insensitive" } },
+          ],
+        },
+        select: { code: true },
+      });
+      if (!p) return JSON.stringify({ encontrado: false, busqueda });
+      const rep = await reporteDeProducto(organizationId, p.code, "quincenal");
+      if (!rep) return JSON.stringify({ encontrado: false, busqueda });
+      return JSON.stringify({
+        encontrado: true,
+        producto: rep.nombre,
+        periodo: "últimos 15 días",
+        mejorCampana: rep.mejorCampana,
+        peorCampana: rep.peorCampana,
+        formatoWinner: rep.formatoWinner,
+        winners: rep.winners,
+        comprasTotal: rep.comprasTotal,
+        gastoTotal: rep.gastoTotal,
+        cpaPromedio: rep.cpaPromedio,
+      });
+    }
+
     default:
       return JSON.stringify({ error: "No existe la herramienta " + nombre + "." });
   }
@@ -388,17 +458,20 @@ export async function correrHerramienta(
  * conviene escalar sin decir cuánto cuesta, y que es exactamente lo que el
  * equipo creativo necesita para decidir qué producir.
  */
-const SIN_DINERO = new Set(["pulso"]);
+const SIN_DINERO = new Set(["pulso", "tareas_hoy", "mejor_campana_producto"]);
 
 /** Los campos con cifras se quitan del resultado, no se redondean. */
 const CAMPOS_CON_PLATA = new Set([
   "gasto",
   "gastoPauta",
+  "gastoTotal",
   "cpa",
   "cpaObjetivo",
   "cpaBreakeven",
+  "cpaPromedio",
   "ingreso",
   "ingresoAtribuido",
+  "ingresoTotal",
   "facturado",
   "utilidad",
   "precio",

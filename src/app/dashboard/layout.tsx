@@ -86,7 +86,7 @@ export default async function DashboardLayout({
   const nav = (
     <SidebarNav
       showUsuarios={session.role === "OWNER"}
-      showPipeline={canAccessPipeline(session.role)}
+      showContenido={canAccessPipeline(session.role)}
       showRentabilidad={canManagePipeline(session.role) && veCifras}
       showReportes={canManagePipeline(session.role)}
       showLogistica={canAccessPipeline(session.role) && veCifras}

@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Importadora Bella",
-  description: "Panel de campañas, ventas y pipeline creativo de Importadora Bella.",
+  description: "Panel de campañas, ventas y contenido creativo de Importadora Bella.",
 };
 
 export default function RootLayout({

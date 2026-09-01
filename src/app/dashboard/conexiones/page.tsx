@@ -6,6 +6,7 @@ import AccountCard from "./account-card";
 import AddAccountButton from "./add-account-button";
 import ShopifyCard from "./shopify-card";
 import DropiCard from "./dropi-card";
+import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 
@@ -15,13 +16,14 @@ export default async function ConexionesPage() {
   // Esta pantalla guarda los tokens de produccion. Antes solo pedia sesion.
   if (!canManageConexiones(session.role)) redirect("/dashboard");
 
-  const [accounts, shopifyStore, dropiConnection] = await Promise.all([
+  const [accounts, shopifyStore, dropiConnection, notionConnection] = await Promise.all([
     db.adAccount.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
     }),
     db.shopifyStore.findFirst({ where: { organizationId: session.organizationId } }),
     db.dropiConnection.findFirst({ where: { organizationId: session.organizationId } }),
+    db.notionConnection.findUnique({ where: { organizationId: session.organizationId } }),
   ]);
 
   const metaAccounts = accounts.filter((a) => a.platform === "META");
@@ -108,6 +110,19 @@ export default async function ConexionesPage() {
                   }
                 : null
             }
+          />
+        </CollapsibleSection>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
+          Migración &middot; traer datos de otra herramienta
+        </h2>
+
+        <CollapsibleSection title="Notion" count={notionConnection?.connectedAt ? 1 : 0}>
+          <NotionCard
+            conectado={Boolean(notionConnection?.connectedAt)}
+            lastImportAt={notionConnection?.lastImportAt?.toISOString() ?? null}
           />
         </CollapsibleSection>
       </div>

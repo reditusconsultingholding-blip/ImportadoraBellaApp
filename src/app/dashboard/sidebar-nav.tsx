@@ -15,11 +15,11 @@ const icons: Record<string, React.ReactNode> = {
       <rect x="11" y="8.5" width="6.5" height="9" rx="1.5" />
     </>
   ),
-  pipeline: (
+  contenido: (
     <>
-      <rect x="2.5" y="3" width="4.5" height="14" rx="1.5" />
-      <rect x="8.5" y="3" width="4.5" height="9" rx="1.5" />
-      <rect x="14.5" y="3" width="3" height="11" rx="1.5" />
+      <rect x="2.5" y="4" width="15" height="13" rx="2" />
+      <path d="M2.5 8h15M6.5 2.5v3M13.5 2.5v3" />
+      <path d="M6 11.5h.01M10 11.5h.01M14 11.5h.01M6 14.5h.01M10 14.5h.01" />
     </>
   ),
   productos: (
@@ -119,7 +119,7 @@ type Group = { title: string | null; links: Link[] };
 
 export default function SidebarNav({
   showUsuarios,
-  showPipeline,
+  showContenido,
   showRentabilidad,
   showReportes,
   showLogistica,
@@ -129,7 +129,7 @@ export default function SidebarNav({
   showCeo,
 }: {
   showUsuarios: boolean;
-  showPipeline: boolean;
+  showContenido: boolean;
   /**
    * Las pantallas de plata: Rentabilidad, Clientes y la Calculadora.
    *
@@ -171,9 +171,9 @@ export default function SidebarNav({
     {
       title: "Producción",
       links: [
-        ...(showPipeline
+        ...(showContenido
           ? [
-              { href: "/dashboard/pipeline", label: "Pipeline", icon: "pipeline" },
+              { href: "/dashboard/contenido", label: "Contenido", icon: "contenido" },
               { href: "/dashboard/productos", label: "Productos", icon: "productos" },
             ]
           : []),
@@ -201,7 +201,7 @@ export default function SidebarNav({
     {
       title: "Cuenta",
       links: [
-        ...(showPipeline
+        ...(showContenido
           ? [{ href: "/dashboard/chat", label: "Chat interno", icon: "jarvis" }]
           : []),
         { href: "/dashboard/notificaciones", label: "Notificaciones", icon: "notificaciones" },

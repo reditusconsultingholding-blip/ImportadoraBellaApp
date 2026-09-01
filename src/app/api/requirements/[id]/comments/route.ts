@@ -26,6 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const requirement = await db.requirement.findFirst({
     where: { id, organizationId: session.organizationId },
+    include: { product: { select: { code: true } } },
   });
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
   if (!canAccessRequirement(session, requirement)) {
@@ -49,7 +50,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: {
         userId: user.id,
         message: `${session.name} te mencionó en "${requirement.adName}"`,
-        link: `/dashboard/pipeline?open=${requirement.id}`,
+        link: requirement.product
+          ? `/dashboard/productos/${encodeURIComponent(requirement.product.code)}?vista=pipeline`
+          : "/dashboard/contenido",
       },
     });
   }

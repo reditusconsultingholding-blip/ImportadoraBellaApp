@@ -56,30 +56,34 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users             User[]
-  adAccounts        AdAccount[]
-  products          Product[]
-  shopifyStores     ShopifyStore[]
-  requirements      Requirement[]
-  dailyReports      DailyReport[]
-  profitabilityRows ProductProfitability[]
-  dropiConnections  DropiConnection[]
-  employees         Employee[]
-  payrollPeriods    PayrollPeriod[]
-  productFolders    ProductFolder[]
-  boardNotes        BoardNote[]
-  chatChannels      ChatChannel[]
-  chatMessages      ChatMessage[]
-  calcSettings      CalcSetting[]
-  acciones          ProductAction[]
-  syncStates        SyncState[]
-  weeklyReports     WeeklyReport[]
-  productAssets     ProductAsset[]
-  referencias       Referencia[]
-  jarvisChats       JarvisConversacion[]
-  rondas            Ronda[]
-  anuncios          Anuncio[]
-  eventos           EventoCalendario[]
+  users              User[]
+  adAccounts         AdAccount[]
+  products           Product[]
+  shopifyStores      ShopifyStore[]
+  requirements       Requirement[]
+  dailyReports       DailyReport[]
+  profitabilityRows  ProductProfitability[]
+  dropiConnections   DropiConnection[]
+  employees          Employee[]
+  payrollPeriods     PayrollPeriod[]
+  productFolders     ProductFolder[]
+  boardNotes         BoardNote[]
+  chatChannels       ChatChannel[]
+  chatMessages       ChatMessage[]
+  calcSettings       CalcSetting[]
+  acciones           ProductAction[]
+  syncStates         SyncState[]
+  weeklyReports      WeeklyReport[]
+  productAssets      ProductAsset[]
+  referencias        Referencia[]
+  jarvisChats        JarvisConversacion[]
+  rondas             Ronda[]
+  anuncios           Anuncio[]
+  eventos            EventoCalendario[]
+  tareasDiarias      TareaDiaria[]
+  campanasManual     CampanaManual[]
+  notionConnection   NotionConnection?
+  cierresSeguimiento CierreSeguimiento[]
 }
 
 // --- Chat interno --------------------------------------------------------
@@ -307,6 +311,7 @@ model User {
   referenciasCreadas      Referencia[]
   rondasACargo            Ronda[]
   pushSubscriptions       PushSubscription[]
+  tareasResponsable       TareaDiaria[]        @relation("TareaResponsable")
 }
 
 // Una cuenta publicitaria conectada (Meta o TikTok). Un Organization
@@ -339,6 +344,12 @@ model Product {
   unitCost       Float? // costo del producto, si se carga a mano
   salePrice      Float? // precio de venta de referencia
 
+  // Vínculo explícito al producto de Shopify, elegido desde el buscador del
+  // catálogo — en vez de depender solo del nombre normalizado para saber que
+  // "este" Product es "ese" producto de la tienda.
+  shopifyProductId    String?
+  shopifyProductTitle String?
+
   // La realidad operativa del producto, sin la cual "rentabilidad" es una
   // palabra vacia: en contraentrega no se cobra lo que se vende, se cobra lo
   // que se confirma Y no se devuelve. Sale de la planilla del equipo.
@@ -357,14 +368,38 @@ model Product {
   positionY         Float          @default(0)
   createdAt         DateTime       @default(now())
 
-  campaigns    Campaign[]
-  acciones     ProductAction[]
-  assets       ProductAsset[]
-  referencias  Referencia[]
-  rondas       Ronda[]
-  requirements Requirement[]
+  campaigns      Campaign[]
+  acciones       ProductAction[]
+  assets         ProductAsset[]
+  referencias    Referencia[]
+  rondas         Ronda[]
+  requirements   Requirement[]
+  links          ProductoLink[]
+  tareas         TareaDiaria[]   @relation("TareaProducto")
+  campanasManual CampanaManual[] @relation("CampanaManualProducto")
 
   @@unique([organizationId, code])
+}
+
+// Links de trackeo de un producto: landing, Funnelish, la propia ficha de
+// Shopify, cualquier URL que el equipo use para lanzar campañas de ese
+// producto. Un producto puede tener más de uno (varias landings probándose a
+// la vez); todos quedan acá para poder revisarlos.
+//
+// El match automático campaña→producto por URL no funciona hoy (Funnelish y
+// Windsor devuelven el link vacío la mayoría de las veces — ver
+// src/lib/product-code.ts), así que estos links son trackeo/referencia; la
+// vía confiable de atribución es la nomenclatura del lote.
+model ProductoLink {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String
+  etiqueta    String?
+  esPrincipal Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
 }
 
 model Campaign {
@@ -377,6 +412,24 @@ model Campaign {
   name        String
   status      String // ACTIVE / PAUSED / ...
   createdAt   DateTime  @default(now())
+
+  // Cuando alguien asigna el producto a mano desde Gestión de campañas
+  // (porque el nombre no matchea solo, o matcheó mal). El sync automático de
+  // Windsor y relinkCampaignsToProducts() tienen que SALTAR estas campañas —
+  // si no, la siguiente sincronización de 5 minutos pisa la corrección.
+  productManual Boolean @default(false)
+  // Se oculta de Gestión de campañas sin perder el histórico de métricas.
+  archivada     Boolean @default(false)
+
+  // A qué lote de contenido pertenece, si su nombre trae la nomenclatura
+  // {código}-{numero} (ver src/lib/nomenclatura.ts). Es lo que permite saber
+  // quién hizo esta campaña y atribuirle su performance.
+  rondaId String?
+  ronda   Ronda?  @relation("RondaCampanas", fields: [rondaId], references: [id], onDelete: SetNull)
+
+  // TESTEO | OPTIMIZACION | ESCALADO — inferido de la nomenclatura cuando se
+  // puede, editable a mano si no.
+  tipoCampana String?
 
   metrics        MetricSnapshot[]
   pendingActions PendingAction[]
@@ -520,8 +573,9 @@ model Requirement {
   nextAction String?
   notes      String?
 
-  dueDate      DateTime? // fecha de entrega — la tarjeta se marca vencida si se pasó y sigue en producción
-  thumbnailUrl String? // imagen de portada del creativo, para no depender solo del link
+  dueDate       DateTime? // fecha de entrega — la tarjeta se marca vencida si se pasó y sigue en producción
+  fechaAgendada DateTime? // día en que el calendario de contenido la muestra — distinto de dueDate
+  thumbnailUrl  String? // imagen de portada del creativo, para no depender solo del link
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1105,7 +1159,11 @@ model Referencia {
   @@index([organizationId, productId])
 }
 
-// Una ronda: cuatro piezas que salen juntas a testear.
+// Una ronda: cuatro piezas que salen juntas a testear. Es también el "lote de
+// contenido" del que habla el equipo (6 o 12 creativos por lote): un
+// Requirement.rondaId agrupa las piezas y Ronda.nomenclatura es lo que el
+// editor pega al nombrar la campaña en Meta/TikTok para que el sistema sepa
+// quién hizo qué y de qué campaña viene cada performance.
 //
 // Existe para poder verificar la diversidad ANTES de producir, no despues: si
 // las cuatro comparten formato y angulo, compiten entre si y la ronda entera
@@ -1124,7 +1182,18 @@ model Ronda {
   responsable   User?    @relation(fields: [responsableId], references: [id])
   notas         String?
 
-  piezas Requirement[]
+  // {código del producto}-{numero}, fijado al crear el lote. Es la clave que
+  // matchea una Campaign de vuelta a este lote (ver
+  // src/lib/nomenclatura.ts + product-code.ts).
+  nomenclatura   String?
+  // Cuántos creativos debe traer el lote — el equipo maneja 6 o 12.
+  tamanoObjetivo Int       @default(12)
+  fechaEntrega   DateTime?
+  estado         String    @default("PLANEADO") // PLANEADO | EN_PRODUCCION | ENTREGADO | TESTEANDO | CERRADO
+
+  piezas   Requirement[]
+  campanas Campaign[]    @relation("RondaCampanas")
+  tareas   TareaDiaria[] @relation("TareaLote")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1187,4 +1256,120 @@ model JarvisMensaje {
   createdAt      DateTime           @default(now())
 
   @@index([conversacionId, createdAt])
+}
+
+// --- Contenido (reemplaza Notion + WhatsApp) -----------------------------
+//
+// Tres piezas: el tablero día a día (TareaDiaria), la gestión de campañas
+// para las que todavía no hay una Campaign sincronizada (CampanaManual), y la
+// conexión de import único desde Notion (NotionConnection). El pipeline
+// Kanban se quitó — Requirement y Ronda siguen siendo el registro real de
+// "pieza de creativo" y "lote", solo que ahora se muestran desde acá.
+
+// Una fila del tablero de tareas diarias: qué hizo cada persona, en qué
+// producto, en qué plataforma, qué falta. Reemplaza la base de Notion del
+// mismo nombre.
+model TareaDiaria {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Nullable a propósito: una fila importada de Notion puede no traer fecha.
+  // Las que crea la app desde acá sí la llevan siempre (localToday() de
+  // Ecuador, puesto en la route — nunca @default(now()), que sería la fecha
+  // UTC equivocada durante las primeras horas del día en Ecuador).
+  fecha DateTime?
+
+  ownerId          String?
+  owner            User?   @relation("TareaResponsable", fields: [ownerId], references: [id])
+  // Nombre crudo de Notion cuando no matcheó ningún User del equipo.
+  responsableTexto String?
+
+  productId     String?
+  product       Product? @relation("TareaProducto", fields: [productId], references: [id], onDelete: SetNull)
+  productoTexto String?
+
+  plataforma      String? // TIKTOK | META | DRIVE
+  campanaTiktok   Boolean @default(false)
+  campanaMeta     Boolean @default(false)
+  numeroCreativos Int     @default(0)
+
+  estado    String   @default("PENDIENTE") // PENDIENTE | EN_PROGRESO | HECHO | NO_CUMPLIDO | POR_PAUTAR
+  etiquetas String[] @default([])
+  notas     String?
+
+  loteId String?
+  lote   Ronda?  @relation("TareaLote", fields: [loteId], references: [id], onDelete: SetNull)
+
+  // "notion" para las filas que vinieron del import único; null para las que
+  // nacieron en la app. notionPageId es la clave de idempotencia del import
+  // — permite re-correrlo sin duplicar.
+  origen       String?
+  notionPageId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, notionPageId])
+  @@index([organizationId, fecha])
+  @@index([organizationId, ownerId])
+}
+
+// Una campaña de "gestión de campañas" (Notion) que todavía no cruza con
+// ninguna Campaign sincronizada de Meta/TikTok — planeada, o recién lanzada
+// y el sync de 5 minutos no la levantó todavía. Cuando sí aparece la
+// Campaign real, esta fila se borra (ver relinkCampaignsToProducts /
+// syncWindsorConnector) para no duplicar.
+model CampanaManual {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  nombre        String
+  productId     String?
+  product       Product? @relation("CampanaManualProducto", fields: [productId], references: [id], onDelete: SetNull)
+  productoTexto String?
+  plataforma    String?
+  activa        Boolean  @default(true)
+  notas         String?
+
+  origen       String?
+  notionPageId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, notionPageId])
+  @@index([organizationId, activa])
+}
+
+// La conexión al import único de Notion. Vive el token mientras dura la
+// migración; se limpia al desconectar (el "corte" con Notion).
+model NotionConnection {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  token              String? // Internal Integration Secret, en texto plano — mismo patrón que AdAccount.accessToken
+  tareasDatabaseId   String?
+  campanasDatabaseId String?
+  connectedAt        DateTime?
+  lastImportAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Idempotencia del cierre de día: evita mandar la notificación dos veces
+// cuando el reloj interno de 5 minutos vuelve a pasar por el mismo día.
+// Mismo patrón que WeeklyReport.
+model CierreSeguimiento {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  fecha          DateTime
+  resumen        String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, fecha])
 }

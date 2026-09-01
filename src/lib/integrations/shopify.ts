@@ -338,6 +338,7 @@ export async function fetchRecentOrders(
 // Shopify. Portado del Sistema B (ver docs/REFERENCIA_SISTEMA_RAILWAY.md).
 
 export type ShopifyCatalogProduct = {
+  id: string; // GID de Shopify, p. ej. "gid://shopify/Product/123456789"
   title: string;
   price: number | null;
   unitCost: number | null;
@@ -354,6 +355,7 @@ const CATALOG_QUERY = `
     products(first: 250, after: $cursor, query: "status:active") {
       pageInfo { hasNextPage endCursor }
       nodes {
+        id
         title
         variants(first: 1) {
           nodes { price inventoryItem { unitCost { amount } } }
@@ -367,6 +369,7 @@ type CatalogPage = {
   products: {
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
     nodes: {
+      id: string;
       title: string;
       variants: {
         nodes: {
@@ -402,6 +405,7 @@ export async function fetchProductCatalog(
       const price = variant?.price != null ? Number(variant.price) : null;
       const cost = variant?.inventoryItem?.unitCost?.amount;
       products.push({
+        id: node.id,
         title: node.title,
         price: price != null && Number.isFinite(price) ? price : null,
         unitCost: cost != null && Number.isFinite(Number(cost)) ? Number(cost) : null,
