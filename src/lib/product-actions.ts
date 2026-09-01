@@ -242,7 +242,7 @@ export async function aprobarAccion(
                 fechaValida ? ` para el ${fechaValida.toLocaleDateString("es-EC", { timeZone: "UTC" })}` : ""
               }.`
             : `Te asignaron una acción de ${accion.product.name}: ${accion.detail}.`,
-        link: "/dashboard/pipeline",
+        link: `/dashboard/productos/${encodeURIComponent(accion.product.code)}`,
       },
     });
   }

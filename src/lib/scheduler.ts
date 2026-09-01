@@ -8,6 +8,7 @@ import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
 import { enviarAlertasDiarias } from "@/lib/alertas-diarias";
+import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 
 // El reloj de la aplicación.
 //
@@ -142,6 +143,15 @@ export async function sincronizarTodo() {
       if (r) resumen.reporte = r;
     } catch (err) {
       resumen.reporte = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // El cierre de día del módulo Contenido: qué hizo cada integrante. Se
+    // apoya en su propia restricción de unicidad por org y día.
+    try {
+      const r = await enviarCierreDeContenido(org.id);
+      if (r) resumen.cierreContenido = r;
+    } catch (err) {
+      resumen.cierreContenido = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // Que escalar y que apagar, una vez por dia. Se apoya en su propio

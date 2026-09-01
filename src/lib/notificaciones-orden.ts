@@ -65,8 +65,8 @@ export const CATEGORIAS: Categoria[] = [
   {
     id: "reportes",
     label: "Reportes",
-    ayuda: "El reporte diario y el semanal de productos",
-    tipos: ["daily_report"],
+    ayuda: "El reporte diario, el semanal de productos y el cierre de día del equipo",
+    tipos: ["daily_report", "cierre_dia"],
     vacio: "Ningún reporte",
     entre: "entre los reportes",
   },
@@ -196,6 +196,7 @@ const ETIQUETA_POR_TIPO: Record<string, string> = {
   alert_fatiga: "Fatiga de anuncio",
   alert_discrepancia: "Discrepancia de datos",
   daily_report: "Reporte",
+  cierre_dia: "Cierre de día",
   asignacion: "Acción",
   mention: "Mención",
 };

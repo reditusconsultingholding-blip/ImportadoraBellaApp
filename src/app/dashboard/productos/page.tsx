@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import ProductDirectory from "./directory";
 import CatalogPicker from "../catalog-picker";
+import NuevoProducto from "./nuevo-producto";
 import { getDirectory } from "@/lib/product-directory";
 import { resolveRange } from "@/lib/date-range";
 import { puedeDecidir } from "@/lib/product-actions";
@@ -36,7 +37,12 @@ export default async function ProductosPage() {
         </p>
       </div>
 
-      {canManage && <CatalogPicker />}
+      {canManage && (
+        <div className="flex flex-wrap items-start gap-2">
+          <CatalogPicker />
+          <NuevoProducto />
+        </div>
+      )}
 
       <ProductDirectory
         rows={directorio.rows}

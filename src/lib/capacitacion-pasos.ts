@@ -77,7 +77,7 @@ export const PASOS: PasoCapacitacion[] = [
     seccion: "Tu cuenta",
     titulo: "Tu cuenta todavía no tiene un rol asignado",
     texto:
-      "Hasta que un administrador te asigne rol no vas a poder entrar al pipeline, a los números del negocio ni al chat del equipo. Mientras tanto puedes dejar listo tu perfil y tu contraseña.",
+      "Hasta que un administrador te asigne rol no vas a poder entrar a Contenido, a los números del negocio ni al chat del equipo. Mientras tanto puedes dejar listo tu perfil y tu contraseña.",
     puntos: [
       "Pídele a quien administra el panel que te asigne rol de Director operativo o de Editor.",
       "Cuando lo tengas, este recorrido te va a mostrar las secciones que te toquen.",
@@ -128,33 +128,31 @@ export const PASOS: PasoCapacitacion[] = [
     roles: SOLO_DUENO,
   },
   {
-    id: "pipeline-gestion",
-    ruta: "/dashboard/pipeline",
-    seccion: "Pipeline",
-    titulo: "Quién está haciendo qué pieza y para cuándo",
+    id: "contenido-gestion",
+    ruta: "/dashboard/contenido",
+    seccion: "Contenido",
+    titulo: "El calendario, el día a día y los lotes del equipo, todo en un solo lugar",
     texto:
-      "Cada tarjeta es un requerimiento: una pieza de anuncio con su producto, su tipo, su ángulo, su editor y su fecha de entrega. El tablero se mueve arrastrando entre columnas y lo que pasó su fecha queda marcado en rojo como vencido.",
+      "Reemplaza Notion y WhatsApp para la operación diaria. El calendario agenda cuándo sale cada lote de contenido; el tablero día a día es donde cada persona registra qué hizo; los lotes agrupan las piezas que salen juntas a testear, con la nomenclatura que después identifica de quién es cada campaña.",
     puntos: [
-      "Las columnas son Pendiente, En edición, Listo para revisar, Aprobado, Realizado, Editado y Testeado.",
-      "Al abrir una tarjeta cargas las versiones con su link, los enlaces de la publicación y las métricas de la pieza: hook rate, CTR, hold rate, compras, CPA, frecuencia y CPM.",
-      "Cada requerimiento tiene su propio hilo con menciones: la conversación de esa pieza queda pegada a la pieza y no en un grupo aparte.",
-      "Un editor solo ve lo que tiene asignado; tú ves todo y eres quien reasigna.",
-      "El archivo histórico de creativos importados no entra a este tablero: eso vive en la ficha del producto.",
+      "Cada lote (6 o 12 creativos, según el producto) tiene una nomenclatura tipo «código-1», «código-2»: se copia y se pega tal cual al nombrar la campaña en Meta o TikTok, y así el sistema sabe quién la hizo y qué performance tiene.",
+      "Gestión de campañas junta las campañas activas con las que todavía no cruzan con ningún producto, para asignarlas a mano cuando el nombre no matcheó solo.",
+      "Rendimiento muestra, por integrante, cuántos lotes entregó, cuántos winners tiene y el CPA de sus campañas.",
+      "Al cierre del día te llega una notificación con lo que hizo cada quien: qué se completó y qué quedó pendiente.",
     ],
     roles: CON_NUMEROS,
   },
   {
-    id: "pipeline-editor",
-    ruta: "/dashboard/pipeline",
-    seccion: "Pipeline",
-    titulo: "Tus piezas y en qué punto va cada una",
+    id: "contenido-editor",
+    ruta: "/dashboard/contenido",
+    seccion: "Contenido",
+    titulo: "Tu día a día y tus lotes de contenido",
     texto:
-      "Acá ves solo los requerimientos que están a tu nombre, con su fecha de entrega. Mover la tarjeta de columna es la forma de avisar en qué punto va cada pieza; lo que pasó su fecha queda marcado en rojo.",
+      "Acá registras qué hiciste cada día —producto, plataforma, cuántos creativos— y ves los lotes que tienes a cargo, con su nomenclatura lista para copiar y pegar al nombrar la campaña.",
     puntos: [
-      "Las columnas son Pendiente, En edición, Listo para revisar, Aprobado, Realizado, Editado y Testeado.",
-      "Al abrir la tarjeta subes cada versión con su link y su nota, y cargas los enlaces de las publicaciones de TikTok y Facebook.",
-      "A qué producto pertenece la pieza y quién es el responsable lo define dirección: esos dos campos no los puedes cambiar.",
-      "Cada requerimiento tiene su propio hilo con menciones, para preguntar sobre esa pieza sin salir de ella.",
+      "El tablero día a día es tuyo: cargas tu fila, dirección ve la del equipo completo.",
+      "Cada lote trae la nomenclatura ya armada («código-1», «código-2»...): úsala tal cual en el nombre de la campaña para que quede a tu nombre.",
+      "El calendario te muestra cuándo tiene que estar listo cada lote.",
     ],
     roles: SOLO_EDITOR,
   },
@@ -168,9 +166,10 @@ export const PASOS: PasoCapacitacion[] = [
     puntos: [
       "El CPA objetivo aparece como provisional mientras el producto no tenga cargado su costo real: hasta ahí es una estimación.",
       "Al expandir un producto editas precio, costo y CPA objetivo sin salir de la lista.",
-      "La cola de aprobación de arriba es donde apruebas o rechazas lo que propuso el equipo. Aprobar un pedido de creativos crea los requerimientos en el Pipeline, ya asignados y notificados.",
-      "Con el selector de catálogo eliges qué productos de Shopify se empiezan a seguir.",
-      "La ventana es siempre de los últimos 30 días: acá no hay selector de período.",
+      "La cola de aprobación de arriba es donde apruebas o rechazas lo que propuso el equipo. Aprobar un pedido de creativos crea las piezas en Contenido, ya asignadas y notificadas.",
+      "Con el selector de catálogo sigues varios productos de Shopify a la vez; con «Nuevo producto» creas uno a mano y lo anclas al producto de Shopify, a una campaña que ya esté corriendo y a sus links de trackeo.",
+      "Dentro de cada producto tienes su reporte —diario, quincenal, histórico— con cuál campaña rinde más y qué formato es el winner.",
+      "La ventana de la lista es siempre de los últimos 30 días: acá no hay selector de período.",
     ],
     roles: CON_NUMEROS,
   },
@@ -268,7 +267,7 @@ export const PASOS: PasoCapacitacion[] = [
     seccion: "Nómina",
     titulo: "Cerrar el pago de la semana",
     texto:
-      "Una fila por persona activa con su forma de pago —semanal fijo, por día o por pieza entregada—, el monto, los descuentos por ausencia y lo que queda a pagar. Las piezas entregadas no se cuentan a mano: salen del Pipeline, por responsable y por semana.",
+      "Una fila por persona activa con su forma de pago —semanal fijo, por día o por pieza entregada—, el monto, los descuentos por ausencia y lo que queda a pagar. Las piezas entregadas no se cuentan a mano: salen de Contenido, por responsable y por semana.",
     puntos: [
       "Marcas una ausencia haciendo clic en el día de la semana y el descuento se recalcula solo. En «por pieza» la ausencia no descuenta, porque el pago ya depende de lo entregado.",
       "«Marcar semana como pagada» congela los montos y deshabilita la edición de esa semana: desde la pantalla no hay vuelta atrás.",
@@ -351,7 +350,7 @@ export const PASOS: PasoCapacitacion[] = [
     seccion: "Usuarios",
     titulo: "Quién entra, con qué rol y quién ya se capacitó",
     texto:
-      "Das de alta a la gente, le asignas rol y decides quién ve la nómina. El rol es lo que define qué secciones ve cada quien: un director operativo ve los números y el pipeline completo, un editor solo las piezas que tiene asignadas.",
+      "Das de alta a la gente, le asignas rol y decides quién ve la nómina. El rol es lo que define qué secciones ve cada quien: un director operativo ve los números y Contenido completo, un editor solo las piezas que tiene asignadas.",
     puntos: [
       "Crear una cuenta pide además un código de autorización: sin eso no se crea, aunque alguien llegue a esta pantalla. Cuando está configurado el código rotativo, lo ves en tu perfil y se renueva cada medio minuto.",
       "Ver la nómina es un permiso aparte del rol, y solo alguien que ya la ve puede dárselo a otro.",

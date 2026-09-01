@@ -3,17 +3,20 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { revisarRonda } from "@/lib/rondas";
+import { nomenclaturaDeRonda } from "@/lib/nomenclatura";
 
-// Rondas: cuatro piezas que salen juntas a testear.
-//
-// La verificación de diversidad vive del lado del servidor y viaja con la
-// ronda. Si la hiciera la pantalla, el criterio estaría en dos lugares y tarde
-// o temprano dirían cosas distintas.
+// Rondas — el "lote de contenido" del que habla el equipo: un grupo de piezas
+// que salen juntas a testear (4 para la matriz de diversidad; 6 o 12 cuando
+// es un lote de producción). La verificación de diversidad vive del lado del
+// servidor y viaja con la ronda. Si la hiciera la pantalla, el criterio
+// estaría en dos lugares y tarde o temprano dirían cosas distintas.
+
+const TAMANOS_LOTE = [4, 6, 12];
 
 async function productoDeLaOrg(productId: string, organizationId: string) {
   const p = await db.product.findUnique({
     where: { id: productId },
-    select: { id: true, organizationId: true },
+    select: { id: true, organizationId: true, code: true },
   });
   return p && p.organizationId === organizationId ? p : null;
 }
@@ -40,6 +43,10 @@ export async function GET(req: NextRequest) {
         semana: true,
         fecha: true,
         notas: true,
+        nomenclatura: true,
+        tamanoObjetivo: true,
+        fechaEntrega: true,
+        estado: true,
         responsable: { select: { id: true, name: true } },
         piezas: {
           orderBy: { slot: "asc" },
@@ -100,40 +107,83 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Armar rondas es de dirección." }, { status: 403 });
   }
 
-  const { productId, semana, notas } = (await req.json()) as {
+  const { productId, semana, notas, tamanoObjetivo, fechaEntrega } = (await req.json()) as {
     productId?: string;
     semana?: string;
     notas?: string;
+    tamanoObjetivo?: number;
+    fechaEntrega?: string;
   };
 
-  if (!productId || !(await productoDeLaOrg(productId, session.organizationId))) {
+  const producto = productId ? await productoDeLaOrg(productId, session.organizationId) : null;
+  if (!productId || !producto) {
     return NextResponse.json({ error: "Ese producto no existe." }, { status: 404 });
   }
 
+  const tamano = TAMANOS_LOTE.includes(tamanoObjetivo as number) ? (tamanoObjetivo as number) : 12;
+
   // El número se calcula acá y no lo elige quien la crea: dos personas armando
-  // rondas a la vez elegirían el mismo.
+  // rondas a la vez elegirían el mismo. La nomenclatura sale de ese mismo
+  // número — es la clave que el editor copia al nombrar la campaña, y con la
+  // que el sync la vuelve a encontrar (ver src/lib/nomenclatura.ts).
   const ultima = await db.ronda.findFirst({
     where: { organizationId: session.organizationId, productId },
     orderBy: { numero: "desc" },
     select: { numero: true },
   });
+  const numero = (ultima?.numero ?? 0) + 1;
 
   const ronda = await db.ronda.create({
     data: {
       organizationId: session.organizationId,
       productId,
-      numero: (ultima?.numero ?? 0) + 1,
+      numero,
       semana: semana?.trim() || null,
       notas: notas?.trim() || null,
       responsableId: session.userId,
+      nomenclatura: nomenclaturaDeRonda(producto.code, numero),
+      tamanoObjetivo: tamano,
+      fechaEntrega: fechaEntrega ? new Date(`${fechaEntrega}T00:00:00.000Z`) : null,
     },
-    select: { id: true, numero: true },
+    select: { id: true, numero: true, nomenclatura: true, tamanoObjetivo: true },
   });
 
   return NextResponse.json({ ok: true, ronda });
 }
 
-/** Mete o saca una pieza de una ronda. */
+const RONDA_EDITABLE_FIELDS = ["estado", "fechaEntrega", "tamanoObjetivo", "semana", "notas"] as const;
+
+type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
+
+/** Edita los datos del lote en sí — estado, fecha de entrega, tamaño. */
+async function editarRonda(session: Session, id: string, body: Record<string, unknown>) {
+  const existing = await db.ronda.findUnique({
+    where: { id },
+    select: { id: true, organizationId: true },
+  });
+  if (!existing || existing.organizationId !== session.organizationId) {
+    return NextResponse.json({ error: "Ese lote no existe." }, { status: 404 });
+  }
+
+  const data: Record<string, unknown> = {};
+  for (const field of RONDA_EDITABLE_FIELDS) {
+    if (!(field in body)) continue;
+    if (field === "fechaEntrega") {
+      data.fechaEntrega = body.fechaEntrega ? new Date(`${body.fechaEntrega}T00:00:00.000Z`) : null;
+    } else if (field === "tamanoObjetivo") {
+      data.tamanoObjetivo = TAMANOS_LOTE.includes(body.tamanoObjetivo as number)
+        ? body.tamanoObjetivo
+        : 12;
+    } else if (typeof body[field] === "string") {
+      data[field] = (body[field] as string).trim() || null;
+    }
+  }
+
+  const ronda = await db.ronda.update({ where: { id }, data });
+  return NextResponse.json({ ok: true, ronda });
+}
+
+/** Mete o saca una pieza de una ronda, o edita los datos del lote. */
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -141,12 +191,20 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Armar rondas es de dirección." }, { status: 403 });
   }
 
-  const { requirementId, rondaId, slot } = (await req.json()) as {
+  const body = (await req.json()) as {
+    id?: string;
     requirementId?: string;
     rondaId?: string | null;
     slot?: number | null;
   };
 
+  // Dos formas de la misma ruta: {id, ...} edita el lote; {requirementId, ...}
+  // mueve una pieza dentro o fuera de un lote.
+  if (body.id && !body.requirementId) {
+    return editarRonda(session, body.id, body as unknown as Record<string, unknown>);
+  }
+
+  const { requirementId, rondaId, slot } = body;
   if (!requirementId) {
     return NextResponse.json({ error: "Falta la pieza." }, { status: 400 });
   }
@@ -162,7 +220,13 @@ export async function PATCH(req: NextRequest) {
   if (rondaId) {
     const ronda = await db.ronda.findUnique({
       where: { id: rondaId },
-      select: { id: true, organizationId: true, productId: true, _count: { select: { piezas: true } } },
+      select: {
+        id: true,
+        organizationId: true,
+        productId: true,
+        tamanoObjetivo: true,
+        _count: { select: { piezas: true } },
+      },
     });
     if (!ronda || ronda.organizationId !== session.organizationId) {
       return NextResponse.json({ error: "Esa ronda no existe." }, { status: 404 });
@@ -175,9 +239,9 @@ export async function PATCH(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (ronda._count.piezas >= 4) {
+    if (ronda._count.piezas >= ronda.tamanoObjetivo) {
       return NextResponse.json(
-        { error: "La ronda ya tiene sus cuatro piezas." },
+        { error: `El lote ya tiene sus ${ronda.tamanoObjetivo} piezas.` },
         { status: 409 }
       );
     }

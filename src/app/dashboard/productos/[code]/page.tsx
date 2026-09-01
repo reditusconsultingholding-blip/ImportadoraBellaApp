@@ -6,12 +6,14 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { getHistorialDecisiones } from "@/lib/historial-decisiones";
 import { puedeDecidir } from "@/lib/product-actions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
-import PipelineBoard from "../../pipeline/pipeline-board";
+import PipelineBoard from "../../_creativos/pipeline-board";
 import TablaCreativos, { type Creativo } from "./tabla-creativos";
 import Repositorio from "./repositorio";
 import BancoReferencias from "./banco-referencias";
 import MatrixRondas from "./matrix-rondas";
 import HistorialDecisiones from "./historial-decisiones";
+import ReporteProducto from "./reporte-producto";
+import AnclajeProducto from "./anclaje-producto";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
@@ -30,6 +32,7 @@ export default async function ProductoDetailPage({
   const { vista } = await searchParams;
   const product = await db.product.findFirst({
     where: { organizationId: session.organizationId, code },
+    include: { links: { orderBy: { createdAt: "asc" } } },
   });
   if (!product) notFound();
 
@@ -136,6 +139,15 @@ export default async function ProductoDetailPage({
         </div>
       </div>
 
+      <AnclajeProducto
+        code={product.code}
+        shopifyProductTitle={product.shopifyProductTitle}
+        links={product.links}
+        puedeEditar={canManage}
+      />
+
+      <ReporteProducto code={product.code} />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-surface border border-border rounded p-4">
           <p className="text-xs font-mono uppercase tracking-wide text-muted">Realizado</p>
@@ -194,15 +206,16 @@ export default async function ProductoDetailPage({
         </div>
       )}
 
-      {/* Tres formas de mirar el mismo producto. La tabla es la planilla que
-          el equipo ya usa; el pipeline, las mismas piezas en tarjetas; el
+      {/* Varias formas de mirar el mismo producto. La tabla es la planilla
+          que el equipo ya usa; el kanban, las mismas piezas en tarjetas por
+          etapa (para llenar la fase, el resto se sincroniza solo); el
           repositorio, el material del que salen. */}
       <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
         {[
           { id: "tabla", label: "Seguimiento de creativos" },
-          { id: "rondas", label: "Rondas" },
+          { id: "rondas", label: "Lotes" },
           { id: "referencias", label: "Referencias" },
-          { id: "pipeline", label: "Pipeline" },
+          { id: "pipeline", label: "Kanban" },
           { id: "repositorio", label: "Dirección creativa" },
           { id: "historial", label: "Historial de decisiones" },
         ].map((v) => {
@@ -248,7 +261,7 @@ export default async function ProductoDetailPage({
           }))}
           products={[{ id: product.id, code: product.code, name: product.name }]}
           users={users}
-          title={`Pipeline — ${product.name}`}
+          title={`Kanban — ${product.name}`}
           subtitle="Las mismas piezas, en tarjetas por etapa."
         />
       ) : (
