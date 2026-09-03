@@ -164,7 +164,7 @@ export default function SidebarNav({
         // El panel del dueño solo para OWNER: un director ve lo suyo en las
         // pantallas de siempre.
         ...(showCeo
-          ? [{ href: "/dashboard/ceo", label: "Panel del CEO", icon: "panel" }]
+          ? [{ href: "/dashboard/ceo", label: "Estadísticas CEO", icon: "panel" }]
           : []),
       ],
     },

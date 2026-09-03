@@ -116,7 +116,7 @@ export const PASOS: PasoCapacitacion[] = [
     id: "ceo",
     requierePermisoFinanzas: true,
     ruta: "/dashboard/ceo",
-    seccion: "Panel del CEO",
+    seccion: "Estadísticas CEO",
     titulo: "El negocio entero sin abrir seis pantallas",
     texto:
       "Junta en pestañas lo que de otro modo hay que ir a buscar: resumen del período, productos, rentabilidad, qué hacer hoy y equipo —más nómina, si tienes ese permiso—. Son exactamente los mismos números que ve el equipo, no una cuenta aparte.",

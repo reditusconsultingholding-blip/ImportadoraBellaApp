@@ -18,6 +18,7 @@ import CatalogPicker from "./catalog-picker";
 import AttributionStrip from "./attribution-strip";
 import AlertasPanel from "./alertas-panel";
 import TablaFilas from "./tabla-filas";
+import { EncabezadoSeccion, InsigniaEncabezado } from "./encabezado-seccion";
 import type { Platform } from "@/generated/prisma/client";
 
 const money = (n: number) =>
@@ -88,23 +89,27 @@ export default async function DashboardPage({
       {/* El selector va arriba de todo: manda sobre las ventas de Shopify, el
           pulso y el rendimiento de campañas. Estaba abajo, junto a las
           campañas, y por eso parecía que las ventas no le hacían caso. */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Panel</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {range.label} · {fechaLarga(range.from)}
+      <EncabezadoSeccion
+        eyebrow="Resumen"
+        titulo="Panel"
+        insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
+        descripcion={
+          <>
+            {fechaLarga(range.from)}
             {isoDay(range.from) !== isoDay(range.to) ? ` al ${fechaLarga(range.to)}` : ""}
             <span> · hora de Ecuador</span>
-          </p>
-        </div>
-        <RangePicker
-          active={range.id}
-          label={range.label}
-          from={isoDay(range.from)}
-          to={isoDay(range.to)}
-          platform={platform}
-        />
-      </div>
+          </>
+        }
+        acciones={
+          <RangePicker
+            active={range.id}
+            label={range.label}
+            from={isoDay(range.from)}
+            to={isoDay(range.to)}
+            platform={platform}
+          />
+        }
+      />
 
       {/* Ventas de Shopify: facturación, ticket promedio y desglose por canal.
           No hay nada que recortar acá dentro —la sección ES el dinero—, así
