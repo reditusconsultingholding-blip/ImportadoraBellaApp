@@ -220,6 +220,13 @@ export default function SidebarNav({
               { href: "/dashboard/productos", label: "Productos", icon: "productos" },
             ]
           : []),
+        // Va en Producción y no en Números aunque hable de gasto: lo que se
+        // hace acá es arreglar cómo están nombradas y conectadas las campañas,
+        // que es trabajo de producción. El gasto solo dice cuál arreglar
+        // primero. Pide el permiso de finanzas porque la tabla es plata.
+        ...(showRentabilidad
+          ? [{ href: "/dashboard/sin-nomenclatura", label: "Sin nomenclatura", icon: "productos" }]
+          : []),
       ],
     },
     {

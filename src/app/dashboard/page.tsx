@@ -9,6 +9,7 @@ import { AVISO_SIN_CIFRAS } from "@/lib/finanzas-textos";
 import { resolveRange } from "@/lib/date-range";
 import { ventasEnElTiempo } from "@/lib/ventas-serie";
 import { compraRepetida } from "@/lib/atribucion";
+import { resumenSinProducto } from "@/lib/sin-nomenclatura";
 import PlatformTabs from "./platform-tabs";
 import VentasEnElTiempo from "./ventas-en-el-tiempo";
 import StatTile from "./stat-tile";
@@ -68,7 +69,7 @@ export default async function DashboardPage({
   // el permiso devuelve la CANTIDAD de órdenes y ni siquiera trae el campo de
   // facturación, así que es la única parte de las ventas que ve todo el
   // equipo.
-  const [overview, sales, meta, tiktok, ventas, repetida] = await Promise.all([
+  const [overview, sales, meta, tiktok, ventas, repetida, sinProducto] = await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
@@ -77,6 +78,10 @@ export default async function DashboardPage({
     // Primera compra contra recompra. Se pide junto al resto y no dentro del
     // componente para no encadenar una consulta más después de dibujar.
     verCifras ? compraRepetida(session.organizationId, range) : null,
+    // Cuántas campañas quedaron sueltas. Va acá y no dentro del componente por
+    // lo mismo: una consulta más encadenada después de dibujar es medio segundo
+    // que el panel entero pasa esperando.
+    verCifras ? resumenSinProducto(session.organizationId, range) : null,
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -135,6 +140,7 @@ export default async function DashboardPage({
           desdeElPeriodo={isoDay(range.from)}
           ventasDesde={sales.ventasDesde}
           repetida={repetida}
+          sinProducto={sinProducto ?? { campanas: 0, conGasto: 0, gasto: 0, compras: 0 }}
         />
       )}
 

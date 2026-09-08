@@ -9,7 +9,9 @@
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
+import Link from "next/link";
 import { leerCruce, type CompraRepetida } from "@/lib/atribucion";
+import type { ResumenSinProducto } from "@/lib/sin-nomenclatura";
 
 export default function AttributionStrip({
   ventasReales,
@@ -20,6 +22,7 @@ export default function AttributionStrip({
   desdeElPeriodo,
   ventasDesde,
   repetida,
+  sinProducto,
 }: {
   ventasReales: number;
   ordenesReales: number;
@@ -32,6 +35,8 @@ export default function AttributionStrip({
   ventasDesde: string | null;
   /** Primera compra contra recompra, para poder explicar la diferencia. */
   repetida: CompraRepetida;
+  /** Campañas que no cuelgan de ningún producto, con su gasto del período. */
+  sinProducto: ResumenSinProducto;
 }) {
   // Si el período pedido empieza antes de la primera orden guardada, la
   // comparación no significa nada: el gasto de pauta estaría completo y las
@@ -168,6 +173,44 @@ export default function AttributionStrip({
           <p className={`mt-2.5 text-xs ${cruce.alerta ? "text-warning" : "text-muted"}`}>
             {cruce.mensaje}
           </p>
+
+          {/* De las tres causas que nombra el mensaje de arriba, una se puede
+              medir: las campañas que no cuelgan de ningún producto. Dejarla
+              como hipótesis obligaba a creerla o descartarla sin datos; acá se
+              dice cuántas son, cuánto gastaron y se abre la puerta para ir a
+              emparejarlas. Las otras dos —mensajes directos y gente que entra
+              por el link— no dejan rastro en lo que Shopify nos manda, y por
+              eso siguen siendo una hipótesis y se dicen como tal. */}
+          {sinProducto.campanas > 0 && (
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded border border-border bg-surface-2 px-3 py-2">
+              <p className="min-w-[18rem] flex-1 text-xs text-muted">
+                De esas causas, una se puede medir:{" "}
+                <strong className="font-medium text-foreground">
+                  {sinProducto.campanas.toLocaleString("es-EC")}{" "}
+                  {sinProducto.campanas === 1 ? "campaña no cuelga" : "campañas no cuelgan"} de
+                  ningún producto
+                </strong>
+                {sinProducto.conGasto > 0 ? (
+                  <>
+                    {" "}
+                    y {sinProducto.conGasto === 1 ? "la que gastó se llevó" : `${sinProducto.conGasto} de ellas se llevaron`}{" "}
+                    {money(sinProducto.gasto)} en este período, con{" "}
+                    {sinProducto.compras.toLocaleString("es-EC")}{" "}
+                    {sinProducto.compras === 1 ? "compra atribuida" : "compras atribuidas"} que no
+                    suman a la rentabilidad de nadie.
+                  </>
+                ) : (
+                  <>, aunque ninguna gastó en este período.</>
+                )}
+              </p>
+              <Link
+                href="/dashboard/sin-nomenclatura"
+                className="shrink-0 rounded border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2"
+              >
+                Verlas y asignarlas
+              </Link>
+            </div>
+          )}
 
           {repetida.sinIdentificar > 0 && (
             <p className="mt-1 text-[11px] text-muted">
