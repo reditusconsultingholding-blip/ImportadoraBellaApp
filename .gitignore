@@ -48,3 +48,8 @@ next-env.d.ts
 /dev.db-journal
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# Herramientas de recuperación: dependen de un respaldo local, no del repo.
+restaurar-respaldo.mts
+restaurar-reportes.mts
+rellenar-huecos.mts

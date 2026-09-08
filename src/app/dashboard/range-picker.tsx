@@ -65,10 +65,16 @@ export default function RangePicker({
               onClick={() => go(r.id)}
               disabled={pendiente}
               aria-busy={cargando}
+              // Pintado para el encabezado verde oscuro, que es el único
+              // lugar donde vive este selector (las cinco pantallas que lo
+              // usan lo pasan en `acciones`). Antes usaba `text-muted` y
+              // `hover:text-foreground`, colores pensados para fondo claro:
+              // sobre el verde quedaban del mismo tono que el fondo y al
+              // pasar el mouse el botón desaparecía.
               className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
                 on || cargando
-                  ? "border-accent bg-good-bg text-accent-strong"
-                  : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                  ? "border-brand-green bg-brand-green/25 text-white"
+                  : "border-white/20 text-white/70 hover:border-white/45 hover:bg-white/10 hover:text-white"
               } ${pendiente && !cargando ? "opacity-50" : ""}`}
             >
               {cargando && <Girando />}
@@ -82,14 +88,14 @@ export default function RangePicker({
           varios segundos, y en ese rato la pantalla sigue mostrando los números
           del período anterior: sin decirlo, se leen como si fueran los nuevos. */}
       {pendiente && (
-        <p className="mt-1.5 text-xs text-muted">
+        <p className="mt-1.5 text-xs text-white/60">
           Cargando {RANGES.find((r) => r.id === destino)?.label ?? "el período"}… lo de abajo
           todavía es del período anterior.
         </p>
       )}
 
       {!pendiente && active === "personalizado" && !open && (
-        <p className="mt-1.5 text-xs text-muted">Mostrando {label}</p>
+        <p className="mt-1.5 text-xs text-white/60">Mostrando {label}</p>
       )}
 
       {open && (

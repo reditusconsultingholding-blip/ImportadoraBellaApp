@@ -21,19 +21,35 @@ export default async function LogisticaPage() {
       <EncabezadoSeccion
         eyebrow="Números"
         titulo="Torre logística"
-        insignia={<InsigniaEncabezado>Ecuador</InsigniaEncabezado>}
+        insignia={<InsigniaEncabezado>Fase 2</InsigniaEncabezado>}
         descripcion="Efectividad de entrega por provincia y transportadora."
       />
+
+      {/* Mientras no haya conexión con Dropi, lo que se ve son datos de
+          ejemplo. El aviso anterior lo decía en letra chica debajo del título
+          y se leía como una nota al pie: alguien podía mirar el mapa un rato
+          antes de entender que ninguna de esas cifras es real. Ahora lo dice
+          primero y con el peso que corresponde. */}
       {!data.connected && (
-        <div className="bg-surface-2 border border-border rounded p-4 text-sm">
-          <p className="font-medium mb-1">Vista previa — módulo a futuro</p>
-          <p className="text-muted">
-            Esto muestra cómo se va a ver esta sección con datos reales de logística más adelante.
-            No es parte del alcance actual — por ahora es solo una demostración con datos de ejemplo.
+        <div className="rounded-xl border border-border bg-surface-2 p-6 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-strong">
+            Próximamente
+          </p>
+          <h2 className="mt-2 text-[19px] font-semibold">En construcción — Fase 2</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-muted">
+            Esta sección va a mostrar la efectividad de entrega por provincia y transportadora con
+            datos reales, cuando se conecte la integración con Dropi.
+          </p>
+          <p className="mx-auto mt-3 max-w-lg text-xs text-muted">
+            Lo de abajo es una <b>demostración con datos de ejemplo</b>, para que se entienda cómo
+            va a verse. Ninguna de esas cifras corresponde a envíos reales.
           </p>
         </div>
       )}
-      <LogisticsTower data={data} />
+
+      <div className={data.connected ? "" : "opacity-60"}>
+        <LogisticsTower data={data} />
+      </div>
     </div>
   );
 }
