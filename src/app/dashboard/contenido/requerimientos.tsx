@@ -46,6 +46,15 @@ export default function Requerimientos({
   const [creando, setCreando] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
+  // Cuántas filas se dibujan.
+  //
+  // Hay más de seis mil piezas cargadas. Dibujarlas todas de una tardaba doce
+  // segundos y dejaba al navegador maquetando seis mil renglones para que
+  // alguien mire los primeros veinte. El filtro sigue corriendo sobre TODAS:
+  // se recorta lo que se pinta, no lo que se busca.
+  const POR_TANDA = 100;
+  const [tope, setTope] = useState(POR_TANDA);
+
   useEffect(() => {
     let vivo = true;
     fetch("/api/requirements")
@@ -116,12 +125,21 @@ export default function Requerimientos({
     });
   }, [filas, filtros]);
 
+
   const hayFiltro = filtros.texto !== "" || filtros.estado !== "" || filtros.responsable !== "" || filtros.producto !== "";
 
   const sinResponsable = useMemo(
     () => (filas ?? []).filter((r) => !r.ownerId).length,
     [filas],
   );
+
+  // Cambiar un filtro vuelve a la primera tanda. Se hace acá y no en un
+  // efecto: React desaconseja sincronizar estado con estado, y de todos modos
+  // el único momento en que hay que reiniciar es justo cuando alguien filtra.
+  const cambiarFiltros = useCallback((siguiente: Filtros | ((f: Filtros) => Filtros)) => {
+    setFiltros(siguiente);
+    setTope(POR_TANDA);
+  }, []);
 
   const claseCampo =
     "rounded border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-border-strong focus:outline-none";
@@ -152,7 +170,7 @@ export default function Requerimientos({
       {sinResponsable > 0 && (
         <button
           type="button"
-          onClick={() => setFiltros({ ...FILTROS_VACIOS, responsable: "__sin__" })}
+          onClick={() => cambiarFiltros({ ...FILTROS_VACIOS, responsable: "__sin__" })}
           className="self-start rounded border border-warning bg-surface px-3 py-1.5 text-left text-xs text-warning transition hover:opacity-90"
         >
           {sinResponsable === 1
@@ -166,14 +184,14 @@ export default function Requerimientos({
         <input
           type="search"
           value={filtros.texto}
-          onChange={(e) => setFiltros((f) => ({ ...f, texto: e.target.value }))}
+          onChange={(e) => cambiarFiltros((f) => ({ ...f, texto: e.target.value }))}
           placeholder="Buscar por anuncio, producto o persona"
           className={`${claseCampo} min-w-[220px] flex-1`}
           aria-label="Buscar requerimientos"
         />
         <select
           value={filtros.estado}
-          onChange={(e) => setFiltros((f) => ({ ...f, estado: e.target.value }))}
+          onChange={(e) => cambiarFiltros((f) => ({ ...f, estado: e.target.value }))}
           className={claseCampo}
           aria-label="Filtrar por estado"
         >
@@ -186,7 +204,7 @@ export default function Requerimientos({
         </select>
         <select
           value={filtros.responsable}
-          onChange={(e) => setFiltros((f) => ({ ...f, responsable: e.target.value }))}
+          onChange={(e) => cambiarFiltros((f) => ({ ...f, responsable: e.target.value }))}
           className={claseCampo}
           aria-label="Filtrar por responsable"
         >
@@ -200,7 +218,7 @@ export default function Requerimientos({
         </select>
         <select
           value={filtros.producto}
-          onChange={(e) => setFiltros((f) => ({ ...f, producto: e.target.value }))}
+          onChange={(e) => cambiarFiltros((f) => ({ ...f, producto: e.target.value }))}
           className={claseCampo}
           aria-label="Filtrar por producto"
         >
@@ -214,7 +232,7 @@ export default function Requerimientos({
         {hayFiltro && (
           <button
             type="button"
-            onClick={() => setFiltros(FILTROS_VACIOS)}
+            onClick={() => cambiarFiltros(FILTROS_VACIOS)}
             className="text-xs text-muted underline transition hover:text-foreground"
           >
             Limpiar
@@ -238,7 +256,7 @@ export default function Requerimientos({
       ) : visibles.length === 0 ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-muted">
           Ninguna pieza coincide con el filtro.{" "}
-          <button type="button" onClick={() => setFiltros(FILTROS_VACIOS)} className="underline">
+          <button type="button" onClick={() => cambiarFiltros(FILTROS_VACIOS)} className="underline">
             Limpiar el filtro
           </button>
           .
@@ -249,8 +267,28 @@ export default function Requerimientos({
             {visibles.length === filas.length
               ? `${filas.length} ${filas.length === 1 ? "pieza" : "piezas"}`
               : `${visibles.length} de ${filas.length} piezas`}
+            {visibles.length > tope && ` · mostrando las primeras ${tope}`}
           </p>
-          <RequirementsTable requirements={visibles} verCifras={verCifras} onOpen={setDetalleId} />
+          <RequirementsTable
+            requirements={visibles.slice(0, tope)}
+            verCifras={verCifras}
+            onOpen={setDetalleId}
+          />
+          {visibles.length > tope && (
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setTope((t) => t + POR_TANDA)}
+                className="rounded border border-border px-4 py-2 text-xs font-medium transition hover:bg-surface-2"
+              >
+                Ver {Math.min(POR_TANDA, visibles.length - tope)} más
+              </button>
+              <p className="text-[11px] text-muted">
+                Quedan {(visibles.length - tope).toLocaleString("es-EC")}. Si buscás una pieza
+                concreta, el buscador y los filtros de arriba miran todas.
+              </p>
+            </div>
+          )}
         </>
       )}
 
