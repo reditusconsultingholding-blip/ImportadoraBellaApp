@@ -16,6 +16,7 @@ import RangePicker from "../range-picker";
 import GraficoPeriodo from "./grafico-periodo";
 import DescargarInforme from "./descargar-informe";
 import ReportsList from "./reports-list";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 const money = (n: number, dec = 0) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: dec });
@@ -84,10 +85,12 @@ export default async function ReportesPage({
           bloque tuviera el suyo, dos números de la misma pantalla podrían
           hablar de períodos distintos. Lo único que no depende de él son las
           recomendaciones, y ahí está dicho. */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Reportes</h1>
-          <p className="mt-0.5 text-sm text-muted">
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Reportes"
+        insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
+        descripcion={
+          <>
             El reporte diario se genera solo a las {ETIQUETA_CIERRE}, al cerrar el día, y sale por
             correo. El próximo:{" "}
             <span className="whitespace-nowrap">
@@ -101,17 +104,19 @@ export default async function ReportesPage({
               })}
             </span>
             .
-          </p>
-        </div>
-        <RangePicker
-          active={range.id}
-          label={range.label}
-          from={toInputValue(range.from)}
-          to={toInputValue(range.to)}
-          platform={platform}
-          basePath="/dashboard/reportes"
-        />
-      </div>
+          </>
+        }
+        acciones={
+          <RangePicker
+            active={range.id}
+            label={range.label}
+            from={toInputValue(range.from)}
+            to={toInputValue(range.to)}
+            platform={platform}
+            basePath="/dashboard/reportes"
+          />
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(rentabilidad && serie

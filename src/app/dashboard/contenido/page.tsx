@@ -9,6 +9,7 @@ import CalendarioContenido from "./calendario-contenido";
 import GestionCampanas from "./gestion-campanas";
 import PanelRendimiento from "./panel-rendimiento";
 import Requerimientos from "./requerimientos";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 const VISTAS = [
   "calendario",
@@ -104,23 +105,21 @@ export default async function ContenidoPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-[22px] font-semibold">Contenido</h1>
-          {canManage && (
+      <EncabezadoSeccion
+        eyebrow="Producción"
+        titulo="Contenido"
+        descripcion="El calendario de entregas, el día a día del equipo, los lotes de contenido, la gestión de campañas y el rendimiento de cada integrante — en un solo lugar, sin Notion ni WhatsApp."
+        acciones={
+          canManage ? (
             <Link
               href="/dashboard/contenido/importar"
-              className="text-xs text-accent-strong hover:underline"
+              className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-medium text-white/85 transition hover:bg-white/10"
             >
               Traer datos de Notion →
             </Link>
-          )}
-        </div>
-        <p className="mt-0.5 text-sm text-muted">
-          El calendario de entregas, el día a día del equipo, los lotes de contenido, la gestión de
-          campañas y el rendimiento de cada integrante — en un solo lugar, sin Notion ni WhatsApp.
-        </p>
-      </div>
+          ) : null
+        }
+      />
 
       <div className="flex flex-wrap gap-1.5 border-b border-border pb-4">
         {TABS.map((t) => {

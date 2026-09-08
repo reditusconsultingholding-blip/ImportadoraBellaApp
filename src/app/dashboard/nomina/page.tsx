@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getPayrollViewer } from "@/lib/payroll-access";
 import { computeWeek, startOfWeek, weekDays, weekLabel } from "@/lib/payroll";
 import PayrollManager from "./payroll-manager";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 export default async function NominaPage({
   searchParams,
@@ -26,14 +27,11 @@ export default async function NominaPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Nómina</h1>
-        <p className="text-sm text-muted">
-          Lo que hay que pagarle a cada persona esta semana. Marca los días que no trabajó haciendo
-          clic sobre el día y el descuento se calcula solo. Esta pantalla la ven únicamente quienes
-          tengan el permiso de nómina.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Nómina"
+        descripcion="Lo que hay que pagarle a cada persona esta semana. Marca los días que no trabajó haciendo clic sobre el día y el descuento se calcula solo. Esta pantalla la ven únicamente quienes tengan el permiso de nómina."
+      />
 
       <PayrollManager
         weekStartISO={monday.toISOString().slice(0, 10)}

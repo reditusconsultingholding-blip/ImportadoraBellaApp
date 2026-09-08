@@ -6,6 +6,7 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { resolveRange } from "@/lib/date-range";
 import RangePicker from "../range-picker";
 import TablaRentabilidad from "./tabla-rentabilidad";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -30,23 +31,22 @@ export default async function RentabilidadPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Rentabilidad por producto</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {range.label} · con el precio, costo, flete, efectividad y devoluciones reales de cada
-            producto.
-          </p>
-        </div>
-        <RangePicker
-          active={range.id}
-          label={range.label}
-          from={isoDay(range.from)}
-          to={isoDay(range.to)}
-          platform="META"
-          basePath="/dashboard/rentabilidad"
-        />
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Rentabilidad por producto"
+        insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
+        descripcion="Con el precio, costo, flete, efectividad y devoluciones reales de cada producto."
+        acciones={
+          <RangePicker
+            active={range.id}
+            label={range.label}
+            from={isoDay(range.from)}
+            to={isoDay(range.to)}
+            platform="META"
+            basePath="/dashboard/rentabilidad"
+          />
+        }
+      />
 
       <TablaRentabilidad data={data} />
     </div>

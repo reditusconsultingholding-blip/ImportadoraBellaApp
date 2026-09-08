@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import UsersManager from "./users-manager";
 import CapacitacionEquipo from "./capacitacion-equipo";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 export default async function UsuariosPage() {
   const session = await getSession();
@@ -42,12 +43,11 @@ export default async function UsuariosPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-[22px] font-semibold">Usuarios</h1>
-        <p className="text-sm text-muted mt-1">
-          Quién puede entrar al panel, con qué rol y quién ve la nómina.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Cuenta"
+        titulo="Usuarios"
+        descripcion="Quién puede entrar al panel, con qué rol y quién ve la nómina."
+      />
       <UsersManager
         currentUserId={session.userId}
         canGrantPayroll={Boolean(me?.canViewPayroll)}

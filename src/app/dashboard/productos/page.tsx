@@ -8,6 +8,7 @@ import { getDirectory } from "@/lib/product-directory";
 import { resolveRange } from "@/lib/date-range";
 import { puedeDecidir } from "@/lib/product-actions";
 import { veLasCifras } from "@/lib/finanzas";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 export default async function ProductosPage() {
   const session = await getSession();
@@ -28,14 +29,11 @@ export default async function ProductosPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-[22px] font-semibold">Productos</h1>
-        <p className="mt-1 text-sm text-muted">
-          Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Busca por
-          nombre o por el código que usan las campañas, y entra a cualquiera para ver su
-          seguimiento de creativos y su dirección creativa.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Producción"
+        titulo="Productos"
+        descripcion="Todo lo que se está siguiendo, con su pulso, su economía y sus creativos. Busca por nombre o por el código que usan las campañas, y entra a cualquiera para ver su seguimiento de creativos y su dirección creativa."
+      />
 
       {canManage && (
         <div className="flex flex-wrap items-start gap-2">
