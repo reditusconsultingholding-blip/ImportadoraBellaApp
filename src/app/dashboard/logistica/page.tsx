@@ -37,12 +37,12 @@ export default async function LogisticaPage() {
           </p>
           <h2 className="mt-2 text-[19px] font-semibold">En construcción — Fase 2</h2>
           <p className="mx-auto mt-2 max-w-lg text-sm text-muted">
-            Esta sección va a mostrar la efectividad de entrega por provincia y transportadora con
-            datos reales, cuando se conecte la integración con Dropi.
+            Va a mostrar la efectividad de entrega por provincia y transportadora, con datos reales,
+            cuando se conecte la integración con Dropi.
           </p>
           <p className="mx-auto mt-3 max-w-lg text-xs text-muted">
-            Lo de abajo es una <b>demostración con datos de ejemplo</b>, para que se entienda cómo
-            va a verse. Ninguna de esas cifras corresponde a envíos reales.
+            Hasta entonces la sección queda vacía a propósito. Para conectarla hace falta la clave
+            de integración de Dropi, que es privada y se le pide a su equipo.
           </p>
         </div>
       )}
