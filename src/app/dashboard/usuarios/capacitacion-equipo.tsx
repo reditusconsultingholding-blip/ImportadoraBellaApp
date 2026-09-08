@@ -92,6 +92,9 @@ export default function CapacitacionEquipo({
       )}
 
       <div className="overflow-hidden rounded border border-border bg-surface">
+        {/* Igual que en Usuarios: sin esto la tabla se recorta en pantallas
+            angostas en vez de poder desplazarse. */}
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left">
@@ -137,6 +140,7 @@ export default function CapacitacionEquipo({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <button

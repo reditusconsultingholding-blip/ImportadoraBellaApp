@@ -175,6 +175,10 @@ export default function UsersManager({
       )}
 
       <div className="bg-surface border border-border rounded overflow-hidden">
+        {/* El overflow-hidden de afuera redondea las esquinas y, sin este
+            contenedor, recortaba la tabla en un celular: las columnas de la
+            derecha quedaban cortadas y no habia forma de verlas. */}
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b border-border">
@@ -332,6 +336,7 @@ export default function UsersManager({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {!open ? (

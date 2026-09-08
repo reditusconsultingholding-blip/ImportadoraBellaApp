@@ -507,7 +507,9 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                 muestra Meta del costo real de una venta cobrada.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            {/* En un telefono tres campos en fila quedan de 110px y la
+                etiqueta se parte en tres renglones. Se apilan hasta 640px. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="block">
                 <span className={labelClass}>Confirmación (%)</span>
                 <input className={inputClass} type="number" value={confirmationPct} onChange={(e) => setConfirmationPct(e.target.value)} />
