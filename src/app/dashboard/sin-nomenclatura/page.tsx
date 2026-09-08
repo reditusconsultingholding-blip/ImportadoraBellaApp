@@ -9,7 +9,9 @@ import {
   productosSinCampana,
   resumenSinProducto,
 } from "@/lib/sin-nomenclatura";
+import { proponerEnlaces } from "@/lib/enlace-shopify";
 import Lista from "./lista";
+import Enlaces from "./enlaces";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 export default async function SinNomenclaturaPage() {
@@ -31,9 +33,10 @@ export default async function SinNomenclaturaPage() {
   // —trescientas filas ya son más de las que nadie va a repasar de una sentada—
   // y contar sobre lo que llegó daría "300 campañas sueltas" cuando son 327: el
   // total tiene que salir de contar todo, no de medir la página.
-  const [campanas, resumen, productos, opciones] = await Promise.all([
+  const [campanas, resumen, enlaces, productos, opciones] = await Promise.all([
     campanasSinProducto(session.organizationId, rango),
     resumenSinProducto(session.organizationId, rango),
+    proponerEnlaces(session.organizationId, rango),
     productosSinCampana(session.organizationId),
     db.product.findMany({
       where: { organizationId: session.organizationId, archived: false },
@@ -57,6 +60,17 @@ export default async function SinNomenclaturaPage() {
           </InsigniaEncabezado>
         }
         descripcion="Las campañas que no cuelgan de ningún producto y los productos que no tienen ninguna campaña. Es lo que hace que el panel diga que hay órdenes sin explicación: la plata se gastó y las ventas entraron, pero no suman a la rentabilidad de nadie. Acá se emparejan."
+      />
+
+      {/* Los enlaces con Shopify van primero: son los que mueven la
+          facturación entera, mientras que emparejar campañas mueve el gasto.
+          Quien entra acá viendo que Rentabilidad no cuadra tiene que dar con
+          esto sin buscar. */}
+      <Enlaces
+        propuestas={enlaces.propuestas}
+        cobertura={enlaces.cobertura}
+        opciones={opciones}
+        periodo={rango.label}
       />
 
       <Lista

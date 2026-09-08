@@ -82,6 +82,7 @@ model Organization {
   eventos            EventoCalendario[]
   tareasDiarias      TareaDiaria[]
   campanasManual     CampanaManual[]
+  enlacesShopify     ProductoShopify[]
   notionConnection   NotionConnection?
   cierresSeguimiento CierreSeguimiento[]
 }
@@ -377,6 +378,7 @@ model Product {
   links          ProductoLink[]
   tareas         TareaDiaria[]   @relation("TareaProducto")
   campanasManual CampanaManual[] @relation("CampanaManualProducto")
+  enlacesShopify ProductoShopify[]
 
   @@unique([organizationId, code])
 }
@@ -1372,4 +1374,45 @@ model CierreSeguimiento {
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, fecha])
+}
+
+// El puente entre un producto nuestro y cómo se llama en Shopify.
+//
+// Existe porque son dos vocabularios distintos y nadie los va a unificar: en la
+// pauta el producto es "134142 / TE GINSENG", en la tienda la línea de pedido
+// dice "Te Ginseng para los Rinones", y en el catálogo puede haber además un
+// combo y un pack que son el mismo producto. Por eso es una tabla y no un campo
+// en Product: la relación es de uno a muchos y encima crece —cada oferta nueva
+// agrega un nombre— y con un solo campo habría que elegir cuál de los nombres
+// vale, que es como no tener ninguno.
+//
+// Es lo que permite calcular rentabilidad sobre lo que la tienda cobró de
+// verdad y no solo sobre lo que la pauta se atribuye.
+model ProductoShopify {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /** El nombre tal cual llega en la línea de pedido. Se guarda para mostrarlo. */
+  nombre     String
+  /** Sin tildes, sin signos y en minúsculas: es por acá por donde se cruza. */
+  nombreNorm String
+
+  /**
+   * Si lo propuso el emparejador o lo eligió una persona.
+   *
+   * Se distingue porque un match automático aceptado en bloque no merece la
+   * misma confianza que uno elegido a mano, y cuando un número salga raro lo
+   * primero que hay que poder preguntar es de dónde salió el enlace.
+   */
+  automatico Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  // Un nombre de Shopify pertenece a un solo producto. Sin esto, el mismo
+  // pedido se contaría en dos productos y la suma de utilidades daría más que
+  // la facturación de la tienda.
+  @@unique([organizationId, nombreNorm])
+  @@index([productId])
 }
