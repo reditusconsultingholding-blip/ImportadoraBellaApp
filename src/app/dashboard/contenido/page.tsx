@@ -68,7 +68,10 @@ export default async function ContenidoPage({
   // Se usa en varias pestañas (tablero, requerimientos, gestión de campañas):
   // una sola consulta, no una por pestaña.
   const products =
-    vista === "tablero" || vista === "campanas" || vista === "requerimientos"
+    vista === "tablero" ||
+    vista === "campanas" ||
+    vista === "requerimientos" ||
+    vista === "lotes"
       ? await db.product.findMany({
           where: { organizationId: session.organizationId, archived: false },
           select: { id: true, code: true, name: true },
@@ -152,7 +155,7 @@ export default async function ContenidoPage({
           products={products}
         />
       ) : vista === "lotes" ? (
-        <LotesCruzados />
+        <LotesCruzados canManage={canManage} products={products} />
       ) : vista === "campanas" ? (
         <GestionCampanas products={products} />
       ) : (

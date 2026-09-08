@@ -27,6 +27,10 @@ export default function GestionCampanas({ products }: { products: ProductOption[
   const [plataforma, setPlataforma] = useState("");
   const [soloSinProducto, setSoloSinProducto] = useState(false);
   const [asignando, setAsignando] = useState<string | null>(null);
+  const [creando, setCreando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [errorAlta, setErrorAlta] = useState<string | null>(null);
+  const [nueva, setNueva] = useState({ nombre: "", productId: "", plataforma: "" });
 
   function cargar() {
     setCargando(true);
@@ -73,6 +77,35 @@ export default function GestionCampanas({ products }: { products: ProductOption[
     cargar();
   }
 
+  async function crearManual() {
+    if (!nueva.nombre.trim()) {
+      setErrorAlta("Ponle un nombre a la campaña.");
+      return;
+    }
+    setGuardando(true);
+    setErrorAlta(null);
+    try {
+      const r = await fetch("/api/contenido/campanas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: nueva.nombre.trim(),
+          productId: nueva.productId || undefined,
+          plataforma: nueva.plataforma || undefined,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error ?? `El servidor respondió ${r.status}`);
+      setNueva({ nombre: "", productId: "", plataforma: "" });
+      setCreando(false);
+      cargar();
+    } catch (e) {
+      setErrorAlta(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   async function archivar(c: Campana) {
     await fetch(`/api/contenido/campanas/${c.id}`, {
       method: "PATCH",
@@ -107,7 +140,88 @@ export default function GestionCampanas({ products }: { products: ProductOption[
         <span className="ml-auto text-xs text-muted">
           {todas.length} campañas{sinProducto > 0 && ` · ${sinProducto} sin producto`}
         </span>
+        {!creando && (
+          <button
+            type="button"
+            onClick={() => setCreando(true)}
+            className="rounded bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
+          >
+            + Campaña planeada
+          </button>
+        )}
       </div>
+
+      {/* Alta manual de una campaña que todavía no existe en Meta ni en
+          TikTok. La API ya lo permitía desde el principio; faltaba la pantalla,
+          así que había que esperar a que el sync de cinco minutos la
+          encontrara para poder trabajarla. Cuando la campaña real aparece, el
+          sync borra esta y deja la de verdad. */}
+      {creando && (
+        <div className="rounded border border-border bg-surface p-4">
+          <p className="text-sm font-semibold">Registrar una campaña planeada</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Para trackearla desde ya. Cuando aparezca la campaña real en la plataforma, esta se
+            reemplaza sola.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted">Nombre</span>
+              <input
+                value={nueva.nombre}
+                onChange={(e) => setNueva((n) => ({ ...n, nombre: e.target.value }))}
+                placeholder="Como se va a llamar en la plataforma"
+                className="min-w-[240px] rounded border border-border bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-border-strong"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted">Producto</span>
+              <select
+                value={nueva.productId}
+                onChange={(e) => setNueva((n) => ({ ...n, productId: e.target.value }))}
+                className="min-w-[180px] rounded border border-border bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-border-strong"
+              >
+                <option value="">Sin asignar</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted">Plataforma</span>
+              <select
+                value={nueva.plataforma}
+                onChange={(e) => setNueva((n) => ({ ...n, plataforma: e.target.value }))}
+                className="rounded border border-border bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-border-strong"
+              >
+                <option value="">Sin definir</option>
+                <option value="META">Meta</option>
+                <option value="TIKTOK">TikTok</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={crearManual}
+              disabled={guardando}
+              className="rounded bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-90 disabled:opacity-50"
+            >
+              {guardando ? "Registrando…" : "Registrar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreando(false);
+                setErrorAlta(null);
+              }}
+              className="rounded border border-border px-3 py-1.5 text-xs transition hover:bg-surface-2"
+            >
+              Cancelar
+            </button>
+          </div>
+          {errorAlta && <p className="mt-2 text-xs text-critical">{errorAlta}</p>}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded border border-border bg-surface">
         <div className="overflow-x-auto">
