@@ -4,7 +4,11 @@ import { db } from "@/lib/db";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { resolveRange } from "@/lib/date-range";
-import { campanasSinProducto, productosSinCampana } from "@/lib/sin-nomenclatura";
+import {
+  campanasSinProducto,
+  productosSinCampana,
+  resumenSinProducto,
+} from "@/lib/sin-nomenclatura";
 import Lista from "./lista";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
@@ -23,8 +27,13 @@ export default async function SinNomenclaturaPage() {
   // arreglar porque la campaña ni existe.
   const rango = resolveRange("30d");
 
-  const [campanas, productos, opciones] = await Promise.all([
+  // El resumen se pide aparte de la lista a propósito. La lista viene topada
+  // —trescientas filas ya son más de las que nadie va a repasar de una sentada—
+  // y contar sobre lo que llegó daría "300 campañas sueltas" cuando son 327: el
+  // total tiene que salir de contar todo, no de medir la página.
+  const [campanas, resumen, productos, opciones] = await Promise.all([
     campanasSinProducto(session.organizationId, rango),
+    resumenSinProducto(session.organizationId, rango),
     productosSinCampana(session.organizationId),
     db.product.findMany({
       where: { organizationId: session.organizationId, archived: false },
@@ -33,7 +42,7 @@ export default async function SinNomenclaturaPage() {
     }),
   ]);
 
-  const sueltas = campanas.length;
+  const sueltas = resumen.campanas;
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,7 +59,13 @@ export default async function SinNomenclaturaPage() {
         descripcion="Las campañas que no cuelgan de ningún producto y los productos que no tienen ninguna campaña. Es lo que hace que el panel diga que hay órdenes sin explicación: la plata se gastó y las ventas entraron, pero no suman a la rentabilidad de nadie. Acá se emparejan."
       />
 
-      <Lista campanas={campanas} productos={productos} opciones={opciones} periodo={rango.label} />
+      <Lista
+        campanas={campanas}
+        resumen={resumen}
+        productos={productos}
+        opciones={opciones}
+        periodo={rango.label}
+      />
     </div>
   );
 }

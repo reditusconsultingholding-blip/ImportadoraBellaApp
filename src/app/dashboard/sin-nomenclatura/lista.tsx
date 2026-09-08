@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { CampanaSinProducto, ProductoSinCampana } from "@/lib/sin-nomenclatura";
+import type {
+  CampanaSinProducto,
+  ProductoSinCampana,
+  ResumenSinProducto,
+} from "@/lib/sin-nomenclatura";
 import { Girando } from "../navegar";
 
 // La pantalla para emparejar lo que quedó suelto.
@@ -19,16 +23,21 @@ export type OpcionProducto = { id: string; code: string; name: string };
 
 export default function Lista({
   campanas: campanasIniciales,
+  resumen: resumenInicial,
   productos,
   opciones,
   periodo,
 }: {
+  /** Las que se dibujan: vienen topadas por gasto. */
   campanas: CampanaSinProducto[];
+  /** Los totales, contados sobre TODAS — la lista está recortada. */
+  resumen: ResumenSinProducto;
   productos: ProductoSinCampana[];
   opciones: OpcionProducto[];
   periodo: string;
 }) {
   const [campanas, setCampanas] = useState(campanasIniciales);
+  const [resumen, setResumen] = useState(resumenInicial);
   const [guardando, setGuardando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -43,9 +52,9 @@ export default function Lista({
     });
   }, [campanas, busqueda, soloConGasto]);
 
-  const totalGasto = campanas.reduce((s, c) => s + c.gasto, 0);
-  const totalCompras = campanas.reduce((s, c) => s + c.compras, 0);
-  const conGasto = campanas.filter((c) => c.gasto > 0).length;
+  // Cuántas de las que faltan no llegaron a la lista. Decirlo importa: sin
+  // esto, quien vacíe las trescientas visibles va a creer que terminó.
+  const noListadas = Math.max(0, resumen.campanas - campanasIniciales.length);
 
   async function asignar(campana: CampanaSinProducto, productId: string) {
     if (!productId) return;
@@ -66,6 +75,14 @@ export default function Lista({
       // saca en memoria en vez de recargar la página entera porque quien está
       // asignando cuarenta campañas seguidas no quiere esperar cuarenta veces.
       setCampanas((previas) => previas.filter((c) => c.id !== campana.id));
+      // Y los totales bajan con ella: un contador que sigue diciendo 327
+      // mientras la lista se vacía hace dudar de si el cambio se guardó.
+      setResumen((r) => ({
+        campanas: Math.max(0, r.campanas - 1),
+        conGasto: campana.gasto > 0 ? Math.max(0, r.conGasto - 1) : r.conGasto,
+        gasto: Math.max(0, r.gasto - campana.gasto),
+        compras: Math.max(0, r.compras - campana.compras),
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -97,7 +114,7 @@ export default function Lista({
           <span className="text-xs text-muted">{periodo}</span>
         </div>
 
-        {campanas.length === 0 ? (
+        {resumen.campanas === 0 ? (
           <p className="px-4 py-6 text-sm text-muted">
             Todas las campañas están conectadas a un producto. No hay nada que emparejar.
           </p>
@@ -105,10 +122,10 @@ export default function Lista({
           <>
             <div className="grid grid-cols-2 border-b border-border sm:grid-cols-4">
               {[
-                { t: "Campañas sueltas", v: campanas.length.toLocaleString("es-EC") },
-                { t: "Gastaron en el período", v: conGasto.toLocaleString("es-EC") },
-                { t: "Gasto sin asignar", v: money(totalGasto) },
-                { t: "Compras sin asignar", v: totalCompras.toLocaleString("es-EC") },
+                { t: "Campañas sueltas", v: resumen.campanas.toLocaleString("es-EC") },
+                { t: "Gastaron en el período", v: resumen.conGasto.toLocaleString("es-EC") },
+                { t: "Gasto sin asignar", v: money(resumen.gasto) },
+                { t: "Compras sin asignar", v: resumen.compras.toLocaleString("es-EC") },
               ].map((c, i) => (
                 <div
                   key={c.t}
@@ -213,6 +230,13 @@ export default function Lista({
             )}
 
             <p className="border-t border-border px-4 py-2.5 text-[11px] leading-snug text-muted">
+              {noListadas > 0 && (
+                <>
+                  Se listan las {campanasIniciales.length.toLocaleString("es-EC")} que más gastaron;
+                  quedan {noListadas.toLocaleString("es-EC")} más sin gasto en el período, que
+                  aparecen cuando estas se vayan resolviendo.{" "}
+                </>
+              )}
               Asignar acá marca la campaña como corregida a mano, así la
               sincronización de cada cinco minutos no vuelve a soltarla. Si preferís que la app
               intente emparejarla sola de nuevo, se suelta desde Contenido → Gestión de campañas.
