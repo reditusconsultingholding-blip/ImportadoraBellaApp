@@ -28,15 +28,29 @@ export function EncabezadoSeccion({
   acciones?: ReactNode;
 }) {
   return (
-    <header className="relative overflow-hidden rounded-xl bg-brand-navy-deep shadow-card">
+    <header className="encabezado-entrada relative overflow-hidden rounded-xl bg-brand-navy-deep shadow-card">
       {/* El resplandor evita que el rectángulo oscuro se lea como un bloque
-          plano. Va detrás del contenido y no intercepta clics. */}
+          plano. Respira muy despacio —14 segundos por ciclo— para que la
+          pantalla se sienta viva sin robarle atención al título. Va detrás del
+          contenido y no intercepta clics. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="encabezado-resplandor pointer-events-none absolute -inset-8"
         style={{
           background:
-            "radial-gradient(120% 140% at 0% 0%, rgb(0 164 124 / 0.22) 0%, rgb(0 164 124 / 0.06) 38%, transparent 70%)",
+            "radial-gradient(120% 140% at 0% 0%, rgb(0 164 124 / 0.26) 0%, rgb(0 164 124 / 0.07) 38%, transparent 70%)",
+        }}
+      />
+      {/* Un segundo resplandor, desde la esquina opuesta y desfasado: dos
+          fuentes de luz dan profundidad donde una sola da un degradado plano. */}
+      <div
+        aria-hidden
+        className="encabezado-resplandor pointer-events-none absolute -inset-8"
+        style={{
+          background:
+            "radial-gradient(90% 120% at 100% 100%, rgb(0 164 124 / 0.14) 0%, transparent 60%)",
+          animationDelay: "-7s",
+          animationDuration: "18s",
         }}
       />
       <div

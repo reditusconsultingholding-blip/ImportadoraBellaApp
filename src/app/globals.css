@@ -226,11 +226,50 @@ tbody tr:hover {
   }
 }
 
-/* Quien pidió menos movimiento no debería recibir dos animaciones infinitas
-   en cada carga. */
+/* El resplandor del encabezado de cada pantalla.
+   Se mueve muy despacio y muy poco: la franja verde ocupa el ancho completo, y
+   un rectángulo plano de ese tamaño se lee como un bloque muerto. Con el
+   resplandor respirando la pantalla se siente viva sin pedir atención — si se
+   nota mientras alguien lee el título, está mal calibrado. */
+@keyframes respirar {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(6%, -4%, 0) scale(1.12);
+    opacity: 1;
+  }
+}
+
+/* La entrada del encabezado: sube cuatro píxeles y aparece. Una sola vez. */
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.encabezado-resplandor {
+  animation: respirar 14s ease-in-out infinite;
+}
+
+.encabezado-entrada {
+  animation: entrar 0.32s ease-out both;
+}
+
+/* Quien pidió menos movimiento no debería recibir animaciones infinitas en
+   cada carga. */
 @media (prefers-reduced-motion: reduce) {
   .animate-\[correr_1\.1s_ease-in-out_infinite\],
-  .animate-\[latir_1\.4s_ease-in-out_infinite\] {
+  .animate-\[latir_1\.4s_ease-in-out_infinite\],
+  .encabezado-resplandor,
+  .encabezado-entrada {
     animation: none;
   }
 }
