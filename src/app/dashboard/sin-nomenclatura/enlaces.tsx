@@ -40,8 +40,13 @@ export default function Enlaces({
   const [error, setError] = useState<string | null>(null);
   const [verTodas, setVerTodas] = useState(false);
 
+  // Las que se pueden aceptar sin mirar: coinciden palabra por palabra Y no
+  // tienen otro producto empatado detrás. La segunda condición es la que
+  // importa — "Ampolla Deep Collagen" coincide perfecto con DEEP COLLAGEN
+  // AMPOULE y con SUNGBOON DEEP COLLAGEN a la vez, y aceptarla en bloque sería
+  // repartir la facturación por sorteo.
   const exactas = useMemo(
-    () => propuestas.filter((p) => p.sugerido != null && p.sugerido.puntaje >= EXACTO),
+    () => propuestas.filter((p) => p.sugerido != null && p.sugerido.puntaje >= EXACTO && !p.dudosa),
     [propuestas],
   );
 
@@ -186,8 +191,9 @@ export default function Enlaces({
                   {exactas.length} {exactas.length === 1 ? "coincide" : "coinciden"} palabra por
                   palabra
                 </strong>{" "}
-                con un producto — {money(exactas.reduce((s, p) => s + p.facturado, 0))} de
-                facturación. Esas se pueden aceptar juntas; las demás conviene mirarlas una por una.
+                con un solo producto — {money(exactas.reduce((s, p) => s + p.facturado, 0))} de
+                facturación. Esas se pueden aceptar juntas. Las que empatan con dos productos
+                quedan afuera a propósito y hay que mirarlas una por una.
               </p>
               <button
                 type="button"
@@ -232,11 +238,23 @@ export default function Enlaces({
                             type="button"
                             onClick={() => aceptar(p, p.sugerido!.id, true)}
                             disabled={guardando === p.nombre || enLote}
-                            className="rounded border border-accent bg-good-bg px-2.5 py-1.5 text-xs font-medium transition hover:bg-surface disabled:opacity-60"
+                            className={`rounded border px-2.5 py-1.5 text-xs font-medium transition hover:bg-surface disabled:opacity-60 ${
+                              p.dudosa
+                                ? "border-warning bg-pending-bg"
+                                : "border-accent bg-good-bg"
+                            }`}
                             title={`Parecido ${(p.sugerido.puntaje * 100).toFixed(0)}%`}
                           >
                             {p.sugerido.code} — {p.sugerido.name}
                           </button>
+                        )}
+                        {/* Con quién empata. Se nombra en vez de decir solo
+                            "dudosa": sin saber contra qué compite, la advertencia
+                            obliga a abrir la lista entera para decidir. */}
+                        {p.dudosa && p.rival && (
+                          <span className="block w-full text-[11px] leading-snug text-warning">
+                            Empata con {p.rival.code} — {p.rival.name}. Mirala antes de aceptar.
+                          </span>
                         )}
                         <select
                           defaultValue=""
