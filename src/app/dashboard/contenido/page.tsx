@@ -8,8 +8,16 @@ import LotesCruzados from "./lotes-cruzados";
 import CalendarioContenido from "./calendario-contenido";
 import GestionCampanas from "./gestion-campanas";
 import PanelRendimiento from "./panel-rendimiento";
+import Requerimientos from "./requerimientos";
 
-const VISTAS = ["calendario", "tablero", "lotes", "campanas", "rendimiento"] as const;
+const VISTAS = [
+  "calendario",
+  "tablero",
+  "requerimientos",
+  "lotes",
+  "campanas",
+  "rendimiento",
+] as const;
 type Vista = (typeof VISTAS)[number];
 function esVista(v: string | undefined): v is Vista {
   return Boolean(v && (VISTAS as readonly string[]).includes(v));
@@ -18,6 +26,9 @@ function esVista(v: string | undefined): v is Vista {
 const TABS: { id: Vista; label: string }[] = [
   { id: "calendario", label: "Calendario" },
   { id: "tablero", label: "Día a día" },
+  // Va después del día a día y antes de los lotes: es el orden en que se
+  // trabaja —qué hay para hoy, qué piezas lo componen, cómo se agrupan—.
+  { id: "requerimientos", label: "Requerimientos" },
   { id: "lotes", label: "Lotes" },
   { id: "campanas", label: "Gestión de campañas" },
   { id: "rendimiento", label: "Rendimiento" },
@@ -47,14 +58,16 @@ export default async function ContenidoPage({
 
   const users = await db.user.findMany({
     where: { organizationId: session.organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
-    select: { id: true, name: true },
+    // `role` lo pide el tipo UserOption que comparten el formulario y la ficha
+    // de requerimientos.
+    select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });
 
-  // Se usa en varias pestañas (tablero, gestión de campañas): una sola
-  // consulta, no una por pestaña.
+  // Se usa en varias pestañas (tablero, requerimientos, gestión de campañas):
+  // una sola consulta, no una por pestaña.
   const products =
-    vista === "tablero" || vista === "campanas"
+    vista === "tablero" || vista === "campanas" || vista === "requerimientos"
       ? await db.product.findMany({
           where: { organizationId: session.organizationId, archived: false },
           select: { id: true, code: true, name: true },
@@ -132,6 +145,13 @@ export default async function ContenidoPage({
         <CalendarioContenido />
       ) : vista === "tablero" ? (
         tablero
+      ) : vista === "requerimientos" ? (
+        <Requerimientos
+          canManage={canManage}
+          currentUserId={session.userId}
+          users={users}
+          products={products}
+        />
       ) : vista === "lotes" ? (
         <LotesCruzados />
       ) : vista === "campanas" ? (
