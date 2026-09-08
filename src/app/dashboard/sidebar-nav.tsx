@@ -230,6 +230,7 @@ export default function SidebarNav({
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
               { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
               { href: "/dashboard/calculadora", label: "Calculadora", icon: "calculadora" },
+              { href: "/dashboard/calculadora/costeo", label: "Costeo y utilidad", icon: "calculadora" },
             ]
           : []),
         ...(showReportes

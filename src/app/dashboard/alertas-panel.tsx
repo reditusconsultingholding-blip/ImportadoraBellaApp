@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Girando } from "./navegar";
 
 type Alerta = {
   tipo: "escalar" | "apagar" | "revisar";
@@ -54,6 +55,35 @@ export default function AlertasPanel() {
   // seguro en vez de sumar montos que nunca llegaron.
   const [verCifras, setVerCifras] = useState(false);
   const [abierto, setAbierto] = useState(false);
+  const [bajando, setBajando] = useState<"quieto" | "generando" | "error">("quieto");
+
+  // Bajar esta misma lista como PDF.
+  //
+  // Con fetch y no con un `<a href>`: el archivo se arma en el servidor y
+  // tarda unos segundos, y con un link normal no pasa nada visible en ese rato
+  // —se termina apretando tres veces y son tres informes.
+  async function descargar() {
+    setBajando("generando");
+    try {
+      const res = await fetch("/api/reportes/revision");
+      if (!res.ok) {
+        setBajando("error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `productos-a-revisar-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setBajando("quieto");
+    } catch {
+      setBajando("error");
+    }
+  }
 
   useEffect(() => {
     let cancelado = false;
@@ -159,11 +189,30 @@ export default function AlertasPanel() {
             );
           })}
 
-          <p className="px-4 py-2 text-[11px] text-muted">
-            Se compara el costo por venta de los últimos 7 días contra el punto de equilibrio real
-            del producto —precio, costo, flete, efectividad y devoluciones—, no contra un umbral
-            estimado.
-          </p>
+          {/* El botón va acá adentro, junto a la lista, y no arriba en la
+              barra: es "bajar ESTO", no una acción suelta del panel. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+            <p className="min-w-[16rem] flex-1 text-[11px] text-muted">
+              Se compara el costo por venta de los últimos 7 días contra el punto de equilibrio real
+              del producto —precio, costo, flete, efectividad y devoluciones—, no contra un umbral
+              estimado.
+            </p>
+            <button
+              type="button"
+              onClick={descargar}
+              disabled={bajando === "generando"}
+              className="flex shrink-0 items-center gap-2 rounded border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2 disabled:opacity-60"
+            >
+              {bajando === "generando" && <Girando />}
+              {bajando === "generando" ? "Generando…" : "Descargar en PDF"}
+            </button>
+          </div>
+
+          {bajando === "error" && (
+            <p className="px-4 pb-2.5 text-[11px] text-critical">
+              No se pudo generar el informe. Volvé a intentarlo en un momento.
+            </p>
+          )}
         </div>
       )}
     </section>
