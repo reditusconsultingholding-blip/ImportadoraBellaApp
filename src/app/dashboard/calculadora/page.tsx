@@ -10,6 +10,7 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { recomendar } from "@/lib/recomendaciones";
 import { economiaDe } from "@/lib/economia";
 import { resolveRange } from "@/lib/date-range";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 export default async function CalculadoraPage() {
   const session = await getSession();
@@ -144,13 +145,13 @@ export default async function CalculadoraPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Calculadora de precios"
+        insignia={<InsigniaEncabezado>Dropshipping Ecuador</InsigniaEncabezado>}
+        descripcion="Calcula el precio de venta sugerido a partir de costos, comisión de pasarela, IVA y el margen que quieres ganar — y mira abajo qué pasa con ese precio una vez que se descuentan los pedidos que no se confirman y los que se devuelven."
+      />
       <div>
-        <h1 className="text-xl font-semibold">Calculadora de precios — dropshipping Ecuador</h1>
-        <p className="text-sm text-muted">
-          Calcula el precio de venta sugerido a partir de costos, comisión de pasarela, IVA y el margen que
-          quieres ganar — y mira abajo qué pasa con ese precio una vez que se descuentan los pedidos que no se
-          confirman y los que se devuelven.
-        </p>
         {catalog.length > 0 && (
           <p className="text-xs text-muted mt-1">
             {catalog.length} productos con precio y costo traídos de Shopify en vivo.

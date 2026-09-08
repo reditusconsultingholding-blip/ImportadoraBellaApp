@@ -55,24 +55,21 @@ function alMoverse(avisar: () => void) {
   };
 }
 
-/** Cuantas veces se abre sola antes de esperar a que la pidan.
+/* Antes había un tope de tres aperturas y después había que pedirla desde el
+ * botón. Se quitó el tope: la bienvenida acompaña hasta que la persona la
+ * TERMINA, y desde ese momento no vuelve a salir sola.
  *
- * Una sola vez es poco: quien entra por primera vez suele estar apurado por
- * ver la herramienta y la cierra sin leerla. Tres da margen para retomarla
- * sin que se vuelva un peaje diario.
- */
-const MAXIMO_APERTURAS = 3;
+ * El freno real es `yaVista`, que se marca al apretar "Terminar" o "Saltarla"
+ * —no al cerrar con la equis—. Quien la interrumpe la retoma en la entrada
+ * siguiente. */
 
 export default function CapacitacionTour({
   pasos,
   yaVista,
-  aperturas,
 }: {
   pasos: PasoCapacitacion[];
   /** Si ya la terminó o la saltó. Entonces no se abre sola nunca más. */
   yaVista: boolean;
-  /** Cuántas veces se le abrió sola hasta ahora. */
-  aperturas: number;
 }) {
   // El globo se dibuja en el <body>, no donde vive este componente.
   //
@@ -94,17 +91,10 @@ export default function CapacitacionTour({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Se abre solo la primera vez. Es el valor inicial del estado y no un
-  // efecto: desde un efecto, el panel se pintaría un cuadro sin el globo y
-  // este aparecería de golpe encima.
-  // Se abre sola solo las primeras veces. Despues hay que pedirla.
-  //
-  // Antes se abria en CADA entrada hasta que apretaran "Terminar" o
-  // "Saltarla": quien la cerraba con la equis para atender algo urgente se la
-  // encontraba de nuevo al dia siguiente, y al otro. Una ayuda que aparece
-  // sin que la pidan y no se va deja de leerse como ayuda.
-  const seAbreSola =
-    !yaVista && pasos.length > 0 && aperturas < MAXIMO_APERTURAS;
+  // Se abre en cada entrada hasta que la terminen. Es el valor inicial del
+  // estado y no un efecto: desde un efecto, el panel se pintaría un cuadro sin
+  // el globo y este aparecería de golpe encima.
+  const seAbreSola = !yaVista && pasos.length > 0;
   const [abierto, setAbierto] = useState(() => seAbreSola);
   const [indice, setIndice] = useState(0);
 

@@ -6,6 +6,7 @@ import { getPanelCeo } from "@/lib/ceo";
 import { veLasCifras } from "@/lib/finanzas";
 import RangePicker from "../range-picker";
 import PanelCeoVista from "./panel-ceo";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -39,23 +40,22 @@ export default async function PanelCeoPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Panel del CEO</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {range.label} · el negocio entero en seis vistas, con los mismos números que ve el
-            equipo.
-          </p>
-        </div>
-        <RangePicker
-          active={range.id}
-          label={range.label}
-          from={isoDay(range.from)}
-          to={isoDay(range.to)}
-          platform="META"
-          basePath="/dashboard/ceo"
-        />
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Dirección"
+        titulo="Estadísticas CEO"
+        insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
+        descripcion="El negocio entero en seis vistas, con los mismos números que ve el equipo."
+        acciones={
+          <RangePicker
+            active={range.id}
+            label={range.label}
+            from={isoDay(range.from)}
+            to={isoDay(range.to)}
+            platform="META"
+            basePath="/dashboard/ceo"
+          />
+        }
+      />
 
       <PanelCeoVista
         data={data}

@@ -6,6 +6,7 @@ import { getSalesOverview } from "@/lib/sales";
 import { getRentabilidad } from "@/lib/rentabilidad";
 import { getPulses } from "@/lib/pulse";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
+import { dailyReportHtml, emailConfigured, reportRecipients, sendEmail } from "@/lib/email";
 import { LIMITE_PESO_PAUTA } from "@/lib/reporte-medidas";
 import {
   barras,
@@ -311,13 +312,45 @@ export async function generateAndStoreDailyReport(organizationId: string, date: 
     });
   }
 
-  // El reporte NO sale por correo.
+  // Y además por correo, si Resend está configurado.
   //
-  // Se saco a pedido del dueno: el dominio nunca se verifico, asi que en la
-  // practica el correo no salio nunca, y mantener el camino vivo solo dejaba
-  // un error recurrente en los registros y la duda de si algo se habia
-  // enviado. El PDF queda guardado y el aviso dentro de la app y el push son
-  // los que avisan.
+  // Esto se había quitado (commit c469ae3) porque el dominio nunca se verificó
+  // y el envío fallaba siempre. Vuelve detrás de `emailConfigured()`: sin
+  // `RESEND_API_KEY` no se intenta nada y no queda ruido en los registros,
+  // igual que antes. Con la clave puesta, sale solo.
+  //
+  // Va DESPUÉS de crear las notificaciones y no reemplaza a ninguna: si Resend
+  // se cae, el aviso dentro de la app ya quedó guardado.
+  if (emailConfigured()) {
+    const destinatarios = await reportRecipients(organizationId);
+    if (destinatarios.length > 0) {
+      const day = dayStart.toISOString().slice(0, 10);
+      const rango = resolveRange("personalizado", day, day);
+      const [ventas, meta, tiktok] = await Promise.all([
+        getSalesOverview(organizationId, rango),
+        getOverview(organizationId, "META", rango),
+        getOverview(organizationId, "TIKTOK", rango),
+      ]);
+
+      const envio = await sendEmail({
+        to: destinatarios,
+        subject: `Reporte del ${dateLabel} · Importadora Bella`,
+        html: dailyReportHtml({
+          date: dayStart,
+          orders: ventas.ordenes,
+          revenue: ventas.totalSales,
+          spend: meta.totalSpend + tiktok.totalSpend,
+          purchases: meta.totalPurchases + tiktok.totalPurchases,
+        }),
+        attachment: { filename: `reporte-${day}.pdf`, content: pdfBuffer },
+      });
+
+      // No se reintenta ni se lanza: el PDF ya está guardado y la notificación
+      // también. Queda anotado para poder diagnosticarlo.
+      if (!envio.ok) console.error("[daily-report] no se pudo enviar el correo:", envio.error);
+    }
+  }
+
   return report;
 }
 

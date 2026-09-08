@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canUseJarvis } from "@/lib/permissions";
 import { listarConversaciones } from "@/lib/jarvis-chats";
 import JarvisChat from "./jarvis-chat";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 export default async function JarvisPage() {
   const session = await getSession();
@@ -17,14 +18,11 @@ export default async function JarvisPage() {
 
   return (
     <div className="flex h-[calc(100vh-160px)] flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold">Jarvis</h1>
-        <p className="text-sm text-muted">
-          Preguntale por el rendimiento de tus campañas. Consulta la base de la empresa para
-          responder, y cualquier acción que proponga queda esperando tu aprobación — nunca se
-          ejecuta sola.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Cuenta"
+        titulo="Jarvis"
+        descripcion="Preguntale por el rendimiento de tus campañas. Consulta la base de la empresa para responder, y cualquier acción que proponga queda esperando tu aprobación — nunca se ejecuta sola."
+      />
       <JarvisChat
         inicial={conversaciones.map((c) => ({
           id: c.id,

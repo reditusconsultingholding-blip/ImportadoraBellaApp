@@ -5,6 +5,7 @@ import { limitesDePeriodos } from "@/lib/notificaciones-orden";
 import { canManagePipeline } from "@/lib/permissions";
 import { notificacionesVisibles, veLasCifras } from "@/lib/finanzas";
 import NotificationCenter from "./notification-center";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 // El período más largo de la pantalla es el mes, así que no tiene sentido
 // traer más viejo que eso. El tope existe igual para no cargar mil filas en
@@ -54,13 +55,11 @@ export default async function NotificacionesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Centro de notificaciones</h1>
-        <p className="text-sm text-muted">
-          Las alertas de Meta, TikTok y Shopify, las acciones por aprobar, los reportes y las menciones, ordenadas
-          por lo que piden, por urgencia y por cuándo pasaron.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Cuenta"
+        titulo="Centro de notificaciones"
+        descripcion="Las alertas de Meta, TikTok y Shopify, las acciones por aprobar, los reportes y las menciones, ordenadas por lo que piden, por urgencia y por cuándo pasaron."
+      />
       <NotificationCenter
         initialNotifications={notificaciones.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() }))}
         limites={limites}

@@ -6,6 +6,7 @@ import { getPatronesClientes } from "@/lib/clientes";
 import { veLasCifras } from "@/lib/finanzas";
 import RangePicker from "../range-picker";
 import TablaClientes from "./tabla-clientes";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -33,22 +34,22 @@ export default async function ClientesPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Clientes</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {range.label} · quiénes compran, quiénes repiten y qué se llevan juntos.
-          </p>
-        </div>
-        <RangePicker
-          active={range.id}
-          label={range.label}
-          from={isoDay(range.from)}
-          to={isoDay(range.to)}
-          platform="META"
-          basePath="/dashboard/clientes"
-        />
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Clientes"
+        insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
+        descripcion="Quiénes compran, quiénes repiten y qué se llevan juntos."
+        acciones={
+          <RangePicker
+            active={range.id}
+            label={range.label}
+            from={isoDay(range.from)}
+            to={isoDay(range.to)}
+            platform="META"
+            basePath="/dashboard/clientes"
+          />
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[

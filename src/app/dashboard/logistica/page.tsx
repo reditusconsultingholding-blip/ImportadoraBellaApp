@@ -4,6 +4,7 @@ import { canAccessPipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { getLogisticsOverview } from "@/lib/logistics";
 import LogisticsTower from "./logistics-tower";
+import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 export default async function LogisticaPage() {
   const session = await getSession();
@@ -17,12 +18,12 @@ export default async function LogisticaPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Torre logística — Ecuador</h1>
-        <p className="text-sm text-muted">
-          Efectividad de entrega por provincia y transportadora.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Números"
+        titulo="Torre logística"
+        insignia={<InsigniaEncabezado>Ecuador</InsigniaEncabezado>}
+        descripcion="Efectividad de entrega por provincia y transportadora."
+      />
       {!data.connected && (
         <div className="bg-surface-2 border border-border rounded p-4 text-sm">
           <p className="font-medium mb-1">Vista previa — módulo a futuro</p>

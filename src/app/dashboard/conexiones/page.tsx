@@ -9,6 +9,7 @@ import DropiCard from "./dropi-card";
 import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
+import { EncabezadoSeccion } from "../encabezado-seccion";
 
 export default async function ConexionesPage() {
   const session = await getSession();
@@ -31,14 +32,11 @@ export default async function ConexionesPage() {
 
   return (
     <div className="flex flex-col gap-8 max-w-2xl">
-      <div>
-        <h1 className="text-xl font-semibold">Conexiones</h1>
-        <p className="text-sm text-muted">
-          Pegá aquí el token de cada cuenta cuando lo tengas. Si tienes varias cuentas
-          publicitarias por red, agrega una tarjeta por cada una. Mientras tanto, el
-          panel sigue mostrando los datos de ejemplo.
-        </p>
-      </div>
+      <EncabezadoSeccion
+        eyebrow="Cuenta"
+        titulo="Conexiones"
+        descripcion="Pegá aquí el token de cada cuenta cuando lo tengas. Si tienes varias cuentas publicitarias por red, agrega una tarjeta por cada una. Mientras tanto, el panel sigue mostrando los datos de ejemplo."
+      />
 
       <div className="flex flex-col gap-4">
         <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
