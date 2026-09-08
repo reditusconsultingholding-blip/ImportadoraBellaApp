@@ -58,8 +58,13 @@ export function EncabezadoSeccion({
         className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-brand-green/70"
       />
 
-      <div className="relative flex flex-col gap-4 px-5 py-5 md:flex-row md:items-end md:justify-between md:px-7 md:py-6">
-        <div className="min-w-0">
+      {/* flex-wrap y no `md:flex-row` a secas: el selector de fechas son once
+          botones, y en una fila rígida aplastaba el bloque del título hasta
+          dejar la fecha en una columna de cuatro renglones. Con wrap, cuando
+          las acciones no entran al lado, bajan enteras a la línea siguiente en
+          vez de estrujar el texto. */}
+      <div className="relative flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-5 py-5 md:px-7 md:py-6">
+        <div className="min-w-[15rem] flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-green">
             {eyebrow}
           </p>
