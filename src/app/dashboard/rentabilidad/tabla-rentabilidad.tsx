@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { FilaRentabilidad, Rentabilidad } from "@/lib/rentabilidad";
+import { semaforoDeFila } from "@/lib/rentabilidad-semaforo";
 
 const money = (n: number | null, dec = 0) =>
   n == null
@@ -59,28 +60,37 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* El resumen del período.
+          Faltaba lo facturado en Shopify: las otras tres cifras salen de las
+          compras que se atribuye la pauta, y sin el número real al lado no hay
+          forma de saber qué tan lejos están. Estaba escrito en el párrafo de
+          abajo, en letra chica, donde nadie lo leía. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Gasto en pauta", valor: money(data.totales.gastoPauta) },
-          { label: "Ingreso estimado", valor: money(data.totales.ingreso) },
-          {
-            label: "Utilidad estimada",
-            valor: money(data.totales.utilidad),
-            tono: data.totales.utilidad >= 0 ? "text-good" : "text-critical",
-          },
-          {
-            label: "Productos que pierden",
-            valor: String(pierden.length),
-            tono: pierden.length > 0 ? "text-critical" : undefined,
-          },
-        ].map((t) => (
-          <div key={t.label} className="rounded border border-border bg-surface p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-              {t.label}
-            </p>
-            <p className={`mt-0.5 text-xl font-semibold tabular-nums ${t.tono ?? ""}`}>{t.valor}</p>
-          </div>
-        ))}
+        <Resumen
+          label="Gasto en pauta"
+          valor={money(data.totales.gastoPauta)}
+          nota="Meta y TikTok en el período"
+        />
+        <Resumen
+          label="Facturado en Shopify"
+          valor={money(data.contraste.facturadoShopify)}
+          nota={`${data.contraste.ordenesShopify.toLocaleString("es-EC")} órdenes reales`}
+        />
+        <Resumen
+          label="Ingreso estimado"
+          valor={money(data.totales.ingreso)}
+          nota={`sobre ${data.totales.comprasAtribuidas.toLocaleString("es-EC")} compras atribuidas`}
+        />
+        <Resumen
+          label="Utilidad estimada"
+          valor={money(data.totales.utilidad)}
+          nota={
+            pierden.length > 0
+              ? `${pierden.length} ${pierden.length === 1 ? "producto pierde" : "productos pierden"} plata`
+              : "tras mercadería, flete y pauta"
+          }
+          tono={data.totales.utilidad >= 0 ? "text-good" : "text-critical"}
+        />
       </div>
 
       {/* De dónde salen estos números y qué tan lejos están de la realidad. */}
@@ -178,6 +188,27 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
   );
 }
 
+/** Una tarjeta del resumen. Mismo aire que las del Panel. */
+function Resumen({
+  label,
+  valor,
+  nota,
+  tono,
+}: {
+  label: string;
+  valor: string;
+  nota?: string;
+  tono?: string;
+}) {
+  return (
+    <div className="rounded border border-border bg-surface p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">{label}</p>
+      <p className={`mt-1 text-xl font-semibold leading-none tabular-nums ${tono ?? ""}`}>{valor}</p>
+      {nota && <p className="mt-1.5 text-[11px] leading-snug text-muted">{nota}</p>}
+    </div>
+  );
+}
+
 function Fila({
   fila: f,
   indice,
@@ -192,9 +223,26 @@ function Fila({
   const pierde = f.utilidad != null && f.utilidad < 0;
   const sobreObjetivo = f.cpa != null && f.cpaBreakeven != null && f.cpa > f.cpaBreakeven;
 
+  // El semáforo de la fila. Tintes muy suaves a propósito: tienen que dejarse
+  // barrer con la vista para encontrar lo que necesita atención, sin que la
+  // tabla se vuelva ilegible ni compita con los números.
+  //
+  // Al abrir la fila gana el gris del detalle: dos fondos de color encimados
+  // hacen perder de vista cuál está abierta.
+  const semaforo = semaforoDeFila(f);
+  const fondo = abierta
+    ? "bg-surface-2"
+    : semaforo === "mal"
+      ? "bg-critical-bg"
+      : semaforo === "medio"
+        ? "bg-pending-bg"
+        : semaforo === "bien"
+          ? "bg-good-bg"
+          : "";
+
   return (
     <>
-      <tr className={`border-b border-border last:border-b-0 hover:bg-surface-2 ${abierta ? "bg-surface-2" : ""}`}>
+      <tr className={`border-b border-border transition-colors last:border-b-0 hover:bg-surface-2 ${fondo}`}>
         <td className="px-3 py-2.5 text-right align-top text-xs tabular-nums text-muted">{indice}</td>
         <td className="px-3 py-2.5">
           <button onClick={onAbrir} className="flex w-full items-center gap-2 text-left">

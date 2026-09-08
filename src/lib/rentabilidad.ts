@@ -41,6 +41,11 @@ export type FilaRentabilidad = {
   cpaObjetivo: number | null;
 };
 
+// El semáforo vive en un módulo sin dependencias de la base, para que la
+// tabla —que corre en el navegador— pueda usarlo. Se reexporta acá para que
+// el resto del servidor lo encuentre donde espera.
+export { semaforoDeFila, type Semaforo } from "@/lib/rentabilidad-semaforo";
+
 export type Rentabilidad = {
   filas: FilaRentabilidad[];
   totales: {

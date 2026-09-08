@@ -10,6 +10,7 @@ import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
+
 export default async function RentabilidadPage({
   searchParams,
 }: {
@@ -47,6 +48,7 @@ export default async function RentabilidadPage({
           />
         }
       />
+
 
       <TablaRentabilidad data={data} />
     </div>
