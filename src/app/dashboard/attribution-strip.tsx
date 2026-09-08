@@ -9,6 +9,8 @@
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
+import { leerCruce, type CompraRepetida } from "@/lib/atribucion";
+
 export default function AttributionStrip({
   ventasReales,
   ordenesReales,
@@ -17,6 +19,7 @@ export default function AttributionStrip({
   periodo,
   desdeElPeriodo,
   ventasDesde,
+  repetida,
 }: {
   ventasReales: number;
   ordenesReales: number;
@@ -27,6 +30,8 @@ export default function AttributionStrip({
   desdeElPeriodo: string;
   /** La orden más vieja que hay guardada, si hay alguna. */
   ventasDesde: string | null;
+  /** Primera compra contra recompra, para poder explicar la diferencia. */
+  repetida: CompraRepetida;
 }) {
   // Si el período pedido empieza antes de la primera orden guardada, la
   // comparación no significa nada: el gasto de pauta estaría completo y las
@@ -44,6 +49,10 @@ export default function AttributionStrip({
   // Órdenes atribuidas contra órdenes reales. Por encima de 1 hay doble conteo
   // — las dos plataformas se cuelgan la misma venta.
   const exceso = ordenesReales > 0 ? atribuidas / ordenesReales : null;
+
+  // La cadena que explica la diferencia: de lo que la pauta no cubre, cuánto
+  // es gente que ya había comprado y cuánto queda realmente sin explicación.
+  const cruce = leerCruce({ ordenesReales, atribuidas, recompra: repetida.recompra });
 
   const columnas = [
     {
@@ -124,6 +133,79 @@ export default function AttributionStrip({
           con las órdenes de Shopify, que son las que se cobran.
         </p>
       )}
+
+      {/* De dónde sale la diferencia.
+          Sin esto, ver "500 órdenes y 380 atribuidas" deja la duda de si se
+          perdieron 120 ventas. La mayoría son clientes que vuelven: no llegaron
+          por un anuncio nuevo y no tienen por qué estar atribuidos. */}
+      {ordenesReales > 0 && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
+            De dónde salen las {ordenesReales.toLocaleString("es-EC")} órdenes
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-stretch gap-2">
+            <Tramo
+              etiqueta="Las explica la pauta"
+              valor={Math.min(atribuidas, ordenesReales)}
+              total={ordenesReales}
+              tono="bg-accent"
+            />
+            <Tramo
+              etiqueta="Clientes que ya habían comprado"
+              valor={cruce.porRecompra}
+              total={ordenesReales}
+              tono="bg-brand-green"
+            />
+            <Tramo
+              etiqueta="Sin explicación"
+              valor={cruce.sinExplicar}
+              total={ordenesReales}
+              tono={cruce.alerta ? "bg-warning" : "bg-border-strong"}
+            />
+          </div>
+
+          <p className={`mt-2.5 text-xs ${cruce.alerta ? "text-warning" : "text-muted"}`}>
+            {cruce.mensaje}
+          </p>
+
+          {repetida.sinIdentificar > 0 && (
+            <p className="mt-1 text-[11px] text-muted">
+              {repetida.sinIdentificar.toLocaleString("es-EC")} órdenes llegaron sin teléfono ni
+              correo, así que de esas no se puede saber si eran clientes nuevos.
+            </p>
+          )}
+        </div>
+      )}
     </section>
+  );
+}
+
+/** Un tramo del desglose: cuántas órdenes y qué parte del total representa. */
+function Tramo({
+  etiqueta,
+  valor,
+  total,
+  tono,
+}: {
+  etiqueta: string;
+  valor: number;
+  total: number;
+  tono: string;
+}) {
+  const pct = total > 0 ? (valor / total) * 100 : 0;
+  return (
+    <div className="min-w-[150px] flex-1">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-base font-semibold tabular-nums">{valor.toLocaleString("es-EC")}</span>
+        <span className="text-[11px] text-muted tabular-nums">{pct.toFixed(0)}%</span>
+      </div>
+      <p className="mt-0.5 text-[11px] leading-tight text-muted">{etiqueta}</p>
+      {/* La barra va debajo del número, no en lugar del número: el dato es
+          cuántas órdenes son, la proporción es el contexto. */}
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2">
+        <div className={`h-full rounded-full ${tono}`} style={{ width: `${Math.max(pct, 1.5)}%` }} />
+      </div>
+    </div>
   );
 }

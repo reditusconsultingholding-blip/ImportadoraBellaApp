@@ -8,6 +8,7 @@ import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
 import { enviarAlertasDiarias } from "@/lib/alertas-diarias";
+import { avisarDescuadre } from "@/lib/atribucion";
 import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 
 // El reloj de la aplicación.
@@ -162,6 +163,17 @@ export async function sincronizarTodo() {
       if (r) resumen.alertas = r;
     } catch (err) {
       resumen.alertas = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // El cruce entre pedidos reales y lo que la pauta se atribuye. Avisa solo
+    // cuando la diferencia, ya descontada la recompra, pasa el umbral: es la
+    // señal de que hay ventas llegando por un camino que nadie está mirando,
+    // o campañas sin la nomenclatura que las conecta con su producto.
+    try {
+      const r = await avisarDescuadre(org.id);
+      if (r) resumen.descuadre = `${r.sinExplicar} órdenes sin explicar`;
+    } catch (err) {
+      resumen.descuadre = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // Y la salud de los productos, una vez por semana. Se apoya en su propia
