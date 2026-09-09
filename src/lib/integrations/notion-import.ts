@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import {
   retrieveDatabase,
   queryDatabase,
+  buscarBasesConTitulo,
   tituloDePagina,
   type NotionDatabaseSchema,
   type NotionPage,
@@ -17,6 +18,19 @@ import { Prisma } from "@/generated/prisma/client";
 // guarda. Se puede correr en modo dry-run (calcula y no escribe) para
 // revisar antes del import real, y es idempotente sobre
 // (organizationId, notionPageId) — correrlo dos veces no duplica nada.
+//
+// CÓMO ORGANIZA SUS TAREAS ESTE EQUIPO
+// No con una base y una columna de fecha, sino con una base NUEVA por día,
+// todas llamadas "CONTENIDO DEL DÍA". Eso obliga a dos cosas que no son
+// obvias: buscar las bases hermanas por título en vez de leer solo la
+// configurada, y sacar la fecha de cada fila de su hora de creación, porque
+// las columnas no la traen.
+
+/** Cuántos días hacia atrás se leen. El trabajo del mes pasado ya no se reparte. */
+const TOPE_BASES = 45;
+
+/** Notion devuelve los ids con y sin guiones según el endpoint. */
+const normalizarId = (id: string) => id.replace(/-/g, "").toLowerCase();
 
 // --- Coerción por tipo de propiedad -----------------------------------------
 
@@ -127,13 +141,25 @@ const CANDIDATOS_TAREAS: Record<CampoObjetivo, string[]> = {
   producto: ["producto", "product"],
   responsable: ["responsable", "encargado", "editor", "asignado"],
   plataforma: ["plataforma", "plataformas", "red"],
-  numeroCreativos: ["nº de creativos", "n° de creativos", "creativos", "numero de creativos", "número de creativos"],
+  // "Número" a secas está en las bases diarias de este equipo y es la cantidad
+  // de creativos de esa fila; sin él la columna entraba siempre en cero.
+  numeroCreativos: [
+    "nº de creativos",
+    "n° de creativos",
+    "creativos",
+    "numero de creativos",
+    "número de creativos",
+    "numero",
+    "número",
+  ],
   estado: ["estado", "status", "situacion", "situación", "etiqueta"],
   etiquetas: ["etiquetas", "tags", "labels"],
   campanaTiktok: ["realizar campañas tiktok", "realizar campanas tiktok", "campañas tiktok", "campanas tiktok"],
   campanaMeta: ["realizar campañas meta", "realizar campanas meta", "campañas meta", "campanas meta"],
   fecha: ["fecha", "dia", "día", "date", "fecha de entrega"],
-  notas: ["notas", "observaciones", "comentarios"],
+  // "PAUTADO" y "OBSERVACIÓN" son las dos formas que tuvo esa columna en las
+  // bases diarias, según el mes.
+  notas: ["notas", "observaciones", "observacion", "observación", "comentarios", "pautado"],
   nombre: [],
   activa: [],
 };
@@ -192,6 +218,8 @@ export type ReporteImport = {
     sinProducto: string[];
     sinResponsable: string[];
     sinFecha: number;
+    /** Cuántas bases diarias se leyeron en esta corrida. */
+    basesLeidas: number;
   };
   campanas: {
     manualCreadas: number;
@@ -232,7 +260,7 @@ export async function importarNotion(
   const token = conexion.token;
 
   const reporte: ReporteImport = {
-    tareas: { creadas: 0, actualizadas: 0, sinProducto: [], sinResponsable: [], sinFecha: 0 },
+    tareas: { creadas: 0, actualizadas: 0, sinProducto: [], sinResponsable: [], sinFecha: 0, basesLeidas: 0 },
     campanas: { manualCreadas: 0, manualActualizadas: 0, vinculadas: 0, sinMatch: 0 },
     columnasNoMapeadas: [],
     muestras: [],
@@ -268,8 +296,23 @@ export async function importarNotion(
     const { mapeo, sinMapear } = resolverMapeo(schema, CANDIDATOS_TAREAS);
     if (sinMapear.length > 0) reporte.columnasNoMapeadas.push({ base: "tareas", columnas: sinMapear });
 
-    const filas = await queryDatabase(token, conexion.tareasDatabaseId);
+    // Todas las bases del mismo nombre, no solo la configurada. Ver la nota de
+    // arriba: acá cada día es una base distinta, y leer una sola es importar
+    // un día y perder los otros noventa.
+    const hermanas = await buscarBasesConTitulo(token, schema.title);
+    const ids = [
+      conexion.tareasDatabaseId,
+      ...hermanas
+        .map((h) => h.id)
+        .filter((id) => normalizarId(id) !== normalizarId(conexion.tareasDatabaseId!)),
+    ].slice(0, TOPE_BASES);
+    reporte.tareas.basesLeidas = ids.length;
+
     const creadas: Prisma.TareaDiariaCreateManyInput[] = [];
+    const filas: NotionPage[] = [];
+    for (const id of ids) {
+      filas.push(...(await queryDatabase(token, id)));
+    }
 
     for (const page of filas) {
       const [producto, responsableTxt, plataforma, estado, notas] = await Promise.all([
@@ -306,7 +349,14 @@ export async function importarNotion(
       }
       if (responsableTexto && !ownerId) reporte.tareas.sinResponsable.push(responsableTexto);
 
-      const fechaVal = propFecha ? fechaDe(propFecha) : null;
+      // La fecha, con respaldo en cuándo se creó la fila.
+      //
+      // Las bases diarias no tienen columna de fecha —la fecha es la base—, así
+      // que sin este respaldo las tareas entraban todas con fecha nula y el
+      // tablero del día quedaba vacío aunque los datos estuvieran importados.
+      const fechaVal =
+        (propFecha ? fechaDe(propFecha) : null) ??
+        (page.created_time ? new Date(page.created_time) : null);
       if (!fechaVal) reporte.tareas.sinFecha += 1;
 
       const numeroCreativos = propCreativos ? (numeroDe(propCreativos, mapeo.numeroCreativos!.tipo) ?? 0) : 0;

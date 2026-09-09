@@ -88,8 +88,61 @@ export type NotionPage = {
   id: string;
   archived: boolean;
   in_trash?: boolean;
+  /**
+   * Cuándo se creó la fila.
+   *
+   * Se usa como fecha de respaldo. Las bases de "CONTENIDO DEL DÍA" no tienen
+   * columna de fecha —la fecha ES la base, una por día— así que sin esto todas
+   * las tareas entraban sin fecha y el tablero diario quedaba vacío.
+   */
+  created_time?: string;
   properties: Record<string, NotionPropertyValue>;
 };
+
+/**
+ * Las bases que la integración puede ver con exactamente este título.
+ *
+ * Existe por cómo trabaja este equipo: no llevan una base de tareas con una
+ * columna de fecha, sino una base NUEVA cada día, todas llamadas igual. Con un
+ * solo id configurado se importaba un día y los otros noventa quedaban afuera.
+ */
+export async function buscarBasesConTitulo(
+  token: string,
+  titulo: string,
+): Promise<{ id: string; titulo: string; editada: string }[]> {
+  const encontradas: { id: string; titulo: string; editada: string }[] = [];
+  const buscado = titulo.trim().toLowerCase();
+  let cursor: string | undefined;
+
+  do {
+    const data = await notionFetch<{
+      results: {
+        id: string;
+        object: string;
+        last_edited_time: string;
+        title?: { plain_text: string }[];
+      }[];
+      has_more: boolean;
+      next_cursor: string | null;
+    }>(token, "/search", {
+      filter: { value: "database", property: "object" },
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    });
+
+    for (const d of data.results) {
+      const t = (d.title ?? []).map((x) => x.plain_text).join("").trim();
+      if (t.toLowerCase() === buscado) {
+        encontradas.push({ id: d.id, titulo: t, editada: d.last_edited_time });
+      }
+    }
+    cursor = data.has_more ? (data.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  // De la más reciente a la más vieja: si hay que cortar por cantidad, que se
+  // corten los días viejos y no los de esta semana.
+  return encontradas.sort((a, b) => b.editada.localeCompare(a.editada));
+}
 
 /** Trae el esquema (columnas y tipos) de una base. */
 export async function retrieveDatabase(token: string, databaseId: string): Promise<NotionDatabaseSchema> {
