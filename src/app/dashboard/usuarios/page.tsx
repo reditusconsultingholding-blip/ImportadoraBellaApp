@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { totpConfigured } from "@/lib/totp";
 import UsersManager from "./users-manager";
 import CapacitacionEquipo from "./capacitacion-equipo";
 import { EncabezadoSeccion } from "../encabezado-seccion";
@@ -51,6 +52,7 @@ export default async function UsuariosPage() {
       <UsersManager
         currentUserId={session.userId}
         canGrantPayroll={Boolean(me?.canViewPayroll)}
+        requiereCodigo={totpConfigured() || Boolean(process.env.USER_CREATION_CODE?.trim())}
         initialUsers={users.map((u) => ({
           id: u.id,
           email: u.email,

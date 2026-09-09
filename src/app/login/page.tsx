@@ -4,7 +4,17 @@ import { useState } from "react";
 import PasswordInput from "@/components/password-input";
 import { useRouter } from "next/navigation";
 
-type Mode = "login" | "register";
+// La pantalla de entrada. Solo entrada.
+//
+// Antes tenía también "Crear cuenta": cualquiera con el código de seis dígitos
+// se hacía una cuenta y quedaba sin rol hasta que un administrador se lo diera.
+// Se sacó por pedido del dueño, y porque el flujo real es el otro: las cuentas
+// las crea la dirección desde Usuarios, con su rol ya puesto, y la persona
+// entra con una clave provisoria que está obligada a cambiar.
+//
+// Que el registro abierto dejara la cuenta sin permisos lo hacía poco
+// peligroso, pero no inofensivo: sumaba gente desconocida a la lista de
+// usuarios de un panel financiero, y el código circulaba por WhatsApp.
 
 const inputClass =
   "w-full border border-border rounded px-3 py-2 bg-surface-2 outline-none focus:border-accent focus:bg-surface";
@@ -12,46 +22,33 @@ const labelClass = "block text-xs font-medium text-muted mb-1";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authCode, setAuthCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  function switchTo(next: Mode) {
-    setMode(next);
-    setError(null);
-    setPassword("");
-    setAuthCode("");
-  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
-    const body =
-      mode === "login" ? { email, password } : { name, email, password, authCode };
-
-    const res = await fetch(endpoint, {
+    const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json().catch(() => ({}));
     setLoading(false);
 
     if (!res.ok) {
-      setError(
-        data.error ?? (mode === "login" ? "No se pudo iniciar sesión." : "No se pudo crear la cuenta.")
-      );
+      setError(data.error ?? "No se pudo iniciar sesión.");
       return;
     }
 
+    // Con una clave provisoria no se llega al panel: se va derecho a elegir una
+    // propia. Es lo que hace que la clave repartida por escrito deje de servir
+    // apenas la persona entra.
     router.push(data.mustChangePassword ? "/cambiar-clave" : "/dashboard");
     router.refresh();
   }
@@ -74,41 +71,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Selector de modo */}
-        <div className="mb-6 inline-flex w-full items-center gap-1 rounded-lg border border-border bg-surface-2 p-1">
-          {(["login", "register"] as Mode[]).map((m) => (
-            <button
-              key={m}
-            type="button"
-              onClick={() => switchTo(m)}
-            className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
-                mode === m
-                  ? "bg-surface text-foreground shadow-[0_1px_2px_0_rgb(26_26_26_/_0.08)]"
-                  : "text-muted hover:text-foreground"
-              }`}
-            >
-              {m === "login" ? "Ingresar" : "Crear cuenta"}
-            </button>
-          ))}
-        </div>
-
         {error && (
           <div className="mb-4 text-sm text-critical bg-critical-bg border border-critical/30 rounded px-3 py-2">
             {error}
           </div>
-        )}
-
-        {mode === "register" && (
-          <label className="block mb-4">
-            <span className={labelClass}>Nombre completo</span>
-            <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="María José Pérez"
-            />
-          </label>
         )}
 
         <label className="block mb-4">
@@ -116,6 +82,7 @@ export default function LoginPage() {
           <input
             type="email"
             required
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
@@ -123,57 +90,33 @@ export default function LoginPage() {
           />
         </label>
 
-        <label className="block mb-4">
+        <label className="block mb-5">
           <span className={labelClass}>Contraseña</span>
           <PasswordInput
             required
-            minLength={mode === "register" ? 8 : undefined}
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={inputClass}
-            placeholder={mode === "register" ? "mínimo 8 caracteres" : "••••••••"}
+            placeholder="••••••••"
           />
         </label>
-
-        {mode === "register" && (
-          <label className="block mb-4">
-            <span className={labelClass}>Código de autorización</span>
-            <PasswordInput
-            required
-            inputMode="numeric"
-            autoComplete="off"
-            value={authCode}
-            onChange={(e) => setAuthCode(e.target.value)}
-            className={inputClass}
-            placeholder="6 dígitos"
-            />
-            <span className="mt-1 block text-xs text-muted">
-              Pedíselo a Fabricio o a Katherine. Cambia cada 30 segundos, así que usalo apenas te lo
-              den.
-            </span>
-          </label>
-        )}
 
         <button
           type="submit"
           disabled={loading}
           className="w-full bg-accent text-white rounded py-2.5 font-medium hover:bg-accent-strong transition disabled:opacity-60"
         >
-          {loading
-            ? mode === "login"
-              ? "Ingresando…"
-              : "Creando…"
-            : mode === "login"
-              ? "Ingresar"
-              : "Crear cuenta"}
+          {loading ? "Ingresando…" : "Ingresar"}
         </button>
 
-        {mode === "register" && (
-          <p className="mt-4 text-xs text-muted leading-relaxed">
-            Tu cuenta queda creada al instante, pero sin acceso al panel hasta que un administrador
-            te asigne tu rol. Le llega el aviso apenas te registrés.
-          </p>
-        )}
+        {/* Dónde se consigue una cuenta, ahora que no se puede crear sola. Sin
+            esta línea, quien no tenga acceso se queda mirando un formulario que
+            no le sirve, sin saber a quién pedirle. */}
+        <p className="mt-5 text-xs leading-relaxed text-muted">
+          Las cuentas las crea la dirección. Si todavía no tenés una, pedíla a Fabricio o a
+          Katherine: te van a dar una clave provisoria que vas a cambiar apenas entres.
+        </p>
       </form>
     </main>
   );

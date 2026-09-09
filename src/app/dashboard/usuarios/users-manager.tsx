@@ -31,11 +31,22 @@ const labelClass = "block text-xs font-medium text-muted mb-1";
 export default function UsersManager({
   currentUserId,
   canGrantPayroll,
+  requiereCodigo,
   initialUsers,
 }: {
   currentUserId: string;
   // Solo quien ya ve la nómina puede dar o quitar ese permiso.
   canGrantPayroll: boolean;
+  /**
+   * Si el alta pide además un código de autorización.
+   *
+   * Se quitó el número fijo que estaba escrito en el código fuente, así que
+   * cuando no hay un secreto rotativo ni USER_CREATION_CODE configurados la
+   * única barrera es ser administrador —y el campo no se dibuja. Pedir un
+   * código que el servidor ya no mira es la forma más rápida de que alguien
+   * crea que la pantalla está rota.
+   */
+  requiereCodigo: boolean;
   initialUsers: UserRow[];
 }) {
   const router = useRouter();
@@ -389,21 +400,29 @@ export default function UsersManager({
               </select>
             </label>
           </div>
-          <label className="block border-t border-border pt-3">
-            <span className={labelClass}>Código de autorización</span>
-            <PasswordInput
-            value={authCode}
-            onChange={(e) => setAuthCode(e.target.value)}
-            required
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="requerido para crear la cuenta"
-            className={inputClass}
-            />
-            <span className="block text-xs text-muted mt-1">
-              Sin este código no se crea la cuenta, aunque alguien llegue a esta pantalla.
-            </span>
-          </label>
+          {requiereCodigo ? (
+            <label className="block border-t border-border pt-3">
+              <span className={labelClass}>Código de autorización</span>
+              <PasswordInput
+                value={authCode}
+                onChange={(e) => setAuthCode(e.target.value)}
+                required
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="requerido para crear la cuenta"
+                className={inputClass}
+              />
+              <span className="block text-xs text-muted mt-1">
+                Sin este código no se crea la cuenta, aunque alguien llegue a esta pantalla.
+              </span>
+            </label>
+          ) : (
+            <p className="border-t border-border pt-3 text-xs leading-relaxed text-muted">
+              La persona va a entrar con la contraseña que le pongas acá y el panel la obliga a
+              elegir una propia en su primera entrada, así que esa clave se puede mandar por escrito
+              sin problema: deja de servir apenas la usa.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
             type="submit"

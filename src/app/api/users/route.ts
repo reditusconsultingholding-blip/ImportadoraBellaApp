@@ -23,7 +23,13 @@ export async function GET() {
     orderBy: { createdAt: "asc" },
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
-  return NextResponse.json({ users });
+  // Si el alta pide además un código, para que el formulario no muestre un
+  // campo obligatorio que el servidor ya no mira — que es la forma más rápida
+  // de que alguien crea que la pantalla está rota.
+  return NextResponse.json({
+    users,
+    requiereCodigo: totpConfigured() || Boolean(process.env.USER_CREATION_CODE?.trim()),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -50,18 +56,23 @@ export async function POST(req: NextRequest) {
   //   2. Un código fijo en USER_CREATION_CODE, para mientras no esté
   //      configurado el secreto rotativo.
   //
-  // El 190300 histórico solo sigue valiendo si NO hay ninguna de las dos cosas
-  // configuradas: así una instalación nueva no queda abierta, pero tampoco
-  // depende para siempre de un número escrito en el código fuente.
+  // El 190300 que estaba escrito acá se quitó por pedido del dueño, y con razón:
+  // un número fijo en el código fuente que además circulaba por WhatsApp no era
+  // un secreto, era un trámite.
+  //
+  // Si no hay ninguna de las dos configuradas, la única barrera es la de arriba
+  // —solo un OWNER llega hasta acá—, que para dar de alta a un compañero de
+  // trabajo es la que corresponde. Un código que no protege nada solo consigue
+  // que la dirección no pueda crear cuentas el día que las necesita.
   const typedCode = authCode?.trim() ?? "";
   const fixedCode = process.env.USER_CREATION_CODE?.trim();
-  const rotatingOk = totpConfigured() && verifyTotpCode(typedCode);
-  const fixedOk = fixedCode
-    ? typedCode === fixedCode
-    : !totpConfigured() && typedCode === "190300";
 
-  if (!rotatingOk && !fixedOk) {
-    return NextResponse.json({ error: "Código de autorización incorrecto." }, { status: 403 });
+  if (totpConfigured() || fixedCode) {
+    const rotatingOk = totpConfigured() && verifyTotpCode(typedCode);
+    const fixedOk = fixedCode != null && typedCode === fixedCode;
+    if (!rotatingOk && !fixedOk) {
+      return NextResponse.json({ error: "Código de autorización incorrecto." }, { status: 403 });
+    }
   }
 
   if (!email?.trim() || !name?.trim() || !password || password.length < 6) {
