@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
-import TableroDia from "./tablero-dia";
+import TableroNotion from "./tablero-notion";
 import LotesCruzados from "./lotes-cruzados";
 import CalendarioContenido from "./calendario-contenido";
 import GestionCampanas from "./gestion-campanas";
@@ -81,27 +81,17 @@ export default async function ContenidoPage({
 
   let tablero: React.ReactNode = null;
   if (vista === "tablero") {
-    const tareas = await db.tareaDiaria.findMany({
-      where: { organizationId: session.organizationId },
-      include: {
-        owner: { select: { id: true, name: true } },
-        product: { select: { id: true, code: true, name: true } },
-        lote: { select: { id: true, numero: true, nomenclatura: true } },
-      },
-      orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
-      take: 400,
-    });
+    // El tablero se trae sus propias filas por la API en vez de recibirlas ya
+    // dibujadas. Es lo que le permite guardar cada celda al salir del campo y
+    // mostrarlo al instante: con las filas fijadas en el HTML del servidor,
+    // ver el propio cambio obligaría a recargar la página, que es justo la
+    // fricción que esta pantalla vino a sacar.
     tablero = (
-      <TableroDia
+      <TableroNotion
         canManage={canManage}
         currentUserId={session.userId}
         users={users}
         products={products}
-        initialTareas={tareas.map((t) => ({
-          ...t,
-          fecha: t.fecha ? t.fecha.toISOString() : null,
-          createdAt: t.createdAt.toISOString(),
-        }))}
       />
     );
   }

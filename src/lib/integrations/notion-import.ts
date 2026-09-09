@@ -32,6 +32,39 @@ const TOPE_BASES = 45;
 /** Notion devuelve los ids con y sin guiones según el endpoint. */
 const normalizarId = (id: string) => id.replace(/-/g, "").toLowerCase();
 
+/**
+ * Los estados de Notion, traídos al vocabulario de la app.
+ *
+ * Sin esto entraban tal cual —"Listo", "Sin empezar"— y quedaban dos idiomas
+ * en la misma columna: los filtros, los colores y el conteo de pendientes
+ * miraban las constantes de la app y no encontraban ninguna de las filas
+ * importadas, que además eran el 100% del tablero.
+ */
+const ESTADO_DESDE_NOTION: Record<string, string> = {
+  "sin empezar": "PENDIENTE",
+  "por hacer": "PENDIENTE",
+  pendiente: "PENDIENTE",
+  "en progreso": "EN_PROGRESO",
+  "en curso": "EN_PROGRESO",
+  haciendo: "EN_PROGRESO",
+  listo: "HECHO",
+  hecho: "HECHO",
+  completado: "HECHO",
+  terminado: "HECHO",
+  "no se cumplio": "NO_CUMPLIDO",
+  "no cumplido": "NO_CUMPLIDO",
+  "por pautar": "POR_PAUTAR",
+};
+
+export function estadoCanonico(texto: string | null): string {
+  if (!texto) return "PENDIENTE";
+  // normalizar() devuelve MAYÚSCULAS —se usa para comparar códigos de
+  // producto—, así que hay que bajarlo antes de buscar en la tabla. Sin este
+  // toLowerCase no coincidía ninguna clave y las 1.103 tareas importadas caían
+  // todas en "PENDIENTE", incluidas las 894 que ya estaban listas.
+  return ESTADO_DESDE_NOTION[normalizar(texto).toLowerCase()] ?? "PENDIENTE";
+}
+
 // --- Coerción por tipo de propiedad -----------------------------------------
 
 function textoPlano(value: NotionPropertyValue, tipo: NotionPropertyType): string | null {
@@ -373,7 +406,7 @@ export async function importarNotion(
         campanaTiktok: propCTiktok ? boolDe(propCTiktok) : false,
         campanaMeta: propCMeta ? boolDe(propCMeta) : false,
         numeroCreativos: Math.max(0, Math.round(numeroCreativos)),
-        estado: estado.texto ?? "PENDIENTE",
+        estado: estadoCanonico(estado.texto),
         etiquetas,
         notas: notas.texto,
         origen: "notion",

@@ -27,10 +27,14 @@ export const ESTADOS_TAREA = [
 ] as const;
 export type EstadoTarea = (typeof ESTADOS_TAREA)[number];
 
+// Las palabras exactas que el equipo ya usa en Notion. No es cosmética: si el
+// tablero dice "Pendiente" donde ellos leen "Sin empezar", cada persona traduce
+// en la cabeza cada vez que mira, y eso es fricción que se paga todos los días
+// a cambio de nada.
 export const ESTADO_TAREA_LABEL: Record<EstadoTarea, string> = {
-  PENDIENTE: "Pendiente",
+  PENDIENTE: "Sin empezar",
   EN_PROGRESO: "En progreso",
-  HECHO: "Hecho",
+  HECHO: "Listo",
   NO_CUMPLIDO: "No se cumplió",
   POR_PAUTAR: "Por pautar",
 };
