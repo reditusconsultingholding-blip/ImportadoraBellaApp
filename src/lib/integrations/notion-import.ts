@@ -521,3 +521,61 @@ export async function importarNotion(
 
   return reporte;
 }
+
+/* -------------------------------------------------------------------------- */
+
+/** Cada cuánto se vuelve a leer Notion. */
+const CADA_MINUTOS = 10;
+
+/**
+ * La sincronización automática, para el reloj.
+ *
+ * El import existía solo como botón: alguien entraba a Contenido, apretaba
+ * "Traer datos de Notion" y listo. En la práctica se apretó una vez. Ocho días
+ * después el tablero del día seguía mostrando la jornada de aquel día, y el
+ * equipo —que sí estaba cargando su trabajo en Notion— concluyó, con razón,
+ * que la herramienta no mostraba lo de hoy.
+ *
+ * Una función que hay que acordarse de ejecutar no es una sincronización.
+ *
+ * Se apoya en SyncState para no leer Notion cada cinco minutos cuando el reloj
+ * pasa: diez minutos es suficiente para que el tablero se sienta al día y no
+ * castiga la cuota de la API.
+ */
+export async function sincronizarNotion(organizationId: string) {
+  const FUENTE = "notion";
+
+  const conexion = await db.notionConnection.findUnique({
+    where: { organizationId },
+    select: { token: true, tareasDatabaseId: true, campanasDatabaseId: true },
+  });
+  // Sin conexión no hay nada que sincronizar, y no es un error: hay
+  // organizaciones que no usan Notion.
+  if (!conexion?.token || (!conexion.tareasDatabaseId && !conexion.campanasDatabaseId)) return null;
+
+  const estado = await db.syncState.findUnique({
+    where: { organizationId_fuente: { organizationId, fuente: FUENTE } },
+    select: { okAt: true },
+  });
+  if (estado?.okAt && Date.now() - estado.okAt.getTime() < CADA_MINUTOS * 60_000) return null;
+
+  const marcar = (detalle: string, error: string | null = null) =>
+    db.syncState.upsert({
+      where: { organizationId_fuente: { organizationId, fuente: FUENTE } },
+      create: { organizationId, fuente: FUENTE, okAt: new Date(), detalle, error },
+      update: { okAt: new Date(), detalle, error },
+    });
+
+  try {
+    const r = await importarNotion(organizationId, { dryRun: false });
+    const detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.basesLeidas} bases`;
+    await marcar(detalle);
+    return detalle;
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    // Se marca el intento igual: sin esto, un token vencido haría que el reloj
+    // reintentara contra Notion cada cinco minutos para siempre.
+    await marcar("falló", mensaje);
+    return `error: ${mensaje}`;
+  }
+}

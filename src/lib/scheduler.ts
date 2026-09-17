@@ -10,6 +10,7 @@ import { enviarReporteSemanal } from "@/lib/weekly-report";
 import { enviarAlertasDiarias } from "@/lib/alertas-diarias";
 import { avisarDescuadre } from "@/lib/atribucion";
 import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
+import { sincronizarNotion } from "@/lib/integrations/notion-import";
 
 // El reloj de la aplicación.
 //
@@ -144,6 +145,20 @@ export async function sincronizarTodo() {
       if (r) resumen.reporte = r;
     } catch (err) {
       resumen.reporte = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Las tareas del equipo, desde Notion.
+    //
+    // Estaba solo como botón en Contenido, y en la práctica se apretó una vez.
+    // Ocho días después el tablero del día seguía mostrando aquella jornada
+    // mientras el equipo cargaba su trabajo en Notion todos los días: para
+    // quien lo miraba, la herramienta "no mostraba lo de hoy". Una función que
+    // hay que acordarse de ejecutar no es una sincronización.
+    try {
+      const r = await sincronizarNotion(org.id);
+      if (r) resumen.notion = r;
+    } catch (err) {
+      resumen.notion = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // El cierre de día del módulo Contenido: qué hizo cada integrante. Se

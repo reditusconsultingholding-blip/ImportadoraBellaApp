@@ -121,8 +121,12 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   const [shippingCost, setShippingCost] = useState("3.5");
   const [operatingCost, setOperatingCost] = useState("2");
   const [adSpend, setAdSpend] = useState("6");
-  const [gatewayFeePct, setGatewayFeePct] = useState("4");
-  const [ivaPct, setIvaPct] = useState("15");
+  // En cero por pedido del dueño: "eso de comisión pasarela e IVA lo podemos
+  // omitir, aquí en Ecuador no lo tenemos". Es venta contraentrega —se cobra
+  // en efectivo al recibir—, así que no hay pasarela que cobre comisión. Los
+  // campos siguen existiendo, plegados, para quien sí los necesite.
+  const [gatewayFeePct, setGatewayFeePct] = useState("0");
+  const [ivaPct, setIvaPct] = useState("0");
   const [mode, setMode] = useState<"margin" | "fixed">("margin");
   const [marginPct, setMarginPct] = useState("25");
   const [fixedProfit, setFixedProfit] = useState("6");
@@ -485,19 +489,34 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               <span className={labelClass}>Publicidad (CPA por checkout)</span>
               <input className={inputClass} type="number" value={adSpend} onChange={(e) => setAdSpend(e.target.value)} />
             </label>
-            <label className="block">
-              <span className={labelClass}>Comisión pasarela (%)</span>
-              <input className={inputClass} type="number" value={gatewayFeePct} onChange={(e) => setGatewayFeePct(e.target.value)} />
-            </label>
-            <label className="block">
-              <span className={labelClass}>IVA (%)</span>
-              <input className={inputClass} type="number" value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} />
-            </label>
           </div>
-          <p className="text-xs text-muted">
-            Comisión de pasarela e IVA vienen con valores típicos de Ecuador (15% IVA, ~4% pasarelas como Datafast /
-            PlacetoPay / PayPhone) — ajustalos a los reales de tu cuenta si son distintos.
-          </p>
+
+          {/* Pasarela e IVA quedan plegados y en cero.
+              En contraentrega se cobra en efectivo al recibir: no hay pasarela
+              que descuente comisión ni IVA retenido en el checkout. Tenerlos
+              arriba con valores por defecto hacía que el precio sugerido
+              saliera más alto que el que de verdad hace falta, sin que nadie
+              lo notara. */}
+          <details className="rounded border border-border bg-surface-2 px-3 py-2">
+            <summary className="cursor-pointer text-xs text-muted">
+              Comisión de pasarela e IVA — apagados
+            </summary>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={labelClass}>Comisión pasarela (%)</span>
+                <input className={inputClass} type="number" value={gatewayFeePct} onChange={(e) => setGatewayFeePct(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className={labelClass}>IVA (%)</span>
+                <input className={inputClass} type="number" value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} />
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              Van en cero porque en contraentrega no aplican: el cliente paga en efectivo al
+              recibir. Si alguna vez vendés con pago en línea, cargá acá el porcentaje real de tu
+              pasarela y del IVA.
+            </p>
+          </details>
 
           <div className="pt-3 border-t border-border flex flex-col gap-3">
             <div>
