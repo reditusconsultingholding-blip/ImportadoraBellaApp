@@ -132,6 +132,22 @@ function multiSelectDe(value: NotionPropertyValue, tipo: NotionPropertyType): st
   return unico ? [unico] : [];
 }
 
+/**
+ * Un instante, llevado a la marca del día ecuatoriano al que pertenece.
+ *
+ * TareaDiaria.fecha es una MARCA DE DÍA a medianoche UTC en todo el módulo de
+ * Contenido: así la comparan el calendario, el resumen del día y el aviso de
+ * pendientes. Al traer la fecha de la hora de creación de la fila en Notion se
+ * guardaba el instante completo, con hora, y eso rompía las tres cosas en
+ * silencio: el calendario agrupaba cada tarea en su propio "día" —y mostraba
+ * "1 tarea" donde había seis— y las consultas que buscan por medianoche exacta
+ * no encontraban ninguna.
+ */
+function marcaDeDiaEc(instante: Date): Date {
+  const local = new Date(instante.getTime() - 5 * 3600_000);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+}
+
 /** Fecha de una propiedad `date` — día ecuatoriano como marca UTC de medianoche. */
 function fechaDe(value: NotionPropertyValue): Date | null {
   const d = value.date as { start: string } | null;
@@ -389,7 +405,7 @@ export async function importarNotion(
       // tablero del día quedaba vacío aunque los datos estuvieran importados.
       const fechaVal =
         (propFecha ? fechaDe(propFecha) : null) ??
-        (page.created_time ? new Date(page.created_time) : null);
+        (page.created_time ? marcaDeDiaEc(new Date(page.created_time)) : null);
       if (!fechaVal) reporte.tareas.sinFecha += 1;
 
       const numeroCreativos = propCreativos ? (numeroDe(propCreativos, mapeo.numeroCreativos!.tipo) ?? 0) : 0;
