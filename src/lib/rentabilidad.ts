@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { calcular, economiaDe } from "@/lib/economia";
 import { ventasRealesPorProducto } from "@/lib/enlace-shopify";
+import { resumenSinProducto } from "@/lib/sin-nomenclatura";
 import type { Range } from "@/lib/date-range";
 
 // Rentabilidad por producto, calculada.
@@ -22,6 +23,14 @@ export type FilaRentabilidad = {
   gastoPauta: number;
   comprasAtribuidas: number;
   cpa: number | null;
+  /**
+   * El CPA del período inmediatamente anterior, del mismo largo.
+   *
+   * Con "Hoy" elegido arriba, es el CPA de ayer. Es la pregunta que se hace
+   * antes de tocar un presupuesto —"¿cuánto me costaba ayer?"— y sin ella un
+   * CPA suelto no dice si viene subiendo o bajando, que es lo que decide.
+   */
+  cpaAnterior: number | null;
 
   /** Con economía cargada; sin ella el resto de la fila es null. */
   tieneEconomia: boolean;
@@ -106,14 +115,59 @@ export type Rentabilidad = {
     vecesAtribuido: number | null;
     /** Qué parte de lo facturado está enlazada a un producto. 0 a 1. */
     coberturaEnlaces: number;
+    /**
+     * Gasto de campañas que no cuelgan de ningún producto, en el mismo período.
+     *
+     * Existe porque `totales.gastoPauta` solo suma lo que se le puede imputar a
+     * un producto, y esa resta era invisible: quien miraba la pantalla veía un
+     * gasto menor que el que reportan Meta y TikTok y no tenía cómo saber por
+     * qué. Sumados, los dos dan el gasto completo del período.
+     */
+    gastoSinAsignar: number;
+    /** Compras que esas campañas se atribuyen y no le suman a ningún producto. */
+    comprasSinAsignar: number;
   };
 };
+
+/**
+ * Gasto y compras por producto en el período anterior, del mismo largo.
+ *
+ * Se resuelve con una agregación propia en vez de traer otra vez el catálogo
+ * con sus campañas: lo único que hace falta son dos sumas por producto, y
+ * bajar los ciento dieciocho productos por segunda vez para eso sería pagar la
+ * consulta cara para responder una barata.
+ */
+async function gastoDelPeriodoAnterior(organizationId: string, range: Range) {
+  const largo = range.to.getTime() - range.from.getTime();
+  const hasta = new Date(range.from.getTime() - 1);
+  const desde = new Date(range.from.getTime() - largo - 1);
+
+  const filas = await db.$queryRaw<{ productId: string; gasto: number; compras: number }[]>`
+    SELECT c."productId"                       AS "productId",
+           coalesce(sum(m.spend), 0)::float8   AS gasto,
+           coalesce(sum(m.purchases), 0)::int  AS compras
+    FROM "MetricSnapshot" m
+    JOIN "Campaign" c  ON c.id = m."campaignId"
+    JOIN "AdAccount" a ON a.id = c."adAccountId"
+    WHERE a."organizationId" = ${organizationId}
+      AND c."productId" IS NOT NULL
+      AND m."capturedAt" >= ${desde}
+      AND m."capturedAt" <= ${hasta}
+    GROUP BY c."productId"
+  `;
+
+  const porProducto = new Map<string, { gasto: number; compras: number }>();
+  for (const f of filas) {
+    porProducto.set(f.productId, { gasto: Number(f.gasto) || 0, compras: Number(f.compras) || 0 });
+  }
+  return porProducto;
+}
 
 export async function getRentabilidad(
   organizationId: string,
   range: Range
 ): Promise<Rentabilidad> {
-  const [productos, ventas, reales] = await Promise.all([
+  const [productos, ventas, reales, sueltas, antes] = await Promise.all([
     db.product.findMany({
       where: { organizationId, archived: false },
       select: {
@@ -148,6 +202,15 @@ export async function getRentabilidad(
     // Lo que la tienda vendió de cada producto, para los que ya están
     // enlazados con su nombre de Shopify.
     ventasRealesPorProducto(organizationId, range),
+    // El gasto que no le cuelga a nadie. Se pide acá para que la pantalla
+    // pueda mostrar el gasto COMPLETO del período —asignado más suelto— en vez
+    // de solo el asignado, que es menor que el de Meta y TikTok y hacía dudar
+    // de toda la tabla.
+    resumenSinProducto(organizationId, range),
+    // El mismo gasto y las mismas compras, pero del período anterior de igual
+    // largo: con "Hoy" arriba, esto es ayer. Va por producto para poder decir
+    // si el costo por venta de cada uno viene subiendo o bajando.
+    gastoDelPeriodoAnterior(organizationId, range),
   ]);
 
   const filas: FilaRentabilidad[] = [];
@@ -171,6 +234,8 @@ export async function getRentabilidad(
     }
 
     const cpa = comprasAtribuidas > 0 ? gastoPauta / comprasAtribuidas : null;
+    const previo = antes.get(p.id);
+    const cpaAnterior = previo && previo.compras > 0 ? previo.gasto / previo.compras : null;
     const economia = economiaDe(p);
 
     if (!economia || p.efectividad == null) {
@@ -181,6 +246,7 @@ export async function getRentabilidad(
         gastoPauta,
         comprasAtribuidas,
         cpa,
+        cpaAnterior,
         tieneEconomia: false,
         economiaDe: p.economiaDe,
         efectividad: p.efectividad,
@@ -259,6 +325,7 @@ export async function getRentabilidad(
       gastoPauta,
       comprasAtribuidas,
       cpa,
+      cpaAnterior,
       tieneEconomia: true,
       economiaDe: p.economiaDe,
       efectividad: p.efectividad,
@@ -319,6 +386,8 @@ export async function getRentabilidad(
         (ventas._sum.netSales ?? 0) > 0
           ? filas.reduce((s, f) => s + (f.real?.facturado ?? 0), 0) / (ventas._sum.netSales ?? 1)
           : 0,
+      gastoSinAsignar: sueltas.gasto,
+      comprasSinAsignar: sueltas.compras,
     },
   };
 }

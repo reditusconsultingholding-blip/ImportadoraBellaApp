@@ -82,10 +82,18 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
           valor={money(data.contraste.facturadoShopify)}
           nota={`${data.contraste.ordenesShopify.toLocaleString("es-EC")} órdenes reales`}
         />
+        {/* El gasto COMPLETO, no solo el que se le pudo imputar a un producto.
+            Mostrar únicamente el asignado daba una cifra menor que la que
+            reportan Meta y TikTok, sin decir por qué, y eso hacía dudar de toda
+            la tabla. */}
         <Resumen
           label="Gasto en pauta"
-          valor={money(data.totales.gastoPauta)}
-          nota="Meta y TikTok en el período"
+          valor={money(data.totales.gastoPauta + data.contraste.gastoSinAsignar)}
+          nota={
+            data.contraste.gastoSinAsignar > 0
+              ? `${money(data.contraste.gastoSinAsignar)} sin asignar a ningún producto`
+              : "Meta y TikTok en el período"
+          }
         />
         <Resumen
           label={hayReal ? "Ingreso cobrado estimado" : "Ingreso estimado"}
@@ -356,6 +364,20 @@ function Fila({
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums">
           <span className={sobreObjetivo ? "text-critical" : undefined}>{money(f.cpa, 2)}</span>
+          {/* Contra el período anterior del mismo largo: con "Hoy" arriba, es
+              contra ayer. Un CPA suelto no dice si viene subiendo o bajando, y
+              eso es lo que decide si se toca el presupuesto. */}
+          {f.cpa != null && f.cpaAnterior != null && f.cpaAnterior > 0 && (
+            <span
+              className={`block text-xs ${
+                f.cpa > f.cpaAnterior ? "text-critical" : "text-good"
+              }`}
+              title={`Período anterior: ${money(f.cpaAnterior, 2)}`}
+            >
+              {f.cpa > f.cpaAnterior ? "▲" : "▼"}{" "}
+              {Math.abs(((f.cpa - f.cpaAnterior) / f.cpaAnterior) * 100).toFixed(0)}% vs. antes
+            </span>
+          )}
           <span className="block text-xs text-muted">
             {f.cpaBreakeven == null ? "—" : `equilibrio ${money(f.cpaBreakeven, 2)}`}
           </span>
