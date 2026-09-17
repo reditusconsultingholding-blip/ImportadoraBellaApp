@@ -1,26 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  avisosDeCosteo,
   calcularCosteo,
   COSTEO_POR_DEFECTO,
-  desdeLaFicha,
   type EntradaCosteo,
+  type ResultadoCosteo,
 } from "@/lib/costeo";
 
-/**
- * La calculadora de costeo y utilidad, en tres pasos y en vertical.
- *
- * Es una columna y no dos a propósito. Con los campos a la izquierda y los
- * resultados a la derecha, el número se mueve MIENTRAS se teclea al lado, y eso
- * hace que nadie lo mire. En vertical se contesta el paso, se baja, y el
- * resultado está esperando.
- *
- * Las cuentas no viven acá: están en `lib/costeo.ts`, que es la misma máquina
- * que usa la calculadora del otro proyecto de la agencia. Acá solo se pregunta
- * y se muestra.
- */
+// La calculadora de costos, en oscuro y en cinco pasos.
+//
+// POR QUÉ ESTE ASPECTO
+// Es una pantalla donde alguien decide si sube o baja el presupuesto de
+// publicidad con plata real. El fondo oscuro y las líneas finas no son
+// decoración: bajan el ruido para que los cuatro números que deciden —utilidad
+// del día, CPA efectivo, ROAS y confirmación de equilibrio— se lean de un
+// vistazo y sin competencia. Todo lo demás está en gris.
+//
+// POR QUÉ SE GUARDA SOLO
+// Porque nadie vuelve a teclear el flete y la tasa de confirmación de un
+// producto cada vez que lo mira, y si tuviera que hacerlo terminaría
+// calculando con valores inventados. Los ajustes son de la organización, no de
+// la persona: si cada uno guardara los suyos, dos personas discutirían sobre el
+// mismo producto con números distintos sin enterarse.
+//
+// SOBRE LAS CUENTAS
+// No hay fórmulas nuevas acá. Todo sale de `lib/costeo.ts`, que es el mismo
+// motor que usa el resto de la app. Lo que esta pantalla agrega es la forma de
+// preguntar —por embudo: checkouts, confirmación, devolución— y la de mostrar.
+
+type ProductoShopify = { id: string; titulo: string; precio: number | null; costo: number | null };
 
 export type FichaCalculadora = {
   code: string;
@@ -33,61 +42,239 @@ export type FichaCalculadora = {
   cpaTarget: number | null;
 };
 
-const money = (n: number) =>
-  Number.isFinite(n)
-    ? n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 })
-    : "—";
+type Valores = {
+  precio: number;
+  costoProducto: number;
+  flete: number;
+  cpa: number;
+  gastoAdm: number;
+  /** Porcentaje de los checkouts que se confirma. */
+  confirmacion: number;
+  /** Porcentaje de lo DESPACHADO que vuelve. Es como lo reporta la transportadora. */
+  devolucion: number;
+  checkouts: number;
+  /** Cuánto se quiere ganar por pedido, en % del precio. Para el CPA ideal. */
+  utilidadDeseada: number;
+};
 
-const money0 = (n: number) =>
-  Number.isFinite(n)
-    ? n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
-    : "—";
+const POR_DEFECTO: Valores = {
+  precio: 24.99,
+  costoProducto: 6,
+  flete: 8.5,
+  cpa: 3,
+  gastoAdm: 4,
+  confirmacion: 70,
+  devolucion: 15,
+  checkouts: 150,
+  utilidadDeseada: 20,
+};
 
-const porcentaje = (n: number, dec = 1) => (Number.isFinite(n) ? `${n.toFixed(dec)}%` : "—");
-const unidades = (n: number) => (Number.isFinite(n) ? n.toFixed(1).replace(/\.0$/, "") : "—");
+/* ------------------------------- Las cuentas ------------------------------ */
 
-/** El semáforo de la regla del 50%: el costo no puede pasar de medio precio. */
-function nivelMargenBruto(pct: number) {
-  if (pct >= 60) return "bien" as const;
-  if (pct >= 50) return "medio" as const;
-  return "mal" as const;
+/**
+ * Del embudo al modelo de costeo.
+ *
+ * La única traducción delicada: acá la devolución se teclea sobre lo
+ * DESPACHADO —así la reporta la transportadora— y el modelo la quiere sobre los
+ * checkouts. Pasarla tal cual inflaría la pérdida de todo producto con
+ * confirmación baja.
+ */
+function aEntrada(v: Valores): EntradaCosteo {
+  return {
+    ...COSTEO_POR_DEFECTO,
+    pvp: v.precio,
+    costoProducto: v.costoProducto,
+    fletePromedio: v.flete,
+    pedidosDia: v.checkouts,
+    pctCancelacion: 100 - v.confirmacion,
+    pctDevolucion: (v.confirmacion / 100) * v.devolucion,
+    cpaActual: v.cpa,
+    gastoAdmPorEntregado: v.gastoAdm,
+    diasMes: 30,
+  };
 }
 
-const TONO = {
-  bien: "text-good",
-  medio: "text-warning",
-  mal: "text-critical",
-} as const;
+type Lectura = {
+  r: ResultadoCosteo;
+  entregadas: number;
+  utilidadDia: number;
+  utilidadPedido: number;
+  inversionAds: number;
+  cpaEfectivo: number;
+  roas: number;
+  cpaBreakeven: number;
+  cpaIdeal: number;
+  /** A qué tasa de confirmación la utilidad del día llega a cero. */
+  confirmacionEquilibrio: number;
+};
 
-/* ------------------------------- Piezas sueltas --------------------------- */
+function leer(v: Valores): Lectura {
+  const r = calcularCosteo(aEntrada(v));
+  const entregadas = r.dia.entregados;
+  const utilidadDia = r.pauta.utilidadConPautaReal;
+  const inversionAds = r.pauta.pautaReal;
+
+  // El CPA por checkout al que cada pedido entregado dejaría exactamente la
+  // utilidad deseada. Sale de despejar, no de tantear.
+  const objetivoPorPedido = (v.utilidadDeseada / 100) * v.precio;
+  const cpaIdeal =
+    v.checkouts > 0
+      ? (r.dia.margenBrutoReal - objetivoPorPedido * entregadas) / v.checkouts
+      : 0;
+
+  return {
+    r,
+    entregadas,
+    utilidadDia,
+    utilidadPedido: entregadas > 0 ? utilidadDia / entregadas : 0,
+    inversionAds,
+    cpaEfectivo: entregadas > 0 ? inversionAds / entregadas : 0,
+    roas: inversionAds > 0 ? r.dia.ingresoEntregado / inversionAds : 0,
+    cpaBreakeven: r.pauta.cpaEquilibrio,
+    cpaIdeal,
+    confirmacionEquilibrio: buscarConfirmacionEquilibrio(v),
+  };
+}
+
+/**
+ * A qué tasa de confirmación se deja de ganar, con todo lo demás igual.
+ *
+ * Por búsqueda binaria y no por despeje: la confirmación entra en el flete
+ * (que se paga sobre lo despachado), en las devoluciones y en los entregados a
+ * la vez, así que la ecuación no se despeja limpio. Treinta pasadas dan una
+ * precisión de milésimas y cuestan nada.
+ */
+function buscarConfirmacionEquilibrio(v: Valores): number {
+  const utilidadCon = (c: number) => calcularCosteo(aEntrada({ ...v, confirmacion: c })).pauta.utilidadConPautaReal;
+  if (utilidadCon(100) <= 0) return 100;
+  if (utilidadCon(0) >= 0) return 0;
+  let bajo = 0;
+  let alto = 100;
+  for (let i = 0; i < 30; i++) {
+    const medio = (bajo + alto) / 2;
+    if (utilidadCon(medio) >= 0) alto = medio;
+    else bajo = medio;
+  }
+  return alto;
+}
+
+/* --------------------------------- Formato -------------------------------- */
+
+const usd = (n: number, dec = 2) =>
+  Number.isFinite(n)
+    ? n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: dec, minimumFractionDigits: dec })
+    : "—";
+const usd0 = (n: number) => usd(n, 0);
+const dec1 = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : "—");
+const pctTxt = (n: number, d = 0) => (Number.isFinite(n) ? `${n.toFixed(d)}%` : "—");
+
+/* ------------------------------ Piezas sueltas ---------------------------- */
+
+function Seccion({
+  n,
+  titulo,
+  nota,
+  children,
+}: {
+  n: number;
+  titulo: string;
+  nota?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-white/10 bg-white/[0.02] p-4 md:p-5">
+      <div className="mb-4 flex items-baseline gap-2.5">
+        <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-brand-green/50 bg-brand-green/15 text-[10px] font-semibold tabular-nums text-brand-green">
+          {n}
+        </span>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+          {titulo}
+        </h2>
+        {nota && <span className="text-[11px] text-white/35">{nota}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 function Campo({
   etiqueta,
+  ayuda,
   valor,
   onChange,
-  sufijo,
-  ayuda,
+  prefijo,
 }: {
   etiqueta: string;
-  valor: number;
-  onChange: (v: string) => void;
-  sufijo?: string;
   ayuda?: string;
+  valor: number;
+  onChange: (v: number) => void;
+  prefijo?: string;
+}) {
+  const [borrador, setBorrador] = useState<string | null>(null);
+  const texto = borrador ?? String(valor).replace(".", ",");
+
+  return (
+    <label className="block">
+      <span className="block text-[11px] leading-tight text-white/55">{etiqueta}</span>
+      {ayuda && <span className="block text-[10px] leading-tight text-white/30">{ayuda}</span>}
+      <span className="mt-1.5 flex items-center rounded border border-white/12 bg-black/25 transition focus-within:border-brand-green/70">
+        {prefijo && <span className="pl-2.5 text-xs text-white/35">{prefijo}</span>}
+        <input
+          inputMode="decimal"
+          value={texto}
+          onChange={(e) => setBorrador(e.target.value)}
+          onBlur={() => {
+            const n = Number((borrador ?? "").replace(",", "."));
+            if (borrador != null && Number.isFinite(n)) onChange(Math.max(0, n));
+            setBorrador(null);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className="w-full bg-transparent px-2.5 py-2 text-[15px] tabular-nums text-white outline-none"
+        />
+      </span>
+    </label>
+  );
+}
+
+function Deslizador({
+  etiqueta,
+  ayuda,
+  valor,
+  onChange,
+  max = 100,
+  sufijo = "%",
+  paso = 1,
+}: {
+  etiqueta: string;
+  ayuda?: string;
+  valor: number;
+  onChange: (v: number) => void;
+  max?: number;
+  sufijo?: string;
+  paso?: number;
 }) {
   return (
     <label className="block">
-      <span className="text-xs text-muted">{etiqueta}</span>
-      <span className="mt-1 flex items-center rounded border border-border bg-surface-2 focus-within:border-accent">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={valor}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-transparent px-2 py-1.5 text-sm outline-none"
-        />
-        {sufijo && <span className="pr-2 text-xs text-muted">{sufijo}</span>}
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] text-white/55">
+          {etiqueta}
+          {ayuda && <span className="ml-1.5 text-[10px] text-white/30">{ayuda}</span>}
+        </span>
+        <span className="text-[13px] font-semibold tabular-nums text-white">
+          {valor.toLocaleString("es-EC")}
+          {sufijo}
+        </span>
       </span>
-      {ayuda && <span className="mt-1 block text-[11px] leading-snug text-muted">{ayuda}</span>}
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={paso}
+        value={valor}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ accentColor: "var(--brand-green)" }}
+        className="mt-2 w-full cursor-pointer"
+      />
     </label>
   );
 }
@@ -96,589 +283,535 @@ function Cifra({
   etiqueta,
   valor,
   nota,
-  tono,
+  tono = "neutro",
   grande,
 }: {
   etiqueta: string;
   valor: string;
   nota?: string;
-  tono?: "bien" | "medio" | "mal";
+  tono?: "neutro" | "bien" | "mal";
   grande?: boolean;
 }) {
+  const color = tono === "bien" ? "text-brand-green" : tono === "mal" ? "text-critical" : "text-white";
   return (
-    <div className="rounded border border-border bg-surface-2 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{etiqueta}</p>
-      <p
-        className={`mt-1 font-semibold ${grande ? "text-[22px]" : "text-[15px]"} ${
-          tono ? TONO[tono] : ""
-        }`}
-      >
+    <div className="rounded border border-white/10 bg-black/20 px-3 py-2.5">
+      <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-white/40">
+        {etiqueta}
+      </p>
+      <p className={`mt-1 font-semibold tabular-nums ${grande ? "text-[26px]" : "text-[19px]"} leading-none ${color}`}>
         {valor}
       </p>
-      {nota && <p className="mt-0.5 text-[11px] leading-snug text-muted">{nota}</p>}
+      {nota && <p className="mt-1.5 text-[10.5px] leading-tight text-white/35">{nota}</p>}
     </div>
-  );
-}
-
-function Paso({
-  numero,
-  titulo,
-  descripcion,
-  children,
-}: {
-  numero: number;
-  titulo: string;
-  descripcion: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-border bg-surface p-5">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
-          {numero}
-        </span>
-        <div>
-          <h2 className="text-sm font-semibold">{titulo}</h2>
-          <p className="mt-0.5 text-xs text-muted">{descripcion}</p>
-        </div>
-      </div>
-      <div className="mt-4 flex flex-col gap-4">{children}</div>
-    </section>
-  );
-}
-
-/** Un bloque oscuro para los tres números que de verdad deciden. */
-function Destacado({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-brand-navy-deep p-4">{children}</div>
   );
 }
 
 /* -------------------------------- La pantalla ----------------------------- */
 
 export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora[] }) {
-  const [v, setV] = useState<EntradaCosteo>(COSTEO_POR_DEFECTO);
-  const [cargado, setCargado] = useState("");
+  const [v, setV] = useState<Valores>(POR_DEFECTO);
+  const [producto, setProducto] = useState("");
   const [avanzado, setAvanzado] = useState(false);
 
-  const r = useMemo(() => calcularCosteo(v), [v]);
-  const avisos = useMemo(() => avisosDeCosteo(v, r), [v, r]);
+  const [catalogo, setCatalogo] = useState<ProductoShopify[]>([]);
+  const [catalogoAl, setCatalogoAl] = useState<string | null>(null);
+  const [catalogoError, setCatalogoError] = useState<string | null>(null);
+  const [refrescando, setRefrescando] = useState(false);
 
-  const set = (clave: keyof EntradaCosteo) => (crudo: string) => {
-    // Se limpia todo lo que no sea número: quien teclea "$39,90" o "39.90"
-    // está escribiendo lo mismo, y rechazárselo por la coma es tratarlo de
-    // torpe cuando el torpe es el campo.
-    const n = Number(crudo.replace(",", ".").replace(/[^\d.-]/g, ""));
-    setV((prev) => ({ ...prev, [clave]: Number.isFinite(n) ? n : 0 }));
-  };
+  const [guardado, setGuardado] = useState<"limpio" | "guardando" | "guardado">("limpio");
+  /** Los ajustes guardados de cada producto, por nombre. */
+  const ajustes = useRef<Record<string, Partial<Valores>>>({});
+  /** Si el producto elegido ya tenía ajustes guardados. En estado y no leyendo
+   * el ref: un ref leído durante el render no vuelve a dibujar cuando cambia,
+   * así que el aviso se quedaba pegado del producto anterior. */
+  const [tieneGuardado, setTieneGuardado] = useState(false);
 
-  function cargarProducto(code: string) {
-    setCargado(code);
-    const f = fichas.find((x) => x.code === code);
-    if (!f) return;
-    setV((prev) => desdeLaFicha(prev, f));
+  const set = (clave: keyof Valores) => (n: number) => setV((p) => ({ ...p, [clave]: n }));
+
+  /* ----------------------------- El catálogo ----------------------------- */
+
+  // Sin tocar `refrescando` acá dentro: esta función se llama desde un efecto
+  // al montar, y un setState en la primera línea de lo que un efecto invoca
+  // dispara un render en cascada. El indicador de "actualizando" lo maneja el
+  // botón, que es el único lugar donde alguien está esperando ver algo.
+  const traerCatalogo = useCallback(async (forzar: boolean) => {
+    try {
+      const res = await fetch(`/api/shopify/catalogo${forzar ? "?refrescar=1" : ""}`);
+      const j = await res.json();
+      if (j.error) {
+        setCatalogoError(j.error);
+      } else {
+        setCatalogoError(null);
+        setCatalogo(j.productos ?? []);
+        setCatalogoAl(j.actualizadoEn ?? null);
+      }
+    } catch {
+      setCatalogoError("No se pudo consultar Shopify.");
+    }
+  }, []);
+
+  async function refrescarAMano() {
+    setRefrescando(true);
+    await traerCatalogo(true);
+    setRefrescando(false);
   }
 
-  const nivel = nivelMargenBruto(r.producto.pctMargenBrutoUnit);
-  const bloqueante = avisos.find((a) => a.nivel === "bloqueante");
-  const entregaHoy = 100 - r.dia.pctTotalPerdida;
+  useEffect(() => {
+    // La primera lectura sale con un temporizador de cero y no como llamada
+    // directa: así el efecto no toca ningún estado de forma síncrona, que es
+    // lo que dispara renders en cascada.
+    const alToque = setTimeout(() => traerCatalogo(false), 0);
+    // Cada dos minutos, para que un producto recién creado en Shopify aparezca
+    // en el selector sin que nadie recargue la página.
+    const cadaDosMinutos = setInterval(() => traerCatalogo(false), 2 * 60 * 1000);
+    return () => {
+      clearTimeout(alToque);
+      clearInterval(cadaDosMinutos);
+    };
+  }, [traerCatalogo]);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/calculadora")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vivo && j?.ajustes) ajustes.current = j.ajustes;
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  /* --------------------------- Guardado automático ----------------------- */
+
+  const guardar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!producto) return;
+    if (guardar.current) clearTimeout(guardar.current);
+    // Medio segundo de espera: mover un deslizador dispara veinte cambios y no
+    // hacen falta veinte escrituras, hace falta la última.
+    guardar.current = setTimeout(() => {
+      setGuardado("guardando");
+      ajustes.current[producto] = v;
+      setTieneGuardado(true);
+      fetch("/api/calculadora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ producto, data: v, parche: true }),
+      })
+        .then(() => setGuardado("guardado"))
+        .catch(() => setGuardado("limpio"));
+    }, 500);
+    return () => {
+      if (guardar.current) clearTimeout(guardar.current);
+    };
+  }, [v, producto]);
+
+  /** Carga un producto: primero lo guardado, y si no hay, lo que diga Shopify. */
+  function elegir(titulo: string) {
+    setProducto(titulo);
+    if (!titulo) return;
+    const delCatalogo = catalogo.find((p) => p.titulo === titulo);
+    const ficha = fichas.find((f) => f.name === titulo);
+    const previo = ajustes.current[titulo];
+    setTieneGuardado(Boolean(previo));
+
+    setV((actual) => ({
+      ...actual,
+      precio: previo?.precio ?? delCatalogo?.precio ?? ficha?.salePrice ?? actual.precio,
+      costoProducto: previo?.costoProducto ?? delCatalogo?.costo ?? ficha?.unitCost ?? actual.costoProducto,
+      flete: previo?.flete ?? ficha?.flete ?? actual.flete,
+      cpa: previo?.cpa ?? (ficha?.cpaTarget && ficha.cpaTarget > 0 ? ficha.cpaTarget : actual.cpa),
+      gastoAdm: previo?.gastoAdm ?? actual.gastoAdm,
+      confirmacion: previo?.confirmacion ?? (ficha?.efectividad != null ? Math.round(ficha.efectividad * 100) : actual.confirmacion),
+      devolucion: previo?.devolucion ?? (ficha?.devoluciones != null ? Math.round(ficha.devoluciones * 100) : actual.devolucion),
+      checkouts: previo?.checkouts ?? actual.checkouts,
+      utilidadDeseada: previo?.utilidadDeseada ?? actual.utilidadDeseada,
+    }));
+  }
+
+  /* ------------------------------ Los números ---------------------------- */
+
+  const l = useMemo(() => leer(v), [v]);
+
+  const escenarios = useMemo(() => {
+    const conPack = { ...v, precio: v.precio * 1.4 };
+    const filas = [
+      { nombre: "Actual", val: v },
+      { nombre: "+ Packs (AOV +40%)", val: conPack },
+      { nombre: "+ Packs, confirmación 50%", val: { ...conPack, confirmacion: 50 } },
+      { nombre: "Solo confirmación 50%", val: { ...v, confirmacion: 50 } },
+    ];
+    return filas.map((f) => {
+      const r = calcularCosteo(aEntrada(f.val));
+      return {
+        nombre: f.nombre,
+        aov: f.val.precio,
+        confirmacion: f.val.confirmacion,
+        entregadas: r.dia.entregados,
+        utilidad: r.pauta.utilidadConPautaReal,
+      };
+    });
+  }, [v]);
+
+  const topeBarra = Math.max(...escenarios.map((e) => Math.abs(e.utilidad)), 1);
+  const rentable = l.utilidadDia > 0;
+  const holgura = v.confirmacion - l.confirmacionEquilibrio;
+
+  const listaProductos = useMemo(() => {
+    // El catálogo de Shopify manda. Se le suman los productos que solo existen
+    // en el panel, para que no desaparezca ninguno mientras la tienda responde.
+    const vistos = new Set(catalogo.map((p) => p.titulo));
+    const soloPanel = fichas.filter((f) => !vistos.has(f.name)).map((f) => f.name);
+    return [...catalogo.map((p) => p.titulo), ...soloPanel].sort((a, b) => a.localeCompare(b, "es"));
+  }, [catalogo, fichas]);
+
+  // La hora de la última revisión sale del propio dato. Antes se calculaba
+  // "hace N segundos" con Date.now() en pleno render, que es impuro: dos
+  // renders seguidos daban textos distintos sin que cambiara ningún estado.
+  const revisadoA = catalogoAl
+    ? new Date(catalogoAl).toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      {avisos.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {avisos.map((a, i) => (
-            <p
-              key={i}
-              className={`rounded border px-3 py-2 text-xs leading-relaxed ${
-                a.nivel === "bloqueante"
-                  ? "border-critical bg-critical-bg text-critical"
-                  : "border-warning bg-pending-bg text-warning"
-              }`}
-            >
-              {a.texto}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {/* Cargar un producto real antes que teclear nada: el caso de fábrica es
-          un ejemplo, y decidir sobre un ejemplo no sirve para nada. */}
-      {fichas.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <label className="block">
-            <span className="text-xs font-medium">Empezá con un producto de la tienda</span>
-            <select
-              value={cargado}
-              onChange={(e) => cargarProducto(e.target.value)}
-              className="mt-1.5 w-full rounded border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
-            >
-              <option value="">Escribir los números a mano</option>
-              {fichas.map((f) => (
-                <option key={f.code} value={f.code}>
-                  {f.code} — {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="mt-2 text-[11px] leading-snug text-muted">
-            Trae precio, costo, flete, efectividad y devoluciones de su ficha. Cambiá lo que quieras
-            probar: nada de lo que toques acá modifica el producto.
-          </p>
-        </div>
-      )}
-
-      {/* ------------------------------ Paso 1 ------------------------------ */}
-      <Paso
-        numero={1}
-        titulo="El producto"
-        descripcion="Cuánto cuesta poner un pedido en la puerta del cliente."
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Campo etiqueta="Precio de venta" valor={v.pvp} onChange={set("pvp")} sufijo="$" />
-          <Campo
-            etiqueta="Costo del producto"
-            valor={v.costoProducto}
-            onChange={set("costoProducto")}
-            sufijo="$"
-          />
-          <Campo
-            etiqueta="Flete de ida"
-            valor={v.fletePromedio}
-            onChange={set("fletePromedio")}
-            sufijo="$"
-            ayuda="Se paga aunque el paquete vuelva."
-          />
-        </div>
-
-        <Destacado>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-green">
-            Margen bruto
-          </p>
-          <p
-            className={`mt-1 text-[28px] font-semibold leading-none ${
-              nivel === "bien"
-                ? "text-good"
-                : nivel === "medio"
-                  ? "text-warning"
-                  : "text-critical"
-            }`}
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-brand-navy-deep text-white">
+      <div className="flex flex-col gap-3 p-4 md:p-5">
+        {/* ------------------------------ 1 ------------------------------- */}
+        <Seccion n={1} titulo="Elige el producto de tu catálogo">
+          <select
+            value={producto}
+            onChange={(e) => elegir(e.target.value)}
+            className="w-full rounded border border-white/12 bg-black/25 px-3 py-2.5 text-[15px] text-white outline-none transition focus:border-brand-green/70"
+            aria-label="Producto"
           >
-            {porcentaje(r.producto.pctMargenBrutoUnit)}
-          </p>
-          <p className="mt-1.5 text-xs text-white/60">
-            {money(r.producto.margenBrutoUnit)} por entrega, antes de publicidad. El costo se lleva{" "}
-            {porcentaje(r.producto.pctCostoSobrePvp, 0)} del precio y el flete{" "}
-            {porcentaje(r.producto.pctFleteSobrePvp, 0)}.
-          </p>
-          <p className="mt-2 text-[11px] leading-snug text-white/45">
-            {nivel === "bien"
-              ? "Por encima del 60%: hay aire para escalar cuando el CPA suba."
-              : nivel === "medio"
-                ? "Entre 50% y 60%: alcanza, pero no aguanta una subida del CPA."
-                : "Por debajo del 50%: el costo se está comiendo más de la mitad del precio."}
-          </p>
-        </Destacado>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Cifra
-            etiqueta="Costo por entrega"
-            valor={money(r.producto.costoUnitarioBase)}
-            nota="Producto + flete"
-          />
-          <Cifra
-            etiqueta="Precio mínimo"
-            valor={money(r.producto.precioMinimo50)}
-            nota="Donde el margen bruto llega al 50%"
-          />
-          <Cifra
-            etiqueta="Precio a publicar"
-            valor={money(r.producto.precioDePublicacion)}
-            nota="El del 60%, en cifra publicable"
-          />
-        </div>
-
-        {/* La escalera es la oferta con la que de verdad se vende: casi ningún
-            anuncio de contraentrega lleva un precio suelto. */}
-        <div>
-          <p className="text-xs font-medium">La escalera de la oferta</p>
-          <p className="mt-0.5 text-[11px] text-muted">
-            El pack puede costar menos por unidad sin regalar margen, porque paga un solo flete.
-          </p>
-          <div className="mt-2 grid gap-3 sm:grid-cols-3">
-            {r.producto.escalera.map((t) => (
-              <div key={t.unidades} className="rounded border border-border bg-surface-2 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-                  {t.unidades === 1 ? "1 unidad" : `${t.unidades} unidades`}
-                </p>
-                <p className="mt-1 text-[17px] font-semibold">{money(t.precio)}</p>
-                <p className="mt-0.5 text-[11px] text-muted">
-                  Margen {porcentaje(t.pctMargen, 0)} · {money(t.margen)}
-                </p>
-                {t.ahorro > 0 && (
-                  <p className="mt-0.5 text-[11px] text-good">
-                    Ahorra {money(t.ahorro)} ({porcentaje(t.pctAhorro, 0)})
-                  </p>
-                )}
-              </div>
+            <option value="">Escribir los números a mano</option>
+            {listaProductos.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
+          </select>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {producto && (
+              <Chip>Precio de venta: {usd(v.precio)}</Chip>
+            )}
+            <Chip>
+              {/* El puntito late mientras el catálogo esté fresco: es la señal
+                  de que la lista se mantiene sola y no hay que recargar. */}
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-brand-green align-middle [animation:respirar_2.4s_ease-in-out_infinite]" />
+              {catalogo.length > 0 ? `${catalogo.length} productos · Shopify en vivo` : "Consultando Shopify…"}
+            </Chip>
+            {producto && tieneGuardado && <Chip>Ajustes guardados</Chip>}
+            {guardado === "guardando" && producto && <Chip tenue>Guardando…</Chip>}
+            {guardado === "guardado" && producto && <Chip tenue>Guardado</Chip>}
+            <button
+              type="button"
+              onClick={refrescarAMano}
+              disabled={refrescando}
+              className="rounded-full border border-white/15 px-3 py-1 text-[11px] text-white/60 transition hover:border-white/40 hover:text-white disabled:opacity-50"
+            >
+              {refrescando ? "Actualizando…" : "Actualizar desde Shopify"}
+            </button>
           </div>
-        </div>
-      </Paso>
 
-      {/* ------------------------------ Paso 2 ------------------------------ */}
-      <Paso
-        numero={2}
-        titulo="La operación"
-        descripcion="Qué pasa cuando los pedidos salen a la calle."
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Campo etiqueta="Pedidos por día" valor={v.pedidosDia} onChange={set("pedidosDia")} />
-          <Campo
-            etiqueta="Cancelación"
-            valor={v.pctCancelacion}
-            onChange={set("pctCancelacion")}
-            sufijo="%"
-            ayuda="Se caen antes de despachar."
-          />
-          <Campo
-            etiqueta="Devolución"
-            valor={v.pctDevolucion}
-            onChange={set("pctDevolucion")}
-            sufijo="%"
-            ayuda="Sobre los pedidos que entran, no sobre los despachados."
-          />
-        </div>
+          <p className="mt-2 text-[10.5px] text-white/30">
+            {catalogoError
+              ? catalogoError
+              : revisadoA != null
+                ? `Lista revisada a las ${revisadoA}. Se revisa sola cada 2 minutos, así que un producto nuevo aparece sin recargar. Todo lo que cambies se guarda solo.`
+                : "Todo lo que cambies se guarda solo y queda para la próxima vez, también desde el celular."}
+          </p>
+        </Seccion>
 
-        <div className="grid gap-3 sm:grid-cols-4">
-          <Cifra etiqueta="Entran" valor={unidades(v.pedidosDia)} nota="pedidos al día" />
-          <Cifra
-            etiqueta="Se despachan"
-            valor={unidades(r.dia.despachados)}
-            nota={`${unidades(r.dia.pedidosCancelados)} se cancelan`}
-          />
-          <Cifra
-            etiqueta="Vuelven"
-            valor={unidades(r.dia.devueltos)}
-            nota={`${money0(r.dia.costoFletesDevueltos)} en fletes`}
-            tono={r.dia.devueltos > 0 ? "mal" : undefined}
-          />
-          <Cifra
-            etiqueta="Se cobran"
-            valor={unidades(r.dia.entregados)}
-            nota={`${porcentaje(entregaHoy, 0)} de entrega`}
-            tono="bien"
-          />
-        </div>
-
-        <Destacado>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-green">
-            Margen real del día
-          </p>
-          <p className="mt-1 text-[28px] font-semibold leading-none text-white">
-            {money(r.dia.margenBrutoReal)}
-          </p>
-          <p className="mt-1.5 text-xs text-white/60">
-            De {money(r.dia.ingresoTotal)} que entran, se cobran {money(r.dia.ingresoEntregado)}. La
-            cancelación se lleva {money(r.dia.perdidaPorCancelacion)} y las devoluciones{" "}
-            {money(r.dia.perdidaPorDevolucion)} de facturación.
-          </p>
-          <p className="mt-2 text-[11px] leading-snug text-white/45">
-            Este es el número del que cuelga todo lo de abajo: es lo que hay para repartir entre
-            publicidad y utilidad.
-          </p>
-        </Destacado>
-      </Paso>
-
-      {/* ------------------------------ Paso 3 ------------------------------ */}
-      <Paso
-        numero={3}
-        titulo="La publicidad"
-        descripcion="Cuánto se puede gastar en anuncios sin quedarse sin utilidad."
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Campo
-            etiqueta="Del margen real a publicidad"
-            valor={v.pctPauta}
-            onChange={set("pctPauta")}
-            sufijo="%"
-            ayuda="35% es la regla; más que eso es techo, no plan."
-          />
-          <Campo
-            etiqueta="CPA que estás pagando hoy"
-            valor={v.cpaActual}
-            onChange={set("cpaActual")}
-            sufijo="$"
-            ayuda="Por pedido generado, como lo reporta la plataforma."
-          />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Cifra
-            etiqueta="Presupuesto del día"
-            valor={money(r.pauta.presupuesto)}
-            nota={`${porcentaje(v.pctPauta, 0)} del margen real`}
-          />
-          <Cifra
-            etiqueta="CPA máximo"
-            valor={money(r.pauta.cpaMaximoPorPedido)}
-            nota="El que se teclea en Meta"
-          />
-          <Cifra
-            etiqueta="CPA de equilibrio"
-            valor={money(r.pauta.cpaEquilibrio)}
-            nota="Pasado de acá, el día pierde"
-            tono={v.cpaActual > r.pauta.cpaEquilibrio ? "mal" : "bien"}
-          />
-        </div>
-
-        <Destacado>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-green">
-            Utilidad del día, con tu CPA de hoy
-          </p>
-          <p
-            className={`mt-1 text-[28px] font-semibold leading-none ${
-              r.pauta.utilidadConPautaReal >= 0 ? "text-good" : "text-critical"
-            }`}
-          >
-            {money(r.pauta.utilidadConPautaReal)}
-          </p>
-          <p className="mt-1.5 text-xs text-white/60">
-            Gastás {money(r.pauta.pautaReal)} al día en anuncios, que es{" "}
-            {porcentaje(r.pauta.pctMargenConsumidoPautaReal, 0)} del margen real. De eso,{" "}
-            {money(r.pauta.pautaQuemadaSinEntrega)} se paga por pedidos que nunca se cobran.
-          </p>
-          <div className="mt-3 grid gap-2 border-t border-white/10 pt-3 sm:grid-cols-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.1em] text-white/40">
-                Costo real por unidad
-              </p>
-              <p className="mt-0.5 text-sm font-semibold text-white">
-                {money(r.unitario.costoTotal)}
-              </p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {/* ----------------------------- 2 ------------------------------ */}
+          <Seccion n={2} titulo="Costos y funnel">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Precio de venta / AOV" valor={v.precio} onChange={set("precio")} prefijo="$" />
+              <Campo etiqueta="Costo de producto" valor={v.costoProducto} onChange={set("costoProducto")} prefijo="$" />
+              <Campo etiqueta="Flete" ayuda="por despacho" valor={v.flete} onChange={set("flete")} prefijo="$" />
+              <Campo etiqueta="CPA de ads" ayuda="por checkout" valor={v.cpa} onChange={set("cpa")} prefijo="$" />
+              <Campo etiqueta="Gasto administrativo" ayuda="por pedido entregado" valor={v.gastoAdm} onChange={set("gastoAdm")} prefijo="$" />
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.1em] text-white/40">
-                Te queda por unidad
-              </p>
-              <p className="mt-0.5 text-sm font-semibold text-white">
-                {money(r.unitario.utilidadPorProducto)}
-              </p>
+
+            <div className="mt-4 flex flex-col gap-4 border-t border-white/8 pt-4">
+              <Deslizador etiqueta="Tasa de confirmación" valor={v.confirmacion} onChange={set("confirmacion")} />
+              <Deslizador
+                etiqueta="Tasa de devolución"
+                ayuda="sobre lo despachado"
+                valor={v.devolucion}
+                onChange={set("devolucion")}
+              />
+              <Deslizador
+                etiqueta="Checkouts / día"
+                ayuda="escala de ads"
+                valor={v.checkouts}
+                onChange={set("checkouts")}
+                max={1000}
+                sufijo=""
+                paso={5}
+              />
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.1em] text-white/40">Margen real</p>
-              <p className="mt-0.5 text-sm font-semibold text-white">
-                {porcentaje(r.unitario.margenUtilidad)}
-              </p>
+          </Seccion>
+
+          {/* ----------------------------- 3 ------------------------------ */}
+          <Seccion n={3} titulo="Resultado por día">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <Cifra
+                etiqueta="Utilidad / día"
+                valor={usd0(l.utilidadDia)}
+                nota={rentable ? "ganas dinero" : "estás perdiendo"}
+                tono={rentable ? "bien" : "mal"}
+              />
+              <Cifra etiqueta="Entregas cobradas / día" valor={dec1(l.entregadas)} nota="ventas reales" />
+              <Cifra
+                etiqueta="Utilidad / pedido"
+                valor={usd(l.utilidadPedido)}
+                nota="por entregado"
+                tono={l.utilidadPedido >= 0 ? "bien" : "mal"}
+              />
+              <Cifra etiqueta="Costo real a venta" valor={usd(l.cpaEfectivo)} nota="CPA efectivo" />
+              <Cifra etiqueta="Inversión ads / día" valor={usd0(l.inversionAds)} nota="presupuesto" />
+              <Cifra
+                etiqueta="ROAS"
+                valor={`${l.roas.toFixed(2)}x`}
+                nota="ingreso ÷ ads"
+                tono={l.roas >= 1 ? "bien" : "mal"}
+              />
             </div>
-          </div>
-          <p className="mt-2 text-[11px] leading-snug text-white/45">
-            El margen real es más bajo que el bruto de arriba porque acá la publicidad —toda, la de
-            los cancelados incluida— está dentro del costo de cada unidad que sí se cobra.
-          </p>
-        </Destacado>
-      </Paso>
 
-      {/* -------------------------------- El mes ---------------------------- */}
-      <section className="rounded-xl border border-border bg-surface p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">El mes</h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Con las mismas cuentas del día, repetidas los días que operás.
-            </p>
-          </div>
-          <div className="w-28">
-            <Campo etiqueta="Días al mes" valor={v.diasMes} onChange={set("diasMes")} />
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Cifra etiqueta="Facturación" valor={money0(r.mes.ingresoEntregado)} nota="lo cobrado" />
-          <Cifra etiqueta="Margen real" valor={money0(r.mes.margenBrutoReal)} />
-          <Cifra
-            etiqueta="Utilidad con tu CPA"
-            valor={money0(r.mes.utilidadConPautaReal)}
-            tono={r.mes.utilidadConPautaReal >= 0 ? "bien" : "mal"}
-            grande
-          />
-        </div>
-
-        <p className="mt-4 text-xs font-medium">Si movés el porcentaje de pauta</p>
-        <div className="mt-2 grid gap-3 sm:grid-cols-3">
-          {r.mes.escenarios.map((e) => (
+            {/* El veredicto en una línea. Es lo que alguien repite en voz alta
+                cuando le preguntan si se puede escalar. */}
             <div
-              key={e.pct}
-              className={`rounded border px-3 py-2.5 ${
-                e.recomendado ? "border-accent bg-good-bg" : "border-border bg-surface-2"
+              className={`mt-3 rounded border px-3 py-2.5 ${
+                rentable ? "border-brand-green/40 bg-brand-green/10" : "border-critical/40 bg-critical/10"
               }`}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-                {e.pct}% a publicidad {e.recomendado && "· la regla"}
+              <span
+                className={`mr-2 inline-block rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] ${
+                  rentable ? "bg-brand-green/25 text-brand-green" : "bg-critical/25 text-critical"
+                }`}
+              >
+                {rentable ? "Rentable" : "En pérdida"}
+              </span>
+              <span className="text-[12.5px] leading-relaxed text-white/80">
+                {rentable ? (
+                  <>
+                    Ganas <strong className="font-semibold text-white">{usd0(l.utilidadDia)}/día</strong>{" "}
+                    (~{usd0(l.utilidadDia * 30)}/mes) con {dec1(l.entregadas)} ventas entregadas.
+                    {holgura >= 10 ? " Acá sí conviene escalar el presupuesto." : " Con poca holgura: subí el presupuesto de a poco."}
+                  </>
+                ) : (
+                  <>
+                    Perdés <strong className="font-semibold text-white">{usd0(Math.abs(l.utilidadDia))}/día</strong>.
+                    Bajá el CPA a menos de {usd(l.cpaBreakeven)} por checkout, o subí la confirmación por encima de{" "}
+                    {pctTxt(l.confirmacionEquilibrio)}.
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* La barra de equilibrio: dónde estás contra dónde tenés que
+                estar. Un número suelto no dice si 70% es mucho o poco. */}
+            <div className="mt-3">
+              <p className="text-[11px] text-white/50">
+                Confirmación de equilibrio ={" "}
+                <strong className="font-semibold text-white">{pctTxt(l.confirmacionEquilibrio)}</strong>{" "}
+                <span className="text-white/35">(tu actual: {pctTxt(v.confirmacion)})</span>
               </p>
-              <p className="mt-1 text-[15px] font-semibold">{money0(e.utilidadOperacional)}</p>
-              <p className="mt-0.5 text-[11px] text-muted">
-                {money0(e.presupuesto)} de pauta · CPA máx {money(e.cpaMaximo)}
+              <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className={`h-full rounded-full ${rentable ? "bg-brand-green" : "bg-critical"}`}
+                  style={{ width: `${Math.min(100, Math.max(1, v.confirmacion))}%` }}
+                />
+                <div
+                  className="absolute inset-y-0 w-[2px] bg-warning"
+                  style={{ left: `${Math.min(100, Math.max(0, l.confirmacionEquilibrio))}%` }}
+                  aria-hidden
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-white/30">
+                <span>0%</span>
+                <span>debes estar a la derecha de la línea amarilla</span>
+                <span>100%</span>
+              </div>
+            </div>
+          </Seccion>
+        </div>
+
+        {/* ------------------------------ 4 ------------------------------- */}
+        <Seccion n={4} titulo="Escenarios para escalar" nota="utilidad diaria">
+          <div className="flex items-end gap-3 overflow-x-auto pb-1">
+            {escenarios.map((e) => {
+              const alto = Math.max(4, (Math.abs(e.utilidad) / topeBarra) * 118);
+              const bueno = e.utilidad >= 0;
+              return (
+                <div key={e.nombre} className="flex min-w-[92px] flex-1 flex-col items-center gap-1.5">
+                  <span className={`text-[11px] font-semibold tabular-nums ${bueno ? "text-brand-green" : "text-critical"}`}>
+                    {usd0(e.utilidad)}
+                  </span>
+                  <div
+                    className={`w-full rounded-t ${bueno ? "bg-brand-green/75" : "bg-critical/70"}`}
+                    style={{ height: `${alto}px` }}
+                  />
+                  <span className="text-center text-[10px] leading-tight text-white/40">{e.nombre}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 overflow-x-auto border-t border-white/8 pt-3">
+            <table className="w-full min-w-[520px] text-[12px]">
+              <thead>
+                <tr className="text-left text-[9.5px] uppercase tracking-[0.1em] text-white/35">
+                  <th className="py-1.5 font-semibold">Escenario</th>
+                  <th className="py-1.5 text-right font-semibold">AOV</th>
+                  <th className="py-1.5 text-right font-semibold">Confirm.</th>
+                  <th className="py-1.5 text-right font-semibold">Entregas/día</th>
+                  <th className="py-1.5 text-right font-semibold">Utilidad/día</th>
+                </tr>
+              </thead>
+              <tbody>
+                {escenarios.map((e) => (
+                  <tr key={e.nombre} className="border-t border-white/6">
+                    <td className="py-1.5 text-white/75">{e.nombre}</td>
+                    <td className="py-1.5 text-right tabular-nums text-white/55">{usd(e.aov)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-white/55">{pctTxt(e.confirmacion)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-white/55">{dec1(e.entregadas)}</td>
+                    <td className={`py-1.5 text-right font-semibold tabular-nums ${e.utilidad >= 0 ? "text-brand-green" : "text-critical"}`}>
+                      {usd0(e.utilidad)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-3 text-[10.5px] leading-relaxed text-white/30">
+            Todos los escenarios mantienen tus {v.checkouts} checkouts/día, flete de {usd(v.flete)}, CPA
+            de {usd(v.cpa)} y administrativo de {usd(v.gastoAdm)}. «Packs» asume subir el precio un 40%
+            sin cambiar el costo unitario — ajustá el precio arriba si tu oferta real es otra.
+          </p>
+        </Seccion>
+
+        {/* ------------------------------ 5 ------------------------------- */}
+        <Seccion n={5} titulo="Tus CPA clave">
+          <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
+            <div>
+              <Campo
+                etiqueta="Utilidad deseada por pedido"
+                ayuda="% del precio de venta"
+                valor={v.utilidadDeseada}
+                onChange={set("utilidadDeseada")}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <Cifra
+                etiqueta="CPA breakeven"
+                valor={usd(l.cpaBreakeven)}
+                nota="pasado de acá, el día pierde"
+                tono={v.cpa <= l.cpaBreakeven ? "bien" : "mal"}
+                grande
+              />
+              <Cifra
+                etiqueta={`CPA ideal (${v.utilidadDeseada.toFixed(0)}%)`}
+                valor={usd(l.cpaIdeal)}
+                nota={`para ganar ${usd(v.precio * (v.utilidadDeseada / 100))} por pedido`}
+                grande
+              />
+              <Cifra
+                etiqueta="Tu CPA actual"
+                valor={usd(v.cpa)}
+                nota={
+                  v.cpa <= l.cpaIdeal
+                    ? "estás mejor que tu meta"
+                    : v.cpa <= l.cpaBreakeven
+                      ? "ganás, pero por debajo de tu meta"
+                      : "por encima del equilibrio"
+                }
+                tono={v.cpa <= l.cpaIdeal ? "bien" : v.cpa <= l.cpaBreakeven ? "neutro" : "mal"}
+                grande
+              />
+            </div>
+          </div>
+        </Seccion>
+
+        {/* --------------------------- Lo fino --------------------------- */}
+        <section className="rounded-lg border border-white/10 bg-white/[0.02]">
+          <button
+            type="button"
+            onClick={() => setAvanzado((x) => !x)}
+            aria-expanded={avanzado}
+            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-white/[0.03] md:px-5"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">
+              Cómo se arma la cuenta
+            </span>
+            <span className="text-[11px] text-white/35">{avanzado ? "Cerrar" : "Ver"}</span>
+          </button>
+
+          {avanzado && (
+            <div className="border-t border-white/8 px-4 py-4 md:px-5">
+              <table className="w-full text-[12px]">
+                <tbody>
+                  {[
+                    ["Checkouts que entran", `${v.checkouts}`],
+                    ["Se confirman y despachan", dec1(l.r.dia.despachados)],
+                    ["Vuelven", dec1(l.r.dia.devueltos)],
+                    ["Se cobran", dec1(l.entregadas)],
+                    ["Ingreso cobrado", usd0(l.r.dia.ingresoEntregado)],
+                    ["− Mercadería", `− ${usd0(l.entregadas * v.costoProducto)}`],
+                    ["− Flete (sobre lo despachado)", `− ${usd0(l.r.dia.despachados * v.flete)}`],
+                    ["− Administrativo", `− ${usd0(l.entregadas * v.gastoAdm)}`],
+                    ["− Publicidad", `− ${usd0(l.inversionAds)}`],
+                  ].map(([k, val]) => (
+                    <tr key={k} className="border-b border-white/6 last:border-b-0">
+                      <td className="py-1.5 text-white/55">{k}</td>
+                      <td className="py-1.5 text-right tabular-nums text-white/80">{val}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-white/15">
+                    <td className="py-2 font-semibold text-white">Utilidad del día</td>
+                    <td className={`py-2 text-right font-semibold tabular-nums ${rentable ? "text-brand-green" : "text-critical"}`}>
+                      {usd0(l.utilidadDia)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="mt-3 text-[10.5px] leading-relaxed text-white/30">
+                El flete se cobra sobre TODO lo despachado, se entregue o se devuelva: es el costo
+                que más se subestima en contraentrega. La devolución que tecleás arriba es sobre lo
+                despachado, que es como la reporta la transportadora.
               </p>
             </div>
-          ))}
-        </div>
+          )}
+        </section>
 
-        {v.gastosFijosMes > 0 && (
-          <p className="mt-3 text-xs text-muted">
-            Después de {money0(v.gastosFijosMes)} de gastos fijos, quedan{" "}
-            <strong
-              className={r.mes.utilidadNeta >= 0 ? "text-good" : "text-critical"}
-            >
-              {money0(r.mes.utilidadNeta)}
-            </strong>
-            .
-          </p>
-        )}
-      </section>
-
-      {/* ------------------------ Equilibrio y caja -------------------------- */}
-      <section className="rounded-xl border border-border bg-surface p-5">
-        <h2 className="text-sm font-semibold">Dónde está el filo</h2>
-        <p className="mt-0.5 text-xs text-muted">
-          Cuánto tiene que salir mal para que este producto deje de ganar.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Cifra
-            etiqueta="Entrega necesaria"
-            valor={porcentaje(r.equilibrio.tasaEntregaEquilibrio, 0)}
-            nota={`Estás entregando ${porcentaje(entregaHoy, 0)}: ${
-              r.equilibrio.holguraEntrega >= 0 ? "te sobran" : "te faltan"
-            } ${Math.abs(r.equilibrio.holguraEntrega).toFixed(0)} puntos`}
-            tono={r.equilibrio.holguraEntrega >= 10 ? "bien" : r.equilibrio.holguraEntrega >= 0 ? "medio" : "mal"}
-          />
-          <Cifra
-            etiqueta="Precio de equilibrio"
-            valor={money(r.equilibrio.pvpEquilibrioCpaReal)}
-            nota={`Con el CPA de hoy. Vendés a ${money(v.pvp)}`}
-            tono={v.pvp > r.equilibrio.pvpEquilibrioCpaReal ? "bien" : "mal"}
-          />
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Cifra
-            etiqueta="Sale del bolsillo cada día"
-            valor={money0(r.caja.desembolsoDiario)}
-            nota="Pauta, mercancía y fletes"
-          />
-          <Cifra
-            etiqueta="Capital de trabajo"
-            valor={money0(r.caja.capitalTrabajoRequerido)}
-            nota={`Lo que hay que sostener hasta que la transportadora consigne, a ${v.diasCartera} días`}
-          />
-        </div>
-        <p className="mt-3 text-[11px] leading-snug text-muted">
-          En contraentrega casi nadie quiebra por margen: quiebra por caja. La publicidad se paga
-          hoy, la mercancía se pagó antes y el recaudo llega dos semanas después.
-        </p>
-      </section>
-
-      {/* ------------------------- Ajustes avanzados ------------------------ */}
-      <section className="rounded-xl border border-border bg-surface">
         <button
           type="button"
-          onClick={() => setAvanzado((x) => !x)}
-          aria-expanded={avanzado}
-          className="flex w-full items-center justify-between px-5 py-3.5 text-left transition hover:bg-surface-2"
+          onClick={() => {
+            setV(POR_DEFECTO);
+            setProducto("");
+          }}
+          className="self-start text-[11px] text-white/35 underline transition hover:text-white/70"
         >
-          <span>
-            <span className="block text-sm font-semibold">Costos que casi nadie cuenta</span>
-            <span className="mt-0.5 block text-xs text-muted">
-              Empiezan en cero para que el resultado se pueda comparar con cualquier otra
-              calculadora. Encendé los que conozcas.
-            </span>
-          </span>
-          <span className="ml-3 shrink-0 text-xs text-muted">{avanzado ? "Cerrar" : "Abrir"}</span>
+          Volver a empezar
         </button>
-
-        {avanzado && (
-          <div className="grid gap-3 border-t border-border p-5 sm:grid-cols-2">
-            <Campo
-              etiqueta="Flete de retorno"
-              valor={v.fleteRetornoDevolucion}
-              onChange={set("fleteRetornoDevolucion")}
-              sufijo="$"
-              ayuda="Lo que cobra la transportadora por devolverte el paquete."
-            />
-            <Campo
-              etiqueta="Mercancía que vuelve vendible"
-              valor={v.pctRecuperacionMercancia}
-              onChange={set("pctRecuperacionMercancia")}
-              sufijo="%"
-              ayuda="100% = todo lo devuelto se puede volver a vender."
-            />
-            <Campo
-              etiqueta="Comisión de recaudo"
-              valor={v.pctComisionRecaudo}
-              onChange={set("pctComisionRecaudo")}
-              sufijo="%"
-              ayuda="Sobre lo entregado."
-            />
-            <Campo
-              etiqueta="Empaque por despacho"
-              valor={v.costoEmpaquePorDespacho}
-              onChange={set("costoEmpaquePorDespacho")}
-              sufijo="$"
-            />
-            <Campo
-              etiqueta="Confirmación por pedido"
-              valor={v.costoConfirmacionPorPedido}
-              onChange={set("costoConfirmacionPorPedido")}
-              sufijo="$"
-              ayuda="La llamada o el WhatsApp, por pedido que entra."
-            />
-            <Campo
-              etiqueta="Gastos fijos del mes"
-              valor={v.gastosFijosMes}
-              onChange={set("gastosFijosMes")}
-              sufijo="$"
-              ayuda="Nómina, arriendo, plataformas."
-            />
-            <Campo
-              etiqueta="Días de cartera"
-              valor={v.diasCartera}
-              onChange={set("diasCartera")}
-              ayuda="Lo que tarda la transportadora en consignarte."
-            />
-          </div>
-        )}
-      </section>
-
-      {/* La prueba del modelo, dicha en voz alta.
-
-          Las dos fórmulas —margen real menos pauta, y entregados por utilidad
-          unitaria menos fletes devueltos— tienen que dar lo mismo. Mostrarlo
-          cuando NO cuadra es lo único que separa un error de cálculo de un
-          número que alguien se lleva a una reunión. */}
-      {Math.abs(r.unitario.utilidadDiaControlCruzado - r.pauta.utilidadOperacional) > 0.01 && (
-        <p className="rounded border border-critical bg-critical-bg px-3 py-2 text-xs text-critical">
-          Los dos caminos de la utilidad del día no coinciden ({money(r.unitario.utilidadDiaControlCruzado)}{" "}
-          contra {money(r.pauta.utilidadOperacional)}). Es un error del cálculo, no de tus datos: no
-          tomes decisiones con esta pantalla y avisá.
-        </p>
-      )}
-
-      {bloqueante && (
-        <p className="text-xs text-muted">
-          Mientras el aviso de arriba siga, los números de esta pantalla describen un negocio
-          imposible.
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={() => {
-          setV(COSTEO_POR_DEFECTO);
-          setCargado("");
-        }}
-        className="self-start text-xs text-muted underline transition hover:text-foreground"
-      >
-        Volver a empezar
-      </button>
+      </div>
     </div>
+  );
+}
+
+function Chip({ children, tenue }: { children: React.ReactNode; tenue?: boolean }) {
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-[11px] ${
+        tenue ? "border-white/8 text-white/35" : "border-white/15 text-white/60"
+      }`}
+    >
+      {children}
+    </span>
   );
 }

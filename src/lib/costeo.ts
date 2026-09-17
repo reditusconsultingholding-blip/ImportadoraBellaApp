@@ -93,6 +93,16 @@ export type EntradaCosteo = {
   pctComisionRecaudo: number;
   /** Empaque y etiqueta, por pedido despachado. */
   costoEmpaquePorDespacho: number;
+  /**
+   * Gasto administrativo repartido por pedido ENTREGADO.
+   *
+   * Es el mismo campo que el equipo lleva en su planilla: lo que cuesta
+   * sostener la operación —atención, confirmación, oficina— dividido entre los
+   * pedidos que se llegan a cobrar. Va por entregado y no por despachado
+   * porque es un prorrateo de gasto fijo, no un costo que se dispare al
+   * despachar.
+   */
+  gastoAdmPorEntregado: number;
   /** La llamada o el WhatsApp de confirmación, por pedido GENERADO. */
   costoConfirmacionPorPedido: number;
   /** Nómina, arriendo, plataformas. Al mes. */
@@ -117,6 +127,7 @@ export const COSTEO_POR_DEFECTO: EntradaCosteo = {
   pctRecuperacionMercancia: 100,
   pctComisionRecaudo: 0,
   costoEmpaquePorDespacho: 0,
+  gastoAdmPorEntregado: 0,
   costoConfirmacionPorPedido: 0,
   gastosFijosMes: 0,
   diasCartera: 12,
@@ -422,7 +433,8 @@ export function calcularCosteo(entrada: EntradaCosteo): ResultadoCosteo {
   const costosOperativos =
     entregados * pvp * pct(entrada.pctComisionRecaudo) +
     despachados * positivo(entrada.costoEmpaquePorDespacho) +
-    pedidos * positivo(entrada.costoConfirmacionPorPedido);
+    pedidos * positivo(entrada.costoConfirmacionPorPedido) +
+    entregados * positivo(entrada.gastoAdmPorEntregado);
 
   const margenBrutoEntregados = entregados * margenBrutoUnit;
   const margenBrutoReal =
