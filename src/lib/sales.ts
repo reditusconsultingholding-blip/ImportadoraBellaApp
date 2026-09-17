@@ -101,10 +101,43 @@ export async function getSalesOverview(
   const largo = finPeriodo.getTime() - todayStart.getTime();
   const yesterdayStart = new Date(todayStart.getTime() - largo - 1);
 
+  // Solo las columnas que se usan, y sin las líneas de pedido.
+  //
+  // Antes esto traía la orden entera con las líneas colgando. En treinta días
+  // son veintiocho mil órdenes —el período y el anterior— con treinta y tres
+  // mil líneas, y todo eso viajaba a Node para terminar en seis nombres de
+  // producto. Era la consulta más lenta de la aplicación y bloqueaba el Panel
+  // entero mientras cargaba.
   const orders = await db.shopifyOrder.findMany({
     where: { storeId: store.id, occurredAt: { gte: yesterdayStart, lte: finPeriodo } },
-    include: { lineItems: true },
+    select: {
+      occurredAt: true,
+      grossSales: true,
+      discounts: true,
+      shipping: true,
+      taxes: true,
+      netSales: true,
+      channel: true,
+    },
   });
+
+  // Los seis productos que más facturaron salen de una agregación en la base,
+  // y solo del período actual: el anterior no se muestra en ese bloque.
+  const productoFilas = await db.$queryRaw<
+    { nombre: string; categoria: string | null; valor: number }[]
+  >`
+    SELECT li."productName"                    AS nombre,
+           max(li.category)                    AS categoria,
+           coalesce(sum(li.amount), 0)::float8 AS valor
+    FROM "ShopifyOrderLineItem" li
+    JOIN "ShopifyOrder" o ON o.id = li."orderId"
+    WHERE o."storeId" = ${store.id}
+      AND o."occurredAt" >= ${todayStart}
+      AND o."occurredAt" <= ${finPeriodo}
+    GROUP BY li."productName"
+    ORDER BY valor DESC
+    LIMIT 6
+  `;
 
   const masVieja = await db.shopifyOrder.findFirst({
     where: { storeId: store.id },
@@ -154,18 +187,12 @@ export async function getSalesOverview(
     channelTotals.set(o.channel, entry);
   }
 
-  const productTotals = new Map<string, { value: number; category: string }>();
-  for (const o of todayOrders) {
-    for (const li of o.lineItems) {
-      const entry = productTotals.get(li.productName) ?? { value: 0, category: li.category ?? "" };
-      entry.value += li.amount;
-      productTotals.set(li.productName, entry);
-    }
-  }
-  const topProducts = Array.from(productTotals.entries())
-    .map(([name, v]) => ({ name, category: v.category, value: v.value, changePct: 0 }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
+  const topProducts = productoFilas.map((f) => ({
+    name: f.nombre,
+    category: f.categoria ?? "",
+    value: Number(f.valor) || 0,
+    changePct: 0,
+  }));
   const topValue = topProducts[0]?.value || 1;
 
   return {

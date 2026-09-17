@@ -8,6 +8,8 @@ import ShopifyCard from "./shopify-card";
 import DropiCard from "./dropi-card";
 import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
+import CorreoCard from "./correo-card";
+import { emailConfigured } from "@/lib/email";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
@@ -108,6 +110,17 @@ export default async function ConexionesPage() {
                   }
                 : null
             }
+          />
+        </CollapsibleSection>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Correo saliente</h2>
+
+        <CollapsibleSection title="Resend" count={emailConfigured() ? 1 : 0}>
+          <CorreoCard
+            configurado={emailConfigured()}
+            dominio={process.env.EMAIL_FROM_DOMAIN?.trim() || null}
           />
         </CollapsibleSection>
       </div>
