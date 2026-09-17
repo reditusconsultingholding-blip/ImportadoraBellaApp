@@ -31,6 +31,8 @@ export type FilaRentabilidad = {
    * CPA suelto no dice si viene subiendo o bajando, que es lo que decide.
    */
   cpaAnterior: number | null;
+  /** Si al menos una de sus campañas está encendida en Meta o TikTok. */
+  enMarcha: boolean;
 
   /** Con economía cargada; sin ella el resto de la fila es null. */
   tieneEconomia: boolean;
@@ -183,6 +185,7 @@ export async function getRentabilidad(
         economiaDe: true,
         campaigns: {
           select: {
+            status: true,
             metrics: {
               where: { capturedAt: { gte: range.from, lte: range.to } },
               select: { spend: true, purchases: true },
@@ -218,7 +221,11 @@ export async function getRentabilidad(
   for (const p of productos) {
     let gastoPauta = 0;
     let comprasAtribuidas = 0;
+    // Basta con que UNA campaña esté encendida para que el producto cuente
+    // como en marcha: apagar una de ocho no lo saca de la pauta.
+    let enMarcha = false;
     for (const c of p.campaigns) {
+      if (c.status === "ACTIVE") enMarcha = true;
       for (const m of c.metrics) {
         gastoPauta += m.spend;
         comprasAtribuidas += m.purchases;
@@ -247,6 +254,7 @@ export async function getRentabilidad(
         comprasAtribuidas,
         cpa,
         cpaAnterior,
+        enMarcha,
         tieneEconomia: false,
         economiaDe: p.economiaDe,
         efectividad: p.efectividad,
@@ -326,6 +334,7 @@ export async function getRentabilidad(
       comprasAtribuidas,
       cpa,
       cpaAnterior,
+      enMarcha,
       tieneEconomia: true,
       economiaDe: p.economiaDe,
       efectividad: p.efectividad,

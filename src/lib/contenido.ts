@@ -107,10 +107,32 @@ export type EventoContenido = {
   href: string;
 };
 
+/** Una tarea del día, como etiqueta para el calendario. */
+export type EtiquetaDia = {
+  id: string;
+  texto: string;
+  estado: string;
+  responsable: string | null;
+};
+
 export type CalendarioContenido = {
   eventos: EventoContenido[];
   /** Cuántas tareas del tablero día a día caen cada día del mes. */
   tareasPorDia: Record<string, number>;
+  /**
+   * Las tareas de cada día, como etiquetas.
+   *
+   * Antes el calendario traía solo el CONTEO por día, y un número no dice
+   * nada: un "7" no deja ver si el trabajo de mañana está repartido ni de qué
+   * producto es. Se pidió verlo como en Notion —las etiquetas dentro del día—
+   * y para eso hace falta la lista, no la suma.
+   *
+   * Se recortan a seis por día en el servidor: un día con cuarenta tareas
+   * rompería la celda, y nadie lee cuarenta etiquetas de un vistazo. El conteo
+   * completo sigue estando, así que la celda puede decir cuántas quedaron
+   * fuera.
+   */
+  etiquetasPorDia: Record<string, EtiquetaDia[]>;
 };
 
 export async function calendarioContenido(
@@ -121,7 +143,7 @@ export async function calendarioContenido(
   const desde = new Date(Date.UTC(anio, mes - 1, 1));
   const hasta = new Date(Date.UTC(anio, mes, 1)); // exclusivo
 
-  const [lotes, tareas] = await Promise.all([
+  const [lotes, tareas, detalle] = await Promise.all([
     db.ronda.findMany({
       where: { organizationId, fechaEntrega: { gte: desde, lt: hasta } },
       orderBy: { fechaEntrega: "asc" },
@@ -139,6 +161,20 @@ export async function calendarioContenido(
       by: ["fecha"],
       where: { organizationId, fecha: { gte: desde, lt: hasta } },
       _count: { _all: true },
+    }),
+    // Las tareas en sí, para poder pintarlas como etiquetas dentro del día.
+    db.tareaDiaria.findMany({
+      where: { organizationId, fecha: { gte: desde, lt: hasta } },
+      orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        fecha: true,
+        estado: true,
+        productoTexto: true,
+        product: { select: { name: true } },
+        owner: { select: { name: true } },
+        responsableTexto: true,
+      },
     }),
   ]);
 
@@ -160,7 +196,25 @@ export async function calendarioContenido(
     tareasPorDia[t.fecha.toISOString().slice(0, 10)] = t._count._all;
   }
 
-  return { eventos, tareasPorDia };
+  // Seis por día: más que eso no se lee y rompe la celda. El conteo total
+  // sigue completo, así que la celda puede decir cuántas quedaron fuera.
+  const etiquetasPorDia: Record<string, EtiquetaDia[]> = {};
+  for (const t of detalle) {
+    if (!t.fecha) continue;
+    const clave = t.fecha.toISOString().slice(0, 10);
+    const lista = etiquetasPorDia[clave] ?? [];
+    if (lista.length < 6) {
+      lista.push({
+        id: t.id,
+        texto: t.product?.name ?? t.productoTexto ?? "Sin producto",
+        estado: t.estado,
+        responsable: t.owner?.name ?? t.responsableTexto ?? null,
+      });
+    }
+    etiquetasPorDia[clave] = lista;
+  }
+
+  return { eventos, tareasPorDia, etiquetasPorDia };
 }
 
 // --- Rendimiento por integrante --------------------------------------------

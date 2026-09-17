@@ -45,16 +45,24 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [abierta, setAbierta] = useState<string | null>(null);
 
+  // Los mismos dos recortes del Panel, acá también: se pidió poder filtrar por
+  // activos y por los que recibieron gasto "en cualquier visualización de
+  // productos", no solo en una pantalla.
+  const [soloEnMarcha, setSoloEnMarcha] = useState(false);
+  const [soloConGasto, setSoloConGasto] = useState(false);
+
   const visibles = useMemo(() => {
     const q = plano(busqueda.trim());
     return data.filas.filter((f) => {
       if (q && !plano(`${f.name} ${f.code}`).includes(q)) return false;
+      if (soloEnMarcha && !f.enMarcha) return false;
+      if (soloConGasto && f.gastoPauta <= 0) return false;
       if (filtro === "pierden") return f.utilidad != null && f.utilidad < 0;
       if (filtro === "ganan") return f.utilidad != null && f.utilidad > 0;
       if (filtro === "sin-economia") return !f.tieneEconomia;
       return true;
     });
-  }, [data.filas, busqueda, filtro]);
+  }, [data.filas, busqueda, filtro, soloEnMarcha, soloConGasto]);
 
   const pierden = data.filas.filter((f) => {
     const u = f.real?.utilidad ?? f.utilidad;
@@ -210,6 +218,45 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
               }`}
             >
               {f.label}
+            </button>
+          ))}
+
+          {/* Estos dos no ordenan ni eligen un estado: recortan la lista, y se
+              combinan con cualquiera de los cuatro de al lado. Por eso llevan
+              casilla en vez de forma de pastilla. */}
+          {[
+            {
+              activo: soloEnMarcha,
+              cambiar: () => setSoloEnMarcha((x) => !x),
+              texto: "Solo activos",
+              ayuda: "Con al menos una campaña encendida en Meta o TikTok",
+            },
+            {
+              activo: soloConGasto,
+              cambiar: () => setSoloConGasto((x) => !x),
+              texto: "Solo con gasto",
+              ayuda: "Los que consumieron presupuesto en el período elegido",
+            },
+          ].map((t) => (
+            <button
+              key={t.texto}
+              type="button"
+              onClick={t.cambiar}
+              aria-pressed={t.activo}
+              title={t.ayuda}
+              className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition ${
+                t.activo
+                  ? "border-accent bg-good-bg text-accent-strong"
+                  : "border-border text-muted hover:border-border-strong hover:text-foreground"
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`inline-block h-2.5 w-2.5 rounded-[3px] border ${
+                  t.activo ? "border-accent bg-accent" : "border-border-strong"
+                }`}
+              />
+              {t.texto}
             </button>
           ))}
         </div>

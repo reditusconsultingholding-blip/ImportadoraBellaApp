@@ -28,8 +28,23 @@ type Evento = {
   href: string;
 };
 
-type Datos = { eventos: Evento[]; tareasPorDia: Record<string, number> };
-const VACIO: Datos = { eventos: [], tareasPorDia: {} };
+type Etiqueta = { id: string; texto: string; estado: string; responsable: string | null };
+type Datos = {
+  eventos: Evento[];
+  tareasPorDia: Record<string, number>;
+  etiquetasPorDia: Record<string, Etiqueta[]>;
+};
+const VACIO: Datos = { eventos: [], tareasPorDia: {}, etiquetasPorDia: {} };
+
+// El mismo color que en el tablero: así el estado se ve sin tener que leerlo,
+// y las dos pantallas no parecen hablar de cosas distintas.
+const TONO_ETIQUETA: Record<string, string> = {
+  PENDIENTE: "bg-surface-2 text-muted",
+  EN_PROGRESO: "bg-pending-bg text-warning",
+  HECHO: "bg-good-bg text-good",
+  NO_CUMPLIDO: "bg-critical-bg text-critical",
+  POR_PAUTAR: "bg-good-bg text-accent-strong",
+};
 
 export default function CalendarioContenido() {
   const [{ anio, mes }, setMes] = useState(mesActualEc);
@@ -109,7 +124,7 @@ export default function CalendarioContenido() {
             return (
               <div
                 key={casilla.dia}
-                className={`min-h-[5.5rem] p-1 ${casilla.delMes ? "bg-surface" : "bg-surface-2/60"}`}
+                className={`min-h-[8rem] p-1 ${casilla.delMes ? "bg-surface" : "bg-surface-2/60"}`}
               >
                 <div className="flex items-center justify-between">
                   <span
@@ -130,6 +145,28 @@ export default function CalendarioContenido() {
                   )}
                 </div>
                 <div className="mt-0.5 flex flex-col gap-0.5">
+                  {/* Las tareas del día, como en Notion: la etiqueta con el
+                      nombre del producto y el color de su estado. Antes acá
+                      solo había un "7 tareas" arriba a la derecha, y un número
+                      no deja ver de qué es el trabajo ni cómo viene. */}
+                  {(datos.etiquetasPorDia[casilla.dia] ?? []).map((t) => (
+                    <Link
+                      key={t.id}
+                      href={`/dashboard/contenido?vista=tablero#${casilla.dia}`}
+                      title={`${t.texto}${t.responsable ? ` · ${t.responsable}` : ""}`}
+                      className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight transition hover:opacity-80 ${
+                        TONO_ETIQUETA[t.estado] ?? TONO_ETIQUETA.PENDIENTE
+                      }`}
+                    >
+                      {t.texto}
+                    </Link>
+                  ))}
+                  {tareas > (datos.etiquetasPorDia[casilla.dia]?.length ?? 0) && (
+                    <span className="px-1 text-[9px] text-muted">
+                      +{tareas - (datos.etiquetasPorDia[casilla.dia]?.length ?? 0)} más
+                    </span>
+                  )}
+
                   {eventos.map((e) => (
                     <Link
                       key={e.id}

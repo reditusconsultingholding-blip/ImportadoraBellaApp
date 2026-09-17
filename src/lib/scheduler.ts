@@ -11,6 +11,7 @@ import { enviarAlertasDiarias } from "@/lib/alertas-diarias";
 import { avisarDescuadre } from "@/lib/atribucion";
 import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 import { sincronizarNotion } from "@/lib/integrations/notion-import";
+import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
 
 // El reloj de la aplicación.
 //
@@ -159,6 +160,16 @@ export async function sincronizarTodo() {
       if (r) resumen.notion = r;
     } catch (err) {
       resumen.notion = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // A las ocho de la noche, a cada persona lo que le quedó sin cerrar. Va
+    // antes del cierre de día porque cumple otra función: a las ocho todavía
+    // hay tiempo de cerrar dos tareas, a las 23:59 el día ya pasó.
+    try {
+      const r = await avisarPendientesDelDia(org.id);
+      if (r) resumen.pendientes = r;
+    } catch (err) {
+      resumen.pendientes = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // El cierre de día del módulo Contenido: qué hizo cada integrante. Se
