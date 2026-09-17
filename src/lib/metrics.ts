@@ -22,6 +22,16 @@ export type RowMetric = {
    * sabía si eran dos cosas distintas.
    */
   status: "sano" | "vigilar" | "riesgo" | "sin-objetivo";
+  /**
+   * Si al menos una de sus campañas está encendida en Meta o TikTok.
+   *
+   * Es distinto de haber gastado. Una campaña recién lanzada puede estar
+   * activa y con cero gasto todavía, y una pausada ayer puede tener gasto de
+   * anteayer dentro del período. Con un solo dato no se separa "lo que está
+   * corriendo ahora" de "lo que consumió plata en estos días", que son las dos
+   * preguntas que se hacen al abrir el panel.
+   */
+  enMarcha: boolean;
 };
 
 export type Overview = {
@@ -63,8 +73,10 @@ export type FilaVisible = {
   status: RowMetric["status"];
   /** Razón CPA/objetivo. 1 es justo en el objetivo; 1,2 es 20% por encima. */
   desvio: number | null;
-  /** Si gastó algo en el período. Dice si está corriendo, no cuánto cuesta. */
+  /** Si gastó algo en el período. */
   activa: boolean;
+  /** Si está encendida en la plataforma ahora mismo. */
+  enMarcha: boolean;
   spend?: number;
   revenue?: number;
   cpa?: number | null;
@@ -96,6 +108,7 @@ export function filasVisibles(rows: RowMetric[], verCifras: boolean): FilaVisibl
       status: r.status,
       desvio: desvioDe(r),
       activa: r.spend > 0,
+      enMarcha: r.enMarcha,
     };
     if (!verCifras) return comun;
     return {
@@ -160,7 +173,12 @@ export async function getOverview(
       cpaTarget: campaign.product?.cpaTarget ?? null,
       // Se recalcula más abajo con el CPA real; aquí solo hace falta un valor.
       status: "sin-objetivo" as const,
+      enMarcha: false,
     };
+
+    // Basta con que UNA campaña del producto esté encendida para que el
+    // producto cuente como en marcha: apagar una de ocho no lo saca de la pauta.
+    if (campaign.status === "ACTIVE") row.enMarcha = true;
 
     for (const m of campaign.metrics) {
       row.spend += m.spend;

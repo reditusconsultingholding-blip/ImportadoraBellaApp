@@ -82,9 +82,19 @@ export default function TablaFilas({
   puedeAbrirProducto: boolean;
 }) {
   const [filtro, setFiltro] = useState<Filtro>("gasto");
+  // Dos recortes que se combinan con cualquier orden, en vez de dos pestañas
+  // más. "Qué está corriendo ahora" y "qué consumió plata en estos días" no son
+  // formas de ordenar: se cruzan con las cuatro que ya están.
+  const [soloEnMarcha, setSoloEnMarcha] = useState(false);
+  const [soloConGasto, setSoloConGasto] = useState(false);
+
   const FILTROS = filtrosPara(verCifras);
-  const visibles = ordenar(filas, filtro);
+  const recortadas = filas.filter(
+    (f) => (!soloEnMarcha || f.enMarcha) && (!soloConGasto || f.activa),
+  );
+  const visibles = ordenar(recortadas, filtro);
   const ayuda = FILTROS.find((f) => f.id === filtro)?.ayuda;
+  const hayRecorte = soloEnMarcha || soloConGasto;
   // Ocho columnas con plata, siete sin ella: hace falta para la fila vacía.
   const columnas = verCifras ? 8 : 7;
 
@@ -110,10 +120,34 @@ export default function TablaFilas({
         </span>
       </div>
 
+      {/* Los dos recortes, en su propia línea y con forma de interruptor: no
+          compiten con las pestañas de orden porque no hacen lo mismo. */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2.5">
+        <Interruptor
+          activo={soloEnMarcha}
+          onCambiar={() => setSoloEnMarcha((x) => !x)}
+          titulo="Las que están encendidas en Meta o TikTok ahora mismo, hayan gastado o no"
+        >
+          Solo activos
+        </Interruptor>
+        <Interruptor
+          activo={soloConGasto}
+          onCambiar={() => setSoloConGasto((x) => !x)}
+          titulo="Los que consumieron presupuesto dentro del período elegido"
+        >
+          Solo con gasto
+        </Interruptor>
+        {hayRecorte && (
+          <span className="text-xs text-muted">
+            {visibles.length.toLocaleString("es-EC")} de {filas.length.toLocaleString("es-EC")}
+          </span>
+        )}
+      </div>
+
       {ayuda && (
         <p className="border-b border-border px-5 py-2 text-xs text-muted">
           {ayuda}
-          {filtro === "revisar" && ` · ${visibles.length} de ${filas.length}`}
+          {filtro === "revisar" && ` · ${visibles.length} de ${recortadas.length}`}
         </p>
       )}
 
@@ -234,5 +268,42 @@ export default function TablaFilas({
         </table>
       </div>
     </div>
+  );
+}
+
+/** Un recorte que se enciende y se apaga. Se ve distinto de las pestañas de
+ *  orden a propósito: son dos cosas distintas y confundirlas hace que alguien
+ *  crea que eligió un orden cuando en realidad escondió filas. */
+function Interruptor({
+  activo,
+  onCambiar,
+  titulo,
+  children,
+}: {
+  activo: boolean;
+  onCambiar: () => void;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onCambiar}
+      aria-pressed={activo}
+      title={titulo}
+      className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium transition ${
+        activo
+          ? "border-accent bg-good-bg text-accent-strong"
+          : "border-border text-muted hover:border-border-strong hover:text-foreground"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`inline-block h-2.5 w-2.5 rounded-[3px] border transition ${
+          activo ? "border-accent bg-accent" : "border-border-strong bg-transparent"
+        }`}
+      />
+      {children}
+    </button>
   );
 }
