@@ -12,6 +12,7 @@ import { avisarDescuadre } from "@/lib/atribucion";
 import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 import { sincronizarNotion } from "@/lib/integrations/notion-import";
 import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
+import { capturarCorte } from "@/lib/control-publicitario";
 
 // El reloj de la aplicación.
 //
@@ -160,6 +161,17 @@ export async function sincronizarTodo() {
       if (r) resumen.notion = r;
     } catch (err) {
       resumen.notion = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // La foto del día a las 8, 11, 16 y 23. Va acá y no en un servicio aparte
+    // porque no se puede reconstruir después: Meta y TikTok devuelven el total
+    // del día, nunca lo que llevaban a media mañana. Si no se toma en el
+    // momento, esa hora se pierde.
+    try {
+      const r = await capturarCorte(org.id);
+      if (r) resumen.corte = `${r.hora}h · ${r.productos} productos`;
+    } catch (err) {
+      resumen.corte = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // A las ocho de la noche, a cada persona lo que le quedó sin cerrar. Va

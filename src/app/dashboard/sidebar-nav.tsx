@@ -234,6 +234,9 @@ export default function SidebarNav({
       links: [
         ...(showRentabilidad
           ? [
+              // Primero de Números: es la pantalla que reemplaza el Excel que
+              // el equipo cuadra a mano todos los días.
+              { href: "/dashboard/control", label: "Control publicitario", icon: "rentabilidad" },
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
               { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
               { href: "/dashboard/calculadora", label: "Calculadora", icon: "calculadora" },

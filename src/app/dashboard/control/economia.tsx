@@ -1,0 +1,226 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+// La pestaña VARIABLES de la planilla, editable acá.
+//
+// Va por mes y no por producto a secas porque es lo que cambia: un producto
+// pasó de 58% de efectividad en abril a 100% en julio y a 20% en agosto.
+// Guardar un solo número para toda la historia hace que la utilidad de abril
+// se recalcule con la realidad de agosto cada vez que alguien toca la ficha.
+//
+// Se guarda celda por celda, al salir del campo. Es la misma mecánica del
+// tablero de contenido: quien carga esto viene de un Excel, y un formulario
+// con botón de guardar por fila es exactamente la fricción que hace que se
+// siga cargando en el Excel.
+
+type ProductoOpcion = { id: string; code: string; name: string };
+type Variable = {
+  productId: string;
+  efectividad: number;
+  produccion: number;
+  flete: number;
+  precioProm: number;
+  cpaMin: number | null;
+  devoluciones: number | null;
+};
+
+const CAMPOS = [
+  { clave: "efectividad", titulo: "Efectividad", sufijo: "%", porcentaje: true },
+  { clave: "produccion", titulo: "Producción", sufijo: "$" },
+  { clave: "flete", titulo: "Flete", sufijo: "$" },
+  { clave: "precioProm", titulo: "Precio prom.", sufijo: "$" },
+  { clave: "cpaMin", titulo: "CPA máx.", sufijo: "$" },
+  { clave: "devoluciones", titulo: "Devoluciones", sufijo: "%", porcentaje: true },
+] as const;
+
+type Clave = (typeof CAMPOS)[number]["clave"];
+
+const NOMBRE_MES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+export default function Economia({
+  anio,
+  mes,
+  productos,
+  variables,
+  gastoAdm,
+}: {
+  anio: number;
+  mes: number;
+  productos: ProductoOpcion[];
+  variables: Variable[];
+  gastoAdm: number | null;
+}) {
+  const router = useRouter();
+  const [filas, setFilas] = useState(() => new Map(variables.map((v) => [v.productId, v])));
+  const [adm, setAdm] = useState(gastoAdm === null ? "" : String(gastoAdm));
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
+  const [soloCargados, setSoloCargados] = useState(false);
+
+  async function guardar(productId: string, clave: Clave, texto: string) {
+    const bruto = texto.trim() === "" ? null : Number(texto.replace(",", "."));
+    if (bruto !== null && !isFinite(bruto)) return;
+    const campo = CAMPOS.find((c) => c.clave === clave)!;
+    const valor = bruto === null ? null : "porcentaje" in campo && campo.porcentaje ? bruto / 100 : bruto;
+
+    const previas = filas;
+    const actual = filas.get(productId) ?? {
+      productId,
+      efectividad: 0,
+      produccion: 0,
+      flete: 0,
+      precioProm: 0,
+      cpaMin: null,
+      devoluciones: null,
+    };
+    const siguiente = { ...actual, [clave]: valor ?? 0 } as Variable;
+    if (clave === "cpaMin" || clave === "devoluciones") siguiente[clave] = valor;
+
+    setFilas((m) => new Map(m).set(productId, siguiente));
+    setGuardando(`${productId}:${clave}`);
+    setError(null);
+    try {
+      const res = await fetch("/api/control/economia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anio, mes, ...siguiente }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? `El servidor respondió ${res.status}`);
+      }
+      router.refresh();
+    } catch (e) {
+      setFilas(previas);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardando(null);
+    }
+  }
+
+  async function guardarAdm(texto: string) {
+    const valor = texto.trim() === "" ? null : Number(texto.replace(/[^\d.,]/g, "").replace(",", "."));
+    if (valor === null || !isFinite(valor)) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/control/gasto-adm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anio, mes, valor }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? `El servidor respondió ${res.status}`);
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const visibles = soloCargados ? productos.filter((p) => filas.has(p.id)) : productos;
+  const campo =
+    "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-sm tabular-nums outline-none hover:border-border focus:border-accent focus:bg-surface";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-4 rounded border border-border bg-surface p-4">
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-[0.07em] text-muted">
+            Gasto administrativo de {NOMBRE_MES[mes - 1]}
+          </span>
+          <input
+            defaultValue={adm}
+            onChange={(e) => setAdm(e.target.value)}
+            onBlur={(e) => guardarAdm(e.target.value)}
+            placeholder="22713"
+            className="w-44 rounded border border-border bg-surface px-2.5 py-1.5 text-sm tabular-nums outline-none focus:border-accent"
+          />
+        </label>
+        <p className="max-w-lg text-xs leading-relaxed text-muted">
+          El total del mes, entero. Se divide entre 30 para sacar el del día y ese día se reparte
+          entre los productos según sus pedidos — igual que en la planilla. Sin este número la
+          utilidad sale más alta de lo real.
+        </p>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={soloCargados}
+            onChange={(e) => setSoloCargados(e.target.checked)}
+          />
+          Solo los que tienen datos ({filas.size})
+        </label>
+      </div>
+
+      {error && (
+        <p className="rounded border border-critical bg-critical-bg px-3 py-2 text-xs text-critical">
+          {error}
+        </p>
+      )}
+
+      <div className="overflow-x-auto rounded border border-border bg-surface">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.07em] text-muted">
+              <th className="px-2.5 py-2">Producto</th>
+              {CAMPOS.map((c) => (
+                <th key={c.clave} className="px-2.5 py-2 text-right">
+                  {c.titulo} <span className="font-normal normal-case">({c.sufijo})</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.map((p) => {
+              const v = filas.get(p.id);
+              return (
+                <tr key={p.id} className="border-b border-border last:border-b-0">
+                  <td className="px-2.5 py-1">
+                    <span className="block max-w-[260px] truncate">{p.name}</span>
+                    <span className="text-[10px] text-muted">{p.code}</span>
+                  </td>
+                  {CAMPOS.map((c) => {
+                    const crudo = v ? (v[c.clave] as number | null) : null;
+                    const mostrado =
+                      crudo === null || crudo === undefined
+                        ? ""
+                        : "porcentaje" in c && c.porcentaje
+                          ? String(Math.round(crudo * 1000) / 10)
+                          : String(crudo);
+                    return (
+                      <td key={c.clave} className="px-1 py-1">
+                        <input
+                          defaultValue={mostrado}
+                          onBlur={(e) => {
+                            if (e.target.value !== mostrado) guardar(p.id, c.clave, e.target.value);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                          placeholder="—"
+                          className={`${campo} ${guardando === `${p.id}:${c.clave}` ? "opacity-50" : ""}`}
+                          aria-label={`${c.titulo} de ${p.name}`}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-muted">
+        Se guarda solo al salir de cada celda. Los porcentajes se escriben como número entero: 58
+        para 58%. Un producto sin fila cargada en este mes se calcula con los números de su ficha,
+        que son los mismos para toda la historia — el control lo avisa cuando pasa.
+      </p>
+    </div>
+  );
+}

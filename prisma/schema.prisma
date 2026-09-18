@@ -78,6 +78,9 @@ model Organization {
   referencias        Referencia[]
   jarvisChats        JarvisConversacion[]
   rondas             Ronda[]
+  cortes             CortePublicitario[]
+  variablesProducto  VariableProducto[]
+  gastosAdm          GastoAdmMes[]
   anuncios           Anuncio[]
   eventos            EventoCalendario[]
   tareasDiarias      TareaDiaria[]
@@ -379,6 +382,8 @@ model Product {
   tareas         TareaDiaria[]   @relation("TareaProducto")
   campanasManual CampanaManual[] @relation("CampanaManualProducto")
   enlacesShopify ProductoShopify[]
+  cortes         CortePublicitario[] @relation("CorteProducto")
+  variables      VariableProducto[]  @relation("VariableProducto")
 
   @@unique([organizationId, code])
 }
@@ -1163,6 +1168,113 @@ model Referencia {
   updatedAt   DateTime @updatedAt
 
   @@index([organizationId, productId])
+}
+
+// ---------------------------------------------------------------------------
+// Control de gastos publicitarios — el Excel que el equipo cuadra a mano.
+//
+// Son tres piezas que en la planilla son tres pestañas: los cortes del día
+// (DATAXHORAS), la economía de cada producto mes a mes (VARIABLES) y el gasto
+// administrativo del mes (GASTOS ADM). Con las tres se arma la utilidad por
+// hora y el resumen mensual por producto, que hoy se copian y pegan dos días
+// después de que pasaron las cosas.
+// ---------------------------------------------------------------------------
+
+// Una foto del día a una hora concreta, por producto.
+//
+// El equipo mira el día cuatro veces: a las 8, a las 11, a las 16 y al cierre
+// de las 23. No son cuatro días distintos —son el mismo día acumulado— y por
+// eso el corte de las 23 es el que usan los resúmenes del mes.
+//
+// Se guarda en vez de calcularse porque no se puede reconstruir: Meta y TikTok
+// devuelven el total del día, no lo que llevaban a las once de la mañana. Si
+// no se toma la foto en el momento, esa hora se pierde para siempre.
+model CortePublicitario {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation("CorteProducto", fields: [productId], references: [id], onDelete: Cascade)
+
+  /** Marca de medianoche del día de Ecuador, igual que MetricSnapshot.capturedAt. */
+  fecha DateTime
+  /** Hora de Ecuador del corte: 8, 11, 16 o 23. */
+  hora  Int
+
+  /** Compras atribuidas por las plataformas, acumuladas hasta esa hora. */
+  pedidos Int   @default(0)
+  /** Gasto publicitario acumulado hasta esa hora. */
+  gasto   Float @default(0)
+  /**
+   * Pedidos reales de la tienda hasta esa hora.
+   *
+   * En la planilla esto vive aparte, en "DATA JEFFERSON", y se compara a mano
+   * contra lo que atribuyen las plataformas. Acá viaja en la misma fila: la
+   * diferencia entre las dos columnas es justo lo que el equipo llama depurar
+   * los pedidos, y separarlas obligaba a cruzar dos pestañas para verla.
+   */
+  pedidosReales Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, productId, fecha, hora])
+  @@index([organizationId, fecha])
+}
+
+// La economía de un producto en un mes: qué porción se confirma, cuánto cuesta
+// producirlo y enviarlo, a qué precio sale.
+//
+// Va por MES y no solo por producto porque cambia mucho: un producto pasó de
+// 58% de efectividad en abril a 100% en julio y a 20% en agosto. Guardar un
+// solo número por producto —como hacía Product.efectividad— hace que la
+// utilidad de abril se recalcule con la realidad de agosto cada vez que
+// alguien actualiza la ficha.
+model VariableProducto {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation("VariableProducto", fields: [productId], references: [id], onDelete: Cascade)
+
+  anio Int
+  mes  Int // 1-12
+
+  /** 0-1: qué porción de los pedidos se confirma y se entrega. */
+  efectividad Float
+  /** Costo de producir una unidad. */
+  produccion  Float
+  /** Costo de envío por paquete despachado. */
+  flete       Float
+  /** Precio promedio de venta. */
+  precioProm  Float
+  /** CPA máximo aceptable — referencia, no entra en la utilidad. */
+  cpaMin      Float?
+  /** 0-1: qué porción de lo despachado vuelve. */
+  devoluciones Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, productId, anio, mes])
+  @@index([organizationId, anio, mes])
+}
+
+// El gasto administrativo del mes, entero. Se reparte por día (÷30) y dentro
+// del día entre los pedidos de cada producto, que es como lo hace la planilla.
+model GastoAdmMes {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  anio  Int
+  mes   Int // 1-12
+  valor Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, anio, mes])
 }
 
 // Una ronda: cuatro piezas que salen juntas a testear. Es también el "lote de
