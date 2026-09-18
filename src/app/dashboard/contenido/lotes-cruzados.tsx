@@ -153,6 +153,21 @@ export default function LotesCruzados({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Qué es esta pantalla, dicho con las palabras del archivo que el equipo
+          ya usa. Estuvo sin explicación desde que se construyó, y en la reunión
+          quedó claro que el problema no era la pantalla sino que nadie sabía
+          que "Lotes" y "Matrix de rondas" son lo mismo. */}
+      <div className="rounded border border-border bg-surface px-4 py-3">
+        <p className="text-sm font-semibold">Esto es la Matrix de rondas</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Un lote es una ronda: las piezas que salen juntas a testear un producto. Cada una lleva
+          su formato, su ángulo y su nivel de consciencia, y la gracia es que sean distintos entre
+          sí — si las cuatro cuentan lo mismo compiten entre ellas y la ronda entera mide una sola
+          cosa. La nomenclatura que arma el sistema es la que se pega al nombrar la campaña en Meta
+          o TikTok, y es lo que después permite saber qué ronda hizo cada venta.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={filtroEstado}

@@ -117,6 +117,19 @@ export default function GestionCampanas({ products }: { products: ProductOption[
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Igual que en Lotes: la pantalla estaba bien, lo que faltaba era decir
+          para qué sirve. Sin eso se lee como un listado más de campañas, que es
+          lo que ya se ve en Meta. */}
+      <div className="rounded border border-border bg-surface px-4 py-3">
+        <p className="text-sm font-semibold">Para qué sirve esta pantalla</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Es donde cada campaña de Meta y TikTok queda pegada a su producto. De ese vínculo salen
+          la rentabilidad, el CPA por producto y el control publicitario: una campaña sin producto
+          gasta plata que después no aparece asignada a nada. Acá también se puede registrar una
+          campaña antes de lanzarla, para tenerla lista cuando exista de verdad.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={busqueda}

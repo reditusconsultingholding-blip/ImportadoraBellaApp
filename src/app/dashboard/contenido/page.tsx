@@ -30,7 +30,11 @@ const TABS: { id: Vista; label: string }[] = [
   // Va después del día a día y antes de los lotes: es el orden en que se
   // trabaja —qué hay para hoy, qué piezas lo componen, cómo se agrupan—.
   { id: "requerimientos", label: "Requerimientos" },
-  { id: "lotes", label: "Lotes" },
+  // "Lotes" a secas no le decía nada a nadie. Es la Matrix de rondas del
+  // archivo de Super Ads, con otro nombre: cuatro piezas que salen juntas a
+  // testear, con formato, ángulo y nivel de consciencia distintos entre sí.
+  // El problema no era la pantalla, era que nadie sabía que era eso.
+  { id: "lotes", label: "Lotes · Matrix de rondas" },
   { id: "campanas", label: "Gestión de campañas" },
   { id: "rendimiento", label: "Rendimiento" },
 ];

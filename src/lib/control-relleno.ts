@@ -12,10 +12,27 @@ import { normalizarNombre } from "@/lib/enlace-shopify";
 // adelante: el equipo abriría una pantalla que le pide esperar un mes para
 // poder comparar algo. Con esto abre con toda la historia que la app ya tenía.
 
-/** Marca de medianoche de Ecuador para un instante. */
+/**
+ * Marca de medianoche de Ecuador para un INSTANTE real.
+ *
+ * Solo para fechas con hora de verdad, como `ShopifyOrder.occurredAt`.
+ */
 function diaEcuador(instante: Date) {
   const local = new Date(instante.getTime() - 5 * 3600_000);
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+}
+
+/**
+ * La misma fecha, truncada, SIN correr la zona horaria.
+ *
+ * `MetricSnapshot.capturedAt` no es un instante: ya es la marca del día a
+ * medianoche UTC, igual que `TareaDiaria.fecha`. Restarle las cinco horas de
+ * Ecuador —como sí hay que hacerle a un instante— la manda al día anterior, y
+ * entonces todo el control aparece corrido: los 198 pedidos del martes se
+ * muestran el lunes. Cuesta ver porque el total del mes sigue dando bien.
+ */
+function marcaDeDia(fecha: Date) {
+  return new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate()));
 }
 
 export type ResultadoRelleno = {
@@ -26,11 +43,19 @@ export type ResultadoRelleno = {
 };
 
 /**
- * Crea el corte de las 23 de cada día con datos, sin pisar lo ya capturado.
+ * Rehace el corte de cierre de los días que ya terminaron.
  *
- * `rehacer` fuerza la reescritura; por defecto respeta lo que haya, porque un
- * corte tomado en vivo a las 23:00 es mejor dato que este: incluye lo que las
- * plataformas todavía no habían reportado cuando se reconstruye después.
+ * `rehacer` reescribe lo que ya estaba. Se usa todos los días sobre la última
+ * semana, y no es un capricho: Meta y TikTok siguen atribuyendo compras días
+ * después. El cierre tomado en vivo a las 23:00 del martes se queda corto, y
+ * el viernes ese mismo martes ya tiene su número real. Sin este repaso, el
+ * control mostraría para siempre la versión incompleta —que es justo lo que
+ * hace que alguien mire la herramienta, no le cuadre contra la plataforma y
+ * vuelva al Excel.
+ *
+ * Nunca toca el día en curso: un "cierre" de un día que todavía no cerró sería
+ * un número a medias con nombre de definitivo. Ese lo escribe el corte de las
+ * 23 cuando llegue la hora.
  */
 export async function rellenarCierres(
   organizationId: string,
@@ -101,9 +126,13 @@ export async function rellenarCierres(
   let min: string | null = null;
   let max: string | null = null;
 
+  const hoy = diaEcuador(new Date());
+
   for (const p of plataforma) {
-    const fecha = diaEcuador(p.fecha);
+    const fecha = marcaDeDia(p.fecha);
     if (desde && fecha < desde) continue;
+    // El día en curso no tiene cierre todavía.
+    if (fecha >= hoy) continue;
     const clave = `${fecha.toISOString()}|${p.productId}`;
     if (!rehacer && yaEstan.has(clave)) continue;
 
@@ -133,4 +162,45 @@ export async function rellenarCierres(
   }
 
   return { dias: dias.size, filas, desde: min, hasta: max };
+}
+
+/**
+ * El repaso de una vez al día, con su propia guarda.
+ *
+ * Mirar catorce meses de métricas y reescribir ciento cincuenta filas cada
+ * cinco minutos no le sirve a nadie: los números de anteayer no cambian tres
+ * veces en una hora. Corre de madrugada, cuando las plataformas ya
+ * consolidaron el día anterior, y una sola vez por día de Ecuador.
+ *
+ * La guarda es la misma que usan los otros trabajos diarios: una fila en
+ * SyncState con la fecha del último repaso. Se compara contra el día
+ * ecuatoriano y no contra "hace 24 horas", para que un repaso que salió tarde
+ * un día no bloquee el del día siguiente.
+ */
+export async function repasoDiarioDeCierres(organizationId: string) {
+  const FUENTE = "repaso-cierres";
+  const HORA = 6;
+  const DIAS_ATRAS = 7;
+
+  const ahora = new Date();
+  if (new Date(ahora.getTime() - 5 * 3600_000).getUTCHours() < HORA) return null;
+
+  const hoy = diaEcuador(ahora);
+  const estado = await db.syncState.findUnique({
+    where: { organizationId_fuente: { organizationId, fuente: FUENTE } },
+    select: { okAt: true },
+  });
+  if (estado?.okAt && diaEcuador(estado.okAt).getTime() === hoy.getTime()) return null;
+
+  const desde = new Date(hoy.getTime() - DIAS_ATRAS * 86400_000);
+  const r = await rellenarCierres(organizationId, { desde, rehacer: true });
+  const detalle = `${r.filas} filas, ${r.dias} días`;
+
+  await db.syncState.upsert({
+    where: { organizationId_fuente: { organizationId, fuente: FUENTE } },
+    create: { organizationId, fuente: FUENTE, okAt: new Date(), detalle },
+    update: { okAt: new Date(), detalle, error: null },
+  });
+
+  return detalle;
 }

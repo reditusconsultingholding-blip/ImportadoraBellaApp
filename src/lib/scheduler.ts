@@ -13,6 +13,7 @@ import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 import { sincronizarNotion } from "@/lib/integrations/notion-import";
 import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
 import { capturarCorte } from "@/lib/control-publicitario";
+import { repasoDiarioDeCierres } from "@/lib/control-relleno";
 
 // El reloj de la aplicación.
 //
@@ -161,6 +162,22 @@ export async function sincronizarTodo() {
       if (r) resumen.notion = r;
     } catch (err) {
       resumen.notion = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // El repaso de los cierres de la última semana.
+    //
+    // Meta y TikTok siguen atribuyendo compras días después, así que el
+    // cierre tomado en vivo a las 23:00 del martes se queda corto y el
+    // viernes ese martes ya tiene su número real. Sin este repaso, el control
+    // mostraría para siempre la versión incompleta: alguien lo miraría, no le
+    // cuadraría contra la plataforma, y volvería al Excel.
+    //
+    // Solo días terminados: el de hoy lo escribe el corte de las 23.
+    try {
+      const r = await repasoDiarioDeCierres(org.id);
+      if (r) resumen.cierresRepasados = r;
+    } catch (err) {
+      resumen.cierresRepasados = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // La foto del día a las 8, 11, 16 y 23. Va acá y no en un servicio aparte
