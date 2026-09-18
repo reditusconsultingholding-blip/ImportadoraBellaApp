@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 // La pestaña VARIABLES de la planilla, editable acá.
@@ -56,11 +56,52 @@ export default function Economia({
   gastoAdm: number | null;
 }) {
   const router = useRouter();
-  const [filas, setFilas] = useState(() => new Map(variables.map((v) => [v.productId, v])));
+  // Lo que manda es lo que llega del servidor; `editado` solo guarda lo que se
+  // acaba de escribir, para que la celda no parpadee mientras el servidor
+  // contesta. Sembrar el estado una sola vez con los props era un error: al
+  // traer el mes anterior, la tabla seguía mostrando el mes vacío hasta que
+  // alguien recargaba la página entera.
+  const base = useMemo(() => new Map(variables.map((v) => [v.productId, v])), [variables]);
+  const [editado, setEditado] = useState<Map<string, Variable>>(new Map());
+  const filas = useMemo(() => new Map([...base, ...editado]), [base, editado]);
   const [adm, setAdm] = useState(gastoAdm === null ? "" : String(gastoAdm));
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState<string | null>(null);
   const [soloCargados, setSoloCargados] = useState(false);
+  const [copiando, setCopiando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  /**
+   * Trae la economía del mes anterior para los productos que todavía no tienen.
+   *
+   * No pisa lo ya cargado, así que apretarlo dos veces no deshace una
+   * corrección hecha a mano. Es un punto de partida, no un cierre: lo que
+   * cambió este mes hay que corregirlo igual.
+   */
+  async function copiarDelAnterior() {
+    setCopiando(true);
+    setAviso(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/control/economia/copiar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anio, mes }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error ?? `El servidor respondió ${res.status}`);
+      setAviso(
+        j.copiados === 0
+          ? `No había nada que traer: todos los productos de ${j.desde} ya tienen fila en este mes.`
+          : `Se trajeron ${j.copiados} productos de ${j.desde}. Revisá y corregí lo que cambió.`,
+      );
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCopiando(false);
+    }
+  }
 
   async function guardar(productId: string, clave: Clave, texto: string) {
     const bruto = texto.trim() === "" ? null : Number(texto.replace(",", "."));
@@ -68,7 +109,7 @@ export default function Economia({
     const campo = CAMPOS.find((c) => c.clave === clave)!;
     const valor = bruto === null ? null : "porcentaje" in campo && campo.porcentaje ? bruto / 100 : bruto;
 
-    const previas = filas;
+    const previas = editado;
     const actual = filas.get(productId) ?? {
       productId,
       efectividad: 0,
@@ -81,7 +122,7 @@ export default function Economia({
     const siguiente = { ...actual, [clave]: valor ?? 0 } as Variable;
     if (clave === "cpaMin" || clave === "devoluciones") siguiente[clave] = valor;
 
-    setFilas((m) => new Map(m).set(productId, siguiente));
+    setEditado((m) => new Map(m).set(productId, siguiente));
     setGuardando(`${productId}:${clave}`);
     setError(null);
     try {
@@ -96,7 +137,7 @@ export default function Economia({
       }
       router.refresh();
     } catch (e) {
-      setFilas(previas);
+      setEditado(previas);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setGuardando(null);
@@ -147,15 +188,31 @@ export default function Economia({
           entre los productos según sus pedidos — igual que en la planilla. Sin este número la
           utilidad sale más alta de lo real.
         </p>
-        <label className="ml-auto flex items-center gap-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={soloCargados}
-            onChange={(e) => setSoloCargados(e.target.checked)}
-          />
-          Solo los que tienen datos ({filas.size})
-        </label>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={copiarDelAnterior}
+            disabled={copiando}
+            className="rounded border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2 disabled:opacity-60"
+          >
+            {copiando ? "Copiando…" : "Traer del mes anterior"}
+          </button>
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={soloCargados}
+              onChange={(e) => setSoloCargados(e.target.checked)}
+            />
+            Solo los que tienen datos ({filas.size})
+          </label>
+        </div>
       </div>
+
+      {aviso && (
+        <p className="rounded border border-accent bg-good-bg px-3 py-2 text-xs text-accent-strong">
+          {aviso}
+        </p>
+      )}
 
       {error && (
         <p className="rounded border border-critical bg-critical-bg px-3 py-2 text-xs text-critical">
@@ -195,6 +252,7 @@ export default function Economia({
                     return (
                       <td key={c.clave} className="px-1 py-1">
                         <input
+                          key={mostrado}
                           defaultValue={mostrado}
                           onBlur={(e) => {
                             if (e.target.value !== mostrado) guardar(p.id, c.clave, e.target.value);
