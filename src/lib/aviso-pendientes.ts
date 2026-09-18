@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { avisarA } from "@/lib/push";
 
-// El aviso de las ocho: a cada persona, lo suyo.
+// El aviso de las ocho: a cada persona lo suyo, y a la dirección el panorama.
 //
 // POR QUÉ NO ALCANZABA CON EL CIERRE DE DÍA QUE YA EXISTÍA
 // Aquel se manda a las 23:59 y va a los dueños, con el resumen de todo el
@@ -10,9 +10,20 @@ import { avisarA } from "@/lib/push";
 // de sus actividades del día quedaron pendientes". A las ocho todavía hay
 // tiempo de cerrar dos tareas; a las 23:59 el día ya pasó.
 //
-// Por eso este aviso es personal: cada quien recibe su propio conteo y nada
-// más. Un mensaje que dice "quedan 14 pendientes en el equipo" no hace que
-// nadie haga nada, porque no dice cuáles son de uno.
+// QUÉ RECIBE CADA QUIEN
+// Cada persona: lo que cerró y lo que le queda, de lo suyo y nada más. Un
+// mensaje que dice "quedan 14 pendientes en el equipo" no hace que nadie haga
+// nada, porque no dice cuáles son de uno.
+//
+// La dirección —Fabricio, Emilia y quien tenga rol de dueño o director—
+// recibe el avance: cuánto cerró el equipo, quién va con cuánto pendiente y
+// cuántas tareas no tienen responsable. Esas últimas son las que se pierden
+// en silencio, porque no hay a quién preguntarle por ellas.
+//
+// El aviso personal se manda también a quien terminó todo. Cuesta un mensaje
+// al día y es la única forma de que llegue a significar algo: si solo llegara
+// habiendo pendientes, no recibirlo sería ambiguo —pudo no haber nada, o pudo
+// fallar el reloj—. Llegando siempre, el silencio sí es una señal.
 
 /** Hora de Ecuador a la que se manda. */
 const HORA = 20;
@@ -29,6 +40,12 @@ const HORA_LIMITE = 23;
 
 const FUENTE = "pendientes-del-dia";
 
+/** Cuántos nombres de producto se enumeran antes de cortar con puntos. */
+const TOPE_LISTA = 4;
+
+/** Cuántas personas se enumeran en el resumen de dirección. */
+const TOPE_PERSONAS = 6;
+
 /** El día calendario de Ecuador como marca UTC de medianoche. */
 function diaEcuador(ahora = new Date()) {
   const local = new Date(ahora.getTime() - 5 * 3600_000);
@@ -38,6 +55,17 @@ function diaEcuador(ahora = new Date()) {
 function horaEcuador(ahora = new Date()) {
   return new Date(ahora.getTime() - 5 * 3600_000).getUTCHours();
 }
+
+function segun(n: number, uno: string, varios: string) {
+  return n === 1 ? uno : varios;
+}
+
+type Persona = {
+  nombre: string;
+  total: number;
+  cerradas: number;
+  pendientes: string[];
+};
 
 export async function avisarPendientesDelDia(organizationId: string) {
   const ahora = new Date();
@@ -82,37 +110,42 @@ export async function avisarPendientesDelDia(organizationId: string) {
 
   // Agrupadas por responsable. Las que no tienen dueño se cuentan aparte: no
   // se le pueden reclamar a nadie, pero tampoco pueden desaparecer.
-  const porPersona = new Map<string, { nombre: string; total: number; pendientes: string[] }>();
+  const porPersona = new Map<string, Persona>();
   let sinDuenoPendientes = 0;
+  let sinDuenoTotal = 0;
 
   for (const t of tareas) {
     const pendiente = t.estado !== "HECHO";
     if (!t.ownerId || !t.owner) {
+      sinDuenoTotal += 1;
       if (pendiente) sinDuenoPendientes += 1;
       continue;
     }
     const actual = porPersona.get(t.ownerId) ?? {
       nombre: t.owner.name,
       total: 0,
+      cerradas: 0,
       pendientes: [],
     };
     actual.total += 1;
     if (pendiente) actual.pendientes.push(t.product?.name ?? t.productoTexto ?? "sin producto");
+    else actual.cerradas += 1;
     porPersona.set(t.ownerId, actual);
   }
 
   let avisados = 0;
   for (const [userId, p] of porPersona) {
-    // A quien terminó todo no se le manda nada. Un aviso que llega igual todos
-    // los días —diga lo que diga— deja de leerse, y entonces tampoco se lee el
-    // día que sí había algo pendiente.
-    if (p.pendientes.length === 0) continue;
+    const quedan = p.pendientes.length;
+    const distintos = [...new Set(p.pendientes)];
+    const lista = distintos.slice(0, TOPE_LISTA).join(", ");
 
-    const cuantas = p.pendientes.length;
-    const lista = [...new Set(p.pendientes)].slice(0, 4).join(", ");
     const mensaje =
-      `Te quedan ${cuantas} de ${p.total} ${p.total === 1 ? "tarea" : "tareas"} del día sin cerrar` +
-      (lista ? `: ${lista}${new Set(p.pendientes).size > 4 ? "…" : ""}` : ".");
+      quedan === 0
+        ? `Cerraste ${p.total === 1 ? "la única tarea" : `las ${p.total} tareas`} del día. ` +
+          "No te queda nada pendiente."
+        : `Cerraste ${p.cerradas} de ${p.total}. Te ${segun(quedan, "queda", "quedan")} ${quedan} ` +
+          "sin cerrar" +
+          (lista ? `: ${lista}${distintos.length > TOPE_LISTA ? "…" : "."}` : ".");
 
     await db.notification.create({
       data: {
@@ -123,7 +156,8 @@ export async function avisarPendientesDelDia(organizationId: string) {
       },
     });
     await avisarA(userId, {
-      titulo: `${cuantas} ${cuantas === 1 ? "tarea" : "tareas"} sin cerrar`,
+      titulo:
+        quedan === 0 ? "Día cerrado" : `${quedan} ${segun(quedan, "tarea", "tareas")} sin cerrar`,
       cuerpo: mensaje,
       url: "/dashboard/contenido?vista=tablero",
       etiqueta: "pendientes-dia",
@@ -131,32 +165,77 @@ export async function avisarPendientesDelDia(organizationId: string) {
     avisados += 1;
   }
 
-  // Y a la dirección, el panorama: cuántas quedan en total y cuántas no tienen
-  // responsable, que son las que se pierden en silencio.
+  // Y a la dirección, el avance del día: cuánto se cerró, quién va con qué y
+  // cuántas quedaron sin responsable.
   const totalPendientes =
     [...porPersona.values()].reduce((s, p) => s + p.pendientes.length, 0) + sinDuenoPendientes;
+  const totalCerradas = tareas.length - totalPendientes;
 
-  if (totalPendientes > 0) {
-    const direccion = await db.user.findMany({
-      where: { organizationId, role: { in: ["OWNER", "DIRECTOR"] } },
-      select: { id: true },
-    });
-    const texto =
-      `Quedan ${totalPendientes} de ${tareas.length} tareas del día sin cerrar` +
-      (sinDuenoPendientes > 0 ? `, ${sinDuenoPendientes} sin responsable asignado.` : ".");
-    for (const u of direccion) {
-      await db.notification.create({
-        data: {
-          userId: u.id,
-          type: "pendientes_dia",
-          message: texto,
-          link: "/dashboard/contenido?vista=tablero",
-        },
-      });
-    }
+  // Ordenado por lo que falta y no alfabético: quien más deba queda arriba,
+  // que es a quien hay que escribirle antes de que termine el día.
+  const conPendientes = [...porPersona.values()]
+    .filter((p) => p.pendientes.length > 0)
+    .sort((a, b) => b.pendientes.length - a.pendientes.length);
+
+  const cerraronTodo = [...porPersona.values()].filter((p) => p.pendientes.length === 0);
+  const nombre = (p: Persona) => p.nombre.split(" ")[0];
+
+  const renglones: string[] = [
+    `Cerradas ${totalCerradas} de ${tareas.length} ${segun(tareas.length, "tarea", "tareas")} del día.`,
+  ];
+
+  if (conPendientes.length > 0) {
+    const detalle = conPendientes
+      .slice(0, TOPE_PERSONAS)
+      .map((p) => `${nombre(p)} ${p.pendientes.length}`)
+      .join(", ");
+    const resto = conPendientes.length - TOPE_PERSONAS;
+    renglones.push(`Pendientes: ${detalle}${resto > 0 ? `, y ${resto} más` : ""}.`);
   }
 
-  const detalle = `${avisados} personas avisadas, ${totalPendientes} pendientes`;
+  if (cerraronTodo.length > 0) {
+    renglones.push(`Al día: ${cerraronTodo.map(nombre).join(", ")}.`);
+  }
+
+  if (sinDuenoPendientes > 0) {
+    renglones.push(
+      `${sinDuenoPendientes} ${segun(sinDuenoPendientes, "tarea", "tareas")} sin responsable ` +
+        `${segun(sinDuenoPendientes, "sigue", "siguen")} sin cerrar.`,
+    );
+  } else if (sinDuenoTotal > 0) {
+    renglones.push(
+      `${sinDuenoTotal === 1 ? "La tarea" : `Las ${sinDuenoTotal} tareas`} sin responsable ` +
+        `${segun(sinDuenoTotal, "quedó cerrada", "quedaron cerradas")}.`,
+    );
+  }
+
+  const texto = renglones.join(" ");
+
+  const direccion = await db.user.findMany({
+    where: { organizationId, role: { in: ["OWNER", "DIRECTOR"] } },
+    select: { id: true },
+  });
+
+  for (const u of direccion) {
+    await db.notification.create({
+      data: {
+        userId: u.id,
+        type: "pendientes_dia",
+        message: texto,
+        link: "/dashboard/contenido?vista=tablero",
+      },
+    });
+    await avisarA(u.id, {
+      titulo: `Avance del día · ${totalCerradas} de ${tareas.length}`,
+      cuerpo: texto,
+      url: "/dashboard/contenido?vista=tablero",
+      etiqueta: "avance-dia",
+    });
+  }
+
+  const detalle =
+    `${avisados} personas avisadas, ${direccion.length} en dirección, ` +
+    `${totalCerradas} cerradas y ${totalPendientes} pendientes`;
   await marcar(detalle);
   return detalle;
 }

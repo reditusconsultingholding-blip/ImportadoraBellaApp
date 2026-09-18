@@ -28,6 +28,23 @@ type Filtros = {
 
 const FILTROS_VACIOS: Filtros = { texto: "", estado: "", responsable: "", producto: "" };
 
+/**
+ * Cómo se agrupan las filas.
+ *
+ * Filtrar por una persona contesta "qué tiene Antonella". Agrupar contesta
+ * "cómo está repartido el trabajo", que es la pregunta de quien coordina: se
+ * ve de un vistazo quién está cargado, quién no tiene nada y qué producto se
+ * llevó la mitad del mes, sin abrir y cerrar el filtro diez veces.
+ */
+const AGRUPACIONES = [
+  { valor: "", texto: "Sin agrupar" },
+  { valor: "responsable", texto: "Agrupar por responsable" },
+  { valor: "producto", texto: "Agrupar por producto" },
+] as const;
+type Agrupacion = (typeof AGRUPACIONES)[number]["valor"];
+
+const SIN_RESPONSABLE = "__sin__";
+
 export default function Requerimientos({
   canManage,
   currentUserId,
@@ -43,6 +60,7 @@ export default function Requerimientos({
   const [verCifras, setVerCifras] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS);
+  const [agrupacion, setAgrupacion] = useState<Agrupacion>("");
   const [creando, setCreando] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
@@ -109,7 +127,7 @@ export default function Requerimientos({
     const texto = filtros.texto.trim().toLowerCase();
     return filas.filter((r) => {
       if (filtros.estado && r.status !== filtros.estado) return false;
-      if (filtros.responsable === "__sin__") {
+      if (filtros.responsable === SIN_RESPONSABLE) {
         if (r.ownerId) return false;
       } else if (filtros.responsable && r.ownerId !== filtros.responsable) {
         return false;
@@ -125,6 +143,76 @@ export default function Requerimientos({
     });
   }, [filas, filtros]);
 
+
+  /**
+   * Las mismas filas, reordenadas para que cada grupo quede junto.
+   *
+   * Se ordena la lista completa en vez de cortar por grupo: así el "ver 100
+   * más" sigue funcionando igual —recorre los grupos en orden— en lugar de
+   * tener un tope propio por cada uno.
+   *
+   * Los grupos van del más cargado al más liviano, y "sin responsable" primero
+   * de todo: es el único que hay que vaciar.
+   */
+  const ordenadas = useMemo(() => {
+    if (!agrupacion) return visibles;
+
+    const clave = (r: RequirementRow) =>
+      agrupacion === "responsable"
+        ? (r.ownerId ?? SIN_RESPONSABLE)
+        : (r.productId ?? SIN_RESPONSABLE);
+
+    const tamano = new Map<string, number>();
+    for (const r of visibles) {
+      const k = clave(r);
+      tamano.set(k, (tamano.get(k) ?? 0) + 1);
+    }
+
+    const peso = (k: string) => (k === SIN_RESPONSABLE ? Infinity : (tamano.get(k) ?? 0));
+    return visibles
+      .map((r, i) => ({ r, i, k: clave(r) }))
+      .sort((a, b) => peso(b.k) - peso(a.k) || a.k.localeCompare(b.k) || a.i - b.i)
+      .map((x) => x.r);
+  }, [visibles, agrupacion]);
+
+  /**
+   * Los tramos contiguos que se dibujan, ya recortados por el tope.
+   *
+   * Cada uno lleva su total real además de lo que se ve: un grupo cortado por
+   * el tope que dijera "12 piezas" cuando la persona tiene cuarenta sería una
+   * cifra falsa en pantalla, que es peor que no mostrar ninguna.
+   */
+  const grupos = useMemo(() => {
+    const filasVisibles = ordenadas.slice(0, tope);
+    if (!agrupacion) {
+      return [{ clave: "", titulo: "", filas: filasVisibles, total: ordenadas.length }];
+    }
+
+    const total = new Map<string, number>();
+    for (const r of ordenadas) {
+      const k = agrupacion === "responsable" ? (r.ownerId ?? SIN_RESPONSABLE) : (r.productId ?? SIN_RESPONSABLE);
+      total.set(k, (total.get(k) ?? 0) + 1);
+    }
+
+    const titulo = (r: RequirementRow) =>
+      agrupacion === "responsable"
+        ? (r.owner?.name ?? "Sin responsable")
+        : r.product
+          ? `${r.product.code} — ${r.product.name}`
+          : "Sin producto";
+
+    const salida: { clave: string; titulo: string; filas: RequirementRow[]; total: number }[] = [];
+    for (const r of filasVisibles) {
+      const clave =
+        agrupacion === "responsable"
+          ? (r.ownerId ?? SIN_RESPONSABLE)
+          : (r.productId ?? SIN_RESPONSABLE);
+      const ultimo = salida[salida.length - 1];
+      if (ultimo && ultimo.clave === clave) ultimo.filas.push(r);
+      else salida.push({ clave, titulo: titulo(r), filas: [r], total: total.get(clave) ?? 0 });
+    }
+    return salida;
+  }, [ordenadas, agrupacion, tope]);
 
   const hayFiltro = filtros.texto !== "" || filtros.estado !== "" || filtros.responsable !== "" || filtros.producto !== "";
 
@@ -229,6 +317,21 @@ export default function Requerimientos({
             </option>
           ))}
         </select>
+        <select
+          value={agrupacion}
+          onChange={(e) => {
+            setAgrupacion(e.target.value as Agrupacion);
+            setTope(POR_TANDA);
+          }}
+          className={claseCampo}
+          aria-label="Agrupar la lista"
+        >
+          {AGRUPACIONES.map((a) => (
+            <option key={a.valor} value={a.valor}>
+              {a.texto}
+            </option>
+          ))}
+        </select>
         {hayFiltro && (
           <button
             type="button"
@@ -269,11 +372,39 @@ export default function Requerimientos({
               : `${visibles.length} de ${filas.length} piezas`}
             {visibles.length > tope && ` · mostrando las primeras ${tope}`}
           </p>
-          <RequirementsTable
-            requirements={visibles.slice(0, tope)}
-            verCifras={verCifras}
-            onOpen={setDetalleId}
-          />
+          {agrupacion ? (
+            <div className="flex flex-col gap-5">
+              {grupos.map((g) => (
+                <section key={g.clave} className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <h3
+                      className={`text-sm font-semibold ${
+                        g.clave === SIN_RESPONSABLE ? "text-warning" : ""
+                      }`}
+                    >
+                      {g.titulo}
+                    </h3>
+                    <span className="text-[11px] text-muted">
+                      {g.filas.length < g.total
+                        ? `${g.filas.length} de ${g.total} piezas`
+                        : `${g.total} ${g.total === 1 ? "pieza" : "piezas"}`}
+                    </span>
+                  </div>
+                  <RequirementsTable
+                    requirements={g.filas}
+                    verCifras={verCifras}
+                    onOpen={setDetalleId}
+                  />
+                </section>
+              ))}
+            </div>
+          ) : (
+            <RequirementsTable
+              requirements={grupos[0]?.filas ?? []}
+              verCifras={verCifras}
+              onOpen={setDetalleId}
+            />
+          )}
           {visibles.length > tope && (
             <div className="flex flex-col items-center gap-1.5">
               <button

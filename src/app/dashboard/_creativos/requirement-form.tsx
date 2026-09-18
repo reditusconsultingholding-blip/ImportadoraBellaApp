@@ -201,6 +201,11 @@ export default function RequirementForm({
         <Select label="Mercado origen" value={marketOrigin} onChange={setMarketOrigin} options={MARKET_ORIGINS} />
       </div>
 
+      {/* Obligatorio a propósito. Una pieza sin responsable no le aparece a
+          nadie en su día a día, no entra en el aviso de las ocho y no la
+          reclama nadie: se pierde en silencio. Es más barato elegir a alguien
+          ahora —y reasignarlo después, que se puede— que descubrir en una
+          semana que la pieza nunca existió para el equipo. */}
       <label className="block">
         <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
           Editor asignado
@@ -208,15 +213,20 @@ export default function RequirementForm({
         <select
           value={ownerId}
           onChange={(e) => setOwnerId(e.target.value)}
+          required
           className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
         >
-          <option value="">Sin asignar</option>
+          <option value="">Elegí un responsable</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
             </option>
           ))}
         </select>
+        <span className="mt-1 block text-[11px] text-muted">
+          Se puede reasignar después, pero no puede quedar vacío: sin responsable la pieza no le
+          aparece a nadie.
+        </span>
       </label>
 
       <div className="grid grid-cols-2 gap-3">

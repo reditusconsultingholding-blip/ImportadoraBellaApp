@@ -59,6 +59,18 @@ const TONO_ESTADO: Record<EstadoTarea, string> = {
 
 const esEstado = (v: string): v is EstadoTarea => (ESTADOS_TAREA as readonly string[]).includes(v);
 
+/* -------------------------------- Filtros --------------------------------- */
+
+// Valores que no son ni un id ni un estado real, y por eso no pueden chocar
+// con uno: las tareas huérfanas y "todo lo que no está cerrado".
+const SIN_RESPONSABLE = "__sin__";
+const PENDIENTES = "__pendientes__";
+
+/** " · 3" al lado del nombre, o nada si no le queda ninguna. */
+function cuentaTexto(n: number | undefined) {
+  return n ? ` · ${n}` : "";
+}
+
 /* --------------------------------- Fechas --------------------------------- */
 
 function hoyEcuador() {
@@ -227,7 +239,9 @@ export default function TableroNotion({
   const [tareas, setTareas] = useState<TareaFila[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
-  const [soloMias, setSoloMias] = useState(false);
+  // Quién: "" son todas, SIN_RESPONSABLE son las huérfanas, y si no, un id.
+  const [persona, setPersona] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState("");
   const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
   const [creandoEn, setCreandoEn] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
@@ -310,7 +324,16 @@ export default function TableroNotion({
     if (!tareas) return [];
     const t = busqueda.trim().toLowerCase();
     return tareas.filter((x) => {
-      if (soloMias && x.ownerId !== currentUserId) return false;
+      if (persona === SIN_RESPONSABLE) {
+        if (x.ownerId) return false;
+      } else if (persona && x.ownerId !== persona) {
+        return false;
+      }
+      if (estadoFiltro === PENDIENTES) {
+        if (x.estado === "HECHO") return false;
+      } else if (estadoFiltro && x.estado !== estadoFiltro) {
+        return false;
+      }
       if (!t) return true;
       return (
         (x.product?.name ?? x.productoTexto ?? "").toLowerCase().includes(t) ||
@@ -318,7 +341,24 @@ export default function TableroNotion({
         (x.notas ?? "").toLowerCase().includes(t)
       );
     });
-  }, [tareas, busqueda, soloMias, currentUserId]);
+  }, [tareas, busqueda, persona, estadoFiltro]);
+
+  /**
+   * Cuántas le quedan sin cerrar a cada quien, en todo lo cargado.
+   *
+   * Va al lado del nombre en el desplegable. Es la diferencia entre elegir a
+   * ciegas —abrir persona por persona hasta encontrar quién está atrasado— y
+   * ver de una quién necesita que le escriban.
+   */
+  const pendientesPorPersona = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const t of tareas ?? []) {
+      if (t.estado === "HECHO") continue;
+      const clave = t.ownerId ?? SIN_RESPONSABLE;
+      cuenta.set(clave, (cuenta.get(clave) ?? 0) + 1);
+    }
+    return cuenta;
+  }, [tareas]);
 
   /** Agrupadas por día, del más reciente al más viejo. */
   const dias = useMemo(() => {
@@ -345,7 +385,13 @@ export default function TableroNotion({
    * mil filas en pantalla y el día de trabajo enterrado abajo del todo.
    */
   const estaAbierto = (dia: string) =>
-    abiertos[dia] ?? (dia === hoy || dias.findIndex(([d]) => d === dia) === 0);
+    abiertos[dia] ??
+    (dia === hoy ||
+      dias.findIndex(([d]) => d === dia) === 0 ||
+      // Con un filtro puesto la historia ya quedó recortada, y dejar los días
+      // plegados obliga a abrirlos uno por uno para ver lo que se buscaba.
+      // Arriba de cien filas se vuelve a plegar: ahí el problema es otro.
+      (hayFiltro && visibles.length <= 100));
 
   const opcionesEstado = ESTADOS_TAREA.map((e) => ({ valor: e, texto: ESTADO_TAREA_LABEL[e] }));
   const opcionesPlataforma = PLATAFORMAS.map((p) => ({ valor: p, texto: PLATAFORMA_LABEL[p] }));
@@ -354,6 +400,16 @@ export default function TableroNotion({
 
   const claseCampo =
     "rounded border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-border-strong focus:outline-none";
+
+  const hayFiltro = Boolean(persona || estadoFiltro || busqueda.trim());
+  const etiquetaPersona =
+    persona === SIN_RESPONSABLE
+      ? "sin responsable"
+      : persona === currentUserId
+        ? "las mías"
+        : persona
+          ? (users.find((u) => u.id === persona)?.name ?? "")
+          : "";
 
   return (
     <div className="flex flex-col gap-3">
@@ -373,16 +429,71 @@ export default function TableroNotion({
             className={`${claseCampo} min-w-[200px]`}
             aria-label="Buscar tareas"
           />
-          <label className="flex items-center gap-1.5 text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={soloMias}
-              onChange={(e) => setSoloMias(e.target.checked)}
-            />
-            Solo las mías
-          </label>
+          <select
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            className={claseCampo}
+            aria-label="Filtrar por responsable"
+          >
+            <option value="">Todo el equipo</option>
+            <option value={currentUserId}>
+              Solo las mías{cuentaTexto(pendientesPorPersona.get(currentUserId))}
+            </option>
+            <optgroup label="Por persona">
+              {users
+                .filter((u) => u.id !== currentUserId)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                    {cuentaTexto(pendientesPorPersona.get(u.id))}
+                  </option>
+                ))}
+            </optgroup>
+            <option value={SIN_RESPONSABLE}>
+              Sin responsable{cuentaTexto(pendientesPorPersona.get(SIN_RESPONSABLE))}
+            </option>
+          </select>
+          <select
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+            className={claseCampo}
+            aria-label="Filtrar por estado"
+          >
+            <option value="">Todos los estados</option>
+            <option value={PENDIENTES}>Sin cerrar</option>
+            <optgroup label="Un estado">
+              {ESTADOS_TAREA.map((e) => (
+                <option key={e} value={e}>
+                  {ESTADO_TAREA_LABEL[e]}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          {(persona || estadoFiltro || busqueda) && (
+            <button
+              type="button"
+              onClick={() => {
+                setPersona("");
+                setEstadoFiltro("");
+                setBusqueda("");
+              }}
+              className="rounded px-2 py-1 text-xs text-muted underline-offset-2 transition hover:text-foreground hover:underline"
+            >
+              Limpiar
+            </button>
+          )}
         </div>
       </div>
+
+      {hayFiltro && (
+        <p className="text-xs text-muted">
+          {visibles.length === 0
+            ? "Ninguna tarea coincide."
+            : `${visibles.length} ${visibles.length === 1 ? "tarea" : "tareas"} ${
+                visibles.length === 1 ? "coincide" : "coinciden"
+              } con el filtro${etiquetaPersona ? ` · ${etiquetaPersona}` : ""}.`}
+        </p>
+      )}
 
       {error && (
         <p className="rounded border border-critical bg-critical-bg px-3 py-2 text-xs text-critical">
@@ -394,7 +505,7 @@ export default function TableroNotion({
         <p className="text-sm text-muted">Cargando el tablero…</p>
       ) : dias.length === 0 ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-muted">
-          {busqueda || soloMias
+          {hayFiltro
             ? "Ninguna tarea coincide con el filtro."
             : "Todavía no hay tareas cargadas."}
         </div>
