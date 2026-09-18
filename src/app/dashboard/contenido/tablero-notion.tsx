@@ -44,6 +44,8 @@ export type TareaFila = {
   numeroCreativos: number;
   estado: string;
   notas: string | null;
+  /** Cuando la fila nació de un requerimiento con fecha de entrega. */
+  requirementId: string | null;
 };
 
 /* --------------------------------- Colores -------------------------------- */
@@ -563,13 +565,18 @@ export default function TableroNotion({
                         // acá evita que alguien escriba algo que va a rebotar.
                         const mia = t.ownerId === currentUserId;
                         const puedo = canManage || mia;
+                        // Las filas que vienen de un requerimiento toman de
+                        // ahí el producto y el responsable. Dejarlos editables
+                        // acá sería una trampa: el cambio se vería, y volvería
+                        // solo la próxima vez que alguien tocara la pieza.
+                        const deRequerimiento = Boolean(t.requirementId);
                         return (
                           <tr
                             key={t.id}
                             className="border-b border-border transition-colors last:border-b-0 hover:bg-surface-2/60"
                           >
                             <td className={CELDA}>
-                              {canManage ? (
+                              {canManage && !deRequerimiento ? (
                                 <CeldaSelect
                                   valor={t.productId ?? ""}
                                   opciones={opcionesProducto}
@@ -587,13 +594,21 @@ export default function TableroNotion({
                                   {t.product.code}
                                 </span>
                               )}
+                              {deRequerimiento && (
+                                <a
+                                  href="/dashboard/contenido?vista=requerimientos"
+                                  className="mt-0.5 inline-block text-[11px] text-accent-strong underline-offset-2 hover:underline"
+                                >
+                                  Viene de un requerimiento
+                                </a>
+                              )}
                             </td>
                             <td className={CELDA}>
                               <CeldaSelect
                                 valor={t.ownerId ?? ""}
                                 opciones={opcionesResponsable}
                                 onGuardar={(v) => editar(t.id, "ownerId", v || null)}
-                                editable={canManage}
+                                editable={canManage && !deRequerimiento}
                                 vacio={t.responsableTexto ?? "Sin asignar"}
                               />
                             </td>

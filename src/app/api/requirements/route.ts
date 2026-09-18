@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
+import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
 
 export async function GET() {
   const session = await getSession();
@@ -89,6 +90,10 @@ export async function POST(req: NextRequest) {
       owner: { select: { id: true, name: true } },
     },
   });
+
+  // Con fecha de entrega, la pieza aparece sola en el tablero del día y en el
+  // calendario. Sin ella no pasa nada: no habría día en el que ponerla.
+  await sincronizarTareaDeRequerimiento(requirement.id);
 
   return NextResponse.json({ requirement });
 }

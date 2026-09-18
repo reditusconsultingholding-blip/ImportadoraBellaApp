@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canAccessRequirement, canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
+import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
 
 async function loadOwned(id: string, organizationId: string) {
   return db.requirement.findFirst({
@@ -162,6 +163,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await db.requirementActivity.create({
       data: { requirementId: id, actorName: session.name, ...entry },
     });
+  }
+
+  // La tarea del tablero sigue a la pieza: si cambió el día de entrega, el
+  // responsable, el producto o quedó cerrada, se mueve con ella.
+  if ("dueDate" in data || "ownerId" in data || "productId" in data || "status" in data || "adName" in data) {
+    await sincronizarTareaDeRequerimiento(id);
   }
 
   return NextResponse.json({

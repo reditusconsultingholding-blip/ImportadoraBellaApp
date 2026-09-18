@@ -591,6 +591,10 @@ model Requirement {
   versions RequirementVersion[]
   activity RequirementActivity[]
 
+  // La tarea del día a día que representa esta pieza en el tablero y en el
+  // calendario. La crea y la mueve sincronizarTareaDeRequerimiento().
+  tarea TareaDiaria? @relation("TareaDeRequerimiento")
+
   @@index([organizationId, status])
 }
 
@@ -1308,6 +1312,13 @@ model TareaDiaria {
   // — permite re-correrlo sin duplicar.
   origen       String?
   notionPageId String?
+
+  // La pieza que le dio origen, cuando la tarea nació de un requerimiento con
+  // fecha de entrega. Es uno a uno: un requerimiento tiene UNA tarea, que se
+  // mueve de día o de responsable cuando el requerimiento cambia, en lugar de
+  // dejar la vieja huérfana y crear otra al lado.
+  requirementId String?      @unique
+  requirement   Requirement? @relation("TareaDeRequerimiento", fields: [requirementId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

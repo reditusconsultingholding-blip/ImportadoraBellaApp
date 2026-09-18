@@ -11,6 +11,11 @@ import {
 } from "@/lib/pipeline-options";
 import type { ProductOption, RequirementRow, UserOption } from "./types";
 
+/** Hoy en Ecuador (UTC-5), como "2026-09-17" — que es lo que espera un input date. */
+function hoyEcuador() {
+  return new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10);
+}
+
 function Select({
   label,
   value,
@@ -75,7 +80,9 @@ export default function RequirementForm({
   const [awarenessLevel, setAwarenessLevel] = useState("");
   const [marketOrigin, setMarketOrigin] = useState("");
   const [ownerId, setOwnerId] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  // Arranca en hoy: es la fecha correcta la mayoría de las veces, y así el
+  // campo obligatorio no se convierte en un trámite más.
+  const [dueDate, setDueDate] = useState(hoyEcuador);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,6 +237,10 @@ export default function RequirementForm({
       </label>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* También obligatoria, y por la misma razón que el responsable: la
+            fecha de entrega es la que pone la pieza en el día a día de quien
+            la hace y en el calendario. Sin fecha la pieza no tiene día, y una
+            pieza sin día no la ve nadie hasta que alguien se acuerda. */}
         <label className="block">
           <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
             Fecha de entrega
@@ -238,6 +249,7 @@ export default function RequirementForm({
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
+            required
             className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
           />
         </label>
