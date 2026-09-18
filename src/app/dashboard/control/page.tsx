@@ -4,39 +4,29 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { db } from "@/lib/db";
-import {
-  controlPublicitario,
-  resumenDelMes,
-  ETIQUETA_HORA,
-  HORAS_CORTE,
-  diaEcuador,
-} from "@/lib/control-publicitario";
+import { controlDelPeriodo, diaEcuador, ETIQUETA_HORA } from "@/lib/control-publicitario";
+import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
-import TablaControl from "./tabla-control";
-import TablaMes from "./tabla-mes";
+import Resultados from "./resultados";
 import Economia from "./economia";
+import Enlazar from "./enlazar";
 
 // El control de gastos publicitarios.
 //
-// Reemplaza la planilla que el equipo cuadra a mano dos días después de que
-// pasaron las cosas: una fila por producto, por día y por corte, con los
-// pedidos, el CPA, el gasto, la efectividad, los pedidos efectivos, los gastos
-// operativos y administrativos, y la utilidad.
+// Reemplaza la planilla que el equipo cuadra a mano dos días después. La
+// vista principal es el PERÍODO, no el día: se elige julio y se ve julio —el
+// total, el CPA del mes, cada producto con lo suyo—, que es como el equipo lo
+// lee en las herramientas que ya usa. El detalle día por día queda a un clic,
+// para cuando haga falta, en vez de ser lo primero que aparece.
 //
-// La cuenta es la del archivo del equipo, con una diferencia documentada en
-// src/lib/control-publicitario.ts: los gastos operativos usan producción más
-// flete, que es lo que la planilla quiso hacer y no hace.
+// La cuenta es la del archivo del equipo, con dos cosas documentadas en
+// src/lib/control-publicitario.ts: los pedidos son los reales de la tienda, y
+// los gastos operativos usan producción más flete.
 
-const VISTAS = ["dia", "mes", "economia"] as const;
+const VISTAS = ["resultados", "economia", "enlazar"] as const;
 type Vista = (typeof VISTAS)[number];
 const esVista = (v: string | undefined): v is Vista =>
   Boolean(v && (VISTAS as readonly string[]).includes(v));
-
-const TABS: { id: Vista; label: string }[] = [
-  { id: "dia", label: "Día a día" },
-  { id: "mes", label: "Resumen del mes" },
-  { id: "economia", label: "Economía por producto" },
-];
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -45,15 +35,57 @@ const NOMBRE_MES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
+/** Los períodos rápidos, resueltos contra el día de hoy en Ecuador. */
+function resolverPeriodo(p: { periodo?: string; desde?: string; hasta?: string }, hoy: Date) {
+  const dia = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const ayer = new Date(hoy.getTime() - 86400_000);
+  const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
+
+  if (p.desde && p.hasta) {
+    return {
+      id: "personalizado",
+      desde: new Date(`${p.desde}T00:00:00.000Z`),
+      hasta: new Date(`${p.hasta}T00:00:00.000Z`),
+    };
+  }
+  const m = /^mes-(\d{4})-(\d{1,2})$/.exec(p.periodo ?? "");
+  if (m) {
+    const anio = Number(m[1]);
+    const mes = Number(m[2]);
+    const fin = new Date(Date.UTC(anio, mes, 0));
+    return { id: p.periodo!, desde: new Date(Date.UTC(anio, mes - 1, 1)), hasta: fin < hoy ? fin : ayer };
+  }
+  switch (p.periodo) {
+    case "ayer":
+      return { id: "ayer", desde: dia(ayer), hasta: dia(ayer) };
+    case "7d":
+      return { id: "7d", desde: new Date(hoy.getTime() - 7 * 86400_000), hasta: ayer };
+    case "30d":
+      return { id: "30d", desde: new Date(hoy.getTime() - 30 * 86400_000), hasta: ayer };
+    case "mes-pasado": {
+      const desde = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1));
+      return { id: "mes-pasado", desde, hasta: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 0)) };
+    }
+    default:
+      // Este mes, hasta ayer: el día en curso no tiene cierre todavía. El primer
+      // día del mes no hay "hasta ayer" dentro del mes, así que se muestra ayer.
+      return hoy.getUTCDate() === 1
+        ? { id: "ayer", desde: dia(ayer), hasta: dia(ayer) }
+        : { id: "este-mes", desde: inicioMes, hasta: ayer };
+  }
+}
+
 export default async function ControlPage({
   searchParams,
 }: {
   searchParams: Promise<{
     vista?: string;
+    periodo?: string;
     desde?: string;
     hasta?: string;
     hora?: string;
-    producto?: string;
+    productos?: string;
+    detalle?: string;
     anio?: string;
     mes?: string;
   }>;
@@ -61,24 +93,17 @@ export default async function ControlPage({
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canManagePipeline(session.role)) redirect("/dashboard");
-  // Esta pantalla es la utilidad del negocio, producto por producto y hora por
-  // hora. Sin el permiso de finanzas no se abre, igual que Rentabilidad.
+  // Esta pantalla es la utilidad del negocio, producto por producto. Sin el
+  // permiso de finanzas no se abre, igual que Rentabilidad.
   if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const p = await searchParams;
-  const vista: Vista = esVista(p.vista) ? p.vista : "dia";
+  const vista: Vista = esVista(p.vista) ? p.vista : "resultados";
 
   const hoy = diaEcuador();
-  const anio = Number(p.anio) || hoy.getUTCFullYear();
-  const mes = Number(p.mes) || hoy.getUTCMonth() + 1;
-
-  // Treinta días por defecto, como el resto de las pantallas de números.
-  const hasta = p.hasta ? new Date(`${p.hasta}T00:00:00.000Z`) : hoy;
-  const desde = p.desde
-    ? new Date(`${p.desde}T00:00:00.000Z`)
-    : new Date(hasta.getTime() - 29 * 86400_000);
-
-  const hora = p.hora === "todas" ? undefined : Number(p.hora) || 23;
+  const periodo = resolverPeriodo(p, hoy);
+  const hora = Number(p.hora) || 23;
+  const productIds = (p.productos ?? "").split(",").filter(Boolean);
 
   const productos = await db.product.findMany({
     where: { organizationId: session.organizationId, archived: false },
@@ -88,27 +113,37 @@ export default async function ControlPage({
 
   let cuerpo: React.ReactNode = null;
 
-  if (vista === "dia") {
-    const control = await controlPublicitario(session.organizationId, {
-      desde,
-      hasta,
+  if (vista === "resultados") {
+    const control = await controlDelPeriodo(session.organizationId, {
+      desde: periodo.desde,
+      hasta: periodo.hasta,
       hora,
-      productId: p.producto || undefined,
+      productIds,
+    });
+    // Los meses que se ofrecen en el selector: los catorce últimos.
+    const meses = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
+      return {
+        id: `mes-${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`,
+        texto: `${NOMBRE_MES[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+      };
     });
     cuerpo = (
-      <TablaControl
+      <Resultados
         control={control}
         productos={productos}
-        desde={isoDay(desde)}
-        hasta={isoDay(hasta)}
-        hora={hora === undefined ? "todas" : String(hora)}
-        producto={p.producto ?? ""}
+        periodo={periodo.id}
+        desde={isoDay(periodo.desde)}
+        hasta={isoDay(periodo.hasta)}
+        hora={hora}
+        seleccion={productIds}
+        detalle={p.detalle === "dia"}
+        meses={meses}
       />
     );
-  } else if (vista === "mes") {
-    const resumen = await resumenDelMes(session.organizationId, anio, mes);
-    cuerpo = <TablaMes resumen={resumen} anio={anio} mes={mes} />;
-  } else {
+  } else if (vista === "economia") {
+    const anio = Number(p.anio) || hoy.getUTCFullYear();
+    const mes = Number(p.mes) || hoy.getUTCMonth() + 1;
     const [variables, gastoAdm] = await Promise.all([
       db.variableProducto.findMany({
         where: { organizationId: session.organizationId, anio, mes },
@@ -124,7 +159,7 @@ export default async function ControlPage({
       }),
       db.gastoAdmMes.findUnique({
         where: { organizationId_anio_mes: { organizationId: session.organizationId, anio, mes } },
-        select: { valor: true },
+        select: { valor: true, enlace: true },
       }),
     ]);
     cuerpo = (
@@ -134,23 +169,32 @@ export default async function ControlPage({
         productos={productos}
         variables={variables}
         gastoAdm={gastoAdm?.valor ?? null}
+        enlaceAdm={gastoAdm?.enlace ?? null}
+      />
+    );
+  } else {
+    const pendientes = await nombresSinEnlazar(session.organizationId, periodo.desde, periodo.hasta);
+    cuerpo = (
+      <Enlazar
+        pendientes={pendientes}
+        productos={productos}
+        desde={isoDay(periodo.desde)}
+        hasta={isoDay(periodo.hasta)}
       />
     );
   }
 
-  const enlaceDe = (v: Vista) => {
+  const conservar = (v: Vista) => {
     const q = new URLSearchParams({ vista: v });
-    if (v === "dia") {
-      q.set("desde", isoDay(desde));
-      q.set("hasta", isoDay(hasta));
-      q.set("hora", hora === undefined ? "todas" : String(hora));
-      if (p.producto) q.set("producto", p.producto);
-    } else {
-      q.set("anio", String(anio));
-      q.set("mes", String(mes));
-    }
+    for (const k of ["periodo", "desde", "hasta"] as const) if (p[k]) q.set(k, p[k]!);
     return `/dashboard/control?${q.toString()}`;
   };
+
+  const TABS: { id: Vista; label: string }[] = [
+    { id: "resultados", label: "Resultados" },
+    { id: "economia", label: "Economía por producto" },
+    { id: "enlazar", label: "Enlazar pedidos" },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -158,20 +202,18 @@ export default async function ControlPage({
         eyebrow="Números"
         titulo="Control publicitario"
         insignia={
-          <InsigniaEncabezado>
-            {vista === "dia"
-              ? (ETIQUETA_HORA[hora ?? -1] ?? "Los cuatro cortes")
-              : `${NOMBRE_MES[mes - 1]} ${anio}`}
-          </InsigniaEncabezado>
+          vista === "resultados" && hora !== 23 ? (
+            <InsigniaEncabezado>{ETIQUETA_HORA[hora]}</InsigniaEncabezado>
+          ) : undefined
         }
-        descripcion="El día mirado a las 8, a las 11, a las 4 y al cierre: pedidos, CPA, gasto, efectividad, costos operativos y administrativos, y la utilidad que queda. Es la planilla del equipo, calculada sola."
+        descripcion="Los pedidos reales de la tienda contra todo lo que se gastó en pauta, con la economía de cada producto. Es la planilla del equipo, calculada sola."
       />
 
-      <div className="flex flex-wrap gap-1.5 border-b border-border pb-4">
+      <nav className="flex flex-wrap gap-1.5 border-b border-border pb-4">
         {TABS.map((t) => (
           <Link
             key={t.id}
-            href={enlaceDe(t.id)}
+            href={conservar(t.id)}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
               vista === t.id
                 ? "border-accent bg-good-bg text-accent-strong"
@@ -181,36 +223,9 @@ export default async function ControlPage({
             {t.label}
           </Link>
         ))}
-        {vista !== "dia" && (
-          <div className="ml-auto flex items-center gap-1.5">
-            {[-1, 1].map((paso) => {
-              const d = new Date(Date.UTC(anio, mes - 1 + paso, 1));
-              const q = new URLSearchParams({
-                vista,
-                anio: String(d.getUTCFullYear()),
-                mes: String(d.getUTCMonth() + 1),
-              });
-              return (
-                <Link
-                  key={paso}
-                  href={`/dashboard/control?${q.toString()}`}
-                  className="rounded border border-border px-2 py-1 text-xs text-muted transition hover:text-foreground"
-                >
-                  {paso < 0 ? "← Mes anterior" : "Mes siguiente →"}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      </nav>
 
       {cuerpo}
-
-      <p className="text-[11px] leading-relaxed text-muted">
-        Los cortes son acumulados del mismo día, no tramos: el de las 11 trae lo que va desde la
-        medianoche. El resumen del mes suma solo el cierre de las {HORAS_CORTE[3]}, porque sumar los
-        cuatro contaría cada día cuatro veces.
-      </p>
     </div>
   );
 }

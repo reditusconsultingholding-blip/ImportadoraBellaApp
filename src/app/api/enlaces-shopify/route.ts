@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { normalizarNombre } from "@/lib/enlace-shopify";
+import { programarRecalculo } from "@/lib/control-relleno";
 
 // Enlazar un producto nuestro con el nombre que usa Shopify.
 //
@@ -60,6 +61,10 @@ export async function POST(req: NextRequest) {
     update: { productId, nombre, automatico: body.automatico === true },
   });
 
+  // La historia de ese nombre cambia de fila: se recalculan los cierres.
+
+  programarRecalculo(session.organizationId);
+
   return NextResponse.json({ enlace });
 }
 
@@ -76,6 +81,10 @@ export async function DELETE(req: NextRequest) {
   await db.productoShopify.deleteMany({
     where: { organizationId: session.organizationId, nombreNorm: normalizarNombre(nombre) },
   });
+
+  // La historia de ese nombre cambia de fila: se recalculan los cierres.
+
+  programarRecalculo(session.organizationId);
 
   return NextResponse.json({ ok: true });
 }

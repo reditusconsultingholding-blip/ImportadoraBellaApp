@@ -14,6 +14,7 @@ import { sincronizarNotion } from "@/lib/integrations/notion-import";
 import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
 import { capturarCorte } from "@/lib/control-publicitario";
 import { repasoDiarioDeCierres } from "@/lib/control-relleno";
+import { resincronizacionProfunda } from "@/lib/resync-profundo";
 
 // El reloj de la aplicación.
 //
@@ -162,6 +163,16 @@ export async function sincronizarTodo() {
       if (r) resumen.notion = r;
     } catch (err) {
       resumen.notion = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Una vez por semana, los últimos noventa días de Meta y TikTok. Trae la
+    // historia de las cuentas que se conectaron tarde, que el sync de siete
+    // días nunca alcanza. Ver src/lib/resync-profundo.ts.
+    try {
+      const r = await resincronizacionProfunda(org.id);
+      if (r) resumen.resyncProfundo = r;
+    } catch (err) {
+      resumen.resyncProfundo = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // El repaso de los cierres de la última semana.

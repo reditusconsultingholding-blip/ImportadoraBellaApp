@@ -26,11 +26,16 @@ const PLATFORM: Record<WindsorConnector, Platform> = {
 // el equivocado.
 export function matchProduct(
   campaignName: string,
-  products: { id: string; code: string; name: string }[]
+  products: { id: string; code: string; name: string; codigosAnteriores?: string[] }[]
 ) {
+  // Un producto responde a su código actual y a los que usó antes: las
+  // campañas viejas siguen llamándose con el código anterior y tienen que
+  // caer en el mismo producto, no crear uno nuevo ni quedar sueltas.
+  const codigosDe = (p: (typeof products)[number]) => [p.code, ...(p.codigosAnteriores ?? [])];
+
   const ref = parseCampaignRef(campaignName);
   if (ref) {
-    const porCodigo = products.find((p) => p.code === ref.code);
+    const porCodigo = products.find((p) => codigosDe(p).includes(ref.code));
     if (porCodigo) return porCodigo.id;
   }
 
@@ -38,7 +43,7 @@ export function matchProduct(
   const ordered = [...products].sort((a, b) => b.name.length - a.name.length);
 
   for (const product of ordered) {
-    if (product.code && haystack.includes(product.code.toUpperCase())) return product.id;
+    if (codigosDe(product).some((c) => c && haystack.includes(c.toUpperCase()))) return product.id;
   }
   for (const product of ordered) {
     if (product.name.length >= 4 && haystack.includes(product.name.toUpperCase())) {
@@ -61,7 +66,7 @@ export async function syncWindsorConnector(
   const platform = PLATFORM[connector];
   const products = await db.product.findMany({
     where: { organizationId },
-    select: { id: true, code: true, name: true },
+    select: { id: true, code: true, name: true, codigosAnteriores: true },
   });
 
   // Se cachean cuentas y campañas para no repetir la misma escritura por cada
@@ -218,7 +223,7 @@ export async function relinkCampaignsToProducts(organizationId: string) {
   const [products, campaigns] = await Promise.all([
     db.product.findMany({
       where: { organizationId },
-      select: { id: true, code: true, name: true },
+      select: { id: true, code: true, name: true, codigosAnteriores: true },
     }),
     db.campaign.findMany({
       where: { adAccount: { organizationId } },

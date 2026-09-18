@@ -81,6 +81,8 @@ model Organization {
   cortes             CortePublicitario[]
   variablesProducto  VariableProducto[]
   gastosAdm          GastoAdmMes[]
+  nombresExcluidos   NombreShopifyExcluido[]
+  cortesSinAsignar   CorteSinAsignar[]
   anuncios           Anuncio[]
   eventos            EventoCalendario[]
   tareasDiarias      TareaDiaria[]
@@ -343,6 +345,13 @@ model Product {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   code           String // identificador que aparece en el nombre de campaña
+  // Códigos que el producto usó antes. El equipo le cambia el código a un
+  // producto cuando lo vuelve a subir (BODY COMPRESOR fue 116940 y hoy es
+  // 116944), y cada código nuevo había creado un producto aparte: Emilia veía
+  // dos "BODY" y el gasto de julio partido entre los dos. Ahora es uno solo, y
+  // las campañas viejas —que siguen llamándose con el código anterior— caen
+  // igual en él.
+  codigosAnteriores String[] @default([])
   name           String
   cpaTarget      Float // umbral: por debajo = verde, por encima = rojo
   unitCost       Float? // costo del producto, si se carga a mano
@@ -1270,6 +1279,14 @@ model GastoAdmMes {
   anio  Int
   mes   Int // 1-12
   valor Float
+  /**
+   * El enlace al documento de administración de donde sale el número.
+   *
+   * El total lo arma administración en su propio archivo. Poner el enlace al
+   * lado del número deja ver de qué está compuesto sin preguntarle a nadie, y
+   * sin traer a Jarvis una contabilidad que nadie pidió.
+   */
+  enlace String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1538,4 +1555,57 @@ model ProductoShopify {
   // la facturación de la tienda.
   @@unique([organizationId, nombreNorm])
   @@index([productId])
+}
+
+// Un nombre de línea de pedido que NO es un producto que se pauta.
+//
+// Hay dos clases, y cuentan distinto:
+//
+//   "ignorar" — no es un producto: "Envío Prioritario", "Garantía total de
+//   paquete". Viajan dentro de un pedido de otra cosa. Si se enlazaran a un
+//   producto, cada envío prioritario sumaría un pedido más.
+//
+//   "testeo" — un producto que se está probando. El equipo no lo cuenta en los
+//   pedidos del mes ("eso es netamente un gasto"): su pauta suma al costo, sus
+//   ventas no suman al número de pedidos. Es la etiqueta TESTEO de la pestaña
+//   Equivalencias del Excel.
+model NombreShopifyExcluido {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  nombre     String
+  nombreNorm String
+  motivo     String // "ignorar" | "testeo"
+
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, nombreNorm])
+}
+
+// El gasto y los pedidos del corte que no tienen producto.
+//
+// Sin esta fila, el control sumaba solo lo que estaba enlazado a un producto y
+// dejaba afuera $7.741 de gasto de julio —58 campañas sin código, casi todo
+// testeo—. Emilia comparaba contra su planilla, que sí los suma, y el número
+// no cuadraba. El costo existe aunque no tenga producto: tiene que estar.
+model CorteSinAsignar {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  fecha DateTime
+  hora  Int
+
+  /** Gasto de campañas sin producto: testeo y campañas sin código. */
+  gasto             Float @default(0)
+  /** Compras que esas campañas se atribuyen, como referencia. */
+  pedidosPlataforma Int   @default(0)
+  /** Pedidos reales de la tienda cuyo producto todavía no está enlazado. */
+  pedidosReales     Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, fecha, hora])
 }

@@ -21,22 +21,53 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json()) as { anio?: number; mes?: number; valor?: number };
+  const body = (await req.json()) as {
+    anio?: number;
+    mes?: number;
+    valor?: number;
+    enlace?: string | null;
+  };
   const anio = Number(body.anio);
   const mes = Number(body.mes);
-  const valor = Number(body.valor);
 
   if (!anio || !mes || mes < 1 || mes > 12) {
     return NextResponse.json({ error: "Mes inválido." }, { status: 400 });
   }
-  if (!isFinite(valor) || valor < 0) {
-    return NextResponse.json({ error: "El gasto tiene que ser un número positivo." }, { status: 400 });
+
+  // Se puede mandar el valor, el enlace o los dos: son dos campos que se
+  // guardan por separado al salir de cada uno.
+  const cambios: { valor?: number; enlace?: string | null } = {};
+  if (body.valor !== undefined) {
+    const valor = Number(body.valor);
+    if (!isFinite(valor) || valor < 0) {
+      return NextResponse.json({ error: "El gasto tiene que ser un número positivo." }, { status: 400 });
+    }
+    cambios.valor = valor;
+  }
+  if (body.enlace !== undefined) {
+    const enlace = body.enlace?.trim() || null;
+    // Solo enlaces web: es algo que se va a abrir con un clic.
+    if (enlace && !/^https?:\/\//i.test(enlace)) {
+      return NextResponse.json({ error: "El enlace tiene que empezar con https://" }, { status: 400 });
+    }
+    cambios.enlace = enlace;
+  }
+
+  const existente = await db.gastoAdmMes.findUnique({
+    where: { organizationId_anio_mes: { organizationId: session.organizationId, anio, mes } },
+    select: { id: true },
+  });
+  if (!existente && cambios.valor === undefined) {
+    return NextResponse.json(
+      { error: "Cargá primero el total del mes; el enlace va al lado de ese número." },
+      { status: 400 },
+    );
   }
 
   const fila = await db.gastoAdmMes.upsert({
     where: { organizationId_anio_mes: { organizationId: session.organizationId, anio, mes } },
-    create: { organizationId: session.organizationId, anio, mes, valor },
-    update: { valor },
+    create: { organizationId: session.organizationId, anio, mes, valor: cambios.valor ?? 0, enlace: cambios.enlace },
+    update: cambios,
   });
 
   return NextResponse.json({ gastoAdm: fila });

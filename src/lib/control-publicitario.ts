@@ -1,8 +1,16 @@
 import { db } from "@/lib/db";
-import { ventasRealesPorProducto } from "@/lib/enlace-shopify";
-import type { Range } from "@/lib/date-range";
-import { HORAS_CORTE } from "@/lib/control-opciones";
-import type { Control, FilaControl, FilaResumen, Totales } from "@/lib/control-opciones";
+import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
+import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
+import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
+import type {
+  Control,
+  ControlPeriodo,
+  FilaControl,
+  FilaPeriodo,
+  FilaResumen,
+  PuntoDia,
+  Totales,
+} from "@/lib/control-opciones";
 
 // Las etiquetas y los tipos viven en control-opciones.ts —sin Prisma— para que
 // las tablas, que son componentes de cliente, puedan importarlos sin arrastrar
@@ -171,193 +179,188 @@ export async function capturarCorte(
   const dia = diaEcuador(ahora);
   const hasta = instanteDelCorte(dia, corte + 1); // el corte cubre la hora entera
 
-  // Pedidos y gasto atribuidos por las plataformas, acumulados del día.
-  const porPlataforma = await db.$queryRaw<
-    { productId: string; pedidos: bigint; gasto: number }[]
-  >`
-    SELECT c."productId"                      AS "productId",
-           COALESCE(SUM(m."purchases"), 0)    AS "pedidos",
-           COALESCE(SUM(m."spend"), 0)        AS "gasto"
-      FROM "MetricSnapshot" m
-      JOIN "Campaign" c ON c."id" = m."campaignId"
-      JOIN "AdAccount" a ON a."id" = c."adAccountId"
-     WHERE a."organizationId" = ${organizationId}
-       AND c."productId" IS NOT NULL
-       AND m."capturedAt" = ${dia}
-     GROUP BY c."productId"
-  `;
+  // Lo que dicen las plataformas —con las campañas sin producto incluidas— y
+  // los pedidos reales de la tienda desde la medianoche hasta el corte.
+  const [plataforma, reales] = await Promise.all([
+    plataformaPorDia(organizationId, dia, dia),
+    pedidosRealesPorDia(organizationId, instanteDelCorte(dia, 0), hasta),
+  ]);
+  const { productos, sinAsignar } = filasDelDia(
+    organizationId,
+    dia,
+    corte,
+    plataforma.get(dia.toISOString()) ?? [],
+    reales.find((r) => r.fecha.getTime() === dia.getTime()),
+  );
 
-  // Pedidos reales de la tienda, desde la medianoche de Ecuador hasta el corte.
-  const rango: Range = {
-    from: dia,
-    to: dia,
-    fromInstant: instanteDelCorte(dia, 0),
-    toInstant: hasta,
-    label: "corte",
-    id: "personalizado",
-  };
-  const reales = await ventasRealesPorProducto(organizationId, rango);
-
-  const ids = new Set<string>([...porPlataforma.map((p) => p.productId), ...reales.keys()]);
-  if (ids.size === 0) return { hora: corte, dia: dia.toISOString().slice(0, 10), productos: 0 };
-
-  const plataformaDe = new Map(porPlataforma.map((p) => [p.productId, p]));
-
-  for (const productId of ids) {
-    const p = plataformaDe.get(productId);
-    const r = reales.get(productId);
-    const datos = {
-      pedidos: Number(p?.pedidos ?? 0),
-      gasto: Number(p?.gasto ?? 0),
-      pedidosReales: r?.unidades ?? 0,
-    };
+  for (const f of productos) {
+    const datos = { pedidos: f.pedidos, gasto: f.gasto, pedidosReales: f.pedidosReales };
     await db.cortePublicitario.upsert({
       where: {
-        organizationId_productId_fecha_hora: { organizationId, productId, fecha: dia, hora: corte },
+        organizationId_productId_fecha_hora: {
+          organizationId,
+          productId: f.productId,
+          fecha: dia,
+          hora: corte,
+        },
       },
-      create: { organizationId, productId, fecha: dia, hora: corte, ...datos },
+      create: { ...f },
       update: datos,
     });
   }
+  const datosSin = {
+    gasto: sinAsignar.gasto,
+    pedidosPlataforma: sinAsignar.pedidosPlataforma,
+    pedidosReales: sinAsignar.pedidosReales,
+  };
+  await db.corteSinAsignar.upsert({
+    where: { organizationId_fecha_hora: { organizationId, fecha: dia, hora: corte } },
+    create: { ...sinAsignar },
+    update: datosSin,
+  });
 
-  return { hora: corte, dia: dia.toISOString().slice(0, 10), productos: ids.size };
+  return { hora: corte, dia: dia.toISOString().slice(0, 10), productos: productos.length };
 }
 
 /* --------------------------- Leer el control ----------------------------- */
 
-function sumar(filas: FilaControl[]): Totales {
-  const t = filas.reduce(
-    (a, f) => {
-      a.pedidos += f.pedidos;
-      a.pedidosReales += f.pedidosReales;
-      a.gasto += f.gasto;
-      a.ingresos += f.ingresos;
-      a.gastosOperativos += f.gastosOperativos;
-      a.gastosAdm += f.gastosAdm;
-      a.utilidad += f.utilidad;
-      return a;
-    },
-    {
-      pedidos: 0,
-      pedidosReales: 0,
-      gasto: 0,
-      ingresos: 0,
-      gastosOperativos: 0,
-      gastosAdm: 0,
-      utilidad: 0,
-      cpa: 0,
-      margen: 0,
-    },
-  );
+function sumar(filas: { pedidos: number; pedidosPlataforma: number; gasto: number; ingresos: number; gastosOperativos: number; gastosAdm: number; utilidad: number }[]): Totales {
+  const t: Totales = {
+    pedidos: 0,
+    pedidosPlataforma: 0,
+    gasto: 0,
+    ingresos: 0,
+    gastosOperativos: 0,
+    gastosAdm: 0,
+    utilidad: 0,
+    cpa: 0,
+    margen: 0,
+  };
+  for (const f of filas) {
+    t.pedidos += f.pedidos;
+    t.pedidosPlataforma += f.pedidosPlataforma;
+    t.gasto += f.gasto;
+    t.ingresos += f.ingresos;
+    t.gastosOperativos += f.gastosOperativos;
+    t.gastosAdm += f.gastosAdm;
+    t.utilidad += f.utilidad;
+  }
   t.cpa = t.pedidos > 0 ? t.gasto / t.pedidos : 0;
   t.margen = t.ingresos > 0 ? t.utilidad / t.ingresos : 0;
   return t;
 }
 
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const claveMes = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+
 /**
- * Las filas del control entre dos días.
+ * El control de un período, calculado sobre los cortes guardados.
  *
- * `hora` filtra a un corte; sin ella vienen los cuatro. El reparto del gasto
- * administrativo se hace por día y por corte: el total del mes se divide entre
- * treinta y ese día se reparte entre los productos en proporción a sus
- * pedidos, que es exactamente lo que hace la planilla.
+ * LOS NÚMEROS QUE MANDAN
+ * - Pedidos: los reales de la tienda, uno por compra, sin testeo.
+ * - Gasto: TODO lo que cobraron las plataformas, con o sin producto. Lo que no
+ *   tiene producto va a su propia fila; no desaparece.
+ *
+ * EL GASTO ADMINISTRATIVO
+ * El total del mes se divide entre treinta y cada día se reparte entre las
+ * filas en proporción a sus pedidos, incluida la de sin asignar: es un costo
+ * de la empresa y tiene que quedar entero en la cuenta. Con un filtro por
+ * producto, la proporción se sigue sacando contra el total del día —si no,
+ * filtrar un producto le cargaría la administración de todos.
  */
-export async function controlPublicitario(
+export async function controlDelPeriodo(
   organizationId: string,
-  opciones: { desde: Date; hasta: Date; hora?: number; productId?: string },
-): Promise<Control> {
-  const { desde, hasta, hora, productId } = opciones;
+  opciones: { desde: Date; hasta: Date; hora?: number; productIds?: string[] },
+): Promise<ControlPeriodo> {
+  const { desde, hasta, hora = 23 } = opciones;
+  const filtro = opciones.productIds?.length ? opciones.productIds : undefined;
 
-  const cortes = await db.cortePublicitario.findMany({
-    where: {
+  const [cortes, sinAsignar, gastosAdm, totalesDelDia, testeo] = await Promise.all([
+    db.cortePublicitario.findMany({
+      where: {
+        organizationId,
+        fecha: { gte: desde, lte: hasta },
+        hora,
+        ...(filtro ? { productId: { in: filtro } } : {}),
+      },
+      select: {
+        fecha: true,
+        pedidos: true,
+        gasto: true,
+        pedidosReales: true,
+        productId: true,
+        product: { select: { name: true, code: true } },
+      },
+    }),
+    filtro
+      ? Promise.resolve([])
+      : db.corteSinAsignar.findMany({
+          where: { organizationId, fecha: { gte: desde, lte: hasta }, hora },
+          select: { fecha: true, gasto: true, pedidosPlataforma: true, pedidosReales: true },
+        }),
+    db.gastoAdmMes.findMany({ where: { organizationId }, select: { anio: true, mes: true, valor: true } }),
+    // Los pedidos de TODO el día, filtrado o no, para repartir el gasto adm.
+    db.$queryRaw<{ fecha: Date; pedidos: number }[]>`
+      SELECT fecha, sum(p)::int AS pedidos FROM (
+        SELECT fecha, "pedidosReales" AS p FROM "CortePublicitario"
+         WHERE "organizationId" = ${organizationId} AND hora = ${hora}
+           AND fecha >= ${desde} AND fecha <= ${hasta}
+        UNION ALL
+        SELECT fecha, "pedidosReales" AS p FROM "CorteSinAsignar"
+         WHERE "organizationId" = ${organizationId} AND hora = ${hora}
+           AND fecha >= ${desde} AND fecha <= ${hasta}
+      ) t GROUP BY fecha`,
+    // Cuántos pedidos de testeo hubo, solo para avisarlo: no entran en la cuenta.
+    pedidosRealesPorDia(
       organizationId,
-      fecha: { gte: desde, lte: hasta },
-      ...(hora !== undefined ? { hora } : {}),
-      ...(productId ? { productId } : {}),
-    },
-    orderBy: [{ fecha: "desc" }, { hora: "desc" }],
-    select: {
-      fecha: true,
-      hora: true,
-      pedidos: true,
-      gasto: true,
-      pedidosReales: true,
-      productId: true,
-      product: { select: { name: true, code: true } },
-    },
-  });
+      new Date(desde.getTime() + 5 * 3600_000),
+      new Date(hasta.getTime() + 29 * 3600_000),
+    ).then((dias) => dias.reduce((a, d) => a + d.testeo, 0)),
+  ]);
 
-  if (cortes.length === 0) {
-    return { filas: [], totales: sumar([]), sinEconomiaDelMes: 0, mesesSinGastoAdm: [] };
+  const admDe = new Map(gastosAdm.map((g) => [`${g.anio}-${g.mes}`, g.valor]));
+  const pedidosDelDia = new Map(totalesDelDia.map((t) => [iso(t.fecha), Number(t.pedidos) || 0]));
+
+  // Una consulta de economía por mes del rango, no una por fila.
+  const meses = new Set<string>();
+  for (let d = new Date(desde); d <= hasta; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
+    meses.add(claveMes(d));
   }
-
-  // Una consulta de economía por mes presente en el rango, no una por fila.
-  const meses = new Set(
-    cortes.map((c) => `${c.fecha.getUTCFullYear()}-${c.fecha.getUTCMonth() + 1}`),
-  );
   const economias = new Map<string, Map<string, Economia>>();
   for (const clave of meses) {
     const [anio, mes] = clave.split("-").map(Number);
     economias.set(clave, await economiaDelMes(organizationId, anio, mes));
   }
 
-  const gastosAdm = await db.gastoAdmMes.findMany({
-    where: { organizationId },
-    select: { anio: true, mes: true, valor: true },
-  });
-  const admDe = new Map(gastosAdm.map((g) => [`${g.anio}-${g.mes}`, g.valor]));
-
-  // Para repartir el gasto administrativo hace falta el total de pedidos de
-  // cada (día, corte) — incluyendo los productos que el filtro dejó fuera, o
-  // filtrar por un producto le asignaría todo el gasto del día.
-  const totalesDelCorte = await db.cortePublicitario.groupBy({
-    by: ["fecha", "hora"],
-    where: { organizationId, fecha: { gte: desde, lte: hasta } },
-    _sum: { pedidos: true },
-  });
-  const pedidosDelCorte = new Map(
-    totalesDelCorte.map((t) => [
-      `${t.fecha.toISOString().slice(0, 10)}|${t.hora}`,
-      t._sum.pedidos ?? 0,
-    ]),
-  );
-
   const mesesSinGastoAdm = new Set<string>();
-  let sinEconomiaDelMes = 0;
+  const repartoAdm = (fecha: Date, pedidos: number) => {
+    const total = admDe.get(claveMes(fecha));
+    if (total === undefined) {
+      mesesSinGastoAdm.add(claveMes(fecha));
+      return 0;
+    }
+    const delDia = pedidosDelDia.get(iso(fecha)) ?? 0;
+    return delDia > 0 ? (pedidos / delDia) * (total / DIAS_DEL_MES) : 0;
+  };
 
   const filas: FilaControl[] = cortes.map((c) => {
-    const anio = c.fecha.getUTCFullYear();
-    const mes = c.fecha.getUTCMonth() + 1;
-    const clave = `${anio}-${mes}`;
-    const e = economias.get(clave)?.get(c.productId);
-
+    const e = economias.get(claveMes(c.fecha))?.get(c.productId);
+    const pedidos = c.pedidosReales;
     const efectividad = e?.efectividad ?? 0;
-    const pedidosEfectivos = c.pedidos * efectividad;
+    const pedidosEfectivos = pedidos * efectividad;
     const gastosOperativos = ((e?.produccion ?? 0) + (e?.flete ?? 0)) * pedidosEfectivos;
     const precioProm = e?.precioProm ?? 0;
     const ingresos = precioProm * pedidosEfectivos;
-
-    const totalMes = admDe.get(clave);
-    if (totalMes === undefined) mesesSinGastoAdm.add(clave);
-    if (!e?.delMes) sinEconomiaDelMes += 1;
-
-    const delDia = (totalMes ?? 0) / DIAS_DEL_MES;
-    const pedidosTotales = pedidosDelCorte.get(
-      `${c.fecha.toISOString().slice(0, 10)}|${c.hora}`,
-    );
-    const gastosAdmFila =
-      pedidosTotales && pedidosTotales > 0 ? (c.pedidos / pedidosTotales) * delDia : 0;
-
+    const gastosAdmFila = repartoAdm(c.fecha, pedidos);
     return {
-      fecha: c.fecha.toISOString().slice(0, 10),
-      hora: c.hora,
+      fecha: iso(c.fecha),
+      hora,
       productId: c.productId,
       producto: c.product.name,
       codigo: c.product.code,
-      pedidos: c.pedidos,
-      pedidosReales: c.pedidosReales,
-      diferencia: c.pedidosReales - c.pedidos,
-      cpa: c.pedidos > 0 ? c.gasto / c.pedidos : 0,
+      pedidos,
+      pedidosPlataforma: c.pedidos,
+      cpa: pedidos > 0 ? c.gasto / pedidos : 0,
       gasto: c.gasto,
       efectividad,
       pedidosEfectivos,
@@ -370,61 +373,105 @@ export async function controlPublicitario(
     };
   });
 
-  return {
-    filas,
-    totales: sumar(filas),
-    sinEconomiaDelMes,
-    mesesSinGastoAdm: [...mesesSinGastoAdm].sort(),
-  };
-}
-
-/* --------------------------- Resumen del mes ----------------------------- */
-
-/**
- * El acumulado del mes por producto.
- *
- * Suma únicamente el corte de las 23, que es el día cerrado. Sumar los cuatro
- * cortes contaría el mismo día cuatro veces, porque cada uno es el acumulado
- * desde la medianoche y no un tramo.
- */
-export async function resumenDelMes(organizationId: string, anio: number, mes: number) {
-  const desde = new Date(Date.UTC(anio, mes - 1, 1));
-  const hasta = new Date(Date.UTC(anio, mes, 0));
-
-  const { filas } = await controlPublicitario(organizationId, { desde, hasta, hora: 23 });
-
-  const porProducto = new Map<string, FilaResumen>();
-  for (const f of filas) {
-    const a = porProducto.get(f.productId) ?? {
-      productId: f.productId,
-      producto: f.producto,
-      codigo: f.codigo,
-      pedidos: 0,
-      pedidosReales: 0,
+  // Lo sin asignar: gasto que se pagó y pedidos que existieron, sin producto
+  // del que sacar precio ni costo. Sus ingresos no se inventan: quedan en cero
+  // y el aviso lo dice, para que el número empuje a terminar los enlaces y no
+  // a creer que ese gasto rindió nada.
+  const filasSin: FilaControl[] = sinAsignar.map((s) => {
+    const gastosAdmFila = repartoAdm(s.fecha, s.pedidosReales);
+    return {
+      fecha: iso(s.fecha),
+      hora,
+      productId: null,
+      producto: ETIQUETA_SIN_ASIGNAR,
+      codigo: "",
+      pedidos: s.pedidosReales,
+      pedidosPlataforma: s.pedidosPlataforma,
       cpa: 0,
-      ingresos: 0,
-      gasto: 0,
+      gasto: s.gasto,
+      efectividad: 0,
+      pedidosEfectivos: 0,
       gastosOperativos: 0,
-      gastosAdm: 0,
-      utilidad: 0,
-      margen: 0,
+      precioProm: 0,
+      ingresos: 0,
+      gastosAdm: gastosAdmFila,
+      utilidad: -s.gasto - gastosAdmFila,
+      economiaDelMes: true,
     };
-    a.pedidos += f.pedidos;
-    a.pedidosReales += f.pedidosReales;
-    a.ingresos += f.ingresos;
-    a.gasto += f.gasto;
-    a.gastosOperativos += f.gastosOperativos;
-    a.gastosAdm += f.gastosAdm;
-    a.utilidad += f.utilidad;
-    porProducto.set(f.productId, a);
+  });
+
+  // Por producto, sumado sobre el período.
+  const acumular = (lista: FilaControl[]) => {
+    const porClave = new Map<string, FilaPeriodo & { _efectividadPonderada: number }>();
+    for (const f of lista) {
+      const clave = f.productId ?? "__sin__";
+      const a = porClave.get(clave) ?? {
+        productId: f.productId,
+        producto: f.producto,
+        codigo: f.codigo,
+        pedidos: 0,
+        pedidosPlataforma: 0,
+        cpa: 0,
+        gasto: 0,
+        efectividad: 0,
+        pedidosEfectivos: 0,
+        gastosOperativos: 0,
+        ingresos: 0,
+        gastosAdm: 0,
+        utilidad: 0,
+        margen: 0,
+        dias: 0,
+        economiaDelMes: true,
+        _efectividadPonderada: 0,
+      };
+      a.pedidos += f.pedidos;
+      a.pedidosPlataforma += f.pedidosPlataforma;
+      a.gasto += f.gasto;
+      a.pedidosEfectivos += f.pedidosEfectivos;
+      a.gastosOperativos += f.gastosOperativos;
+      a.ingresos += f.ingresos;
+      a.gastosAdm += f.gastosAdm;
+      a.utilidad += f.utilidad;
+      a._efectividadPonderada += f.efectividad * f.pedidos;
+      if (f.pedidos > 0 || f.gasto > 0) a.dias += 1;
+      if (!f.economiaDelMes) a.economiaDelMes = false;
+      porClave.set(clave, a);
+    }
+    return [...porClave.values()].map(({ _efectividadPonderada, ...a }) => ({
+      ...a,
+      cpa: a.pedidos > 0 ? a.gasto / a.pedidos : 0,
+      margen: a.ingresos > 0 ? a.utilidad / a.ingresos : 0,
+      efectividad: a.pedidos > 0 ? _efectividadPonderada / a.pedidos : 0,
+    }));
+  };
+
+  const productos = acumular(filas).sort((a, b) => b.utilidad - a.utilidad);
+  const sin = filasSin.length ? acumular(filasSin)[0] : null;
+
+  // La línea de tiempo del período, día por día, con todo junto.
+  const porDiaMapa = new Map<string, PuntoDia>();
+  for (const f of [...filas, ...filasSin]) {
+    const p = porDiaMapa.get(f.fecha) ?? { fecha: f.fecha, pedidos: 0, gasto: 0, ingresos: 0, utilidad: 0 };
+    p.pedidos += f.pedidos;
+    p.gasto += f.gasto;
+    p.ingresos += f.ingresos;
+    p.utilidad += f.utilidad;
+    porDiaMapa.set(f.fecha, p);
   }
 
-  const salida = [...porProducto.values()];
-  for (const f of salida) {
-    f.cpa = f.pedidos > 0 ? f.gasto / f.pedidos : 0;
-    f.margen = f.ingresos > 0 ? f.utilidad / f.ingresos : 0;
-  }
-  salida.sort((a, b) => b.utilidad - a.utilidad);
-
-  return { filas: salida, totales: sumar(filas) };
+  return {
+    productos,
+    sinAsignar: sin,
+    totales: sumar([...filas, ...filasSin]),
+    porDia: [...porDiaMapa.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    filas: [...filas, ...filasSin].sort(
+      (a, b) => b.fecha.localeCompare(a.fecha) || b.utilidad - a.utilidad,
+    ),
+    avisos: {
+      mesesSinGastoAdm: [...mesesSinGastoAdm].sort(),
+      productosSinEconomia: productos.filter((p) => !p.economiaDelMes && p.pedidos > 0).length,
+      pedidosSinAsignar: sin?.pedidos ?? 0,
+      pedidosTesteo: testeo,
+    },
+  };
 }

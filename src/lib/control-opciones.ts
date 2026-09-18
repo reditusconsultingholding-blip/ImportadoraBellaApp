@@ -10,7 +10,7 @@
  *
  * Son acumulados del mismo día, no tramos: a las 11 está lo que va desde la
  * medianoche. El corte de las 23 es el día cerrado, y por eso es el que usan
- * los resúmenes del mes.
+ * los resúmenes del período.
  */
 export const HORAS_CORTE = [8, 11, 16, 23] as const;
 export type HoraCorte = (typeof HORAS_CORTE)[number];
@@ -22,17 +22,28 @@ export const ETIQUETA_HORA: Record<number, string> = {
   23: "Cierre del día",
 };
 
+/** El nombre de la fila que junta lo que no tiene producto. */
+export const ETIQUETA_SIN_ASIGNAR = "Sin producto asignado";
+
+/**
+ * Una fila del control: un producto (o lo sin asignar), un día, un corte.
+ *
+ * `pedidos` son los pedidos REALES de la tienda, uno por compra. Es el número
+ * con el que trabaja el equipo: los que se atribuyen las plataformas vienen
+ * inflados por el píxel, la zona horaria y la ventana de atribución —en julio,
+ * la herramienta de terceros decía 8.064 y fueron 7.466—, así que quedan como
+ * referencia en `pedidosPlataforma` y nada se calcula sobre ellos.
+ */
 export type FilaControl = {
   fecha: string; // "2026-09-18"
   hora: number;
-  productId: string;
+  /** null es la fila "sin producto asignado". */
+  productId: string | null;
   producto: string;
   codigo: string;
 
   pedidos: number;
-  pedidosReales: number;
-  /** Reales menos atribuidos: lo que el equipo llama depurar los pedidos. */
-  diferencia: number;
+  pedidosPlataforma: number;
   cpa: number;
   gasto: number;
 
@@ -48,9 +59,16 @@ export type FilaControl = {
   economiaDelMes: boolean;
 };
 
+/** Lo mismo, sumado sobre todo el período elegido. */
+export type FilaPeriodo = Omit<FilaControl, "fecha" | "hora" | "precioProm"> & {
+  margen: number;
+  /** Cuántos días del período tuvieron movimiento. */
+  dias: number;
+};
+
 export type Totales = {
   pedidos: number;
-  pedidosReales: number;
+  pedidosPlataforma: number;
   gasto: number;
   ingresos: number;
   gastosOperativos: number;
@@ -60,26 +78,38 @@ export type Totales = {
   margen: number;
 };
 
-export type Control = {
-  filas: FilaControl[];
-  totales: Totales;
-  /** Cuántas filas usaron el respaldo de la ficha en vez de la economía del mes. */
-  sinEconomiaDelMes: number;
-  /** Meses del rango que no tienen cargado el gasto administrativo. */
-  mesesSinGastoAdm: string[];
-};
-
-export type FilaResumen = {
-  productId: string;
-  producto: string;
-  codigo: string;
+/** Un día del período, para la línea de tiempo. */
+export type PuntoDia = {
+  fecha: string;
   pedidos: number;
-  pedidosReales: number;
-  cpa: number;
-  ingresos: number;
   gasto: number;
-  gastosOperativos: number;
-  gastosAdm: number;
+  ingresos: number;
   utilidad: number;
-  margen: number;
 };
+
+export type ControlPeriodo = {
+  productos: FilaPeriodo[];
+  /** Gasto y pedidos que no tienen producto; null si se filtró por producto. */
+  sinAsignar: FilaPeriodo | null;
+  totales: Totales;
+  porDia: PuntoDia[];
+  /** El detalle día por día, para la vista "por día". */
+  filas: FilaControl[];
+  avisos: {
+    /** Meses del rango que no tienen cargado el gasto administrativo. */
+    mesesSinGastoAdm: string[];
+    /** Productos calculados con la ficha en vez de la economía del mes. */
+    productosSinEconomia: number;
+    /** Pedidos reales cuyo producto no está enlazado. */
+    pedidosSinAsignar: number;
+    /** Pedidos de testeo del período: existen, no se cuentan. */
+    pedidosTesteo: number;
+  };
+};
+
+/* ------------------------------ Compatibilidad ----------------------------- */
+
+// La vista anterior del control usaba estos nombres. Se mantienen como alias
+// para no romper lo que todavía los importa.
+export type Control = ControlPeriodo;
+export type FilaResumen = FilaPeriodo;

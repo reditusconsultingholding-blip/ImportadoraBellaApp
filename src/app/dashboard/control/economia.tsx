@@ -48,12 +48,14 @@ export default function Economia({
   productos,
   variables,
   gastoAdm,
+  enlaceAdm,
 }: {
   anio: number;
   mes: number;
   productos: ProductoOpcion[];
   variables: Variable[];
   gastoAdm: number | null;
+  enlaceAdm: string | null;
 }) {
   const router = useRouter();
   // Lo que manda es lo que llega del servidor; `editado` solo guarda lo que se
@@ -144,15 +146,20 @@ export default function Economia({
     }
   }
 
-  async function guardarAdm(texto: string) {
-    const valor = texto.trim() === "" ? null : Number(texto.replace(/[^\d.,]/g, "").replace(",", "."));
-    if (valor === null || !isFinite(valor)) return;
+  async function guardarAdm(cambios: { valor?: string; enlace?: string }) {
+    const cuerpo: { anio: number; mes: number; valor?: number; enlace?: string | null } = { anio, mes };
+    if (cambios.valor !== undefined) {
+      const valor = Number(cambios.valor.replace(/[^\d.,]/g, "").replace(",", "."));
+      if (cambios.valor.trim() === "" || !isFinite(valor)) return;
+      cuerpo.valor = valor;
+    }
+    if (cambios.enlace !== undefined) cuerpo.enlace = cambios.enlace.trim() || null;
     setError(null);
     try {
       const res = await fetch("/api/control/gasto-adm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anio, mes, valor }),
+        body: JSON.stringify(cuerpo),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
@@ -178,12 +185,41 @@ export default function Economia({
           <input
             defaultValue={adm}
             onChange={(e) => setAdm(e.target.value)}
-            onBlur={(e) => guardarAdm(e.target.value)}
+            onBlur={(e) => guardarAdm({ valor: e.target.value })}
             placeholder="22713"
             className="w-44 rounded border border-border bg-surface px-2.5 py-1.5 text-sm tabular-nums outline-none focus:border-accent"
           />
         </label>
-        <p className="max-w-lg text-xs leading-relaxed text-muted">
+        {/* El enlace al documento de administración, al lado del número: de
+            ahí sale el total, y tenerlo a un clic deja ver de qué está hecho
+            sin preguntarle a nadie. */}
+        <label className="flex min-w-[260px] flex-1 flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-[0.07em] text-muted">
+            Documento de administración
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              key={enlaceAdm ?? ""}
+              defaultValue={enlaceAdm ?? ""}
+              onBlur={(e) => {
+                if (e.target.value.trim() !== (enlaceAdm ?? "")) guardarAdm({ enlace: e.target.value });
+              }}
+              placeholder="https://docs.google.com/…"
+              className="w-full rounded border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            />
+            {enlaceAdm && (
+              <a
+                href={enlaceAdm}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-xs font-medium text-accent-strong underline-offset-2 hover:underline"
+              >
+                Abrir ↗
+              </a>
+            )}
+          </div>
+        </label>
+        <p className="w-full text-xs leading-relaxed text-muted">
           El total del mes, entero. Se divide entre 30 para sacar el del día y ese día se reparte
           entre los productos según sus pedidos — igual que en la planilla. Sin este número la
           utilidad sale más alta de lo real.

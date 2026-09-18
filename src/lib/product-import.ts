@@ -83,9 +83,14 @@ export async function importarProductosDesdeCampanas(organizationId: string) {
 
   const existentes = await db.product.findMany({
     where: { organizationId },
-    select: { id: true, code: true, unitCost: true, salePrice: true },
+    select: { id: true, code: true, codigosAnteriores: true, unitCost: true, salePrice: true },
   });
-  const porCodigo = new Map(existentes.map((p) => [p.code, p]));
+  // Los códigos anteriores también cuentan como "ya existe": si no, la primera
+  // campaña vieja que apareciera volvería a crear el producto duplicado que se
+  // fusionó a propósito.
+  const porCodigo = new Map(
+    existentes.flatMap((p) => [p.code, ...p.codigosAnteriores].map((c) => [c, p] as const)),
+  );
 
   let creados = 0;
   let actualizados = 0;
