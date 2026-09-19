@@ -463,6 +463,7 @@ model Campaign {
   pendingActions PendingAction[]
 
   @@unique([adAccountId, externalId])
+  @@index([productId])
 }
 
 // Snapshot de métricas. Con datos reales esto se llena por polling
@@ -481,8 +482,12 @@ model MetricSnapshot {
   // Una fila por campaña y día. La clave única es lo que deja volver a
   // sincronizar los últimos días sin duplicar: Meta ajusta las compras con
   // retraso, así que el mismo día se reescribe varias veces.
+  // El único ya es un índice: tener además un @@index igual solo duplicaba
+  // cada escritura del sync.
   @@unique([campaignId, capturedAt])
-  @@index([campaignId, capturedAt])
+  // Las series del panel y la atribución suman por rango de fechas de toda la
+  // organización, sin campaña: sin este índice recorrían la tabla entera.
+  @@index([capturedAt])
 }
 
 // La tienda de Shopify — separada a propósito de AdAccount, porque no es
@@ -541,6 +546,11 @@ model ShopifyOrderLineItem {
   category    String?
   quantity    Int
   amount      Float
+
+  // Cada sync de Shopify borra y reescribe los renglones por orderId, y todas
+  // las lecturas de pedidos los traen por orderId. Sin índice, cada una era
+  // un recorrido completo de la tabla (más de 130.000 filas).
+  @@index([orderId])
 }
 
 // Pipeline creativo (SuperAds Ops). Reemplaza la hoja de cálculo: un
@@ -622,6 +632,8 @@ model Requirement {
   tarea TareaDiaria? @relation("TareaDeRequerimiento")
 
   @@index([organizationId, status])
+  @@index([productId])
+  @@index([ownerId])
 }
 
 // Historial de iteraciones de un creativo (v1, v2, v3...) — separado del
@@ -1241,6 +1253,7 @@ model CortePublicitario {
 
   @@unique([organizationId, productId, fecha, hora])
   @@index([organizationId, fecha])
+  @@index([productId])
 }
 
 // La economía de un producto en un mes: qué porción se confirma, cuánto cuesta
@@ -1467,6 +1480,7 @@ model TareaDiaria {
   @@unique([organizationId, notionPageId])
   @@index([organizationId, fecha])
   @@index([organizationId, ownerId])
+  @@index([productId])
 }
 
 // Una campaña de "gestión de campañas" (Notion) que todavía no cruza con

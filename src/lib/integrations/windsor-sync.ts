@@ -69,6 +69,36 @@ export async function syncWindsorConnector(
     select: { id: true, code: true, name: true, codigosAnteriores: true },
   });
 
+  // Las campañas y los lotes que ya existen se leen de una vez al principio.
+  //
+  // Antes cada campaña hacía, en cada vuelta de 5 minutos, una lectura y un
+  // upsert aunque nada hubiera cambiado: miles de viajes a la base por
+  // corrida (más de tres millones de consultas acumuladas en Supabase). Ahora
+  // se escribe solo la campaña nueva o la que cambió de nombre, producto,
+  // lote o tipo.
+  const [existentes, rondas] = await Promise.all([
+    db.campaign.findMany({
+      where: { adAccount: { organizationId, platform } },
+      select: {
+        id: true,
+        adAccountId: true,
+        externalId: true,
+        name: true,
+        productId: true,
+        productManual: true,
+        rondaId: true,
+        tipoCampana: true,
+      },
+    }),
+    db.ronda.findMany({
+      where: { organizationId },
+      select: { id: true, productId: true, numero: true },
+    }),
+  ]);
+  const campanaPorClave = new Map(existentes.map((c) => [`${c.adAccountId}|${c.externalId}`, c]));
+  const rondaPorClave = new Map(rondas.map((r) => [`${r.productId}|${r.numero}`, r.id]));
+  let manuales: { id: string; nombre: string }[] | null = null;
+
   // Se cachean cuentas y campañas para no repetir la misma escritura por cada
   // fila: una campaña con 7 días trae 7 filas y es la misma campaña.
   const accountIds = new Map<string, string>();
@@ -119,43 +149,43 @@ export async function syncWindsorConnector(
       // Si alguien ya asignó el producto a mano desde Gestión de campañas, la
       // sincronización NO lo pisa — si no, la siguiente vuelta de 5 minutos
       // deshace la corrección.
-      const existing = await db.campaign.findUnique({
-        where: { adAccountId_externalId: { adAccountId: accountId, externalId: row.campaign_id } },
-        select: { id: true, productManual: true, productId: true },
-      });
+      const existing = campanaPorClave.get(`${accountId}|${row.campaign_id}`);
       const productIdFinal = existing?.productManual ? existing.productId : productIdAuto;
 
       // A qué lote pertenece, si el nombre trae la nomenclatura {código}-{n}.
       // Es lo que permite saber después quién hizo esta campaña.
       let rondaId: string | null = null;
       if (ref?.lote != null && productIdFinal) {
-        const ronda = await db.ronda.findFirst({
-          where: { organizationId, productId: productIdFinal, numero: ref.lote },
-          select: { id: true },
-        });
-        rondaId = ronda?.id ?? null;
+        rondaId = rondaPorClave.get(`${productIdFinal}|${ref.lote}`) ?? null;
       }
 
-      const campaign = await db.campaign.upsert({
-        where: { adAccountId_externalId: { adAccountId: accountId, externalId: row.campaign_id } },
-        create: {
-          adAccountId: accountId,
-          externalId: row.campaign_id,
-          name: row.campaign,
-          status: "ACTIVE",
-          productId: productIdAuto,
-          rondaId,
-          tipoCampana: ref?.tipo ?? null,
-        },
-        update: {
-          name: row.campaign,
-          ...(existing?.productManual ? {} : { productId: productIdAuto }),
-          ...(rondaId ? { rondaId } : {}),
-          ...(ref?.tipo ? { tipoCampana: ref.tipo } : {}),
-        },
-        select: { id: true },
-      });
-      campaignId = campaign.id;
+      if (!existing) {
+        const campaign = await db.campaign.upsert({
+          where: { adAccountId_externalId: { adAccountId: accountId, externalId: row.campaign_id } },
+          create: {
+            adAccountId: accountId,
+            externalId: row.campaign_id,
+            name: row.campaign,
+            status: "ACTIVE",
+            productId: productIdAuto,
+            rondaId,
+            tipoCampana: ref?.tipo ?? null,
+          },
+          update: {},
+          select: { id: true },
+        });
+        campaignId = campaign.id;
+      } else {
+        campaignId = existing.id;
+        const cambios: { name?: string; productId?: string | null; rondaId?: string; tipoCampana?: string } = {};
+        if (existing.name !== row.campaign) cambios.name = row.campaign;
+        if (!existing.productManual && existing.productId !== productIdAuto) cambios.productId = productIdAuto;
+        if (rondaId && existing.rondaId !== rondaId) cambios.rondaId = rondaId;
+        if (ref?.tipo && existing.tipoCampana !== ref.tipo) cambios.tipoCampana = ref.tipo;
+        if (Object.keys(cambios).length > 0) {
+          await db.campaign.update({ where: { id: existing.id }, data: cambios });
+        }
+      }
       campaignIds.set(row.campaign_id, campaignId);
 
       // La campaña recién apareció: si había una fila manual de "gestión de
@@ -165,14 +195,16 @@ export async function syncWindsorConnector(
       // letra por letra entre lo que escribió el equipo en Notion y el
       // nombre real de la campaña.
       if (!existing) {
-        const candidatas = await db.campanaManual.findMany({
+        manuales ??= await db.campanaManual.findMany({
           where: { organizationId },
           select: { id: true, nombre: true },
         });
+        const candidatas: { id: string; nombre: string }[] = manuales;
         const objetivo = normalizar(row.campaign);
-        const aBorrar = candidatas.filter((c) => normalizar(c.nombre) === objetivo).map((c) => c.id);
+        const aBorrar: string[] = candidatas.filter((c) => normalizar(c.nombre) === objetivo).map((c) => c.id);
         if (aBorrar.length > 0) {
           await db.campanaManual.deleteMany({ where: { id: { in: aBorrar } } });
+          manuales = manuales.filter((c) => !aBorrar.includes(c.id));
         }
       }
     }

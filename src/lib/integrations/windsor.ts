@@ -1,3 +1,4 @@
+import { fetchConReintentos, sinSecretos } from "@/lib/http";
 // Cliente de Windsor.ai — la única puerta de entrada para Meta Ads y TikTok
 // Ads. La decisión de pasar por aquí en vez de mantener dos integraciones
 // separadas está en docs/DECISIONES.md: una sola credencial, un solo formato,
@@ -83,14 +84,21 @@ export async function fetchWindsorRows(
     fields: [...COMMON_FIELDS, conversion.purchases, conversion.value].join(","),
   });
 
-  const res = await fetch(`${BASE_URL}/${connector}?${params.toString()}`, {
-    headers: { Accept: "application/json" },
+  // Tiempo límite holgado: el repaso semanal de 90 días de TikTok son más de
+  // veinte mil filas y Windsor tarda en armarlas.
+  const res = await fetchConReintentos(
+    `${BASE_URL}/${connector}?${params.toString()}`,
+    { headers: { Accept: "application/json" } },
+    { timeoutMs: 180_000, reintentos: 3, esperaBaseMs: 2_000 },
+  ).catch((err) => {
+    // El mensaje de error no puede llevar la URL: tiene la api_key adentro.
+    throw new Error(`Windsor.ai no respondió para ${connector}: ${sinSecretos(err instanceof Error ? err.message : String(err))}`);
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(
-      `Windsor.ai respondió ${res.status} para ${connector}: ${detail.slice(0, 300) || "sin detalle"}`
+      `Windsor.ai respondió ${res.status} para ${connector}: ${sinSecretos(detail.slice(0, 300)) || "sin detalle"}`
     );
   }
 

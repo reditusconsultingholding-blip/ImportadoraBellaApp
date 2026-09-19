@@ -1,3 +1,4 @@
+import { fetchConReintentos } from "@/lib/http";
 // Cliente de la Shopify Admin API. Separado a propósito de meta.ts/tiktok.ts:
 // Shopify no es una red publicitaria, es la tienda — de aquí sale la vista
 // "Ventas" (todo lo que se vende, se anuncie o no).
@@ -71,7 +72,7 @@ async function fetchClientCredentialsToken(shop: string) {
   const cached = tokenCache.get(shop);
   if (cached && cached.expiresAt - RENEW_MARGIN_MS > Date.now()) return cached.token;
 
-  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
+  const res = await fetchConReintentos(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -135,7 +136,7 @@ async function withAuth<T>(
 
 async function shopifyFetch(shopDomain: string, token: string, path: string) {
   const url = `https://${normalizeShopDomain(shopDomain)}/admin/api/${apiVersion()}${path}`;
-  const res = await fetch(url, {
+  const res = await fetchConReintentos(url, {
     headers: {
       "X-Shopify-Access-Token": token,
       "Content-Type": "application/json",
@@ -176,6 +177,9 @@ async function shopifyGraphQL<T>(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ query, variables }),
+      // El reintento por cupo (THROTTLED) ya lo maneja este mismo bucle; acá
+      // solo hace falta que un Shopify colgado no cuelgue la corrida.
+      signal: AbortSignal.timeout(60_000),
     });
     const json = (await res.json().catch(() => ({}))) as {
       data?: T;

@@ -403,6 +403,9 @@ export default function RequirementDrawer({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={editValues.thumbnailUrl}
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
                   alt=""
                   className="mt-3 h-32 w-full rounded bg-surface-2 object-cover"
                   onError={(e) => {

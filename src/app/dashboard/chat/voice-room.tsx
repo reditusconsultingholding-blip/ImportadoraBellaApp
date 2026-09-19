@@ -772,7 +772,7 @@ export default function VoiceRoom({
                   >
                     {p.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                      <img src={p.avatarUrl} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-full object-cover" />
                     ) : (
                       iniciales(p.name)
                     )}

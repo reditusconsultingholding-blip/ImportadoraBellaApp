@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { fetchConReintentos } from "@/lib/http";
 
 // Envío de correo por Resend.
 //
@@ -53,9 +55,16 @@ export async function sendEmail({
   if (to.length === 0) return { ok: false, error: "No hay destinatarios." };
 
   try {
-    const res = await fetch(RESEND_URL, {
+    // Con reintentos, un correo podría salir dos veces si el primer intento
+    // llegó pero la respuesta se perdió. La Idempotency-Key hace que Resend
+    // reconozca el reintento y no lo mande de nuevo.
+    const res = await fetchConReintentos(RESEND_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": randomUUID(),
+      },
       body: JSON.stringify({
         from: sender(),
         to,

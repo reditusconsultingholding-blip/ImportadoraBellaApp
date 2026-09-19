@@ -41,6 +41,9 @@ function Avatar({ name, url, size = 32 }: { name: string; url?: string | null; s
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={url}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
         alt=""
         style={{ width: size, height: size }}
         className="shrink-0 rounded-full object-cover"

@@ -46,9 +46,11 @@ export async function syncShopifyStore(
   // Rentabilidad muestren algo desde el minuto uno; después 2, porque el cron
   // corre cada 15 minutos y volver a pedir un mes entero cada vez sería tirar
   // cuota a la basura.
-  const yaTieneOrdenes = await db.shopifyOrder.count({ where: { storeId: store.id } });
+  // Alcanza con saber si hay UNA: contar las 90.000 costaba más de medio
+  // segundo en cada corrida.
+  const yaTieneOrdenes = await db.shopifyOrder.findFirst({ where: { storeId: store.id }, select: { id: true } });
   const since = new Date();
-  since.setDate(since.getDate() - (days ?? (yaTieneOrdenes > 0 ? 2 : 30)));
+  since.setDate(since.getDate() - (days ?? (yaTieneOrdenes ? 2 : 30)));
 
   // Hasta dónde vale la pena reescribir lo que ya está guardado.
   const revisarDesde = new Date();

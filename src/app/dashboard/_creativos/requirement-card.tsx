@@ -37,6 +37,9 @@ export default function RequirementCard({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={requirement.thumbnailUrl}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
           alt=""
           className="w-full h-24 object-cover rounded bg-surface-2"
           onError={(e) => {
