@@ -376,6 +376,115 @@ export async function fetchRecentOrders(
   return orders;
 }
 
+// --- De dónde llegó cada comprador ---------------------------------------
+//
+// Shopify guarda el recorrido del cliente: con qué UTM entró, desde qué sitio
+// lo refirieron y en qué página cayó. Es lo único que contesta "estas órdenes
+// que la pauta no explica, ¿de dónde salieron?".
+//
+// VA EN SU PROPIA CONSULTA A PROPÓSITO
+// `customerJourneySummary` depende de los permisos de la app y del plan de la
+// tienda. Si se pidiera dentro de la consulta de ventas y el campo no
+// estuviera autorizado, GraphQL rechaza la consulta ENTERA y se cae la
+// sincronización de ventas. Acá, si falla, devuelve null: las ventas siguen
+// entrando y lo único que falta es el origen.
+
+export type AtribucionOrden = {
+  externalId: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  referrerUrl: string | null;
+  landingPage: string | null;
+  origenFuente: string | null;
+  origenTipo: string | null;
+};
+
+type VisitaJourney = {
+  source: string | null;
+  sourceType: string | null;
+  referrerUrl: string | null;
+  landingPage: string | null;
+  utmParameters: { source: string | null; medium: string | null; campaign: string | null; content: string | null } | null;
+} | null;
+
+type AtribucionPage = {
+  orders: {
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    nodes: {
+      id: string;
+      customerJourneySummary: { lastVisit: VisitaJourney; firstVisit: VisitaJourney } | null;
+    }[];
+  };
+};
+
+const ATRIBUCION_QUERY = `
+  query Atribucion($cursor: String, $q: String!) {
+    orders(first: 100, after: $cursor, query: $q, sortKey: CREATED_AT) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        customerJourneySummary {
+          lastVisit { source sourceType referrerUrl landingPage utmParameters { source medium campaign content } }
+          firstVisit { source sourceType referrerUrl landingPage utmParameters { source medium campaign content } }
+        }
+      }
+    }
+  }`;
+
+/**
+ * El origen de las órdenes de una ventana. `null` si la tienda no expone el
+ * recorrido (permisos o plan): eso se informa, no se disimula.
+ */
+export async function fetchOrderAttribution(
+  shopDomain: string,
+  storedToken: string | null | undefined,
+  sinceISO: string,
+  untilISO?: string,
+): Promise<AtribucionOrden[] | null> {
+  const salida: AtribucionOrden[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
+
+  try {
+    do {
+      const page: AtribucionPage = await withAuth(shopDomain, storedToken, (token) =>
+        shopifyGraphQL<AtribucionPage>(shopDomain, token, ATRIBUCION_QUERY, {
+          cursor,
+          q: untilISO ? `created_at:>=${sinceISO} created_at:<=${untilISO}` : `created_at:>=${sinceISO}`,
+        }),
+      );
+
+      for (const n of page.orders.nodes) {
+        // La ÚLTIMA visita es la que trae la campaña que cerró la venta; la
+        // primera sirve de respaldo cuando la última viene vacía (entró
+        // directo porque ya conocía el link).
+        const v = n.customerJourneySummary?.lastVisit ?? n.customerJourneySummary?.firstVisit ?? null;
+        salida.push({
+          externalId: n.id.split("/").pop() ?? n.id,
+          utmSource: v?.utmParameters?.source ?? null,
+          utmMedium: v?.utmParameters?.medium ?? null,
+          utmCampaign: v?.utmParameters?.campaign ?? null,
+          utmContent: v?.utmParameters?.content ?? null,
+          referrerUrl: v?.referrerUrl ?? null,
+          landingPage: v?.landingPage ?? null,
+          origenFuente: v?.source ?? null,
+          origenTipo: v?.sourceType ?? null,
+        });
+      }
+
+      cursor = page.orders.pageInfo.hasNextPage ? page.orders.pageInfo.endCursor : null;
+      pages += 1;
+    } while (cursor && pages < 40);
+  } catch (err) {
+    console.error("[shopify] el recorrido del cliente no está disponible:", err instanceof Error ? err.message : err);
+    return null;
+  }
+
+  return salida;
+}
+
 // --- Catálogo con costo unitario real ------------------------------------
 //
 // Esto es lo que autocompleta precio y costo en la calculadora sin que nadie

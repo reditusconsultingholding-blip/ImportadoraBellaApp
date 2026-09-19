@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
-import { fetchRecentOrders } from "./shopify";
+import { fetchOrderAttribution, fetchRecentOrders } from "./shopify";
 
 // Cuántas órdenes se escriben por vuelta. Con 400 cada lote son ~5 consultas
 // en vez de ~1.600, que es lo que costaba escribirlas de a una.
@@ -186,5 +186,51 @@ export async function syncShopifyStore(
     }
   }
 
-  return { ordersSynced: orders.length, creadas, actualizadas };
+  // De dónde llegó cada comprador. Va después de guardar las órdenes (necesita
+  // que existan) y en su propia consulta: si la tienda no expone el recorrido,
+  // las ventas ya quedaron sincronizadas igual.
+  const conOrigen = await enriquecerOrigen(store, since.toISOString(), hastaISO);
+
+  return { ordersSynced: orders.length, creadas, actualizadas, conOrigen };
+}
+
+/**
+ * Escribe el origen de las órdenes de la ventana. Devuelve cuántas quedaron
+ * con dato, o null si la tienda no lo expone.
+ */
+async function enriquecerOrigen(
+  store: { id: string; shopDomain: string; accessToken: string | null },
+  desdeISO: string,
+  hastaISO?: string,
+): Promise<number | null> {
+  const filas = await fetchOrderAttribution(store.shopDomain, store.accessToken, desdeISO, hastaISO);
+  if (!filas) return null;
+  if (filas.length === 0) return 0;
+
+  let escritas = 0;
+  for (const lote of trozos(filas, LOTE)) {
+    // Una sola consulta por lote: con doscientas órdenes al día, fila por fila
+    // serían doscientos viajes a la base en cada vuelta del reloj.
+    escritas += await db.$executeRaw`
+      UPDATE "ShopifyOrder" o
+         SET "utmSource" = v.src, "utmMedium" = v.med, "utmCampaign" = v.camp, "utmContent" = v.cont,
+             "referrerUrl" = v.ref, "landingPage" = v.land,
+             "origenFuente" = v.fuente, "origenTipo" = v.tipo,
+             "atribucionAl" = now()
+        FROM (
+          SELECT * FROM unnest(
+            ${lote.map((f) => f.externalId)}::text[],
+            ${lote.map((f) => f.utmSource)}::text[],
+            ${lote.map((f) => f.utmMedium)}::text[],
+            ${lote.map((f) => f.utmCampaign)}::text[],
+            ${lote.map((f) => f.utmContent)}::text[],
+            ${lote.map((f) => f.referrerUrl)}::text[],
+            ${lote.map((f) => f.landingPage)}::text[],
+            ${lote.map((f) => f.origenFuente)}::text[],
+            ${lote.map((f) => f.origenTipo)}::text[]
+          ) AS t(ext, src, med, camp, cont, ref, land, fuente, tipo)
+        ) v
+       WHERE o."storeId" = ${store.id} AND o."externalId" = v.ext`;
+  }
+  return escritas;
 }

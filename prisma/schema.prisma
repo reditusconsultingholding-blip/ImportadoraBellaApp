@@ -535,6 +535,26 @@ model ShopifyOrder {
   provincia       String?
   ciudad          String?
 
+  // De dónde llegó quien compró. Lo guarda Shopify en el recorrido del
+  // cliente (customerJourneySummary) y hasta ahora no se traía: por eso el
+  // panel podía decir "26 órdenes sin explicación" pero no de dónde venían.
+  // Se llena en cada sync para los últimos días; las órdenes viejas quedan
+  // sin dato hasta que se las vuelva a leer.
+  //
+  // `origenFuente` y `origenTipo` son lo que reporta Shopify (por ejemplo
+  // "facebook" / "social"); los utm son los de la última visita antes de
+  // comprar, que es la que trae la campaña.
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmContent    String?
+  referrerUrl   String?
+  landingPage   String?
+  origenFuente  String?
+  origenTipo    String?
+  /** Cuándo se leyó el recorrido. Null = todavía no se consultó. */
+  atribucionAl  DateTime?
+
   createdAt DateTime @default(now())
 
   lineItems ShopifyOrderLineItem[]

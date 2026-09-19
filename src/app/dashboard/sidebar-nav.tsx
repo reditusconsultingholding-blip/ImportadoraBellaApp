@@ -239,6 +239,7 @@ export default function SidebarNav({
               { href: "/dashboard/control", label: "Control publicitario", icon: "rentabilidad" },
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
               { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
+              { href: "/dashboard/origen", label: "Origen de las ventas", icon: "panel" },
               // La "Calculadora de precios" quedó fuera del menú por pedido de
               // dirección (19 de septiembre de 2026): hacía dos entradas que se
               // leían como lo mismo. La pantalla sigue viva en
