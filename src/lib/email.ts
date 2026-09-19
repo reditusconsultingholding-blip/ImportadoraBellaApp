@@ -34,7 +34,7 @@ function sender() {
 
 /** La dirección pública de la app, para los enlaces de los correos. */
 export function appUrl() {
-  return (process.env.APP_URL?.trim() || "https://jarvisecom.world").replace(/\/$/, "");
+  return (process.env.APP_URL?.trim() || "https://jarvisecom.com").replace(/\/$/, "");
 }
 
 export type SendResult = { ok: true; id: string } | { ok: false; error: string };
@@ -217,7 +217,7 @@ export function avisoEditorHtml({
     : "sin fecha definida";
 
   return envoltorio({
-    titulo: "Tenés algo asignado",
+    titulo: "Tienes algo asignado",
     bajada: `Hola, ${nombre}`,
     cuerpo: `<table role="presentation" style="width:100%;border-collapse:collapse;">
       ${fila("Tarea", tarea)}
@@ -226,7 +226,7 @@ export function avisoEditorHtml({
       ${quienAsigno ? fila("Te lo asignó", quienAsigno) : ""}
     </table>`,
     boton: { texto: "Abrir en el panel", href: `${appUrl()}/dashboard/contenido?vista=tablero` },
-    pie: "Si ya lo entregaste, marcalo en el tablero para que el equipo lo vea.",
+    pie: "Cuando lo entregues, márcalo en el tablero para que el equipo lo vea.",
   });
 }
 
@@ -241,7 +241,58 @@ export function recuperarClaveHtml({ nombre, enlace, minutos }: { nombre: string
       Pediste volver a entrar a tu cuenta. El botón de abajo te lleva a elegir una contraseña nueva.
     </p>`,
     boton: { texto: "Elegir contraseña nueva", href: enlace },
-    pie: `El enlace vence en ${minutos} minutos y sirve una sola vez. Si no fuiste vos, ignorá este correo: tu contraseña actual sigue funcionando.`,
+    pie: `El enlace vence en ${minutos} minutos y sirve una sola vez. Si no fuiste tú, ignora este correo: tu contraseña actual sigue funcionando.`,
+  });
+}
+
+/**
+ * El progreso de la quincena o del mes, para cada persona del equipo.
+ *
+ * Es lo único que el equipo recibe de su avance (el aviso diario de las 8 es
+ * solo para dirección). Sin dinero, como todo lo que va a los editores.
+ */
+export function progresoHtml({
+  nombre,
+  periodo,
+  tareas,
+  cerradas,
+  diasConTareas,
+  diasCompletos,
+  piezas,
+  piezasCerradas,
+  cumplimientoAnterior,
+}: {
+  nombre: string;
+  periodo: string;
+  tareas: number;
+  cerradas: number;
+  diasConTareas: number;
+  diasCompletos: number;
+  piezas: number;
+  piezasCerradas: number;
+  cumplimientoAnterior: number | null;
+}) {
+  const pct = tareas > 0 ? Math.round((cerradas / tareas) * 100) : null;
+  const comparacion =
+    pct != null && cumplimientoAnterior != null
+      ? pct > cumplimientoAnterior
+        ? `Subiste de ${cumplimientoAnterior}% a ${pct}% respecto al período anterior.`
+        : pct < cumplimientoAnterior
+          ? `Bajaste de ${cumplimientoAnterior}% a ${pct}% respecto al período anterior.`
+          : `Te mantuviste en ${pct}%, igual que el período anterior.`
+      : null;
+  return envoltorio({
+    titulo: "Tu progreso",
+    bajada: `Hola, ${nombre} · ${periodo}`,
+    cuerpo: `<table role="presentation" style="width:100%;border-collapse:collapse;">
+      ${fila("Cumplimiento", pct == null ? "sin tareas" : `${pct}%`)}
+      ${fila("Tareas cerradas", `${cerradas} de ${tareas}`)}
+      ${fila("Días con todo cerrado", `${diasCompletos} de ${diasConTareas}`)}
+      ${piezas > 0 ? fila("Piezas entregadas", `${piezasCerradas} de ${piezas}`) : ""}
+    </table>
+    ${comparacion ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#1a1a1a;">${comparacion}</p>` : ""}`,
+    boton: { texto: "Ver mi día a día", href: `${appUrl()}/dashboard/contenido?vista=tablero` },
+    pie: "Este resumen te llega el 15 y el último día de cada mes.",
   });
 }
 

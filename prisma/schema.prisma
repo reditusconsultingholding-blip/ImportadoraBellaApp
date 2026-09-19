@@ -288,6 +288,11 @@ model User {
   // valer: sin esto, una sesión robada seguía viva 30 días aunque la víctima
   // cambiara la contraseña.
   sessionVersion        Int          @default(0)
+  // Recuperación de contraseña por correo. Se guarda el SHA-256 del enlace,
+  // no el enlace: quien lea la base no puede usarlo. Vence en 30 minutos y se
+  // borra al usarse. Ver src/app/api/auth/recuperar.
+  claveResetHash        String?      @unique
+  claveResetVence       DateTime?
   birthDate             DateTime?
   phone                 String?
   organizationId        String

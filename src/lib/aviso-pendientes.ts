@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
 import { avisarA } from "@/lib/push";
 
-// El aviso de las ocho: a cada persona lo suyo, y a la dirección el panorama.
+// El aviso de las ocho: el avance del día, SOLO para dirección.
+//
+// Desde el 19 de septiembre de 2026 no le llega a cada persona: dirección
+// pidió que lo reciban don Fabricio y supervisión, y que el equipo vea su
+// progreso en quincena y fin de mes (src/lib/progreso-quincenal.ts). Lo de
+// abajo explica por qué nació como estaba; se conserva como historia.
 //
 // POR QUÉ NO ALCANZABA CON EL CIERRE DE DÍA QUE YA EXISTÍA
 // Aquel se manda a las 23:59 y va a los dueños, con el resumen de todo el
@@ -39,9 +44,6 @@ const HORA = 20;
 const HORA_LIMITE = 23;
 
 const FUENTE = "pendientes-del-dia";
-
-/** Cuántos nombres de producto se enumeran antes de cortar con puntos. */
-const TOPE_LISTA = 4;
 
 /** Cuántas personas se enumeran en el resumen de dirección. */
 const TOPE_PERSONAS = 6;
@@ -135,53 +137,10 @@ export async function avisarPendientesDelDia(organizationId: string) {
     porPersona.set(t.ownerId, actual);
   }
 
-  let avisados = 0;
-  // A cada persona: sus tareas y, si lleva productos, las piezas de hoy que
-  // quedaron sin clasificar. Puede tener solo una de las dos cosas.
-  const personas = new Set([...porPersona.keys(), ...anomalias.porPersona.keys()]);
-  for (const userId of personas) {
-    const p = porPersona.get(userId);
-    const sinClasificar = anomalias.porPersona.get(userId) ?? [];
-    const partes: string[] = [];
-
-    if (p) {
-      const quedan = p.pendientes.length;
-      const distintos = [...new Set(p.pendientes)];
-      const lista = distintos.slice(0, TOPE_LISTA).join(", ");
-      partes.push(
-        quedan === 0
-          ? `Cerraste ${p.total === 1 ? "la única tarea" : `las ${p.total} tareas`} del día. ` +
-              "No te queda nada pendiente."
-          : `Cerraste ${p.cerradas} de ${p.total}. Te ${segun(quedan, "queda", "quedan")} ${quedan} ` +
-              "sin cerrar" +
-              (lista ? `: ${lista}${distintos.length > TOPE_LISTA ? "…" : "."}` : "."),
-      );
-    }
-    if (sinClasificar.length) {
-      const total = sinClasificar.reduce((a, x) => a + x.n, 0);
-      partes.push(
-        `${total} ${segun(total, "pieza de hoy quedó", "piezas de hoy quedaron")} sin clasificar ` +
-          `(${sinClasificar.map((x) => `${x.producto} ${x.n}`).join(", ")}): falta formato, ángulo o awareness.`,
-      );
-    }
-    const mensaje = partes.join(" ");
-    const quedan = p?.pendientes.length ?? 0;
-    const titulo = sinClasificar.length
-      ? "Piezas sin clasificar"
-      : quedan === 0
-        ? "Día cerrado"
-        : `${quedan} ${segun(quedan, "tarea", "tareas")} sin cerrar`;
-    const link = sinClasificar.length && !quedan
-      ? "/dashboard/contenido?vista=requerimientos"
-      : "/dashboard/contenido?vista=tablero";
-
-    await db.notification.create({
-      data: { userId, type: "pendientes_dia", message: mensaje, link },
-    });
-    await avisarA(userId, { titulo, cuerpo: mensaje, url: link, etiqueta: "pendientes-dia" });
-    avisados += 1;
-  }
-
+  // Solo a dirección (Fabricio y supervisión). Hasta el 19 de septiembre de
+  // 2026 también le llegaba a cada persona su propio resumen; dirección pidió
+  // que no: el equipo ve su progreso en el resumen de quincena y de fin de mes
+  // (ver src/lib/progreso-quincenal.ts).
   // Y a la dirección, el avance del día: cuánto se cerró, quién va con qué y
   // cuántas quedaron sin responsable.
   const totalPendientes =
@@ -262,7 +221,7 @@ export async function avisarPendientesDelDia(organizationId: string) {
   }
 
   const detalle =
-    `${avisados} personas avisadas, ${direccion.length} en dirección, ` +
+    `Solo dirección: ${direccion.length} avisados, ` +
     `${totalCerradas} cerradas y ${totalPendientes} pendientes`;
   await marcar(detalle);
   return detalle;

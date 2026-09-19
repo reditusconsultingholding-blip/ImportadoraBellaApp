@@ -6,6 +6,7 @@ import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
 import { formatoRepetido, puedeTocarPieza } from "@/lib/responsables";
+import { avisarAsignacion } from "@/lib/aviso-asignacion";
 
 async function loadOwned(id: string, organizationId: string) {
   return db.requirement.findFirst({
@@ -194,6 +195,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // responsable, el producto o quedó cerrada, se mueve con ella.
   if ("dueDate" in data || "ownerId" in data || "productId" in data || "status" in data || "adName" in data) {
     await sincronizarTareaDeRequerimiento(id);
+  }
+
+  // Si la pieza cambió de manos, se le avisa a quien la recibe.
+  if ("ownerId" in data && data.ownerId && data.ownerId !== existing.ownerId) {
+    await avisarAsignacion(id, session.userId);
   }
 
   return NextResponse.json({

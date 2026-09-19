@@ -20,7 +20,7 @@ export async function POST() {
   return NextResponse.json(
     {
       error:
-        "Las cuentas las crea la dirección desde Usuarios. Pedile una a Fabricio o a Katherine.",
+        "Las cuentas las crea la dirección desde Usuarios. Pídele una a Fabricio o a Katherine.",
     },
     { status: 403 },
   );

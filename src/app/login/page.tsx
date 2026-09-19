@@ -27,6 +27,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // "¿Olvidaste tu contraseña?": el mismo formulario pide solo el correo y
+  // manda un enlace. La respuesta es igual exista o no la cuenta.
+  const [recuperando, setRecuperando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  async function pedirEnlace(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setAviso(null);
+    const res = await fetch("/api/auth/recuperar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "No se pudo pedir el enlace.");
+      return;
+    }
+    setAviso(data.mensaje);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +79,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-brand-navy px-4 py-10">
       <form
-        onSubmit={onSubmit}
+        onSubmit={recuperando ? pedirEnlace : onSubmit}
         className="w-full max-w-sm bg-surface border border-border rounded p-8"
       >
         <div className="mb-6">
@@ -70,6 +93,10 @@ export default function LoginPage() {
             Panel de campañas, ventas y contenido creativo.
           </p>
         </div>
+
+        {aviso && (
+          <div className="mb-4 text-sm text-good bg-good-bg border border-good/30 rounded px-3 py-2">{aviso}</div>
+        )}
 
         {error && (
           <div className="mb-4 text-sm text-critical bg-critical-bg border border-critical/30 rounded px-3 py-2">
@@ -90,31 +117,51 @@ export default function LoginPage() {
           />
         </label>
 
-        <label className="block mb-5">
-          <span className={labelClass}>Contraseña</span>
-          <PasswordInput
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-            placeholder="••••••••"
-          />
-        </label>
+        {!recuperando && (
+          <label className="block mb-5">
+            <span className={labelClass}>Contraseña</span>
+            <PasswordInput
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+              placeholder="••••••••"
+            />
+          </label>
+        )}
 
         <button
           type="submit"
           disabled={loading}
           className="w-full bg-accent text-white rounded py-2.5 font-medium hover:bg-accent-strong transition disabled:opacity-60"
         >
-          {loading ? "Ingresando…" : "Ingresar"}
+          {recuperando
+            ? loading
+              ? "Enviando…"
+              : "Enviarme el enlace"
+            : loading
+              ? "Ingresando…"
+              : "Ingresar"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setRecuperando(!recuperando);
+            setError(null);
+            setAviso(null);
+          }}
+          className="mt-3 w-full text-center text-xs text-accent-strong hover:underline"
+        >
+          {recuperando ? "Volver a entrar con mi contraseña" : "¿Olvidaste tu contraseña?"}
         </button>
 
         {/* Dónde se consigue una cuenta, ahora que no se puede crear sola. Sin
             esta línea, quien no tenga acceso se queda mirando un formulario que
             no le sirve, sin saber a quién pedirle. */}
         <p className="mt-5 text-xs leading-relaxed text-muted">
-          Las cuentas las crea la dirección. Si todavía no tenés una, pedíla a Fabricio o a
+          Las cuentas las crea la dirección. Si todavía no tienes una, pídela a Fabricio o a
           Katherine: te van a dar una clave provisoria que vas a cambiar apenas entres.
         </p>
       </form>

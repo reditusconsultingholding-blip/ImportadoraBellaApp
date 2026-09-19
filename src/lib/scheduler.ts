@@ -12,6 +12,7 @@ import { avisarDescuadre } from "@/lib/atribucion";
 import { enviarCierreDeContenido } from "@/lib/cierre-contenido";
 import { sincronizarNotion } from "@/lib/integrations/notion-import";
 import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
+import { enviarProgresoQuincenal } from "@/lib/progreso-quincenal";
 import { capturarCorte } from "@/lib/control-publicitario";
 import { repasoDiarioDeCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
@@ -236,6 +237,15 @@ export async function sincronizarTodo() {
       if (r) resumen.pendientes = r;
     } catch (err) {
       resumen.pendientes = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // El progreso de cada persona, el 15 y el último día del mes. Es lo que
+    // el equipo recibe de su avance (el aviso de las 8 es solo de dirección).
+    try {
+      const r = await enviarProgresoQuincenal(org.id);
+      if (r) resumen.progreso = r;
+    } catch (err) {
+      resumen.progreso = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     // El cierre de día del módulo Contenido: qué hizo cada integrante. Se

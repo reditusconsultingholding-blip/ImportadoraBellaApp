@@ -8,6 +8,7 @@ import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
 import { formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
 import { jsonComprimido } from "@/lib/respuesta";
 import { memorizar } from "@/lib/memoria";
+import { avisarAsignacion } from "@/lib/aviso-asignacion";
 
 // Las 6.000+ piezas de la organización, compartidas en memoria hasta la
 // próxima escritura (crear o editar una pieza la invalida). La clave lleva el
@@ -150,6 +151,8 @@ export async function POST(req: NextRequest) {
   // Con fecha de entrega, la pieza aparece sola en el tablero del día y en el
   // calendario. Sin ella no pasa nada: no habría día en el que ponerla.
   await sincronizarTareaDeRequerimiento(requirement.id);
+  // A quien le toca la pieza, si no la creó para sí mismo.
+  await avisarAsignacion(requirement.id, session.userId);
 
   return NextResponse.json({ requirement });
 }

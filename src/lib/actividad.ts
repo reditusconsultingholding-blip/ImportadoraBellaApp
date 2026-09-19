@@ -23,7 +23,7 @@ import { db } from "@/lib/db";
 // 3 minutos) y el ruido técnico: latidos de la sala de voz, marcar
 // notificaciones como leídas, suscripción push, el propio registro.
 
-export type TipoActividad = "entrada" | "salida" | "login_fallido" | "vista" | "accion" | "descarga" | "busqueda";
+export type TipoActividad = "entrada" | "salida" | "login_fallido" | "recuperacion" | "vista" | "accion" | "descarga" | "busqueda";
 
 const RUIDO = [
   /^\/api\/actividad/,

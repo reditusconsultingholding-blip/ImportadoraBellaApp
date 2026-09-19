@@ -171,6 +171,8 @@ export function describirActividad(e: Pick<EventoActividad, "tipo" | "ruta" | "d
       return { titulo: "Cerró sesión", detalle: null };
     case "login_fallido":
       return { titulo: "Intento de entrada fallido", detalle: e.detalle };
+    case "recuperacion":
+      return { titulo: e.detalle ?? "Recuperación de contraseña", detalle: null };
     case "jarvis":
       return { titulo: "Le preguntó a Jarvis", detalle: e.detalle };
     case "busqueda":
