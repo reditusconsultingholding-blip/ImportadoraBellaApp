@@ -28,15 +28,47 @@ import { normalizarNombre } from "@/lib/enlace-shopify";
 
 export type ClaseNombre = "producto" | "testeo" | "ignorar" | "sin";
 
-/** Clasifica cada nombre de línea de pedido distinto de la organización. */
-async function clasificarNombres(organizationId: string) {
-  const [nombres, enlaces, excluidos] = await Promise.all([
-    db.$queryRaw<{ nombre: string }[]>`
+// Los nombres distintos de TODA la historia salen de recorrer más de 130.000
+// renglones: 1,7 s, y se pedía en cada vuelta del reloj. Se guardan una hora
+// en memoria y en cada llamada se les suman los de los últimos 7 días, que es
+// lo único que puede traer un nombre nuevo: el sync de Shopify solo reescribe
+// los pedidos de los últimos días. Esa segunda consulta va por índices y
+// tarda milisegundos.
+const NOMBRES_VIGENCIA_MS = 60 * 60 * 1000;
+const nombresEnMemoria = new Map<string, { hasta: number; nombres: string[] }>();
+
+async function nombresDistintos(organizationId: string): Promise<{ nombre: string }[]> {
+  const guardado = nombresEnMemoria.get(organizationId);
+  const recientes = db.$queryRaw<{ nombre: string }[]>`
+    SELECT DISTINCT li."productName" AS nombre
+      FROM "ShopifyOrder" o
+      JOIN "ShopifyStore" s ON s.id = o."storeId"
+      JOIN "ShopifyOrderLineItem" li ON li."orderId" = o.id
+     WHERE s."organizationId" = ${organizationId}
+       AND o."occurredAt" >= now() - interval '7 days'`;
+
+  let todos: string[];
+  if (guardado && guardado.hasta > Date.now()) {
+    todos = guardado.nombres;
+  } else {
+    const filas = await db.$queryRaw<{ nombre: string }[]>`
       SELECT DISTINCT li."productName" AS nombre
         FROM "ShopifyOrderLineItem" li
         JOIN "ShopifyOrder" o ON o.id = li."orderId"
         JOIN "ShopifyStore" s ON s.id = o."storeId"
-       WHERE s."organizationId" = ${organizationId}`,
+       WHERE s."organizationId" = ${organizationId}`;
+    todos = filas.map((f) => f.nombre);
+    nombresEnMemoria.set(organizationId, { hasta: Date.now() + NOMBRES_VIGENCIA_MS, nombres: todos });
+  }
+  const union = new Set(todos);
+  for (const r of await recientes) union.add(r.nombre);
+  return [...union].map((nombre) => ({ nombre }));
+}
+
+/** Clasifica cada nombre de línea de pedido distinto de la organización. */
+async function clasificarNombres(organizationId: string) {
+  const [nombres, enlaces, excluidos] = await Promise.all([
+    nombresDistintos(organizationId),
     db.productoShopify.findMany({
       where: { organizationId },
       select: { nombreNorm: true, productId: true },
