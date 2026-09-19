@@ -21,6 +21,8 @@ import AlertasPanel from "./alertas-panel";
 import TablaFilas from "./tabla-filas";
 import { EncabezadoSeccion, InsigniaEncabezado } from "./encabezado-seccion";
 import type { Platform } from "@/generated/prisma/client";
+import { ritmoDeVentas } from "@/lib/ritmo-ventas";
+import IndicadoresRapidos from "./indicadores-rapidos";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -68,7 +70,7 @@ export default async function DashboardPage({
   // el permiso devuelve la CANTIDAD de órdenes y ni siquiera trae el campo de
   // facturación, así que es la única parte de las ventas que ve todo el
   // equipo.
-  const [overview, sales, meta, tiktok, ventas, sinProducto] = await Promise.all([
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo] = await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
@@ -78,6 +80,8 @@ export default async function DashboardPage({
     // lo mismo: una consulta más encadenada después de dibujar es medio segundo
     // que el panel entero pasa esperando.
     verCifras ? resumenSinProducto(session.organizationId, range) : null,
+    // A qué hora compran y cuántas ventas van: la tira de arriba.
+    ritmoDeVentas(session.organizationId, range),
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -114,6 +118,16 @@ export default async function DashboardPage({
             platform={platform}
           />
         }
+      />
+
+      {/* Lo que se mira primero, sin bajar: ventas, ritmo, CPA y a qué hora
+          compran. Va pegado al encabezado a propósito. */}
+      <IndicadoresRapidos
+        ritmo={ritmo}
+        periodo={range.label}
+        verCifras={verCifras}
+        meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases }}
+        tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases }}
       />
 
       {/* Ventas de Shopify: facturación, ticket promedio y desglose por canal.

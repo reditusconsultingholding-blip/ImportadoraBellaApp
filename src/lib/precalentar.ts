@@ -13,6 +13,7 @@ import { controlDelPeriodo, diaEcuador } from "@/lib/control-publicitario";
 import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { proponerEnlaces } from "@/lib/enlace-shopify";
 import { resolverPeriodo } from "@/lib/control-opciones";
+import { ritmoDeVentas } from "@/lib/ritmo-ventas";
 
 // Deja calculadas las vistas por defecto de cada pantalla apenas termina un
 // sync.
@@ -41,6 +42,7 @@ export async function precalentarPantallas(organizationId: string) {
     ["panel serie", () => ventasEnElTiempo(organizationId, rPanel, true)],
     ["panel serie sin cifras", () => ventasEnElTiempo(organizationId, rPanel, false)],
     ["panel sin producto", () => resumenSinProducto(organizationId, rPanel)],
+    ["panel ritmo", () => ritmoDeVentas(organizationId, rPanel)],
     ["control", () => controlDelPeriodo(organizationId, { desde: control.desde, hasta: control.hasta, hora: 23, productIds: [] })],
     ["control enlazar", () => nombresSinEnlazar(organizationId, control.desde, control.hasta)],
     ["rentabilidad", () => getRentabilidad(organizationId, r30)],
