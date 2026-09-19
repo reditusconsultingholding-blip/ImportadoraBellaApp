@@ -302,7 +302,20 @@ No hay Cloudflare, Vercel, GoDaddy ni AWS en el camino. El certificado HTTPS lo 
 
 ---
 
-## 5. Cómo seguir
+## 5. Rendimiento y seguimiento (septiembre de 2026)
+
+**Memoria compartida** (`src/lib/memoria.ts`): los cálculos pesados de las pantallas se envuelven con `memorizar(nombre, fn)` y se comparten entre todo el equipo. Se vacía con **cualquier escritura** en la base (extensión en `db.ts`, salvo modelos que no mueven números: chat, voz, notificaciones, actividad, User). Cada lectura recibe una copia. Al terminar cada sync, `precalentar.ts` deja calculadas las vistas por defecto.
+- Una función de lectura nueva y pesada: envolverla con `memorizar`, con argumentos serializables.
+- Un modelo nuevo que no afecte ningún número: sumarlo a `SIN_EFECTO_EN_NUMEROS` en `db.ts`.
+- Para depurar sin memoria: `MEMORIA_APAGADA=1`.
+
+**Respuestas de API**: las GET grandes usan `jsonComprimido` (`src/lib/respuesta.ts`, gzip + no-store). Los errores hacia la pantalla pasan por `mensajeSeguro`.
+
+**Medir en una máquina**: `next build` y después `RELOJ_APAGADO=1 PERFIL_CONSULTAS=1 next start`. El reloj queda apagado (no sincroniza contra producción) y cada consulta se escribe con su duración. `/api/health` informa `latenciaBaseMs`, la distancia servidor→base.
+
+**Seguimiento de actividad** (`src/lib/actividad.ts`, tabla `ActividadUsuario`): el middleware marca cada pedido (`x-jarvis-*`) y `getSession` lo registra. Las búsquedas las manda `registro-busquedas.tsx`. La lectura (`/api/actividad`) es solo para OWNER. Los textos legibles salen de `actividad-texto.ts`: al agregar un endpoint que modifica datos, sumarle su frase en `ACCIONES`. Retención: 90 días.
+
+## 6. Cómo seguir
 
 - **Antes de tocar una fórmula del control:** `npm test`. Si cambias un número a propósito, actualiza la prueba y explica el porqué en `docs/DECISIONES.md`.
 - **Antes de agregar una ruta de API:** sesión (`getSession`), permiso (`src/lib/permissions.ts`), cuerpo validado (`leerCuerpo` con Zod) y, si cuesta plata o prueba claves, `frenarUsuario`.

@@ -13,7 +13,8 @@
 1. [Primeros pasos](#1-primeros-pasos)
 2. [Guía de operación de ventas](#2-guía-de-operación-de-ventas)
 3. [Guía del workflow de contenido](#3-guía-del-workflow-de-contenido)
-4. [Solución de problemas](#4-solución-de-problemas)
+4. [Seguimiento de actividad](#4-seguimiento-de-actividad-solo-administrador)
+5. [Solución de problemas](#5-solución-de-problemas)
 
 ---
 
@@ -222,7 +223,23 @@ Si el nombre de la campaña no sigue la nomenclatura, el enlace no se puede hace
 
 ---
 
-## 4. Solución de problemas
+
+## 4. Seguimiento de actividad (solo administrador)
+
+En **Configuraciones → Seguimiento de actividad** el administrador (OWNER) ve, por persona y por rango de fechas:
+
+- **Pantallas** que abrió, con sus filtros ("Control publicitario › Enlazar pedidos · julio 2026").
+- **Acciones**: crear, editar o borrar piezas, enlazar pedidos, cambiar la economía, crear usuarios, etc. Se registran al pedirse: también aparecen las que el sistema rechazó (sin permiso o datos inválidos).
+- **Descargas** (CSV de clientes, PDF de reportes), **búsquedas** en cualquier buscador y **preguntas a Jarvis**.
+- **Entradas, salidas e intentos de entrada fallidos**, con la IP y el equipo (p. ej. "Chrome en Windows").
+
+Cada día muestra de qué hora a qué hora hubo actividad y cuántas pantallas y acciones. Los intentos fallidos salen en rojo. Se guarda 90 días.
+
+El registro se hace en el servidor: no se puede apagar desde el navegador. Es recomendable que el equipo sepa que existe (ver el reglamento interno).
+
+---
+
+## 5. Solución de problemas
 
 ### Fallos de sincronización
 
