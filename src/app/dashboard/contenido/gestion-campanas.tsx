@@ -10,6 +10,10 @@ type Campana = {
   origen: "sync" | "manual";
   nombre: string;
   plataforma: string | null;
+  /** La cuenta publicitaria, para saber dónde buscarla. */
+  cuenta?: string | null;
+  /** Lo que gastó en los últimos siete días. */
+  gasto7d?: number;
   activa: boolean;
   productId: string | null;
   producto: { id: string; code: string; name: string } | null;
@@ -26,6 +30,9 @@ export default function GestionCampanas({ products }: { products: ProductOption[
   const [busqueda, setBusqueda] = useState("");
   const [plataforma, setPlataforma] = useState("");
   const [soloSinProducto, setSoloSinProducto] = useState(false);
+  // Activas por defecto, como el filtro que el equipo tiene en Notion: las
+  // pausadas son historia y mezcladas tapaban lo que está corriendo.
+  const [estado, setEstado] = useState<"activas" | "inactivas" | "">("activas");
   const [asignando, setAsignando] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -38,6 +45,7 @@ export default function GestionCampanas({ products }: { products: ProductOption[
     if (busqueda.trim()) qs.set("buscar", busqueda.trim());
     if (plataforma) qs.set("plataforma", plataforma);
     if (soloSinProducto) qs.set("sinProducto", "1");
+    if (estado) qs.set("estado", estado);
     fetch(`/api/contenido/campanas?${qs.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -52,7 +60,7 @@ export default function GestionCampanas({ products }: { products: ProductOption[
     const t = setTimeout(cargar, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, plataforma, soloSinProducto]);
+  }, [busqueda, plataforma, soloSinProducto, estado]);
 
   const todas = useMemo(() => [...campanas, ...manuales], [campanas, manuales]);
   const sinProducto = todas.filter((c) => !c.productId).length;
@@ -130,26 +138,53 @@ export default function GestionCampanas({ products }: { products: ProductOption[
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar campaña…"
-          className="min-w-[200px] rounded border border-border bg-transparent px-3 py-1.5 text-xs outline-none focus:border-accent"
-        />
-        <select
-          value={plataforma}
-          onChange={(e) => setPlataforma(e.target.value)}
-          className="rounded border border-border bg-transparent px-2 py-1.5 text-xs outline-none focus:border-accent"
-        >
-          <option value="">Todas las plataformas</option>
-          <option value="META">Meta</option>
-          <option value="TIKTOK">TikTok</option>
-        </select>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          <input type="checkbox" checked={soloSinProducto} onChange={(e) => setSoloSinProducto(e.target.checked)} />
-          Solo sin producto
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-3">
+        {/* La búsqueda mira el nombre de la campaña Y el de la cuenta
+            publicitaria: la pregunta de todos los días es "¿en qué cuenta
+            está esta campaña?". */}
+        <label className="relative min-w-[240px] flex-1">
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.6" fill="none" />
+            <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar campaña o cuenta publicitaria…"
+            className="w-full rounded-lg border border-border bg-transparent py-1.5 pl-8 pr-3 text-xs outline-none focus:border-accent"
+          />
         </label>
+        <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="Estado">
+          {([["activas", "Activas"], ["inactivas", "Inactivas"], ["", "Todas"]] as const).map(([id, texto]) => (
+            <button
+              key={id || "todas"}
+              type="button"
+              onClick={() => setEstado(id)}
+              className={`rounded-md px-2.5 py-1 text-xs transition ${estado === id ? "bg-surface-2 font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="Plataforma">
+          {([["", "Meta y TikTok"], ["META", "Meta"], ["TIKTOK", "TikTok"]] as const).map(([id, texto]) => (
+            <button
+              key={id || "ambas"}
+              type="button"
+              onClick={() => setPlataforma(id)}
+              className={`rounded-md px-2.5 py-1 text-xs transition ${plataforma === id ? "bg-surface-2 font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setSoloSinProducto((v) => !v)}
+          className={`rounded-full border px-2.5 py-1 text-xs transition ${soloSinProducto ? "border-warning bg-pending-bg text-warning" : "border-border text-muted hover:text-foreground"}`}
+        >
+          Sin producto
+        </button>
         <span className="ml-auto text-xs text-muted">
           {todas.length} campañas{sinProducto > 0 && ` · ${sinProducto} sin producto`}
         </span>
@@ -242,7 +277,9 @@ export default function GestionCampanas({ products }: { products: ProductOption[
             <thead>
               <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted">
                 <th className="px-3 py-2">Campaña</th>
+                <th className="px-3 py-2">Cuenta</th>
                 <th className="px-3 py-2">Plataforma</th>
+                <th className="px-3 py-2 text-right">Gasto 7 días</th>
                 <th className="px-3 py-2">Tipo</th>
                 <th className="px-3 py-2">Lote</th>
                 <th className="px-3 py-2">Producto</th>
@@ -252,20 +289,24 @@ export default function GestionCampanas({ products }: { products: ProductOption[
             <tbody>
               {cargando ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-muted">
+                  <td colSpan={8} className="px-3 py-6 text-center text-muted">
                     Cargando…
                   </td>
                 </tr>
               ) : todas.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-muted">
+                  <td colSpan={8} className="px-3 py-6 text-center text-muted">
                     Ninguna campaña coincide.
                   </td>
                 </tr>
               ) : (
                 todas.map((c) => (
                   <tr key={`${c.origen}-${c.id}`} className="border-b border-border last:border-b-0">
-                    <td className="max-w-[240px] truncate px-3 py-2" title={c.nombre}>
+                    <td className="max-w-[260px] truncate px-3 py-2" title={c.nombre}>
+                      <span
+                        className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${c.activa ? "bg-good" : "bg-border-strong"}`}
+                        title={c.activa ? "Activa" : "Inactiva"}
+                      />
                       {c.nombre}
                       {c.origen === "manual" && (
                         <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[9px] text-muted">
@@ -273,7 +314,11 @@ export default function GestionCampanas({ products }: { products: ProductOption[
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{c.plataforma ?? "—"}</td>
+                    <td className="max-w-[180px] truncate px-3 py-2 text-muted" title={c.cuenta ?? ""}>{c.cuenta ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{c.plataforma === "META" ? "Meta" : c.plataforma === "TIKTOK" ? "TikTok" : "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                      {c.gasto7d ? c.gasto7d.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—"}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">{c.tipoCampana ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap font-mono">{c.lote?.nomenclatura ?? "—"}</td>
                     <td className="px-3 py-2">

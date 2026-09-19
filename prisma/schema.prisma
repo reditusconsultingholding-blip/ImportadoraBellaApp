@@ -1629,6 +1629,11 @@ model ResponsableProducto {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // "notion" cuando viene de la base PRODUCTOS ORDEN, que es donde el equipo
+  // ya lleva quién tiene cada producto; null si lo asignó dirección en Jarvis.
+  // Los de Notion se reescriben en cada sincronización: cambiarlos acá sería
+  // un cambio que desaparece en diez minutos.
+  origen    String?
   createdAt DateTime @default(now())
 
   @@id([productId, userId])

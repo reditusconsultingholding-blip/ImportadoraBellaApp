@@ -11,6 +11,7 @@ import {
 } from "./notion";
 import { matchProduct } from "./windsor-sync";
 import { normalizar, parseCampaignRef } from "@/lib/product-code";
+import { sincronizarResponsables } from "@/lib/integrations/notion-responsables";
 import { Prisma } from "@/generated/prisma/client";
 
 // El import único desde Notion: lee las dos bases del equipo (tareas diarias
@@ -584,7 +585,18 @@ export async function sincronizarNotion(organizationId: string) {
 
   try {
     const r = await importarNotion(organizationId, { dryRun: false });
-    const detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.basesLeidas} bases`;
+    let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.basesLeidas} bases`;
+
+    // Y quién lleva cada producto, desde PRODUCTOS ORDEN. Va en la misma
+    // pasada porque es la misma conexión y el mismo ritmo: lo que Emilia
+    // cambia en Notion tiene que llegar a Jarvis sin que nadie apriete nada.
+    // Si falla, no tumba la importación de tareas: se anota y se sigue.
+    try {
+      const resp = await sincronizarResponsables(organizationId, conexion.token);
+      if (resp) detalle += ` · responsables de ${resp.productos} productos`;
+    } catch (e) {
+      detalle += ` · responsables: ${e instanceof Error ? e.message : String(e)}`;
+    }
     await marcar(detalle);
     return detalle;
   } catch (err) {
