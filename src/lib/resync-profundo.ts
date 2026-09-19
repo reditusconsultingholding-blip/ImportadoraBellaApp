@@ -32,9 +32,16 @@ export async function resincronizacionProfunda(organizationId: string) {
 
   const estado = await db.syncState.findUnique({
     where: { organizationId_fuente: { organizationId, fuente: FUENTE } },
-    select: { okAt: true },
+    select: { okAt: true, detalle: true },
   });
-  if (estado?.okAt && Date.now() - estado.okAt.getTime() < CADA_DIAS * 86400_000) return null;
+  if (estado?.okAt) {
+    const hace = Date.now() - estado.okAt.getTime();
+    // Una corrida marcada "en curso" hace más de media hora no está en curso:
+    // el servidor se reinició a la mitad —un deploy, por ejemplo— y quedó
+    // abandonada. Sin esto, esa marca bloqueaba el repaso una semana entera.
+    const abandonada = estado.detalle === "en curso" && hace > 30 * 60_000;
+    if (!abandonada && hace < CADA_DIAS * 86400_000) return null;
+  }
 
   // Se marca ANTES de correr. Es una operación pesada, y si el servidor se
   // reinicia a la mitad no tiene que volver a arrancar en el tick siguiente de
