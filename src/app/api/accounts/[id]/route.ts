@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canManageConexiones } from "@/lib/permissions";
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Mismo permiso que crear la cuenta. Antes esta ruta solo miraba la
+  // organización: cualquier editor podía reemplazar el token de producción
+  // de una cuenta publicitaria, borrarla o quemar cuota sincronizando.
+  if (!canManageConexiones(session.role)) {
+    return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
+  }
 
   const { id } = await params;
   const account = await db.adAccount.findUnique({ where: { id } });

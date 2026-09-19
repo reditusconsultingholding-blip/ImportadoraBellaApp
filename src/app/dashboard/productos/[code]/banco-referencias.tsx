@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { urlSegura } from "@/lib/url-segura";
 import {
   ANGLES,
   AWARENESS_LEVELS,
@@ -276,7 +277,7 @@ export default function BancoReferencias({ productId }: { productId: string }) {
                 <p className="flex flex-wrap items-center gap-1.5 text-sm">
                   {r.link ? (
                     <a
-                      href={r.link}
+                      href={urlSegura(r.link)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-medium text-accent-strong hover:underline"

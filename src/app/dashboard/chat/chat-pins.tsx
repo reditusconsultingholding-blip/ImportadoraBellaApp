@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { urlSegura } from "@/lib/url-segura";
 
 type Pin = {
   id: string;
@@ -166,7 +167,7 @@ export default function ChatPins({ channelId }: { channelId: string }) {
               <div className="min-w-0 flex-1">
                 {p.kind === "LINK" && p.url ? (
                   <a
-                    href={p.url}
+                    href={urlSegura(p.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block truncate text-sm font-medium text-accent-strong hover:underline"

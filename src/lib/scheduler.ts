@@ -15,6 +15,7 @@ import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
 import { capturarCorte } from "@/lib/control-publicitario";
 import { repasoDiarioDeCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
+import { recifrarPendientes } from "@/lib/cifrado-repaso";
 
 // El reloj de la aplicación.
 //
@@ -82,6 +83,14 @@ async function soltarCandado(
 export async function sincronizarTodo() {
   const orgs = await db.organization.findMany({ select: { id: true } });
   const resumen: Record<string, string> = {};
+
+  // Los tokens de terceros que quedaron sin cifrar. Ver src/lib/cifrado-repaso.ts.
+  try {
+    const n = await recifrarPendientes();
+    if (n) resumen.cifrado = `${n} tokens cifrados`;
+  } catch (err) {
+    resumen.cifrado = `error: ${err instanceof Error ? err.message : String(err)}`;
+  }
 
   for (const org of orgs) {
     const tiendas = await db.shopifyStore.findMany({

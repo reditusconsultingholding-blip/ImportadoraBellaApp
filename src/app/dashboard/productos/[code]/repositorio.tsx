@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GUIA_COLUMNAS, REGLAS_DE_RONDA } from "@/lib/pipeline-options";
+import { urlSegura } from "@/lib/url-segura";
 
 type Asset = {
   id: string;
@@ -179,7 +180,7 @@ export default function Repositorio({ productId }: { productId: string }) {
                     </button>
                   ) : a.kind === "LINK" && a.url ? (
                     <a
-                      href={a.url}
+                      href={urlSegura(a.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block truncate text-sm text-accent-strong hover:underline"

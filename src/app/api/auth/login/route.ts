@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/auth";
+import { contar, excedido, ipDe } from "@/lib/limite";
 
 // Freno a la fuerza bruta. Sin esto, con el correo de alguien del equipo (que
 // es público: nombre.apellido@bellacorp.store) se pueden probar contraseñas
@@ -14,6 +15,9 @@ import { createSession } from "@/lib/auth";
 const MAX_ATTEMPTS = 8;
 const WINDOW_MS = 10 * 60 * 1000;
 const LOCK_MS = 15 * 60 * 1000;
+// Fallos por IP entre todos los correos. Holgado a propósito: el equipo entero
+// puede salir por la misma red de la oficina.
+const IP_MAX_FALLOS = 40;
 
 type Attempt = { count: number; first: number; lockedUntil?: number };
 const attempts = new Map<string, Attempt>();
@@ -21,11 +25,7 @@ const attempts = new Map<string, Attempt>();
 function keyFor(req: NextRequest, email: string) {
   // Se cuenta por IP + correo: así un atacante no bloquea la cuenta de otro
   // fallando adrede desde afuera, y tampoco le sirve rotar el correo.
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "sin-ip";
-  return `${ip}|${email.toLowerCase()}`;
+  return `${ipDe(req)}|${email.toLowerCase()}`;
 }
 
 function check(key: string) {
@@ -71,6 +71,18 @@ export async function POST(req: NextRequest) {
   }
 
   sweep();
+
+  // Además del freno por IP + correo, uno por IP sola: sin él, desde una
+  // misma IP se podía probar una clave común contra todos los correos del
+  // equipo (8 intentos por cada uno, sin tope total).
+  const claveIp = `login-ip|${ipDe(req)}`;
+  if (excedido(claveIp, IP_MAX_FALLOS, WINDOW_MS)) {
+    return NextResponse.json(
+      { error: "Demasiados intentos fallidos desde esta conexión. Prueba de nuevo en 10 minutos." },
+      { status: 429 }
+    );
+  }
+
   const key = keyFor(req, email);
   const gate = check(key);
   if (gate.blocked) {
@@ -94,6 +106,7 @@ export async function POST(req: NextRequest) {
 
   if (!user || !valid) {
     registerFailure(key);
+    contar(claveIp, IP_MAX_FALLOS, WINDOW_MS);
     return NextResponse.json({ error: "Correo o contraseña incorrectos." }, { status: 401 });
   }
 

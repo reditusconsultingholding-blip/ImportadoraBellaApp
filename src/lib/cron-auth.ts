@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 /**
@@ -16,9 +17,20 @@ export function cronAuthorized(req: NextRequest) {
   if (!secret) return false;
 
   const header = req.headers.get("authorization");
-  if (header === `Bearer ${secret}`) return true;
+  if (header?.startsWith("Bearer ") && iguales(header.slice(7), secret)) return true;
 
   // Algunos programadores externos no permiten mandar encabezados propios;
   // para esos se acepta el secreto como parámetro de la URL.
-  return req.nextUrl.searchParams.get("secret") === secret;
+  const q = req.nextUrl.searchParams.get("secret");
+  return q !== null && iguales(q, secret);
+}
+
+// Comparación en tiempo constante. Con `===` la respuesta tarda un poco más
+// cuantos más caracteres coinciden, y eso —medido muchas veces— deja
+// adivinar el secreto de a un carácter. Se comparan los hashes para que el
+// largo tampoco se filtre.
+function iguales(a: string, b: string) {
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb);
 }

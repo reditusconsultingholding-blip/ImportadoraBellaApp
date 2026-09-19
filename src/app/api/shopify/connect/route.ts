@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManageConexiones } from "@/lib/permissions";
-import { verifyShopifyConnection, hasShopifyAppCredentials } from "@/lib/integrations/shopify";
+import {
+  verifyShopifyConnection,
+  hasShopifyAppCredentials,
+  normalizeShopDomain,
+  ShopifyDominioInvalido,
+} from "@/lib/integrations/shopify";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
+import { frenarUsuario } from "@/lib/limite";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Sale a la API de Shopify con credenciales.
+  const frenado = frenarUsuario("conectar", session.userId, 10, 10 * 60 * 1000);
+  if (frenado) return frenado;
   if (!canManageConexiones(session.role)) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
@@ -18,6 +27,18 @@ export async function POST(req: NextRequest) {
   };
   if (!shopDomain?.trim()) {
     return NextResponse.json({ error: "Falta el dominio de la tienda." }, { status: 400 });
+  }
+
+  // El dominio se valida antes de llamar a nada: el servidor le manda a ese
+  // dominio las credenciales de la app. Ver normalizeShopDomain.
+  let dominio: string;
+  try {
+    dominio = normalizeShopDomain(shopDomain);
+  } catch (err) {
+    if (err instanceof ShopifyDominioInvalido) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
   }
 
   // El token puede venir vacío: si la app "Jarvin Panal" está configurada por
@@ -36,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   let shopName: string | undefined;
   try {
-    const result = await verifyShopifyConnection(shopDomain.trim(), token);
+    const result = await verifyShopifyConnection(dominio, token);
     shopName = result.shopName;
   } catch (err) {
     return NextResponse.json(
@@ -52,12 +73,12 @@ export async function POST(req: NextRequest) {
     where: {
       organizationId_shopDomain: {
         organizationId: session.organizationId,
-        shopDomain: shopDomain.trim(),
+        shopDomain: dominio,
       },
     },
     create: {
       organizationId: session.organizationId,
-      shopDomain: shopDomain.trim(),
+      shopDomain: dominio,
       accessToken: token,
       connectedAt: new Date(),
     },

@@ -25,11 +25,13 @@ export async function GET() {
     // Consulta mínima: confirma que la conexión a la base sigue viva.
     await db.$queryRaw`SELECT 1`;
   } catch (err) {
+    // El detalle va al log del servidor, no a la respuesta: el endpoint es
+    // público y un mensaje de Postgres puede traer el host o el usuario.
+    console.error("[health] la base no responde:", err);
     return NextResponse.json(
       {
         ok: false,
         database: "error",
-        detail: err instanceof Error ? err.message : String(err),
         uptimeSeconds,
         checkedAt,
       },
@@ -41,7 +43,9 @@ export async function GET() {
   // confundirlas ya costó caro: el 27 de agosto la app estuvo arriba veinte
   // horas con la sincronización muerta, y el panel mostraba cero ventas como
   // si fuera un mal día.
-  let sincronizacion: { fuente: string; haceMinutos: number | null; error: string | null }[] = [];
+  // Si hubo error, sí o no; el texto no (es público y puede traer detalles de
+  // las APIs). El texto completo está en Configuración, con sesión.
+  let sincronizacion: { fuente: string; haceMinutos: number | null; error: boolean }[] = [];
   let datosFrescos = true;
   try {
     const estados = await db.syncState.findMany({
@@ -50,7 +54,7 @@ export async function GET() {
     sincronizacion = estados.map((e) => ({
       fuente: e.fuente,
       haceMinutos: e.okAt ? Math.round((Date.now() - e.okAt.getTime()) / 60000) : null,
-      error: e.error,
+      error: Boolean(e.error),
     }));
     // Solo cuentan las FUENTES DE DATOS. Las tareas que corren una vez al día
     // —las alertas, el reporte— tambien se anotan en la misma tabla, y

@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { getSession, createSession } from "@/lib/auth";
+import { frenarUsuario } from "@/lib/limite";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Pide la clave actual: sin tope, una sesión robada podría adivinarla.
+  const frenado = frenarUsuario("cambiar-clave", session.userId, 8, 15 * 60 * 1000);
+  if (frenado) return frenado;
 
   const { currentPassword, newPassword, confirmPassword } = (await req.json()) as {
     currentPassword?: string;
@@ -49,7 +53,9 @@ export async function POST(req: NextRequest) {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   const updated = await db.user.update({
     where: { id: user.id },
-    data: { passwordHash, mustChangePassword: false },
+    // Subir la versión cierra las demás sesiones abiertas con la clave vieja.
+    // Esta misma se renueva abajo con la versión nueva.
+    data: { passwordHash, mustChangePassword: false, sessionVersion: { increment: 1 } },
   });
 
   await createSession({

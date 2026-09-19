@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     canViewPayroll?: boolean;
     passwordHash?: string;
     mustChangePassword?: boolean;
+    sessionVersion?: { increment: number };
   } = {};
 
   if (body.name?.trim()) data.name = body.name.trim();
@@ -97,6 +98,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.passwordHash = await bcrypt.hash(body.newPassword, 10);
     // Se la asignó otra persona: la próxima vez que entre, la cambia.
     data.mustChangePassword = true;
+    // Y se cierran todas sus sesiones abiertas.
+    data.sessionVersion = { increment: 1 };
   }
 
   if (Object.keys(data).length === 0) {

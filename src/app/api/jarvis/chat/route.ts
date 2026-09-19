@@ -4,10 +4,14 @@ import { canUseJarvis } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
+import { frenarUsuario } from "@/lib/limite";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Cada mensaje es una llamada paga a la IA.
+  const frenado = frenarUsuario("jarvis-chat", session.userId, 30, 10 * 60 * 1000);
+  if (frenado) return frenado;
   if (!canUseJarvis(session.role)) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }

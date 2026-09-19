@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { totpConfigured, verifyTotpCode } from "@/lib/totp";
+import { frenarUsuario } from "@/lib/limite";
 
 export async function GET() {
   const session = await getSession();
@@ -35,6 +36,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Crear cuentas en masa no es un uso normal.
+  const frenado = frenarUsuario("crear-usuario", session.userId, 20, 60 * 60 * 1000);
+  if (frenado) return frenado;
   if (session.role !== "OWNER") {
     return NextResponse.json({ error: "Solo un administrador puede crear usuarios." }, { status: 403 });
   }

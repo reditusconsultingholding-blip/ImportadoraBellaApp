@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { canManageConexiones } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { syncAdAccount } from "@/lib/integrations/sync";
+import { frenarUsuario } from "@/lib/limite";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Sale a la API de la plataforma con credenciales.
+  const frenado = frenarUsuario("conectar", session.userId, 10, 10 * 60 * 1000);
+  if (frenado) return frenado;
+  // Mismo permiso que crear la cuenta. Antes esta ruta solo miraba la
+  // organización: cualquier editor podía reemplazar el token de producción
+  // de una cuenta publicitaria, borrarla o quemar cuota sincronizando.
+  if (!canManageConexiones(session.role)) {
+    return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
+  }
 
   const { id } = await params;
   const { externalId, accessToken } = (await req.json()) as {

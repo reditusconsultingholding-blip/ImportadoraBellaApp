@@ -5,6 +5,7 @@ import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { buildInsights } from "@/lib/insights";
 import { veLasCifras } from "@/lib/finanzas";
+import { frenarUsuario } from "@/lib/limite";
 
 // El análisis se pide aparte y no dentro del renderizado de la página: una
 // llamada al modelo tarda varios segundos, y no tiene sentido que el panel
@@ -13,6 +14,9 @@ import { veLasCifras } from "@/lib/finanzas";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Cada análisis es una llamada paga a la IA.
+  const frenado = frenarUsuario("insights", session.userId, 30, 10 * 60 * 1000);
+  if (frenado) return frenado;
   // Habla de plata: mismo criterio que Rentabilidad.
   //
   // Y además pide el permiso de finanzas. Este es el único texto de la app

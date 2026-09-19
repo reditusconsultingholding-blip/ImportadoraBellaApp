@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { urlSegura } from "@/lib/url-segura";
 
 type CampanaItem = { id: string; nombre: string; plataforma: string };
 type LinkProducto = { id: string; url: string; etiqueta: string | null };
@@ -163,7 +164,7 @@ export default function AnclajeProducto({
             {links.length === 0 && <p className="text-xs text-muted">Todavía no hay links cargados.</p>}
             {links.map((l) => (
               <div key={l.id} className="flex items-center gap-1.5 py-0.5 text-xs">
-                <a href={l.url} target="_blank" rel="noreferrer" className="truncate text-accent-strong hover:underline">
+                <a href={urlSegura(l.url)} target="_blank" rel="noreferrer" className="truncate text-accent-strong hover:underline">
                   {l.etiqueta || l.url}
                 </a>
                 {puedeEditar && (

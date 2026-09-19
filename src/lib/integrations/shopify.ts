@@ -21,8 +21,29 @@ function apiVersion() {
   return process.env.SHOPIFY_API_VERSION?.trim() || DEFAULT_API_VERSION;
 }
 
-function normalizeShopDomain(shopDomain: string) {
-  return shopDomain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+export class ShopifyDominioInvalido extends Error {}
+
+/**
+ * El dominio de la tienda, validado.
+ *
+ * Solo se acepta un subdominio de myshopify.com. Antes se aceptaba cualquier
+ * cosa, y el servidor le manda a ese dominio el SHOPIFY_CLIENT_SECRET para
+ * pedir el token: escribir "atacante.com" como tienda alcanzaba para que el
+ * secreto de la app saliera a un servidor ajeno. También cerraba la puerta a
+ * usar el servidor para llamar a direcciones internas (SSRF).
+ */
+export function normalizeShopDomain(shopDomain: string) {
+  const limpio = shopDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+  if (!/^[a-z0-9][a-z0-9-]{0,62}\.myshopify\.com$/.test(limpio)) {
+    throw new ShopifyDominioInvalido(
+      `"${shopDomain}" no es un dominio de Shopify. Tiene que ser del tipo tu-tienda.myshopify.com.`,
+    );
+  }
+  return limpio;
 }
 
 // --- Autenticación --------------------------------------------------------

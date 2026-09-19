@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { urlSegura } from "@/lib/url-segura";
 
 // La pestaña VARIABLES de la planilla, editable acá.
 //
@@ -209,7 +210,7 @@ export default function Economia({
             />
             {enlaceAdm && (
               <a
-                href={enlaceAdm}
+                href={urlSegura(enlaceAdm)}
                 target="_blank"
                 rel="noreferrer"
                 className="shrink-0 text-xs font-medium text-accent-strong underline-offset-2 hover:underline"

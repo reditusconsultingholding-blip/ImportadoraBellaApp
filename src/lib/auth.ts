@@ -29,7 +29,13 @@ export type SessionPayload = {
 };
 
 export async function createSession(payload: SessionPayload) {
-  const token = await new SignJWT(payload)
+  // La versión de sesión vigente del usuario viaja en la cookie. Ver
+  // User.sessionVersion: cuando cambia, las cookies anteriores dejan de valer.
+  const u = await db.user.findUnique({
+    where: { id: payload.userId },
+    select: { sessionVersion: true },
+  });
+  const token = await new SignJWT({ ...payload, sv: u?.sessionVersion ?? 0 })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
@@ -55,9 +61,13 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!token) return null;
 
   let userId: string;
+  let version: number;
   try {
     const { payload } = await jwtVerify(token, secret());
     userId = (payload as { userId?: string }).userId ?? "";
+    // Las cookies de antes de este cambio no traen versión: valen como 0,
+    // que es el valor inicial, así que nadie queda afuera al desplegar.
+    version = (payload as { sv?: number }).sv ?? 0;
     if (!userId) return null;
   } catch {
     return null;
@@ -72,9 +82,12 @@ export async function getSession(): Promise<SessionPayload | null> {
       name: true,
       role: true,
       mustChangePassword: true,
+      sessionVersion: true,
     },
   });
   if (!user) return null;
+  // La clave cambió después de emitida esta cookie: sesión revocada.
+  if (user.sessionVersion !== version) return null;
 
   return {
     userId: user.id,

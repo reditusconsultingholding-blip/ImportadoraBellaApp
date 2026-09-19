@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { getSession, createSession } from "@/lib/auth";
+import { frenarUsuario } from "@/lib/limite";
 
 // Cada persona entra con un correo genérico y lo cambia por el suyo desde
 // "Mi cuenta". Se pide la contraseña actual: el correo es con lo que se
@@ -10,6 +11,9 @@ import { getSession, createSession } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Pide la clave actual: sin tope, una sesión robada podría adivinarla.
+  const frenado = frenarUsuario("cambiar-correo", session.userId, 8, 15 * 60 * 1000);
+  if (frenado) return frenado;
 
   const { email, currentPassword } = (await req.json()) as {
     email?: string;

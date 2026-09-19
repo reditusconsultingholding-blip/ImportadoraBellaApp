@@ -282,6 +282,11 @@ model User {
   // "Saltarla". Quien la cerraba con la equis para mirar algo urgente se la
   // encontraba de nuevo al dia siguiente, y al otro.
   capacitacionAperturas Int          @default(0)
+  // Va dentro de la cookie de sesión. Al cambiar la clave (o al resetearla un
+  // administrador) se incrementa, y todas las cookies emitidas antes dejan de
+  // valer: sin esto, una sesión robada seguía viva 30 días aunque la víctima
+  // cambiara la contraseña.
+  sessionVersion        Int          @default(0)
   birthDate             DateTime?
   phone                 String?
   organizationId        String
@@ -1499,7 +1504,7 @@ model NotionConnection {
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id])
 
-  token              String? // Internal Integration Secret, en texto plano — mismo patrón que AdAccount.accessToken
+  token              String? // Internal Integration Secret, cifrado en reposo (src/lib/cifrado.ts vía db.ts)
   tareasDatabaseId   String?
   campanasDatabaseId String?
   connectedAt        DateTime?

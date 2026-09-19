@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManageConexiones } from "@/lib/permissions";
 import { emailConfigured, sendEmail } from "@/lib/email";
+import { frenarUsuario } from "@/lib/limite";
 
 // Un correo de prueba, para confirmar que el dominio quedó verificado.
 //
@@ -17,6 +18,9 @@ import { emailConfigured, sendEmail } from "@/lib/email";
 export async function POST() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  // Manda un correo real: sin tope sirve para spamear y quemar la cuota de Resend.
+  const frenado = frenarUsuario("correo-prueba", session.userId, 5, 60 * 60 * 1000);
+  if (frenado) return frenado;
   if (!canManageConexiones(session.role)) {
     return NextResponse.json({ error: "Probar el correo es de dirección." }, { status: 403 });
   }

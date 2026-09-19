@@ -9,6 +9,7 @@ import {
   leerHookRate,
 } from "@/lib/pipeline-options";
 import type { RequirementRow, UserOption } from "./types";
+import { urlSegura } from "@/lib/url-segura";
 
 // El panel de una pieza.
 //
@@ -433,7 +434,7 @@ export default function RequirementDrawer({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <a
-                        href={v.link}
+                        href={urlSegura(v.link)}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono font-semibold text-accent-strong hover:underline"
