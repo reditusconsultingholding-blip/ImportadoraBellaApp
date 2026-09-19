@@ -225,6 +225,40 @@ function CeldaSelect({
   );
 }
 
+/**
+ * Un círculo con las iniciales, como el avatar de Notion.
+ *
+ * El color sale del nombre y siempre es el mismo para la misma persona: con
+ * seis personas en el tablero, al segundo día ya se reconoce a cada una por el
+ * color, sin leer.
+ */
+const TONOS = [
+  "bg-[#E8F3EE] text-[#1F7A4D]",
+  "bg-[#EEF1FB] text-[#3A4FA3]",
+  "bg-[#FBF1E6] text-[#9A5B13]",
+  "bg-[#F6ECF6] text-[#8A3A87]",
+  "bg-[#EAF4F6] text-[#1D6B78]",
+  "bg-[#F9ECEC] text-[#A23B3B]",
+];
+function Iniciales({ nombre }: { nombre: string }) {
+  const limpio = nombre.trim();
+  if (!limpio) {
+    return <span className="inline-block h-5 w-5 shrink-0 rounded-full border border-dashed border-border" aria-hidden />;
+  }
+  const partes = limpio.split(/\s+/);
+  const letras = ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
+  let h = 0;
+  for (const c of limpio) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return (
+    <span
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold ${TONOS[h % TONOS.length]}`}
+      aria-hidden
+    >
+      {letras}
+    </span>
+  );
+}
+
 /* -------------------------------- La pantalla ----------------------------- */
 
 export default function TableroNotion({
@@ -515,13 +549,24 @@ export default function TableroNotion({
         dias.map(([dia, filas]) => {
           const abierto = estaAbierto(dia);
           const hechas = filas.filter((f) => f.estado === "HECHO").length;
+          const pendientesDia = filas.length - hechas;
+          // Quién dejó qué sin cerrar ese día: es la pregunta de Emilia
+          // —"¿cuántos pendientes dejan los chicos?"— y se contesta en la
+          // misma línea del día, sin abrirlo.
+          const pendientesPorQuien = new Map<string, number>();
+          for (const f of filas) {
+            if (f.estado === "HECHO") continue;
+            const quien = f.owner?.name.split(" ")[0] ?? f.responsableTexto ?? "Sin responsable";
+            pendientesPorQuien.set(quien, (pendientesPorQuien.get(quien) ?? 0) + 1);
+          }
+          const avance = filas.length ? hechas / filas.length : 0;
           return (
-            <section key={dia} className="overflow-hidden rounded border border-border bg-surface">
+            <section key={dia} className="overflow-hidden rounded-xl border border-border bg-surface">
               <button
                 type="button"
                 onClick={() => setAbiertos((a) => ({ ...a, [dia]: !abierto }))}
                 aria-expanded={abierto}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-surface-2"
+                className="relative flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left transition hover:bg-surface-2/60"
               >
                 <svg
                   width="10"
@@ -538,10 +583,34 @@ export default function TableroNotion({
                     strokeLinecap="round"
                   />
                 </svg>
-                <span className="text-sm font-medium">{tituloDelDia(dia)}</span>
-                <span className="text-xs text-muted">
-                  {filas.length} {filas.length === 1 ? "tarea" : "tareas"}
-                  {hechas > 0 && ` · ${hechas} ${hechas === 1 ? "lista" : "listas"}`}
+                <span className="text-sm font-semibold">{tituloDelDia(dia)}</span>
+                <span className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">
+                    {filas.length} {filas.length === 1 ? "tarea" : "tareas"}
+                  </span>
+                  {hechas > 0 && (
+                    <span className="rounded-full bg-good-bg px-2 py-0.5 text-good">
+                      {hechas} {hechas === 1 ? "lista" : "listas"}
+                    </span>
+                  )}
+                  {pendientesDia > 0 && (
+                    <span className="rounded-full bg-pending-bg px-2 py-0.5 text-warning">
+                      {pendientesDia} {pendientesDia === 1 ? "pendiente" : "pendientes"}
+                    </span>
+                  )}
+                </span>
+                {pendientesDia > 0 && (
+                  <span className="ml-auto text-[11px] text-muted">
+                    {[...pendientesPorQuien.entries()]
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([q, n]) => `${q} ${n}`)
+                      .join(" · ")}
+                  </span>
+                )}
+                {/* El avance del día como una línea al pie del encabezado: se lee
+                    de un vistazo sin agregar otra fila de números. */}
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-surface-2" aria-hidden>
+                  <span className="block h-full bg-accent/70" style={{ width: `${avance * 100}%` }} />
                 </span>
               </button>
 
@@ -549,13 +618,13 @@ export default function TableroNotion({
                 <div className="overflow-x-auto border-t border-border">
                   <table className="w-full min-w-[760px] text-sm">
                     <thead>
-                      <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.07em] text-muted">
-                        <th className="px-2.5 py-1.5 font-semibold">Producto</th>
-                        <th className="px-2.5 py-1.5 font-semibold">Responsable</th>
-                        <th className="px-2.5 py-1.5 font-semibold">Estado</th>
-                        <th className="px-2.5 py-1.5 font-semibold">Plataforma</th>
-                        <th className="w-16 px-2.5 py-1.5 text-right font-semibold">Nº</th>
-                        <th className="px-2.5 py-1.5 font-semibold">Pautado / notas</th>
+                      <tr className="border-b border-border bg-surface-2/30 text-left text-[11px] text-muted">
+                        <th className="px-3 py-2 font-medium">Producto</th>
+                        <th className="px-3 py-2 font-medium">Responsable</th>
+                        <th className="px-3 py-2 font-medium">Estado</th>
+                        <th className="px-3 py-2 font-medium">Plataforma</th>
+                        <th className="w-16 px-3 py-2 text-right font-medium">Nº</th>
+                        <th className="px-3 py-2 font-medium">Pautado / notas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -604,13 +673,16 @@ export default function TableroNotion({
                               )}
                             </td>
                             <td className={CELDA}>
-                              <CeldaSelect
-                                valor={t.ownerId ?? ""}
-                                opciones={opcionesResponsable}
-                                onGuardar={(v) => editar(t.id, "ownerId", v || null)}
-                                editable={canManage && !deRequerimiento}
-                                vacio={t.responsableTexto ?? "Sin asignar"}
-                              />
+                              <span className="flex items-center gap-2">
+                                <Iniciales nombre={t.owner?.name ?? t.responsableTexto ?? ""} />
+                                <CeldaSelect
+                                  valor={t.ownerId ?? ""}
+                                  opciones={opcionesResponsable}
+                                  onGuardar={(v) => editar(t.id, "ownerId", v || null)}
+                                  editable={canManage && !deRequerimiento}
+                                  vacio={t.responsableTexto ?? "Sin asignar"}
+                                />
+                              </span>
                             </td>
                             <td className={CELDA}>
                               <CeldaSelect

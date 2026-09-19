@@ -36,6 +36,7 @@ const TABS: { id: Vista; label: string }[] = [
   // El problema no era la pantalla, era que nadie sabía que era eso.
   { id: "lotes", label: "Lotes · Matrix de rondas" },
   { id: "campanas", label: "Gestión de campañas" },
+  // Solo dirección: se filtra al dibujar las pestañas.
   { id: "rendimiento", label: "Rendimiento" },
 ];
 
@@ -58,8 +59,11 @@ export default async function ContenidoPage({
   }
 
   const { vista: vistaRaw } = await searchParams;
-  const vista: Vista = esVista(vistaRaw) ? vistaRaw : "calendario";
   const canManage = canManagePipeline(session.role);
+  // Rendimiento es solo de dirección: quien entra por la URL sin permiso cae
+  // en el calendario en vez de ver una pantalla que no le corresponde.
+  const pedida: Vista = esVista(vistaRaw) ? vistaRaw : "calendario";
+  const vista: Vista = pedida === "rendimiento" && !canManage ? "calendario" : pedida;
 
   const users = await db.user.findMany({
     where: { organizationId: session.organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
@@ -142,7 +146,7 @@ export default async function ContenidoPage({
       />
 
       <div className="flex flex-wrap gap-1.5 border-b border-border pb-4">
-        {TABS.map((t) => {
+        {TABS.filter((t) => t.id !== "rendimiento" || canManage).map((t) => {
           const activo = vista === t.id;
           return (
             <Link

@@ -133,6 +133,22 @@ export type CalendarioContenido = {
    * fuera.
    */
   etiquetasPorDia: Record<string, EtiquetaDia[]>;
+  /**
+   * Las actividades de la gente, además del contenido.
+   *
+   * Emilia lo marcó en la reunión: el calendario mostraba solo el contenido
+   * del día y "no aparece para nada lo mío". Son los eventos del calendario de
+   * la empresa —reuniones, grabaciones, entregas, lo que cada quien agenda—,
+   * que ya existían en el chat pero no se veían acá.
+   */
+  actividadesPorDia: Record<string, ActividadDia[]>;
+};
+
+export type ActividadDia = {
+  id: string;
+  titulo: string;
+  hora: string | null;
+  quien: string;
 };
 
 export async function calendarioContenido(
@@ -143,7 +159,7 @@ export async function calendarioContenido(
   const desde = new Date(Date.UTC(anio, mes - 1, 1));
   const hasta = new Date(Date.UTC(anio, mes, 1)); // exclusivo
 
-  const [lotes, tareas, detalle] = await Promise.all([
+  const [lotes, tareas, detalle, actividades] = await Promise.all([
     db.ronda.findMany({
       where: { organizationId, fechaEntrega: { gte: desde, lt: hasta } },
       orderBy: { fechaEntrega: "asc" },
@@ -174,6 +190,23 @@ export async function calendarioContenido(
         product: { select: { name: true } },
         owner: { select: { name: true } },
         responsableTexto: true,
+      },
+    }),
+    // Los eventos del mes, con un día de margen a cada lado: el inicio es un
+    // instante y un evento a las 20:00 de Ecuador del último día ya cae en el
+    // mes siguiente en UTC.
+    db.eventoCalendario.findMany({
+      where: {
+        organizationId,
+        inicio: { gte: new Date(desde.getTime() - 86400_000), lt: new Date(hasta.getTime() + 86400_000) },
+      },
+      orderBy: { inicio: "asc" },
+      select: {
+        id: true,
+        titulo: true,
+        inicio: true,
+        todoElDia: true,
+        creadoPor: { select: { name: true } },
       },
     }),
   ]);
@@ -214,7 +247,21 @@ export async function calendarioContenido(
     etiquetasPorDia[clave] = lista;
   }
 
-  return { eventos, tareasPorDia, etiquetasPorDia };
+  // El día y la hora de Ecuador de cada evento: el inicio es un instante.
+  const actividadesPorDia: Record<string, ActividadDia[]> = {};
+  for (const a of actividades) {
+    const local = new Date(a.inicio.getTime() - 5 * 3600_000);
+    const clave = local.toISOString().slice(0, 10);
+    if (clave < desde.toISOString().slice(0, 10) || clave >= hasta.toISOString().slice(0, 10)) continue;
+    (actividadesPorDia[clave] ??= []).push({
+      id: a.id,
+      titulo: a.titulo,
+      hora: a.todoElDia ? null : local.toISOString().slice(11, 16),
+      quien: a.creadoPor.name.split(" ")[0],
+    });
+  }
+
+  return { eventos, tareasPorDia, etiquetasPorDia, actividadesPorDia };
 }
 
 // --- Rendimiento por integrante --------------------------------------------
@@ -240,6 +287,17 @@ export type RendimientoPersona = {
   cpaPromedio: number | null;
   mejorProducto: string | null;
   peorProducto: string | null;
+  /**
+   * Lo que pidió Emilia para esta pantalla, sacado de Requerimientos y no del
+   * día a día: cuántas piezas tiene cada persona en el período, cuántas siguen
+   * abiertas y cuántas no clasificó. Es lo mismo que le llega a las ocho, pero
+   * acumulado y lado a lado con el resto del equipo.
+   */
+  piezasDelPeriodo: number;
+  pendientes: number;
+  sinClasificar: number;
+  /** Los productos que lleva, según PRODUCTOS ORDEN de Notion. */
+  productosACargo: string[];
 };
 
 export async function rendimientoDelEquipo(
@@ -252,6 +310,44 @@ export async function rendimientoDelEquipo(
     where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
     select: { id: true, name: true },
   });
+
+  // Las piezas del período, por persona, para contar abiertas y sin clasificar.
+  // `date` es un instante: el período va de la medianoche de Ecuador del
+  // primer día a la del día siguiente al último.
+  const inicio = new Date(desde.getTime() + 5 * 3600_000);
+  const fin = new Date(hasta.getTime() + 29 * 3600_000);
+  const [delPeriodo, aCargo] = await Promise.all([
+    db.requirement.findMany({
+      where: { organizationId, ownerId: { not: null }, date: { gte: inicio, lt: fin } },
+      select: {
+        ownerId: true,
+        status: true,
+        adType: true,
+        phase: true,
+        visualFormat: true,
+        angle: true,
+        awarenessLevel: true,
+        marketOrigin: true,
+      },
+    }),
+    db.responsableProducto.findMany({
+      where: { product: { organizationId, archived: false } },
+      select: { userId: true, product: { select: { name: true } } },
+    }),
+  ]);
+  const ABIERTOS = new Set(["PENDIENTE", "EN_EDICION", "LISTO_PARA_REVISAR"]);
+  const porPersona = new Map<string, { total: number; pendientes: number; sinClasificar: number }>();
+  for (const r of delPeriodo) {
+    const a = porPersona.get(r.ownerId!) ?? { total: 0, pendientes: 0, sinClasificar: 0 };
+    a.total += 1;
+    if (ABIERTOS.has(r.status)) a.pendientes += 1;
+    if ([r.adType, r.phase, r.visualFormat, r.angle, r.awarenessLevel, r.marketOrigin].some((x) => !x?.trim())) {
+      a.sinClasificar += 1;
+    }
+    porPersona.set(r.ownerId!, a);
+  }
+  const productosDe = new Map<string, string[]>();
+  for (const x of aCargo) productosDe.set(x.userId, [...(productosDe.get(x.userId) ?? []), x.product.name]);
 
   const [piezas, winners, lotes, campanasConRonda] = await Promise.all([
     db.requirement.groupBy({
@@ -324,8 +420,19 @@ export async function rendimientoDelEquipo(
         cpaPromedio: verCifras && acc && acc.compras > 0 ? acc.gasto / acc.compras : null,
         mejorProducto: mejor?.[0] ?? null,
         peorProducto: peor?.[0] ?? null,
+        piezasDelPeriodo: porPersona.get(u.id)?.total ?? 0,
+        pendientes: porPersona.get(u.id)?.pendientes ?? 0,
+        sinClasificar: porPersona.get(u.id)?.sinClasificar ?? 0,
+        productosACargo: (productosDe.get(u.id) ?? []).sort(),
       };
     })
-    .filter((p) => p.lotes > 0 || p.piezasEntregadas > 0 || p.campanas > 0)
-    .sort((a, b) => b.piezasEntregadas - a.piezasEntregadas);
+    .filter(
+      (p) =>
+        p.lotes > 0 ||
+        p.piezasEntregadas > 0 ||
+        p.campanas > 0 ||
+        p.piezasDelPeriodo > 0 ||
+        p.productosACargo.length > 0,
+    )
+    .sort((a, b) => b.piezasDelPeriodo - a.piezasDelPeriodo || b.piezasEntregadas - a.piezasEntregadas);
 }

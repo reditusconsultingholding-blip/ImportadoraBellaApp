@@ -29,12 +29,14 @@ type Evento = {
 };
 
 type Etiqueta = { id: string; texto: string; estado: string; responsable: string | null };
+type Actividad = { id: string; titulo: string; hora: string | null; quien: string };
 type Datos = {
   eventos: Evento[];
   tareasPorDia: Record<string, number>;
   etiquetasPorDia: Record<string, Etiqueta[]>;
+  actividadesPorDia: Record<string, Actividad[]>;
 };
-const VACIO: Datos = { eventos: [], tareasPorDia: {}, etiquetasPorDia: {} };
+const VACIO: Datos = { eventos: [], tareasPorDia: {}, etiquetasPorDia: {}, actividadesPorDia: {} };
 
 // El mismo color que en el tablero: así el estado se ve sin tener que leerlo,
 // y las dos pantallas no parecen hablar de cosas distintas.
@@ -50,6 +52,27 @@ export default function CalendarioContenido() {
   const [{ anio, mes }, setMes] = useState(mesActualEc);
   const [datos, setDatos] = useState<Datos>(VACIO);
   const [cargando, setCargando] = useState(true);
+  // Agendar una actividad en un día: se abre en la casilla misma, sin modal.
+  const [agendando, setAgendando] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  const [errorAlta, setErrorAlta] = useState<string | null>(null);
+
+  async function agendar(dia: string, titulo: string, hora: string) {
+    setErrorAlta(null);
+    try {
+      const res = await fetch("/api/chat/calendario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titulo: titulo.trim(), dia, hora: hora || undefined, todoElDia: !hora }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.error ?? `El servidor respondió ${res.status}`);
+      setAgendando(null);
+      setRecarga((n) => n + 1);
+    } catch (e) {
+      setErrorAlta(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   const hoy = claveDiaEc(new Date());
 
@@ -68,7 +91,7 @@ export default function CalendarioContenido() {
     return () => {
       cancelado = true;
     };
-  }, [anio, mes]);
+  }, [anio, mes, recarga]);
 
   const porDia = new Map<string, Evento[]>();
   for (const e of datos.eventos) {
@@ -103,7 +126,10 @@ export default function CalendarioContenido() {
             Hoy
           </button>
         </div>
-        <p className="text-xs text-muted">Los lotes se crean desde la ficha de cada producto.</p>
+        <p className="text-xs text-muted">
+          Tocá <span className="font-medium text-foreground">+</span> en un día para agendar una
+          actividad. Los lotes se crean desde la ficha de cada producto.
+        </p>
       </div>
 
       <div className="grid grid-cols-7 gap-px text-center text-[10px] font-semibold uppercase tracking-[0.06em] text-muted">
@@ -124,9 +150,9 @@ export default function CalendarioContenido() {
             return (
               <div
                 key={casilla.dia}
-                className={`min-h-[8rem] p-1 ${casilla.delMes ? "bg-surface" : "bg-surface-2/60"}`}
+                className={`group relative min-h-[8rem] p-1 ${casilla.delMes ? "bg-surface" : "bg-surface-2/60"}`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <span
                     className={`inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] ${
                       esHoy
@@ -138,13 +164,65 @@ export default function CalendarioContenido() {
                   >
                     {Number(casilla.dia.slice(8))}
                   </span>
-                  {tareas > 0 && (
-                    <span className="text-[9px] text-muted" title={`${tareas} tareas ese día`}>
-                      {tareas} tarea{tareas === 1 ? "" : "s"}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1">
+                    {tareas > 0 && (
+                      <span className="text-[9px] text-muted" title={`${tareas} tareas ese día`}>
+                        {tareas} tarea{tareas === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorAlta(null);
+                        setAgendando(agendando === casilla.dia ? null : casilla.dia);
+                      }}
+                      title="Agendar una actividad este día"
+                      className="grid h-4 w-4 place-items-center rounded text-[12px] leading-none text-muted opacity-0 transition hover:bg-surface-2 hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+                    >
+                      +
+                    </button>
+                  </span>
                 </div>
+                {agendando === casilla.dia && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const f = new FormData(e.currentTarget);
+                      agendar(casilla.dia, String(f.get("titulo") ?? ""), String(f.get("hora") ?? ""));
+                    }}
+                    className="absolute left-1 right-1 top-6 z-20 flex flex-col gap-1 rounded-lg border border-border bg-surface p-1.5 shadow-lg"
+                  >
+                    <input
+                      name="titulo"
+                      autoFocus
+                      placeholder="¿Qué actividad?"
+                      onKeyDown={(e) => e.key === "Escape" && setAgendando(null)}
+                      className="w-full rounded border border-border px-1.5 py-1 text-[11px] outline-none focus:border-accent"
+                    />
+                    <div className="flex items-center gap-1">
+                      <input name="hora" type="time" className="min-w-0 flex-1 rounded border border-border px-1 py-0.5 text-[10px]" />
+                      <button type="submit" className="rounded bg-accent px-2 py-0.5 text-[10px] font-medium text-white">
+                        Agendar
+                      </button>
+                    </div>
+                    {errorAlta && <p className="text-[10px] text-critical">{errorAlta}</p>}
+                  </form>
+                )}
                 <div className="mt-0.5 flex flex-col gap-0.5">
+                  {/* Las actividades de la gente van primero y con su propio
+                      color: son lo que alguien agendó a una hora, no una pieza
+                      de contenido. */}
+                  {(datos.actividadesPorDia[casilla.dia] ?? []).map((a) => (
+                    <span
+                      key={a.id}
+                      title={`${a.hora ? `${a.hora} · ` : ""}${a.titulo} · ${a.quien}`}
+                      className="block truncate rounded bg-[#EEF1FB] px-1 py-0.5 text-[10px] leading-tight text-[#3A4FA3]"
+                    >
+                      {a.hora && <span className="font-medium">{a.hora} </span>}
+                      {a.titulo}
+                      <span className="opacity-60"> · {a.quien}</span>
+                    </span>
+                  ))}
                   {/* Las tareas del día, como en Notion: la etiqueta con el
                       nombre del producto y el color de su estado. Antes acá
                       solo había un "7 tareas" arriba a la derecha, y un número

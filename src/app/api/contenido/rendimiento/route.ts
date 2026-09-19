@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { canAccessPipeline } from "@/lib/permissions";
+import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { rendimientoDelEquipo } from "@/lib/contenido";
 
@@ -15,8 +15,11 @@ function localToday() {
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (!canAccessPipeline(session.role)) {
-    return NextResponse.json({ error: "Todavía no tienes un rol asignado." }, { status: 403 });
+  // Solo dirección: es el rendimiento de cada persona del equipo, puesto al
+  // lado del de las demás. Emilia lo pidió así —"una sección que solo vea el
+  // CEO y yo"—, y es lo que corresponde para una comparación entre compañeros.
+  if (!canManagePipeline(session.role)) {
+    return NextResponse.json({ error: "Rendimiento es de dirección." }, { status: 403 });
   }
 
   const diasRaw = Number(req.nextUrl.searchParams.get("dias"));
