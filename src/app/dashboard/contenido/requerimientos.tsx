@@ -5,7 +5,9 @@ import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 import RequirementsTable from "../_creativos/requirements-table";
 import RequirementForm from "../_creativos/requirement-form";
 import RequirementDrawer from "../_creativos/requirement-drawer";
-import type { ProductOption, RequirementRow, UserOption } from "../_creativos/types";
+import type { RequirementRow, UserOption } from "../_creativos/types";
+import RequerimientosTarjetas from "./requerimientos-tarjetas";
+import type { ProductoFicha } from "./piezas-producto";
 
 // Los requerimientos, desde Contenido.
 //
@@ -54,13 +56,18 @@ export default function Requerimientos({
   canManage: boolean;
   currentUserId: string;
   users: UserOption[];
-  products: ProductOption[];
+  products: ProductoFicha[];
 }) {
   const [filas, setFilas] = useState<RequirementRow[] | null>(null);
   const [verCifras, setVerCifras] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS);
   const [agrupacion, setAgrupacion] = useState<Agrupacion>("");
+  // Tarjetas por producto primero: es como piensa el equipo —"hoy subo las"
+  // cinco de Truly"—. La lista completa con filtros sigue ahí para buscar una
+  // pieza puntual entre las seis mil.
+  const [modo, setModo] = useState<"producto" | "responsable" | "lista">("producto");
+  const [fichas, setFichas] = useState<ProductoFicha[]>(products);
   const [creando, setCreando] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
@@ -253,6 +260,44 @@ export default function Requerimientos({
         )}
       </div>
 
+      <div className="flex rounded-lg border border-border p-0.5 self-start" role="group" aria-label="Cómo ver las piezas">
+        {([
+          ["producto", "Por producto"],
+          ["responsable", "Por responsable"],
+          ["lista", "Lista completa"],
+        ] as const).map(([id, texto]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setModo(id)}
+            className={`rounded-md px-3 py-1.5 text-xs transition ${
+              modo === id ? "bg-surface-2 font-medium text-foreground" : "text-muted hover:text-foreground"
+            }`}
+          >
+            {texto}
+          </button>
+        ))}
+      </div>
+
+      {modo !== "lista" && (
+        filas === null ? (
+          <p className="text-sm text-muted">Cargando requerimientos…</p>
+        ) : (
+          <RequerimientosTarjetas
+            modo={modo}
+            filas={filas}
+            productos={fichas}
+            users={users}
+            canManage={canManage}
+            currentUserId={currentUserId}
+            onCambio={upsert}
+            onAbrir={setDetalleId}
+            onProductos={setFichas}
+          />
+        )
+      )}
+
+      {modo === "lista" && (<>
       {/* Un aviso, no un filtro escondido: una pieza sin responsable no le
           aparece a nadie en su día a día y se pierde en silencio. */}
       {sinResponsable > 0 && (
@@ -422,6 +467,8 @@ export default function Requerimientos({
           )}
         </>
       )}
+
+      </>)}
 
       {creando && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">

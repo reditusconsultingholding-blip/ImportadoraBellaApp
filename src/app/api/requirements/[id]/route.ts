@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { canAccessRequirement, canManagePipeline } from "@/lib/permissions";
+import { canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES, STATUS_LABEL } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
+import { formatoRepetido, puedeTocarPieza } from "@/lib/responsables";
 
 async function loadOwned(id: string, organizationId: string) {
   return db.requirement.findFirst({
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const requirement = await loadOwned(id, session.organizationId);
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
-  if (!canAccessRequirement(session, requirement)) {
+  if (!(await puedeTocarPieza(session, requirement))) {
     return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 
@@ -90,6 +91,9 @@ const NUMERIC_FIELDS = new Set([
 
 const DATE_FIELDS = new Set(["dueDate", "date"]);
 
+// Texto obligatorio en la base: se puede vaciar, pero no dejar en null.
+const SIN_NULL = new Set<string>(["adName", "adType", "phase", "visualFormat", "angle", "awarenessLevel", "marketOrigin"]);
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -97,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const existing = await loadOwned(id, session.organizationId);
   if (!existing) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
-  if (!canAccessRequirement(session, existing)) {
+  if (!(await puedeTocarPieza(session, existing))) {
     return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
   // Un Editor puede actualizar lo suyo (status, métricas, links) pero no
@@ -125,7 +129,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } else if (DATE_FIELDS.has(field)) {
       data[field] = value === "" || value === null || value === undefined ? null : new Date(value as string);
     } else {
-      data[field] = value === "" ? null : value;
+      // Los campos de clasificación no aceptan null en la base: vaciar uno
+      // lo deja en texto vacío, que es lo que el aviso de las ocho lee como
+      // "sin clasificar".
+      data[field] = value === "" ? (SIN_NULL.has(field) ? "" : null) : value;
+    }
+  }
+
+  // El formato visual no se repite dentro de un mismo adset —ver
+  // src/lib/responsables.ts—. Se revisa si cambia el formato o la ronda.
+  if ("visualFormat" in data || "ronda" in data) {
+    const choque = await formatoRepetido(session.organizationId, {
+      id,
+      productId: (data.productId as string | null | undefined) ?? existing.productId,
+      ronda: "ronda" in data ? ((data.ronda as string | null) ?? null) : existing.ronda,
+      date: existing.date,
+      visualFormat: "visualFormat" in data ? String(data.visualFormat ?? "") : existing.visualFormat,
+    });
+    if (choque) {
+      return NextResponse.json(
+        { error: `Ese formato ya lo usa «${choque.adName}» en el mismo adset. Dentro de un adset cada pieza lleva un formato distinto.` },
+        { status: 409 },
+      );
     }
   }
 

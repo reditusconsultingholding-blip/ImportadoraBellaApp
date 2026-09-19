@@ -289,6 +289,7 @@ model User {
   createdAt             DateTime     @default(now())
 
   requestedActions        PendingAction[]
+  productosACargo         ResponsableProducto[]
   accionesJarvisPedidas   PendingAction[]      @relation("PendingActionPedida")
   accionesJarvisResueltas PendingAction[]      @relation("PendingActionResuelta")
   assignedRequirements    Requirement[]        @relation("RequirementOwner")
@@ -352,6 +353,12 @@ model Product {
   // las campañas viejas —que siguen llamándose con el código anterior— caen
   // igual en él.
   codigosAnteriores String[] @default([])
+  // Ángulos propios de este producto, además de la lista general de Super Ads.
+  // Cada producto tiene los suyos ("sin olor a batana", "no mancha la ropa")
+  // y obligar a elegir el más parecido de una lista fija hace que el campo
+  // deje de decir algo.
+  angulosPropios String[] @default([])
+  responsables   ResponsableProducto[]
   name           String
   cpaTarget      Float // umbral: por debajo = verde, por encima = rojo
   unitCost       Float? // costo del producto, si se carga a mano
@@ -1608,4 +1615,22 @@ model CorteSinAsignar {
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, fecha, hora])
+}
+
+// Quién se hace cargo de un producto.
+//
+// Un producto puede tener varios responsables —Truly lo llevan Anto y Mac— y
+// son los únicos del equipo que cargan y editan sus piezas. No es desconfianza:
+// si cualquiera puede escribir en Truly, cuando falta algo no hay a quién
+// preguntarle, y el aviso de las ocho no sabe a quién reclamarle las piezas
+// sin clasificar. Dirección puede editar todo, como siempre.
+model ResponsableProducto {
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([productId, userId])
+  @@index([userId])
 }

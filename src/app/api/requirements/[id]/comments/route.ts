@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { canAccessRequirement } from "@/lib/permissions";
+import { puedeTocarPieza } from "@/lib/responsables";
 
 // Detecta @menciones por nombre (ej. "@Valentina") comparando contra los
 // usuarios de la organización — sin necesidad de un @handle exacto,
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     include: { product: { select: { code: true } } },
   });
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
-  if (!canAccessRequirement(session, requirement)) {
+  if (!(await puedeTocarPieza(session, requirement))) {
     return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 

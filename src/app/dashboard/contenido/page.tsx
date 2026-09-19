@@ -83,6 +83,29 @@ export default async function ContenidoPage({
         })
       : [];
 
+  // Para Requerimientos, además, quién lleva cada producto y sus ángulos
+  // propios: las tarjetas muestran a los responsables, y la tabla de cada
+  // producto ofrece sus ángulos junto a los de Super Ads.
+  const fichas =
+    vista === "requerimientos"
+      ? await db.product.findMany({
+          where: { organizationId: session.organizationId, archived: false },
+          select: {
+            id: true,
+            angulosPropios: true,
+            responsables: { select: { user: { select: { id: true, name: true } } } },
+          },
+        })
+      : [];
+  const productosConFicha = products.map((p) => {
+    const f = fichas.find((x) => x.id === p.id);
+    return {
+      ...p,
+      angulosPropios: f?.angulosPropios ?? [],
+      responsables: f?.responsables.map((r) => r.user) ?? [],
+    };
+  });
+
   let tablero: React.ReactNode = null;
   if (vista === "tablero") {
     // El tablero se trae sus propias filas por la API en vez de recibirlas ya
@@ -146,7 +169,7 @@ export default async function ContenidoPage({
           canManage={canManage}
           currentUserId={session.userId}
           users={users}
-          products={products}
+          products={productosConFicha}
         />
       ) : vista === "lotes" ? (
         <LotesCruzados canManage={canManage} products={products} />

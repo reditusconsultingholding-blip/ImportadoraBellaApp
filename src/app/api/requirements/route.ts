@@ -5,6 +5,7 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
+import { formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
 
 export async function GET() {
   const session = await getSession();
@@ -13,11 +14,12 @@ export async function GET() {
     return NextResponse.json({ error: "Todavía no tienes un rol asignado en el pipeline." }, { status: 403 });
   }
 
-  // Un Editor solo ve lo que tiene asignado. Owner/Director ven todo.
+  // Dirección ve todo. Un editor, lo asignado a su nombre y todo lo de los
+  // productos que tiene a cargo — ver src/lib/responsables.ts.
   const requirements = await db.requirement.findMany({
     where: {
       organizationId: session.organizationId,
-      ...(canManagePipeline(session.role) ? {} : { ownerId: session.userId }),
+      ...(await piezasVisibles(session)),
     },
     include: {
       product: { select: { code: true, name: true } },
@@ -37,11 +39,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (!canManagePipeline(session.role)) {
-    return NextResponse.json(
-      { error: "Solo un Director u Administrador puede crear requerimientos." },
-      { status: 403 }
-    );
+  if (!canAccessPipeline(session.role)) {
+    return NextResponse.json({ error: "Todavía no tienes un rol asignado en el pipeline." }, { status: 403 });
   }
 
   const body = await req.json();
@@ -60,12 +59,61 @@ export async function POST(req: NextRequest) {
     status,
     dueDate,
     thumbnailUrl,
+    ronda,
   } = body as Record<string, string | undefined>;
 
-  if (!adName?.trim() || !adType || !phase || !visualFormat || !angle || !awarenessLevel || !marketOrigin) {
+  // Dos maneras de crear una pieza.
+  //
+  // La completa —el formulario, con todos los campos— sigue igual y es de
+  // dirección: sirve para testeos o para dejarle algo puntual a alguien.
+  //
+  // La rápida es la fila de abajo de cada producto: se escribe el nombre y la
+  // pieza nace, y el resto se completa en la misma tabla. Es la que usan los
+  // responsables para subir sus cinco piezas del día. Pedir los seis campos de
+  // clasificación antes de dejarla existir era lo que hacía que cargar
+  // cincuenta creativos fuera "una pérdida de tiempo"; ahora se clasifican
+  // después, y las que queden sin clasificar salen en el aviso de las ocho.
+  const rapida = body.rapida === true;
+
+  if (!(await puedeCrearEn(session, productId || null))) {
+    return NextResponse.json(
+      {
+        error: canManagePipeline(session.role)
+          ? "Falta el producto."
+          : "Solo los responsables de este producto pueden cargarle piezas.",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (!adName?.trim()) {
+    return NextResponse.json({ error: "Falta el nombre del anuncio." }, { status: 400 });
+  }
+  if (!rapida && (!adType || !phase || !visualFormat || !angle || !awarenessLevel || !marketOrigin)) {
     return NextResponse.json({ error: "Faltan campos obligatorios." }, { status: 400 });
   }
   const finalStatus = REQUIREMENT_STATUSES.includes(status as never) ? status : "PENDIENTE";
+
+  const ahora = new Date();
+  if (visualFormat) {
+    const choque = await formatoRepetido(session.organizationId, {
+      productId: productId || null,
+      ronda: ronda ?? null,
+      date: ahora,
+      visualFormat,
+    });
+    if (choque) {
+      return NextResponse.json(
+        {
+          error: `El formato «${visualFormat}» ya lo usa «${choque.adName}» en el mismo adset. Dentro de un adset cada pieza lleva un formato distinto.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  // Un editor que crea una pieza rápida se la queda: es la suya del día.
+  const responsable = ownerId || (canManagePipeline(session.role) ? null : session.userId);
 
   const requirement = await db.requirement.create({
     data: {
@@ -74,13 +122,14 @@ export async function POST(req: NextRequest) {
       adName: adName.trim(),
       externalId1: externalId1 || null,
       externalId2: externalId2 || null,
-      adType,
-      phase,
-      visualFormat,
-      angle,
-      awarenessLevel,
-      marketOrigin,
-      ownerId: ownerId || null,
+      adType: adType ?? "",
+      phase: phase ?? "",
+      visualFormat: visualFormat ?? "",
+      angle: angle ?? "",
+      awarenessLevel: awarenessLevel ?? "",
+      marketOrigin: marketOrigin ?? "",
+      ronda: ronda?.trim() || null,
+      ownerId: responsable,
       status: finalStatus as never,
       dueDate: dueDate ? new Date(dueDate) : null,
       thumbnailUrl: thumbnailUrl || null,

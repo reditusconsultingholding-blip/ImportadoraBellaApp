@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { canAccessRequirement } from "@/lib/permissions";
+import { puedeTocarPieza } from "@/lib/responsables";
 
 // Historial de iteraciones (v1, v2, v3...) de un creativo — separado del
 // link "original" único que ya tenía el Requirement, para que quede
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where: { id, organizationId: session.organizationId },
   });
   if (!requirement) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
-  if (!canAccessRequirement(session, requirement)) {
+  if (!(await puedeTocarPieza(session, requirement))) {
     return NextResponse.json({ error: "No tienes acceso a este requerimiento." }, { status: 403 });
   }
 

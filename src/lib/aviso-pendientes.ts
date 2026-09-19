@@ -101,7 +101,9 @@ export async function avisarPendientesDelDia(organizationId: string) {
       update: { okAt: new Date(), detalle, error: null },
     });
 
-  if (tareas.length === 0) {
+  const anomalias = await piezasSinClasificar(organizationId, dia);
+
+  if (tareas.length === 0 && anomalias.porProducto.length === 0) {
     // Se marca igual: sin tareas cargadas no hay nada que avisar, y no hay que
     // volver a mirarlo en cinco minutos.
     await marcar("sin tareas cargadas");
@@ -134,34 +136,49 @@ export async function avisarPendientesDelDia(organizationId: string) {
   }
 
   let avisados = 0;
-  for (const [userId, p] of porPersona) {
-    const quedan = p.pendientes.length;
-    const distintos = [...new Set(p.pendientes)];
-    const lista = distintos.slice(0, TOPE_LISTA).join(", ");
+  // A cada persona: sus tareas y, si lleva productos, las piezas de hoy que
+  // quedaron sin clasificar. Puede tener solo una de las dos cosas.
+  const personas = new Set([...porPersona.keys(), ...anomalias.porPersona.keys()]);
+  for (const userId of personas) {
+    const p = porPersona.get(userId);
+    const sinClasificar = anomalias.porPersona.get(userId) ?? [];
+    const partes: string[] = [];
 
-    const mensaje =
-      quedan === 0
-        ? `Cerraste ${p.total === 1 ? "la única tarea" : `las ${p.total} tareas`} del día. ` +
-          "No te queda nada pendiente."
-        : `Cerraste ${p.cerradas} de ${p.total}. Te ${segun(quedan, "queda", "quedan")} ${quedan} ` +
-          "sin cerrar" +
-          (lista ? `: ${lista}${distintos.length > TOPE_LISTA ? "…" : "."}` : ".");
+    if (p) {
+      const quedan = p.pendientes.length;
+      const distintos = [...new Set(p.pendientes)];
+      const lista = distintos.slice(0, TOPE_LISTA).join(", ");
+      partes.push(
+        quedan === 0
+          ? `Cerraste ${p.total === 1 ? "la única tarea" : `las ${p.total} tareas`} del día. ` +
+              "No te queda nada pendiente."
+          : `Cerraste ${p.cerradas} de ${p.total}. Te ${segun(quedan, "queda", "quedan")} ${quedan} ` +
+              "sin cerrar" +
+              (lista ? `: ${lista}${distintos.length > TOPE_LISTA ? "…" : "."}` : "."),
+      );
+    }
+    if (sinClasificar.length) {
+      const total = sinClasificar.reduce((a, x) => a + x.n, 0);
+      partes.push(
+        `${total} ${segun(total, "pieza de hoy quedó", "piezas de hoy quedaron")} sin clasificar ` +
+          `(${sinClasificar.map((x) => `${x.producto} ${x.n}`).join(", ")}): falta formato, ángulo o awareness.`,
+      );
+    }
+    const mensaje = partes.join(" ");
+    const quedan = p?.pendientes.length ?? 0;
+    const titulo = sinClasificar.length
+      ? "Piezas sin clasificar"
+      : quedan === 0
+        ? "Día cerrado"
+        : `${quedan} ${segun(quedan, "tarea", "tareas")} sin cerrar`;
+    const link = sinClasificar.length && !quedan
+      ? "/dashboard/contenido?vista=requerimientos"
+      : "/dashboard/contenido?vista=tablero";
 
     await db.notification.create({
-      data: {
-        userId,
-        type: "pendientes_dia",
-        message: mensaje,
-        link: "/dashboard/contenido?vista=tablero",
-      },
+      data: { userId, type: "pendientes_dia", message: mensaje, link },
     });
-    await avisarA(userId, {
-      titulo:
-        quedan === 0 ? "Día cerrado" : `${quedan} ${segun(quedan, "tarea", "tareas")} sin cerrar`,
-      cuerpo: mensaje,
-      url: "/dashboard/contenido?vista=tablero",
-      etiqueta: "pendientes-dia",
-    });
+    await avisarA(userId, { titulo, cuerpo: mensaje, url: link, etiqueta: "pendientes-dia" });
     avisados += 1;
   }
 
@@ -180,9 +197,9 @@ export async function avisarPendientesDelDia(organizationId: string) {
   const cerraronTodo = [...porPersona.values()].filter((p) => p.pendientes.length === 0);
   const nombre = (p: Persona) => p.nombre.split(" ")[0];
 
-  const renglones: string[] = [
-    `Cerradas ${totalCerradas} de ${tareas.length} ${segun(tareas.length, "tarea", "tareas")} del día.`,
-  ];
+  const renglones: string[] = tareas.length
+    ? [`Cerradas ${totalCerradas} de ${tareas.length} ${segun(tareas.length, "tarea", "tareas")} del día.`]
+    : [];
 
   if (conPendientes.length > 0) {
     const detalle = conPendientes
@@ -209,6 +226,17 @@ export async function avisarPendientesDelDia(organizationId: string) {
     );
   }
 
+  // La anomalía que pidió Emilia: piezas de hoy que los responsables no
+  // clasificaron. Va con el nombre del producto y de quién lo lleva, para que
+  // se sepa a quién escribirle sin abrir nada.
+  if (anomalias.porProducto.length) {
+    const detalle = anomalias.porProducto
+      .slice(0, TOPE_PERSONAS)
+      .map((x) => `${x.producto} ${x.n}${x.responsables.length ? ` (${x.responsables.join(", ")})` : ""}`)
+      .join(", ");
+    renglones.push(`Piezas sin clasificar: ${detalle}.`);
+  }
+
   const texto = renglones.join(" ");
 
   const direccion = await db.user.findMany({
@@ -226,7 +254,7 @@ export async function avisarPendientesDelDia(organizationId: string) {
       },
     });
     await avisarA(u.id, {
-      titulo: `Avance del día · ${totalCerradas} de ${tareas.length}`,
+      titulo: tareas.length ? `Avance del día · ${totalCerradas} de ${tareas.length}` : "Piezas sin clasificar",
       cuerpo: texto,
       url: "/dashboard/contenido?vista=tablero",
       etiqueta: "avance-dia",
@@ -238,4 +266,68 @@ export async function avisarPendientesDelDia(organizationId: string) {
     `${totalCerradas} cerradas y ${totalPendientes} pendientes`;
   await marcar(detalle);
   return detalle;
+}
+
+/**
+ * Las piezas cargadas hoy a las que les falta clasificación.
+ *
+ * Una pieza se puede crear escribiendo solo su nombre —así se suben rápido las
+ * cinco del día— y completar el resto en la fila. Si a la noche sigue sin
+ * formato, ángulo o awareness, la regla de diversidad no se puede revisar y la
+ * pieza no sirve para aprender nada de ella. Se le reclama a quienes llevan el
+ * producto; si el producto no tiene responsables, a quien tiene la pieza.
+ */
+async function piezasSinClasificar(organizationId: string, dia: Date) {
+  const inicio = new Date(dia.getTime() + 5 * 3600_000);
+  const fin = new Date(inicio.getTime() + 86400_000);
+  const piezas = await db.requirement.findMany({
+    where: {
+      organizationId,
+      date: { gte: inicio, lt: fin },
+      OR: [
+        { adType: "" },
+        { phase: "" },
+        { visualFormat: "" },
+        { angle: "" },
+        { awarenessLevel: "" },
+        { marketOrigin: "" },
+      ],
+    },
+    select: {
+      productId: true,
+      ownerId: true,
+      product: {
+        select: {
+          name: true,
+          responsables: { select: { user: { select: { id: true, name: true } } } },
+        },
+      },
+    },
+  });
+
+  const porProductoMapa = new Map<string, { producto: string; n: number; responsables: string[]; ids: string[] }>();
+  for (const p of piezas) {
+    const clave = p.productId ?? "__sin__";
+    const a = porProductoMapa.get(clave) ?? {
+      producto: p.product?.name ?? "sin producto",
+      n: 0,
+      responsables: (p.product?.responsables ?? []).map((r) => r.user.name.split(" ")[0]),
+      ids: (p.product?.responsables ?? []).map((r) => r.user.id),
+    };
+    a.n += 1;
+    // Sin responsables del producto, se le reclama a quien tiene la pieza.
+    if (a.ids.length === 0 && p.ownerId && !a.ids.includes(p.ownerId)) a.ids.push(p.ownerId);
+    porProductoMapa.set(clave, a);
+  }
+
+  const porProducto = [...porProductoMapa.values()].sort((a, b) => b.n - a.n);
+  const porPersona = new Map<string, { producto: string; n: number }[]>();
+  for (const x of porProducto) {
+    for (const id of x.ids) {
+      const l = porPersona.get(id) ?? [];
+      l.push({ producto: x.producto, n: x.n });
+      porPersona.set(id, l);
+    }
+  }
+  return { porProducto, porPersona };
 }
