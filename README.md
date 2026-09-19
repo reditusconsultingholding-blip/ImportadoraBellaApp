@@ -119,8 +119,8 @@ y reinicio automático ante fallo. La base es el Postgres de **Supabase**
 
 ### Los crons
 
-**`vercel.json` no se usa en Railway** — sus crons son de Vercel y ahí no
-corren. En su lugar el proyecto de Railway tiene dos servicios aparte, ambos
+**No hay `vercel.json`**: la app corre en Railway, donde los crons de Vercel
+no existen (el archivo se eliminó en la auditoría de septiembre de 2026). En su lugar el proyecto de Railway tiene dos servicios aparte, ambos
 con imagen `curlimages/curl` y política de reinicio `NEVER` (corren, pegan la
 llamada y terminan):
 

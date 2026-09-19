@@ -37,8 +37,22 @@ const TERMINADOS = new Set(["APROBADO", "REALIZADO", "EDITADO", "TESTEADO"]);
  *
  * Solo se trunca, por si alguna fila vieja quedó con hora.
  */
-function marcaDeDia(fecha: Date) {
+export function marcaDeDia(fecha: Date) {
   return new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate()));
+}
+
+/**
+ * Qué estado le toca a la tarea del tablero según su requerimiento.
+ *
+ * - Tarea nueva: HECHO si la pieza ya está cerrada, PENDIENTE si no.
+ * - Tarea existente: solo el cierre baja (HECHO). Si la pieza sigue abierta
+ *   devuelve undefined —no tocar—, para no pisar el "en progreso" o "listo"
+ *   que marcó quien edita.
+ */
+export function estadoDeTarea(statusRequerimiento: string, tareaExiste: boolean): "HECHO" | "PENDIENTE" | undefined {
+  const cerrado = TERMINADOS.has(statusRequerimiento);
+  if (!tareaExiste) return cerrado ? "HECHO" : "PENDIENTE";
+  return cerrado ? "HECHO" : undefined;
 }
 
 /**
@@ -74,7 +88,6 @@ export async function sincronizarTareaDeRequerimiento(requirementId: string) {
   }
 
   const fecha = marcaDeDia(req.dueDate);
-  const cerrado = TERMINADOS.has(req.status);
 
   if (!req.tarea) {
     return db.tareaDiaria.create({
@@ -85,7 +98,7 @@ export async function sincronizarTareaDeRequerimiento(requirementId: string) {
         ownerId: req.ownerId,
         productId: req.productId,
         productoTexto: req.adName,
-        estado: cerrado ? "HECHO" : "PENDIENTE",
+        estado: estadoDeTarea(req.status, false)!,
         origen: "requerimiento",
       },
       select: { id: true },
@@ -101,7 +114,7 @@ export async function sincronizarTareaDeRequerimiento(requirementId: string) {
       productoTexto: req.adName,
       // Solo el cierre baja del requerimiento; el avance intermedio que cargó
       // quien edita se respeta.
-      ...(cerrado ? { estado: "HECHO" } : {}),
+      ...(estadoDeTarea(req.status, true) ? { estado: "HECHO" } : {}),
     },
     select: { id: true },
   });

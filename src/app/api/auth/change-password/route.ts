@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { getSession, createSession } from "@/lib/auth";
 import { frenarUsuario } from "@/lib/limite";
+import { z } from "zod";
+import { leerCuerpo } from "@/lib/validacion";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -11,11 +13,16 @@ export async function POST(req: NextRequest) {
   const frenado = frenarUsuario("cambiar-clave", session.userId, 8, 15 * 60 * 1000);
   if (frenado) return frenado;
 
-  const { currentPassword, newPassword, confirmPassword } = (await req.json()) as {
-    currentPassword?: string;
-    newPassword?: string;
-    confirmPassword?: string;
-  };
+  const lectura = await leerCuerpo(
+    req,
+    z.object({
+      currentPassword: z.string().max(200).optional(),
+      newPassword: z.string().max(200).optional(),
+      confirmPassword: z.string().max(200).optional(),
+    }),
+  );
+  if (!lectura.ok) return lectura.respuesta;
+  const { currentPassword, newPassword, confirmPassword } = lectura.datos;
 
   if (!newPassword || newPassword.length < 8) {
     return NextResponse.json(

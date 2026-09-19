@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
+import { cpa, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
 import type {
   Control,
   ControlPeriodo,
@@ -51,7 +52,6 @@ export type { Control, FilaControl, FilaResumen, Totales };
 // archivo, no descuenta nada.
 
 /** Cuántos días trae un mes a efectos del reparto administrativo. */
-const DIAS_DEL_MES = 30;
 
 /* ------------------------------- Fechas ---------------------------------- */
 
@@ -224,30 +224,8 @@ export async function capturarCorte(
 
 /* --------------------------- Leer el control ----------------------------- */
 
-function sumar(filas: { pedidos: number; pedidosPlataforma: number; gasto: number; ingresos: number; gastosOperativos: number; gastosAdm: number; utilidad: number }[]): Totales {
-  const t: Totales = {
-    pedidos: 0,
-    pedidosPlataforma: 0,
-    gasto: 0,
-    ingresos: 0,
-    gastosOperativos: 0,
-    gastosAdm: 0,
-    utilidad: 0,
-    cpa: 0,
-    margen: 0,
-  };
-  for (const f of filas) {
-    t.pedidos += f.pedidos;
-    t.pedidosPlataforma += f.pedidosPlataforma;
-    t.gasto += f.gasto;
-    t.ingresos += f.ingresos;
-    t.gastosOperativos += f.gastosOperativos;
-    t.gastosAdm += f.gastosAdm;
-    t.utilidad += f.utilidad;
-  }
-  t.cpa = t.pedidos > 0 ? t.gasto / t.pedidos : 0;
-  t.margen = t.ingresos > 0 ? t.utilidad / t.ingresos : 0;
-  return t;
+function sumar(filas: Parameters<typeof sumarFilas>[0]): Totales {
+  return sumarFilas(filas);
 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -339,18 +317,13 @@ export async function controlDelPeriodo(
       mesesSinGastoAdm.add(claveMes(fecha));
       return 0;
     }
-    const delDia = pedidosDelDia.get(iso(fecha)) ?? 0;
-    return delDia > 0 ? (pedidos / delDia) * (total / DIAS_DEL_MES) : 0;
+    return repartoAdministrativo(total, pedidosDelDia.get(iso(fecha)) ?? 0, pedidos);
   };
 
   const filas: FilaControl[] = cortes.map((c) => {
     const e = economias.get(claveMes(c.fecha))?.get(c.productId);
     const pedidos = c.pedidosReales;
-    const efectividad = e?.efectividad ?? 0;
-    const pedidosEfectivos = pedidos * efectividad;
-    const gastosOperativos = ((e?.produccion ?? 0) + (e?.flete ?? 0)) * pedidosEfectivos;
-    const precioProm = e?.precioProm ?? 0;
-    const ingresos = precioProm * pedidosEfectivos;
+    const { efectividad, pedidosEfectivos, gastosOperativos, precioProm, ingresos } = economiaDeFila(pedidos, e);
     const gastosAdmFila = repartoAdm(c.fecha, pedidos);
     return {
       fecha: iso(c.fecha),
@@ -360,7 +333,7 @@ export async function controlDelPeriodo(
       codigo: c.product.code,
       pedidos,
       pedidosPlataforma: c.pedidos,
-      cpa: pedidos > 0 ? c.gasto / pedidos : 0,
+      cpa: cpa(c.gasto, pedidos),
       gasto: c.gasto,
       efectividad,
       pedidosEfectivos,
@@ -368,7 +341,7 @@ export async function controlDelPeriodo(
       precioProm,
       ingresos,
       gastosAdm: gastosAdmFila,
-      utilidad: ingresos - c.gasto - gastosOperativos - gastosAdmFila,
+      utilidad: utilidad(ingresos, c.gasto, gastosOperativos, gastosAdmFila),
       economiaDelMes: Boolean(e?.delMes),
     };
   });
@@ -395,7 +368,7 @@ export async function controlDelPeriodo(
       precioProm: 0,
       ingresos: 0,
       gastosAdm: gastosAdmFila,
-      utilidad: -s.gasto - gastosAdmFila,
+      utilidad: utilidad(0, s.gasto, 0, gastosAdmFila),
       economiaDelMes: true,
     };
   });

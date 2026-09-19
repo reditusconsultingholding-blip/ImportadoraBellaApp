@@ -9,7 +9,7 @@ import { diaDelReportePendiente } from "@/lib/reporte-horario";
 // vacio guardado con la fecha del dia siguiente. Nunca se noto porque el
 // reloj interno llega primero y la fila ya existia.
 
-// Vercel Cron (ver vercel.json) — corre a las 05:00 UTC, que es medianoche
+// Respaldo del reloj interno (servicio cron de Railway) — corre a las 05:00 UTC, que es medianoche
 // en Ecuador (UTC-5, sin horario de verano). Genera un PDF por organización
 // y notifica a cada OWNER con el link para verlo.
 export async function GET(req: NextRequest) {

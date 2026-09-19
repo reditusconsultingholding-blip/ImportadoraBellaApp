@@ -28,3 +28,29 @@ export async function register() {
   const { arrancarReloj } = await import("@/lib/scheduler");
   arrancarReloj();
 }
+
+// Todo error que ninguna ruta atrapó pasa por acá, con la ruta y el código de
+// referencia (digest) que ve la persona en la pantalla de error. Una sola
+// línea JSON por error: se busca fácil en los logs de Railway por "digest".
+//
+// No se loguea el cuerpo ni los encabezados del pedido: pueden traer claves,
+// tokens o la cookie de sesión.
+export async function onRequestError(
+  err: unknown,
+  request: { path: string; method: string },
+  context: { routerKind: string; routePath: string; routeType: string },
+) {
+  const e = err as Error & { digest?: string };
+  console.error(
+    JSON.stringify({
+      nivel: "error",
+      momento: new Date().toISOString(),
+      metodo: request.method,
+      ruta: context.routePath,
+      tipo: context.routeType,
+      digest: e?.digest ?? null,
+      mensaje: e?.message ?? String(err),
+      pila: e?.stack?.split("\n").slice(0, 6).join(" | ") ?? null,
+    }),
+  );
+}

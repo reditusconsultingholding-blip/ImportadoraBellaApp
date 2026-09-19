@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { contar, excedido, ipDe } from "@/lib/limite";
+import { z } from "zod";
+import { leerCuerpo } from "@/lib/validacion";
 
 // Freno a la fuerza bruta. Sin esto, con el correo de alguien del equipo (que
 // es público: nombre.apellido@bellacorp.store) se pueden probar contraseñas
@@ -64,11 +66,14 @@ function sweep() {
 }
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json();
-
-  if (typeof email !== "string" || typeof password !== "string") {
+  const lectura = await leerCuerpo(
+    req,
+    z.object({ email: z.string().trim().min(1).max(254), password: z.string().min(1).max(200) }),
+  );
+  if (!lectura.ok) {
     return NextResponse.json({ error: "Faltan credenciales." }, { status: 400 });
   }
+  const { email, password } = lectura.datos;
 
   sweep();
 

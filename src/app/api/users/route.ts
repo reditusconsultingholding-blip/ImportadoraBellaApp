@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { totpConfigured, verifyTotpCode } from "@/lib/totp";
 import { frenarUsuario } from "@/lib/limite";
+import { z } from "zod";
+import { leerCuerpo, correo, clave, texto, rol } from "@/lib/validacion";
 
 export async function GET() {
   const session = await getSession();
@@ -43,13 +45,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solo un administrador puede crear usuarios." }, { status: 403 });
   }
 
-  const { email, name, password, role, authCode } = (await req.json()) as {
-    email?: string;
-    name?: string;
-    password?: string;
-    role?: string;
-    authCode?: string;
-  };
+  // El correo se guarda en minúsculas: el login lo busca así, y una cuenta
+  // creada como "Maria@..." no habría podido entrar nunca.
+  const lectura = await leerCuerpo(
+    req,
+    z.object({
+      email: correo,
+      name: texto(120).min(2, "es muy corto"),
+      password: clave,
+      role: rol.catch("PENDING"),
+      authCode: texto(20).optional(),
+    }),
+  );
+  if (!lectura.ok) return lectura.respuesta;
+  const { email, name, password, role: finalRole, authCode } = lectura.datos;
 
   // Segunda barrera además de "solo un administrador puede crear usuarios".
   //
@@ -79,19 +88,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!email?.trim() || !name?.trim() || !password || password.length < 6) {
-    return NextResponse.json(
-      { error: "Completa nombre, correo y una contraseña de al menos 6 caracteres." },
-      { status: 400 }
-    );
-  }
-  const validRoles = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"] as const;
-  type RoleValue = (typeof validRoles)[number];
-  const finalRole: RoleValue = validRoles.includes(role as RoleValue)
-    ? (role as RoleValue)
-    : "PENDING";
-
-  const existing = await db.user.findUnique({ where: { email: email.trim() } });
+  const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ error: "Ya existe un usuario con ese correo." }, { status: 409 });
   }
@@ -99,8 +96,8 @@ export async function POST(req: NextRequest) {
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await db.user.create({
     data: {
-      email: email.trim(),
-      name: name.trim(),
+      email,
+      name,
       passwordHash,
       role: finalRole,
       organizationId: session.organizationId,

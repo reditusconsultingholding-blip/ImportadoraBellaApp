@@ -384,8 +384,8 @@ export default function UsersManager({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
-            placeholder="mínimo 6 caracteres"
+            minLength={8}
+            placeholder="mínimo 8 caracteres"
             className={inputClass}
               />
             </label>

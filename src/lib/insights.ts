@@ -73,10 +73,6 @@ export async function buildInsights(
   // sonaría a relleno.
   if (gasto === 0 && ordenes === 0) return null;
 
-  console.log(
-    `[analisis] ${range.label}: gasto ${gasto}, ordenes ${ordenes}, filas meta ${meta.rows.length}, filas tiktok ${tiktok.rows.length}`
-  );
-
   const topCampanas = [...meta.rows, ...tiktok.rows]
     .sort((a, b) => b.spend - a.spend)
     .slice(0, 12)

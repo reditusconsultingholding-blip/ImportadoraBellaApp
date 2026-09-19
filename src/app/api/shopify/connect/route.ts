@@ -10,6 +10,8 @@ import {
 } from "@/lib/integrations/shopify";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { frenarUsuario } from "@/lib/limite";
+import { z } from "zod";
+import { leerCuerpo } from "@/lib/validacion";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -21,10 +23,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 
-  const { shopDomain, accessToken } = (await req.json()) as {
-    shopDomain?: string;
-    accessToken?: string;
-  };
+  const lectura = await leerCuerpo(
+    req,
+    z.object({ shopDomain: z.string().max(255).optional(), accessToken: z.string().max(500).optional() }),
+  );
+  if (!lectura.ok) return lectura.respuesta;
+  const { shopDomain, accessToken } = lectura.datos;
   if (!shopDomain?.trim()) {
     return NextResponse.json({ error: "Falta el dominio de la tienda." }, { status: 400 });
   }
