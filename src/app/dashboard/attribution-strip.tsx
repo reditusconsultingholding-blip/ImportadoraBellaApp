@@ -10,7 +10,6 @@ const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 import Link from "next/link";
-import { leerCruce, type CompraRepetida } from "@/lib/atribucion";
 import type { ResumenSinProducto } from "@/lib/sin-nomenclatura";
 
 export default function AttributionStrip({
@@ -21,7 +20,6 @@ export default function AttributionStrip({
   periodo,
   desdeElPeriodo,
   ventasDesde,
-  repetida,
   sinProducto,
 }: {
   ventasReales: number;
@@ -33,8 +31,6 @@ export default function AttributionStrip({
   desdeElPeriodo: string;
   /** La orden más vieja que hay guardada, si hay alguna. */
   ventasDesde: string | null;
-  /** Primera compra contra recompra, para poder explicar la diferencia. */
-  repetida: CompraRepetida;
   /** Campañas que no cuelgan de ningún producto, con su gasto del período. */
   sinProducto: ResumenSinProducto;
 }) {
@@ -54,10 +50,6 @@ export default function AttributionStrip({
   // Órdenes atribuidas contra órdenes reales. Por encima de 1 hay doble conteo
   // — las dos plataformas se cuelgan la misma venta.
   const exceso = ordenesReales > 0 ? atribuidas / ordenesReales : null;
-
-  // La cadena que explica la diferencia: de lo que la pauta no cubre, cuánto
-  // es gente que ya había comprado y cuánto queda realmente sin explicación.
-  const cruce = leerCruce({ ordenesReales, atribuidas, recompra: repetida.recompra });
 
   const columnas = [
     {
@@ -139,39 +131,47 @@ export default function AttributionStrip({
         </p>
       )}
 
-      {/* De dónde sale la diferencia.
-          Sin esto, ver "500 órdenes y 380 atribuidas" deja la duda de si se
-          perdieron 120 ventas. La mayoría son clientes que vuelven: no llegaron
-          por un anuncio nuevo y no tienen por qué estar atribuidos. */}
+      {/* Por qué los números no coinciden.
+          Antes esto partía las órdenes en "las explica la pauta", "clientes que
+          ya habían comprado" y "sin explicación", como si la diferencia fueran
+          ventas de otro origen. No lo son: todas las ventas de la tienda entran
+          por los enlaces de la pauta. Las recompras existen —el 17 de
+          septiembre, 55 de 66 eran clientes que volvían más de una semana
+          después—, pero volvieron por un anuncio igual que los nuevos. Lo que
+          falta del lado de Meta y TikTok es lo que su píxel no alcanza a
+          registrar: zona horaria, bloqueo en iOS, ventana de atribución. Emilia
+          lo dijo así en la reunión, y es lo que el panel tiene que decir. */}
       {ordenesReales > 0 && (
         <div className="border-t border-border px-4 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-            De dónde salen las {ordenesReales.toLocaleString("es-EC")} órdenes
+            Cuántas registran las plataformas
           </p>
 
           <div className="mt-2 flex flex-wrap items-stretch gap-2">
             <Tramo
-              etiqueta="Las explica la pauta"
-              valor={Math.min(atribuidas, ordenesReales)}
+              etiqueta="Pedidos reales en la tienda"
+              valor={ordenesReales}
               total={ordenesReales}
               tono="bg-accent"
             />
             <Tramo
-              etiqueta="Clientes que ya habían comprado"
-              valor={cruce.porRecompra}
+              etiqueta="Los registra el píxel de Meta o TikTok"
+              valor={Math.min(atribuidas, ordenesReales)}
               total={ordenesReales}
               tono="bg-brand-green"
             />
             <Tramo
-              etiqueta="Sin explicación"
-              valor={cruce.sinExplicar}
+              etiqueta="El píxel no los alcanzó a registrar"
+              valor={Math.max(0, ordenesReales - atribuidas)}
               total={ordenesReales}
-              tono={cruce.alerta ? "bg-warning" : "bg-border-strong"}
+              tono="bg-border-strong"
             />
           </div>
 
-          <p className={`mt-2.5 text-xs ${cruce.alerta ? "text-warning" : "text-muted"}`}>
-            {cruce.mensaje}
+          <p className="mt-2.5 text-xs text-muted">
+            {atribuidas >= ordenesReales
+              ? `Meta y TikTok se atribuyen ${atribuidas.toLocaleString("es-EC")} compras contra ${ordenesReales.toLocaleString("es-EC")} pedidos reales: se solapan, las dos se cuelgan algunas de las mismas ventas. Para decidir, el número que manda es el de la tienda.`
+              : `Todas las ventas entran por los enlaces de la pauta; ${Math.max(0, ordenesReales - atribuidas).toLocaleString("es-EC")} no las registró el píxel —zona horaria, bloqueo en iOS, ventana de atribución—. Es el margen de error de las plataformas, no ventas de otro lado. Para decidir, el número que manda es el de la tienda: el CPA real está en Control publicitario.`}
           </p>
 
           {/* De las tres causas que nombra el mensaje de arriba, una se puede
@@ -210,13 +210,6 @@ export default function AttributionStrip({
                 Verlas y asignarlas
               </Link>
             </div>
-          )}
-
-          {repetida.sinIdentificar > 0 && (
-            <p className="mt-1 text-[11px] text-muted">
-              {repetida.sinIdentificar.toLocaleString("es-EC")} órdenes llegaron sin teléfono ni
-              correo, así que de esas no se puede saber si eran clientes nuevos.
-            </p>
           )}
         </div>
       )}

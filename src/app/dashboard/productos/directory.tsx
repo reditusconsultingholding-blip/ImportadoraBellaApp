@@ -112,6 +112,12 @@ export default function ProductDirectory({
   const [estado, setEstado] = useState<"" | PulseTone>("");
   const [orden, setOrden] = useState<Orden>("pulso");
   const [filaAbierta, setFilaAbierta] = useState<string | null>(null);
+  // Por defecto solo lo que se está pautando. El catálogo tiene más de cien
+  // productos y la mitad no tiene una campaña corriendo: mezclados, había que
+  // leer la lista entera para encontrar los veinte con los que se trabaja
+  // hoy. Los demás siguen a un clic, no desaparecen.
+  const [soloPautados, setSoloPautados] = useState(true);
+  const sinPauta = rows.filter((r) => !r.conPauta).length;
 
   // Proponer y decidir usan la misma API que el panel: el flujo es uno solo,
   // se entre por donde se entre.
@@ -156,6 +162,9 @@ export default function ProductDirectory({
     const palabras = q ? q.split(/\s+/) : [];
 
     const filtradas = rows.filter((r) => {
+      // Buscar por nombre o código muestra también los que no se pautan: si
+      // alguien escribe el nombre, lo está buscando a propósito.
+      if (soloPautados && !r.conPauta && palabras.length === 0 && estado !== "SIN_DATOS") return false;
       if (carpeta && r.folder !== carpeta) return false;
       if (estado && r.state !== estado) return false;
       if (palabras.length === 0) return true;
@@ -183,7 +192,7 @@ export default function ProductDirectory({
     };
 
     return [...filtradas].sort(orderBy[orden]);
-  }, [rows, busqueda, carpeta, estado, orden]);
+  }, [rows, busqueda, carpeta, estado, orden, soloPautados]);
 
   const gastoVisible = visibles.reduce((a, r) => a + (r.spend ?? 0), 0);
   const enRiesgo = visibles.filter((r) => r.state === "RIESGO").length;
@@ -268,6 +277,20 @@ export default function ProductDirectory({
           {enRiesgo > 0 && <span className="text-critical"> · {enRiesgo} en riesgo</span>}
           {verCifras && totales.sinCosto > 0 && puedeGestionar && (
             <span> · {totales.sinCosto} sin costo por artículo cargado</span>
+          )}
+          {sinPauta > 0 && (
+            <>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => setSoloPautados((v) => !v)}
+                className="font-medium text-accent-strong underline-offset-2 hover:underline"
+              >
+                {soloPautados
+                  ? `mostrar también los ${sinPauta} sin pauta en 30 días`
+                  : "ocultar los que no se están pautando"}
+              </button>
+            </>
           )}
         </p>
       </div>
