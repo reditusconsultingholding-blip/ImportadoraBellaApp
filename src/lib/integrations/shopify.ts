@@ -243,8 +243,9 @@ const ORDERS_QUERY = `
         # es un error de sintaxis que tumba TODA la sincronizacion de ventas.
         phone
         email
-        customer { displayName phone email }
+        customer { displayName phone email defaultAddress { phone } }
         shippingAddress { province city phone }
+        billingAddress { phone }
         currentSubtotalPriceSet { shopMoney { amount } }
         currentTotalDiscountsSet { shopMoney { amount } }
         currentTotalTaxSet { shopMoney { amount } }
@@ -269,8 +270,14 @@ type OrdersPage = {
       app: { name: string } | null;
       phone: string | null;
       email: string | null;
-      customer: { displayName: string | null; phone: string | null; email: string | null } | null;
+      customer: {
+        displayName: string | null;
+        phone: string | null;
+        email: string | null;
+        defaultAddress: { phone: string | null } | null;
+      } | null;
       shippingAddress: { province: string | null; city: string | null; phone: string | null } | null;
+      billingAddress: { phone: string | null } | null;
       currentSubtotalPriceSet: Money;
       currentTotalDiscountsSet: Money;
       currentTotalTaxSet: Money;
@@ -336,7 +343,16 @@ export async function fetchRecentOrders(
         // guarda solo ahí) y la pantalla de Clientes no podía agruparlas.
         clienteNombre: node.customer?.displayName?.trim() || null,
         clienteTelefono:
-          [node.phone, node.customer?.phone, node.shippingAddress?.phone].map((t) => t?.trim()).find(Boolean) || null,
+          [
+            node.phone,
+            node.customer?.phone,
+            node.shippingAddress?.phone,
+            // Funnelish, hasta agosto de 2026, lo dejaba en la facturación.
+            node.billingAddress?.phone,
+            node.customer?.defaultAddress?.phone,
+          ]
+            .map((t) => t?.trim())
+            .find(Boolean) || null,
         clienteEmail: (node.email ?? node.customer?.email)?.trim() || null,
         provincia: node.shippingAddress?.province?.trim() || null,
         ciudad: node.shippingAddress?.city?.trim() || null,
