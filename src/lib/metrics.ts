@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Platform } from "@/generated/prisma/client";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 export type RowMetric = {
   key: string;
@@ -134,7 +135,7 @@ export function filasVisibles(rows: RowMetric[], verCifras: boolean): FilaVisibl
  *  - una campaña sin producto se muestra igual, como fila propia, en vez de
  *    desaparecer. Un número que falta se nota; uno que se esconde, no.
  */
-export async function getOverview(
+async function getOverviewSinMemoria(
   organizationId: string,
   platform: Platform,
   range: Range
@@ -230,3 +231,7 @@ export async function getOverview(
     campaignsWithoutProduct,
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getOverview = memorizar("metrics.getOverview", getOverviewSinMemoria);

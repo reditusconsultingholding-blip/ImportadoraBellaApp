@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline } from "@/lib/permissions";
 import { normalizar } from "@/lib/product-code";
+import { jsonComprimido } from "@/lib/respuesta";
 
 // Gestión de campañas: junta las campañas ya sincronizadas (Meta/TikTok, vía
 // Windsor) con las que todavía no cruzan con ninguna (CampanaManual — filas
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
   const nombresSincronizados = new Set(campanas.map((c) => normalizar(c.name)));
   const manualesFiltradas = manuales.filter((m) => !nombresSincronizados.has(normalizar(m.nombre)));
 
-  return NextResponse.json({
+  return jsonComprimido({
     campanas: campanas.map((c) => ({
       id: c.id,
       origen: "sync" as const,

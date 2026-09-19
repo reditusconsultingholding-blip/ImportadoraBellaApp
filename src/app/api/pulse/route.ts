@@ -6,6 +6,7 @@ import { resolveRange } from "@/lib/date-range";
 import { getPulses, pulsosVisibles } from "@/lib/pulse";
 import { textoSinCifras, veLasCifras } from "@/lib/finanzas";
 import { puedeDecidir, sugerirAcciones } from "@/lib/product-actions";
+import { jsonComprimido } from "@/lib/respuesta";
 
 // El pulso por producto, con lo que se puede hacer al respecto.
 //
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
     reason: textoSinCifras(p.reason, verCifras) ?? p.reason,
   }));
 
-  return NextResponse.json({
+  return jsonComprimido({
     pulses: visibles,
     verCifras,
     equipo,

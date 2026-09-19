@@ -11,6 +11,13 @@ export async function register() {
   // ahí dejaría un intervalo vivo y la compilación no terminaría nunca.
   if (process.env.NEXT_PHASE === "phase-production-build") return;
 
+  // Para correr la compilación de producción en una máquina (`next start`,
+  // medir velocidad) sin que arranque a sincronizar contra la base real.
+  if (process.env.RELOJ_APAGADO === "1") {
+    console.log("[reloj] apagado por RELOJ_APAGADO=1");
+    return;
+  }
+
   // En desarrollo el reloj queda apagado salvo que se pida a propósito.
   //
   // `npm run dev` se corre con el DATABASE_URL de producción —es la única

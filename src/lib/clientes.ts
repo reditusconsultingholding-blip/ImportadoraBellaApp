@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // Quiénes compran y cómo.
 //
@@ -48,27 +49,36 @@ function normalizarTelefono(t: string | null) {
   return soloDigitos.slice(-9);
 }
 
-export async function getPatronesClientes(
+async function getPatronesClientesSinMemoria(
   organizationId: string,
   range: Range,
   limite = 500
 ): Promise<PatronesClientes> {
-  const ordenes = await db.shopifyOrder.findMany({
-    where: {
-      store: { organizationId },
-      occurredAt: { gte: range.fromInstant, lte: range.toInstant },
-    },
-    select: {
-      occurredAt: true,
-      netSales: true,
-      clienteNombre: true,
-      clienteTelefono: true,
-      clienteEmail: true,
-      provincia: true,
-      ciudad: true,
-      lineItems: { select: { productName: true } },
-    },
-  });
+  // Una sola consulta, con los productos de cada orden ya agrupados. Antes
+  // eran dos: las órdenes, y después sus renglones con un IN de decenas de
+  // miles de ids (tres meses = más de 3 segundos entre las dos).
+  const ordenes = await db.$queryRaw<
+    {
+      occurredAt: Date;
+      netSales: number;
+      clienteNombre: string | null;
+      clienteTelefono: string | null;
+      clienteEmail: string | null;
+      provincia: string | null;
+      ciudad: string | null;
+      productos: string[];
+    }[]
+  >`
+    SELECT o."occurredAt", o."netSales"::float8 AS "netSales", o."clienteNombre", o."clienteTelefono",
+           o."clienteEmail", o.provincia, o.ciudad,
+           coalesce(array_agg(DISTINCT li."productName") FILTER (WHERE li."productName" IS NOT NULL), '{}') AS productos
+      FROM "ShopifyOrder" o
+      JOIN "ShopifyStore" s ON s.id = o."storeId"
+      LEFT JOIN "ShopifyOrderLineItem" li ON li."orderId" = o.id
+     WHERE s."organizationId" = ${organizationId}
+       AND o."occurredAt" >= ${range.fromInstant} AND o."occurredAt" <= ${range.toInstant}
+     GROUP BY o.id
+     ORDER BY o."occurredAt", o.id`;
 
   const porCliente = new Map<string, Cliente>();
   const porProvincia = new Map<string, { pedidos: number; total: number }>();
@@ -83,7 +93,7 @@ export async function getPatronesClientes(
     porProvincia.set(provincia, p);
 
     // Qué se lleva junto con qué, dentro de una misma orden.
-    const nombres = [...new Set(o.lineItems.map((l) => l.productName))].sort();
+    const nombres = [...o.productos].sort();
     for (let i = 0; i < nombres.length; i++) {
       for (let j = i + 1; j < nombres.length; j++) {
         const clave = `${nombres[i]}||${nombres[j]}`;
@@ -117,11 +127,12 @@ export async function getPatronesClientes(
       // Los datos más recientes ganan: la gente se muda y cambia de nombre en
       // el formulario.
       c.nombre = o.clienteNombre ?? c.nombre;
+      c.email = o.clienteEmail ?? c.email;
       c.provincia = o.provincia ?? c.provincia;
       c.ciudad = o.ciudad ?? c.ciudad;
     }
-    for (const l of o.lineItems) {
-      if (!c.productos.includes(l.productName)) c.productos.push(l.productName);
+    for (const nombre of o.productos) {
+      if (!c.productos.includes(nombre)) c.productos.push(nombre);
     }
     porCliente.set(tel, c);
   }
@@ -154,3 +165,7 @@ export async function getPatronesClientes(
       .slice(0, 20),
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getPatronesClientes = memorizar("clientes.getPatronesClientes", getPatronesClientesSinMemoria);

@@ -21,9 +21,15 @@ export async function GET() {
   const checkedAt = new Date().toISOString();
   const uptimeSeconds = Math.round((Date.now() - startedAt) / 1000);
 
+  let latenciaBaseMs: number | null = null;
   try {
     // Consulta mínima: confirma que la conexión a la base sigue viva.
     await db.$queryRaw`SELECT 1`;
+    // Un segundo viaje ya con la conexión abierta: mide la distancia real
+    // entre el servidor y la base. Cada consulta de una pantalla paga esto.
+    const t = performance.now();
+    await db.$queryRaw`SELECT 1`;
+    latenciaBaseMs = Math.round((performance.now() - t) * 10) / 10;
   } catch (err) {
     // El detalle va al log del servidor, no a la respuesta: el endpoint es
     // público y un mensaje de Postgres puede traer el host o el usuario.
@@ -80,6 +86,7 @@ export async function GET() {
       ok: true,
       build: process.env.APP_BUILD ?? "sin-marcar",
       database: "ok",
+      latenciaBaseMs,
       datosFrescos,
       sincronizacion,
       uptimeSeconds,

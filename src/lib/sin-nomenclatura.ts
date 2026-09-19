@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // Lo que la nomenclatura no logró conectar.
 //
@@ -52,7 +53,7 @@ export type ProductoSinCampana = {
  * desaparecerían justo las que están pausadas —que son las más fáciles de
  * arreglar sin riesgo.
  */
-export async function campanasSinProducto(
+async function campanasSinProductoSinMemoria(
   organizationId: string,
   range: Range,
   limite = 300,
@@ -101,7 +102,7 @@ export async function campanasSinProducto(
 }
 
 /** Productos sin una sola campaña conectada: o no se pautaron, o no matchearon. */
-export async function productosSinCampana(
+async function productosSinCampanaSinMemoria(
   organizationId: string,
 ): Promise<ProductoSinCampana[]> {
   return db.product.findMany({
@@ -133,7 +134,7 @@ export type ResumenSinProducto = {
  * trescientas campañas para contar cuántas son sería pagar la consulta entera
  * por una frase de una línea.
  */
-export async function resumenSinProducto(
+async function resumenSinProductoSinMemoria(
   organizationId: string,
   range: Range,
 ): Promise<ResumenSinProducto> {
@@ -170,3 +171,9 @@ export async function resumenSinProducto(
     compras: Number(f?.compras ?? 0),
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const campanasSinProducto = memorizar("sin-nomenclatura.campanasSinProducto", campanasSinProductoSinMemoria);
+export const productosSinCampana = memorizar("sin-nomenclatura.productosSinCampana", productosSinCampanaSinMemoria);
+export const resumenSinProducto = memorizar("sin-nomenclatura.resumenSinProducto", resumenSinProductoSinMemoria);

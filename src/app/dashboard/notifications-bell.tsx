@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { etiquetaDe, nivelDe, nivelPorId } from "@/lib/notificaciones-orden";
+import { useSondeo } from "./usar-sondeo";
 
 type Notification = {
   id: string;
@@ -37,11 +38,7 @@ export default function NotificationsBell() {
       });
   }, []);
 
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 30000);
-    return () => clearInterval(id);
-  }, [load]);
+  useSondeo(load, 30000);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {

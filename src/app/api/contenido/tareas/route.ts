@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { ESTADOS_TAREA, PLATAFORMAS, localToday } from "@/lib/contenido";
+import { jsonComprimido } from "@/lib/respuesta";
 
 // El tablero de tareas diarias — reemplaza la base de Notion del mismo
 // nombre. Todo el equipo con acceso al pipeline ve el tablero completo (el
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
     orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
   });
 
-  return NextResponse.json({ tareas });
+  return jsonComprimido({ tareas });
 }
 
 export async function POST(req: NextRequest) {

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // El puente entre lo que se pauta y lo que la tienda cobra.
 //
@@ -238,7 +239,7 @@ export type Cobertura = {
  * Ordenado por facturación: enlazar el nombre que movió cincuenta mil dólares
  * cambia el resultado, y enlazar el que movió doce no.
  */
-export async function proponerEnlaces(
+async function proponerEnlacesSinMemoria(
   organizationId: string,
   range: Range,
 ): Promise<{ propuestas: Propuesta[]; cobertura: Cobertura }> {
@@ -306,3 +307,7 @@ export async function proponerEnlaces(
     },
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const proponerEnlaces = memorizar("enlace-shopify.proponerEnlaces", proponerEnlacesSinMemoria);

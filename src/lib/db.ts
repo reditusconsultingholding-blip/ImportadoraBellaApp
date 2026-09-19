@@ -1,6 +1,7 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { cifrar, descifrar } from "@/lib/cifrado";
+import { invalidarMemoria } from "@/lib/memoria";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -81,6 +82,48 @@ function conCifrado(base: PrismaClient): PrismaClient {
   }) as unknown as PrismaClient;
 }
 
+// Toda escritura tira la memoria de cálculos pesados (src/lib/memoria.ts), así
+// una pantalla nunca muestra números anteriores al último sync o a la última
+// edición. Quedan afuera los modelos que no mueven ningún número: chat,
+// presencia de voz, notificaciones, estado de los syncs, el registro de
+// actividad y el usuario (avatar, recorrido de capacitación).
+const OPERACIONES_DE_ESCRITURA = new Set([
+  ...ESCRITURAS,
+  "upsert",
+  "delete",
+  "deleteMany",
+]);
+const SIN_EFECTO_EN_NUMEROS = new Set([
+  "VoicePresence",
+  "VoiceSignal",
+  "ChatMessage",
+  "ChatRead",
+  "ChatReaction",
+  "ChatPin",
+  "Notification",
+  "PushSubscription",
+  "AnuncioVisto",
+  "SyncState",
+  "JarvisMensaje",
+  "JarvisConversacion",
+  "ActividadUsuario",
+  "User",
+]);
+
+function conInvalidacion(c: PrismaClient): PrismaClient {
+  return c.$extends({
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          const r = await query(args);
+          if (OPERACIONES_DE_ESCRITURA.has(operation) && !SIN_EFECTO_EN_NUMEROS.has(model)) invalidarMemoria();
+          return r;
+        },
+      },
+    },
+  }) as unknown as PrismaClient;
+}
+
 // El cliente se construye la primera vez que alguien lo usa, no al importar
 // el módulo. Durante `next build` se importan todas las rutas para recolectar
 // sus metadatos: si aquí se abriera la conexión (o se tirara el error por falta
@@ -99,7 +142,21 @@ function getClient(): PrismaClient {
     );
   }
 
-  globalForPrisma.prisma = conCifrado(new PrismaClient({ adapter: new PrismaPg({ connectionString }) }));
+  // PERFIL_CONSULTAS=1 escribe cada consulta con su duración: sirve para ver
+  // cuántos viajes a la base hace una pantalla y cuál es la lenta. Apagado
+  // por defecto (en producción sería ruido y costo).
+  const perfil = process.env.PERFIL_CONSULTAS === "1";
+  const base = new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
+    ...(perfil ? { log: [{ emit: "event" as const, level: "query" as const }] } : {}),
+  });
+  if (perfil) {
+    (base as unknown as { $on: (e: "query", cb: (q: { duration: number; query: string }) => void) => void }).$on(
+      "query",
+      (q) => console.log(`[consulta] ${q.duration}ms ${q.query.replace(/\s+/g, " ").slice(0, 140)}`),
+    );
+  }
+  globalForPrisma.prisma = conInvalidacion(conCifrado(base));
   return globalForPrisma.prisma;
 }
 
@@ -107,6 +164,15 @@ export const db: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     const client = getClient();
     const value = Reflect.get(client, prop, client);
-    return typeof value === "function" ? value.bind(client) : value;
+    if (typeof value !== "function") return value;
+    // El SQL crudo de escritura no pasa por las extensiones de modelo.
+    if (prop === "$executeRaw" || prop === "$executeRawUnsafe") {
+      return async (...args: unknown[]) => {
+        const r = await (value as (...a: unknown[]) => Promise<unknown>).apply(client, args);
+        invalidarMemoria();
+        return r;
+      };
+    }
+    return value.bind(client);
   },
 });

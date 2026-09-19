@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // Vista de ventas de la tienda completa (Shopify), separada del rendimiento
 // por campaña de Meta/TikTok — aquí entran todos los productos del catálogo,
@@ -86,7 +87,7 @@ async function getConnectedStore(organizationId: string) {
  * O sea que el día arrancaba a las 19:00 de la víspera en Ecuador, y las barras
  * por hora mostraban horas que no eran las de nadie.
  */
-export async function getSalesOverview(
+async function getSalesOverviewSinMemoria(
   organizationId: string,
   range: Range
 ): Promise<SalesOverview> {
@@ -319,3 +320,6 @@ function leerVentas(d: {
   return out.slice(0, 4);
 }
 
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getSalesOverview = memorizar("sales.getSalesOverview", getSalesOverviewSinMemoria);

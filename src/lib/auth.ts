@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
 
@@ -55,7 +56,33 @@ export async function createSession(payload: SessionPayload) {
 // organización y hasta la existencia de la cuenta se releen de la base en cada
 // pedido. Sin esto, bajarle el rol a alguien o borrarle la cuenta no tendría
 // efecto hasta que se le venciera el token, que dura 30 días.
-export async function getSession(): Promise<SessionPayload | null> {
+//
+// Una sola lectura del usuario por pedido. El layout, la página y los chequeos
+// de permisos (ver cifras, nómina) pedían cada uno su fila de User: tres o
+// cuatro viajes a la base antes de empezar a calcular nada. `cache` de React
+// la comparte dentro del mismo render; en una ruta de API no aplica y lee
+// normalmente.
+export const usuarioConPermisos = cache(async (userId: string) =>
+  db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      organizationId: true,
+      email: true,
+      name: true,
+      role: true,
+      mustChangePassword: true,
+      sessionVersion: true,
+      canViewPayroll: true,
+      canViewFinancials: true,
+      avatarUrl: true,
+      capacitacionVista: true,
+      capacitacionAperturas: true,
+    },
+  }),
+);
+
+export const getSession = cache(async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
@@ -73,18 +100,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     return null;
   }
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      organizationId: true,
-      email: true,
-      name: true,
-      role: true,
-      mustChangePassword: true,
-      sessionVersion: true,
-    },
-  });
+  const user = await usuarioConPermisos(userId);
   if (!user) return null;
   // La clave cambió después de emitida esta cookie: sesión revocada.
   if (user.sessionVersion !== version) return null;
@@ -97,7 +113,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     role: user.role,
     mustChangePassword: user.mustChangePassword,
   };
-}
+});
 
 export async function destroySession() {
   const store = await cookies();

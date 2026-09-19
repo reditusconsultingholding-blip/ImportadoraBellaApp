@@ -8,6 +8,7 @@ import type {
   ResumenSinProducto,
 } from "@/lib/sin-nomenclatura";
 import { Girando } from "../navegar";
+import ElegirProducto from "../elegir-producto";
 
 // La pantalla para emparejar lo que quedó suelto.
 //
@@ -200,20 +201,13 @@ export default function Lista({
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="flex items-center gap-2">
-                          <select
-                            defaultValue=""
+                          <ElegirProducto
+                            opciones={opciones}
                             disabled={guardando === c.id}
-                            onChange={(e) => asignar(c, e.target.value)}
+                            onElegir={(id) => asignar(c, id)}
                             className={`${claseCampo} min-w-[200px]`}
-                            aria-label={`Asignar producto a ${c.nombre}`}
-                          >
-                            <option value="">Elegir producto…</option>
-                            {opciones.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.code} — {p.name}
-                              </option>
-                            ))}
-                          </select>
+                            ariaLabel={`Asignar producto a ${c.nombre}`}
+                          />
                           {guardando === c.id && <Girando />}
                         </span>
                       </td>

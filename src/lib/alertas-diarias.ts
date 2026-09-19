@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { calcular, economiaDe } from "@/lib/economia";
 import { avisarA } from "@/lib/push";
+import { memorizar } from "@/lib/memoria";
 
 // Alertas diarias: qué escalar y qué apagar.
 //
@@ -81,7 +82,7 @@ const money = (n: number) =>
 const money2 = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
-export async function calcularAlertasDiarias(organizationId: string): Promise<Alerta[]> {
+async function calcularAlertasDiariasSinMemoria(organizationId: string): Promise<Alerta[]> {
   const ahora = new Date();
   const desde = new Date(ahora.getTime() - VENTANA_DIAS * 24 * 3600_000);
   const desdeAnterior = new Date(ahora.getTime() - VENTANA_DIAS * 2 * 24 * 3600_000);
@@ -342,3 +343,7 @@ export async function enviarAlertasDiarias(organizationId: string) {
 
   return resumen;
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const calcularAlertasDiarias = memorizar("alertas-diarias.calcularAlertasDiarias", calcularAlertasDiariasSinMemoria);

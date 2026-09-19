@@ -10,6 +10,7 @@ import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 import Resultados from "./resultados";
 import Economia from "./economia";
 import Enlazar from "./enlazar";
+import { resolverPeriodo } from "@/lib/control-opciones";
 
 // El control de gastos publicitarios.
 //
@@ -36,44 +37,6 @@ const NOMBRE_MES = [
 ];
 
 /** Los períodos rápidos, resueltos contra el día de hoy en Ecuador. */
-function resolverPeriodo(p: { periodo?: string; desde?: string; hasta?: string }, hoy: Date) {
-  const dia = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const ayer = new Date(hoy.getTime() - 86400_000);
-  const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
-
-  if (p.desde && p.hasta) {
-    return {
-      id: "personalizado",
-      desde: new Date(`${p.desde}T00:00:00.000Z`),
-      hasta: new Date(`${p.hasta}T00:00:00.000Z`),
-    };
-  }
-  const m = /^mes-(\d{4})-(\d{1,2})$/.exec(p.periodo ?? "");
-  if (m) {
-    const anio = Number(m[1]);
-    const mes = Number(m[2]);
-    const fin = new Date(Date.UTC(anio, mes, 0));
-    return { id: p.periodo!, desde: new Date(Date.UTC(anio, mes - 1, 1)), hasta: fin < hoy ? fin : ayer };
-  }
-  switch (p.periodo) {
-    case "ayer":
-      return { id: "ayer", desde: dia(ayer), hasta: dia(ayer) };
-    case "7d":
-      return { id: "7d", desde: new Date(hoy.getTime() - 7 * 86400_000), hasta: ayer };
-    case "30d":
-      return { id: "30d", desde: new Date(hoy.getTime() - 30 * 86400_000), hasta: ayer };
-    case "mes-pasado": {
-      const desde = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1));
-      return { id: "mes-pasado", desde, hasta: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 0)) };
-    }
-    default:
-      // Este mes, hasta ayer: el día en curso no tiene cierre todavía. El primer
-      // día del mes no hay "hasta ayer" dentro del mes, así que se muestra ayer.
-      return hoy.getUTCDate() === 1
-        ? { id: "ayer", desde: dia(ayer), hasta: dia(ayer) }
-        : { id: "este-mes", desde: inicioMes, hasta: ayer };
-  }
-}
 
 export default async function ControlPage({
   searchParams,

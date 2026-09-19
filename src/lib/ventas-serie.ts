@@ -15,6 +15,7 @@ import {
   opcionesDeGranularidad,
 } from "@/lib/serie-cubos";
 import type { CuboVentas, SerieVentas, VistaVentas } from "@/lib/ventas-medidas";
+import { memorizar } from "@/lib/memoria";
 
 // Las ventas del período repartidas en el tiempo, para el Panel.
 //
@@ -30,7 +31,7 @@ import type { CuboVentas, SerieVentas, VistaVentas } from "@/lib/ventas-medidas"
 /** Cuánto tiene que faltarle a un cubo para llamarlo incompleto. */
 const COMPLETO = 0.999;
 
-export async function ventasEnElTiempo(
+async function ventasEnElTiempoSinMemoria(
   organizationId: string,
   range: Range,
   verCifras: boolean,
@@ -151,3 +152,7 @@ function armarVista(
     parciales: cubos.filter((c) => c.parcial).length,
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const ventasEnElTiempo = memorizar("ventas-serie.ventasEnElTiempo", ventasEnElTiempoSinMemoria);

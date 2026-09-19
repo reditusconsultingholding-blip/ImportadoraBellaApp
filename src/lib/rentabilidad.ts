@@ -3,6 +3,7 @@ import { calcular, economiaDe } from "@/lib/economia";
 import { ventasRealesPorProducto } from "@/lib/enlace-shopify";
 import { resumenSinProducto } from "@/lib/sin-nomenclatura";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // Rentabilidad por producto, calculada.
 //
@@ -165,7 +166,7 @@ async function gastoDelPeriodoAnterior(organizationId: string, range: Range) {
   return porProducto;
 }
 
-export async function getRentabilidad(
+async function getRentabilidadSinMemoria(
   organizationId: string,
   range: Range
 ): Promise<Rentabilidad> {
@@ -400,3 +401,7 @@ export async function getRentabilidad(
     },
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getRentabilidad = memorizar("rentabilidad.getRentabilidad", getRentabilidadSinMemoria);

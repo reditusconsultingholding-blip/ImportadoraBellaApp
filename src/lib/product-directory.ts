@@ -3,6 +3,7 @@ import { getPulses, type PulseState } from "@/lib/pulse";
 import { sugerirAcciones } from "@/lib/product-actions";
 import { textoSinCifras } from "@/lib/finanzas";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // El directorio de productos: una fila por producto con todo lo que hace falta
 // para decidir, sin abrir nada.
@@ -73,7 +74,7 @@ export type Directory = {
  * ACÁ y no en la pantalla: el directorio es un componente de servidor y sus
  * filas viajan enteras al navegador dentro del HTML.
  */
-export async function getDirectory(
+async function getDirectorySinMemoria(
   organizationId: string,
   range: Range,
   verCifras: boolean
@@ -243,3 +244,7 @@ export async function getDirectory(
     verCifras,
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getDirectory = memorizar("product-directory.getDirectory", getDirectorySinMemoria);

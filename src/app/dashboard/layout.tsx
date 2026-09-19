@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSession, usuarioConPermisos } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   canAccessPipeline,
@@ -40,17 +40,9 @@ export default async function DashboardLayout({
     db.organization.findUnique({ where: { id: session.organizationId } }),
     // Los permisos por persona —nómina y finanzas— se leen de la base y no del
     // JWT: la sesión dura 30 días, así que quitarle un acceso a alguien no
-    // tendría efecto hasta que volviera a entrar.
-    db.user.findUnique({
-      where: { id: session.userId },
-      select: {
-        canViewPayroll: true,
-        canViewFinancials: true,
-        avatarUrl: true,
-        capacitacionVista: true,
-        capacitacionAperturas: true,
-      },
-    }),
+    // tendría efecto hasta que volviera a entrar. Es la misma lectura que ya
+    // hizo getSession en este pedido: no cuesta otro viaje.
+    usuarioConPermisos(session.userId),
   ]);
 
   const veCifras = canViewFinancials(me);

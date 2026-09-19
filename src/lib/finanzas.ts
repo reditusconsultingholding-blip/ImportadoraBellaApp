@@ -1,6 +1,6 @@
-import { db } from "@/lib/db";
 import { canViewFinancials } from "@/lib/permissions";
 import { MOTIVO_CON_CIFRAS } from "@/lib/finanzas-textos";
+import { usuarioConPermisos } from "@/lib/auth";
 
 /**
  * Si esta persona ve el dinero, preguntado a la BASE y no a la sesión.
@@ -14,11 +14,8 @@ import { MOTIVO_CON_CIFRAS } from "@/lib/finanzas-textos";
  * la consulta por componente.
  */
 export async function veLasCifras(userId: string): Promise<boolean> {
-  const usuario = await db.user.findUnique({
-    where: { id: userId },
-    select: { canViewFinancials: true },
-  });
-  return canViewFinancials(usuario);
+  // Misma lectura que la sesión: no suma un viaje a la base por pedido.
+  return canViewFinancials(await usuarioConPermisos(userId));
 }
 
 /**

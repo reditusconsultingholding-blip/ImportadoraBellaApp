@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { notificacionesVisibles, veLasCifras } from "@/lib/finanzas";
+import { jsonComprimido } from "@/lib/respuesta";
 
 // La campanita pide las últimas pocas; el centro de notificaciones pide la
 // ventana completa del mes que ya cargó el server component. Sin `limite` el
@@ -53,5 +54,5 @@ export async function GET(req: Request) {
         false
       ).length;
 
-  return NextResponse.json({ notifications, unreadCount });
+  return jsonComprimido({ notifications, unreadCount });
 }

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Range } from "@/lib/date-range";
 import type { CuboSerie, Granularidad, SerieDelPeriodo } from "@/lib/reporte-medidas";
+import { memorizar } from "@/lib/memoria";
 import {
   cubosDelPeriodo,
   detalleDe,
@@ -45,7 +46,7 @@ function granularidadPara(dias: number): Granularidad {
   return "mes";
 }
 
-export async function serieDelPeriodo(
+async function serieDelPeriodoSinMemoria(
   organizationId: string,
   range: Range
 ): Promise<SerieDelPeriodo> {
@@ -149,3 +150,7 @@ export async function serieDelPeriodo(
     hayTienda: tiendas > 0,
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const serieDelPeriodo = memorizar("reporte-serie.serieDelPeriodo", serieDelPeriodoSinMemoria);

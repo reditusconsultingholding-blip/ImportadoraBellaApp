@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { AnuncioVista } from "@/lib/anuncios-datos";
+import { useSondeo } from "./usar-sondeo";
 
 // El anuncio que corta el paso al entrar a la app.
 //
@@ -44,11 +45,7 @@ export default function AnunciosGlobales() {
       });
   }, []);
 
-  useEffect(() => {
-    cargar();
-    const id = setInterval(cargar, CONSULTA_MS);
-    return () => clearInterval(id);
-  }, [cargar]);
+  useSondeo(cargar, CONSULTA_MS);
 
   // Los más viejos primero: si hay tres sin ver, se leen en el orden en que se
   // publicaron, que es el orden en que pasaron las cosas.

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
+import { useSondeo } from "../usar-sondeo";
 
 // La barra de "hay una llamada" que se ve en TODA la app.
 //
@@ -63,11 +64,7 @@ export default function AvisoLlamada() {
       });
   }, []);
 
-  useEffect(() => {
-    cargar();
-    const id = setInterval(cargar, CONSULTA_MS);
-    return () => clearInterval(id);
-  }, [cargar]);
+  useSondeo(cargar, CONSULTA_MS);
 
   // Si ya estás adentro no hace falta avisarte: la sala está a la vista.
   const activa = salas.find((s) => !s.yoEstoy && s.channelId !== cerrada);

@@ -3,6 +3,7 @@ import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
 import { cpa, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
+import { memorizar } from "@/lib/memoria";
 import type {
   Control,
   ControlPeriodo,
@@ -246,7 +247,7 @@ const claveMes = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
  * producto, la proporción se sigue sacando contra el total del día —si no,
  * filtrar un producto le cargaría la administración de todos.
  */
-export async function controlDelPeriodo(
+async function controlDelPeriodoSinMemoria(
   organizationId: string,
   opciones: { desde: Date; hasta: Date; hora?: number; productIds?: string[] },
 ): Promise<ControlPeriodo> {
@@ -448,3 +449,7 @@ export async function controlDelPeriodo(
     },
   };
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const controlDelPeriodo = memorizar("control-publicitario.controlDelPeriodo", controlDelPeriodoSinMemoria);

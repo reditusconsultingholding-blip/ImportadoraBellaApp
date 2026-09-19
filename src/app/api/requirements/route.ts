@@ -6,6 +6,23 @@ import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
 import { formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
+import { jsonComprimido } from "@/lib/respuesta";
+import { memorizar } from "@/lib/memoria";
+
+// Las 6.000+ piezas de la organización, compartidas en memoria hasta la
+// próxima escritura (crear o editar una pieza la invalida). La clave lleva el
+// filtro de visibilidad de quien pide, así que un editor sigue recibiendo solo
+// lo suyo. Ver src/lib/memoria.ts.
+const piezasDe = memorizar("api.requirements", async (organizationId: string, filtro: string) =>
+  db.requirement.findMany({
+    where: { organizationId, ...(JSON.parse(filtro) as object) },
+    include: {
+      product: { select: { code: true, name: true } },
+      owner: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  }),
+);
 
 export async function GET() {
   const session = await getSession();
@@ -16,21 +33,11 @@ export async function GET() {
 
   // Dirección ve todo. Un editor, lo asignado a su nombre y todo lo de los
   // productos que tiene a cargo — ver src/lib/responsables.ts.
-  const requirements = await db.requirement.findMany({
-    where: {
-      organizationId: session.organizationId,
-      ...(await piezasVisibles(session)),
-    },
-    include: {
-      product: { select: { code: true, name: true } },
-      owner: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const requirements = await piezasDe(session.organizationId, JSON.stringify(await piezasVisibles(session)));
 
   // El CPA y el CPM de cada pieza son plata: se cortan acá, no al dibujar.
   const verCifras = await veLasCifras(session.userId);
-  return NextResponse.json({
+  return jsonComprimido({
     requirements: creativosSinCifras(requirements, verCifras),
     verCifras,
   });

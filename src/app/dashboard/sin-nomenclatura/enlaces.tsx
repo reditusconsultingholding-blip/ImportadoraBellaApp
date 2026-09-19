@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Cobertura, Propuesta } from "@/lib/enlace-shopify";
 import type { OpcionProducto } from "./lista";
 import { Girando } from "../navegar";
+import ElegirProducto from "../elegir-producto";
 
 // Enlazar lo que vende la tienda con los productos que pautamos.
 //
@@ -256,22 +257,14 @@ export default function Enlaces({
                             Empata con {p.rival.code} — {p.rival.name}. Mirala antes de aceptar.
                           </span>
                         )}
-                        <select
-                          defaultValue=""
+                        <ElegirProducto
+                          opciones={opciones}
                           disabled={guardando === p.nombre || enLote}
-                          onChange={(e) => e.target.value && aceptar(p, e.target.value, false)}
+                          onElegir={(id) => aceptar(p, id, false)}
+                          placeholder={p.sugerido ? "…o elegir otro" : "Elegir producto…"}
                           className={`${claseCampo} min-w-[180px]`}
-                          aria-label={`Elegir producto para ${p.nombre}`}
-                        >
-                          <option value="">
-                            {p.sugerido ? "…o elegir otro" : "Elegir producto…"}
-                          </option>
-                          {opciones.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.code} — {o.name}
-                            </option>
-                          ))}
-                        </select>
+                          ariaLabel={`Elegir producto para ${p.nombre}`}
+                        />
                         {guardando === p.nombre && <Girando />}
                       </span>
                     </td>

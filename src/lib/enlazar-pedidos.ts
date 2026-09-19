@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { comparar, normalizarNombre } from "@/lib/enlace-shopify";
+import { memorizar } from "@/lib/memoria";
 
 // Lo que falta enlazar para que los pedidos reales caigan en su producto.
 //
@@ -20,7 +21,7 @@ export type NombrePendiente = {
   sugerido: { id: string; name: string; code: string } | null;
 };
 
-export async function nombresSinEnlazar(
+async function nombresSinEnlazarSinMemoria(
   organizationId: string,
   desde: Date,
   hasta: Date,
@@ -68,3 +69,7 @@ export async function nombresSinEnlazar(
   }
   return salida;
 }
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const nombresSinEnlazar = memorizar("enlazar-pedidos.nombresSinEnlazar", nombresSinEnlazarSinMemoria);

@@ -5,6 +5,7 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { getPulses } from "@/lib/pulse";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import type { Range } from "@/lib/date-range";
+import { memorizar } from "@/lib/memoria";
 
 // Todo lo que un dueño necesita ver, en una sola consulta.
 //
@@ -13,7 +14,7 @@ import type { Range } from "@/lib/date-range";
 // coincidirían con los que ve su equipo, y a partir de ahí nadie confía en
 // ninguno de los dos.
 
-export async function getPanelCeo(organizationId: string, range: Range) {
+async function getPanelCeoSinMemoria(organizationId: string, range: Range) {
   const [ventas, meta, tiktok, rentabilidad, pulsos, alertas] = await Promise.all([
     getSalesOverview(organizationId, range),
     getOverview(organizationId, "META", range),
@@ -124,3 +125,7 @@ export async function getPanelCeo(organizationId: string, range: Range) {
 }
 
 export type PanelCeo = Awaited<ReturnType<typeof getPanelCeo>>;
+
+// Cálculos pesados compartidos hasta la próxima escritura en la base.
+// Ver src/lib/memoria.ts.
+export const getPanelCeo = memorizar("ceo.getPanelCeo", getPanelCeoSinMemoria);

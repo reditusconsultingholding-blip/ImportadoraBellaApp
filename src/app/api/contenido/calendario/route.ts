@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canAccessPipeline } from "@/lib/permissions";
 import { calendarioContenido } from "@/lib/contenido";
 import { claveMes, parsearMes } from "@/lib/calendario-fechas";
+import { jsonComprimido } from "@/lib/respuesta";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -14,5 +15,5 @@ export async function GET(req: NextRequest) {
   const { anio, mes } = parsearMes(req.nextUrl.searchParams.get("mes"));
   const datos = await calendarioContenido(session.organizationId, anio, mes);
 
-  return NextResponse.json({ mes: claveMes(anio, mes), ...datos });
+  return jsonComprimido({ mes: claveMes(anio, mes), ...datos });
 }

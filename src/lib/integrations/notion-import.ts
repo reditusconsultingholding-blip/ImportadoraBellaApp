@@ -320,10 +320,49 @@ export async function importarNotion(
     db.product.findMany({ where: { organizationId }, select: { id: true, code: true, name: true } }),
     db.user.findMany({ where: { organizationId }, select: { id: true, name: true, email: true } }),
     db.campaign.findMany({ where: { adAccount: { organizationId } }, select: { id: true, name: true } }),
-    db.tareaDiaria.findMany({ where: { organizationId, notionPageId: { not: null } }, select: { notionPageId: true } }),
+    db.tareaDiaria.findMany({
+      where: { organizationId, notionPageId: { not: null } },
+      select: {
+        notionPageId: true,
+        fecha: true,
+        ownerId: true,
+        responsableTexto: true,
+        productId: true,
+        productoTexto: true,
+        plataforma: true,
+        campanaTiktok: true,
+        campanaMeta: true,
+        numeroCreativos: true,
+        estado: true,
+        etiquetas: true,
+        notas: true,
+        origen: true,
+      },
+    }),
     db.campanaManual.findMany({ where: { organizationId, notionPageId: { not: null } }, select: { notionPageId: true } }),
   ]);
   const idsTareasExistentes = new Set(tareasExistentes.map((t) => t.notionPageId));
+  // Lo guardado de cada tarea, para escribir solo las que cambiaron en Notion.
+  // Antes se reescribían todas en cada vuelta: 27.000 UPDATE cada ocho horas
+  // para dejar exactamente lo mismo, y cada uno vaciaba la memoria de las
+  // pantallas (ver src/lib/memoria.ts).
+  const huellaTarea = (t: Record<string, unknown>) =>
+    JSON.stringify([
+      t.fecha instanceof Date ? t.fecha.toISOString() : t.fecha ?? null,
+      t.ownerId ?? null,
+      t.responsableTexto ?? null,
+      t.productId ?? null,
+      t.productoTexto ?? null,
+      t.plataforma ?? null,
+      t.campanaTiktok,
+      t.campanaMeta,
+      t.numeroCreativos,
+      t.estado,
+      t.etiquetas,
+      t.notas ?? null,
+      t.origen,
+    ]);
+  const huellaGuardada = new Map(tareasExistentes.map((t) => [t.notionPageId, huellaTarea(t)]));
   const idsManualesExistentes = new Set(manualesExistentes.map((m) => m.notionPageId));
   const nombresCampanasSincronizadas = new Set(campanasSincronizadas.map((c) => normalizar(c.name)));
 
@@ -440,8 +479,10 @@ export async function importarNotion(
       }
 
       if (yaExiste) {
-        await db.tareaDiaria.updateMany({ where: { organizationId, notionPageId: page.id }, data: fila });
-        reporte.tareas.actualizadas += 1;
+        if (huellaGuardada.get(page.id) !== huellaTarea(fila)) {
+          await db.tareaDiaria.updateMany({ where: { organizationId, notionPageId: page.id }, data: fila });
+          reporte.tareas.actualizadas += 1;
+        }
       } else {
         creadas.push(fila);
         reporte.tareas.creadas += 1;

@@ -50,14 +50,40 @@ export async function runAlertChecks(organizationId: string) {
   const summary = { escala: 0, fatiga: 0, discrepancia: 0 };
 
   // --- Oportunidad de escalar: CPA muy por debajo del objetivo con volumen real.
-  const campaigns = await db.campaign.findMany({
-    where: { adAccount: { organizationId } },
-    include: {
-      product: true,
-      adAccount: true,
-      metrics: { orderBy: { capturedAt: "desc" }, take: 2 },
-    },
-  });
+  //
+  // Solo las dos últimas fotos de cada campaña, y solo de los últimos 3 días.
+  //
+  // Antes se pedía `metrics: { take: 2 }` por campaña: Prisma no puede
+  // resolver eso en la base y traía los ~60.000 snapshots de toda la historia
+  // para quedarse con dos, en cada vuelta de 5 minutos. Y sin límite de fecha,
+  // una campaña pausada en junio aportaba sus compras de junio a la cuenta de
+  // "las últimas 24 h" (falsas alertas de discrepancia) y podía recibir un
+  // "oportunidad de escalar" estando apagada.
+  const ultimas = await db.$queryRaw<
+    { campaignId: string; rn: number; spend: number; purchases: number; clicks: number; impressions: number }[]
+  >`
+    SELECT "campaignId", rn::int, spend::float8, purchases::int, clicks::int, impressions::int FROM (
+      SELECT m."campaignId", m.spend, m.purchases, m.clicks, m.impressions,
+             row_number() OVER (PARTITION BY m."campaignId" ORDER BY m."capturedAt" DESC) AS rn
+        FROM "MetricSnapshot" m
+        JOIN "Campaign" c ON c.id = m."campaignId"
+        JOIN "AdAccount" a ON a.id = c."adAccountId"
+       WHERE a."organizationId" = ${organizationId}
+         AND m."capturedAt" >= now() - interval '3 days'
+    ) t WHERE rn <= 2`;
+  const metricasDe = new Map<string, typeof ultimas>();
+  for (const m of ultimas) {
+    const lista = metricasDe.get(m.campaignId) ?? [];
+    lista[m.rn - 1] = m;
+    metricasDe.set(m.campaignId, lista);
+  }
+
+  const campaigns = (
+    await db.campaign.findMany({
+      where: { id: { in: [...metricasDe.keys()] } },
+      include: { product: true, adAccount: true },
+    })
+  ).map((c) => ({ ...c, metrics: metricasDe.get(c.id) ?? [] }));
 
   for (const c of campaigns) {
     const latest = c.metrics[0];

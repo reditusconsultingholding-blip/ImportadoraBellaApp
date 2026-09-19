@@ -4,6 +4,7 @@ import { canManagePipeline } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { getPatronesClientes } from "@/lib/clientes";
 import { veLasCifras } from "@/lib/finanzas";
+import { textoComprimido } from "@/lib/respuesta";
 
 // Descarga de la lista de clientes en CSV.
 //
@@ -68,9 +69,8 @@ export async function GET(req: NextRequest) {
   // eñes salen rotos y hay que reimportar a mano.
   const csv = "﻿" + [encabezados.join(","), ...filas].join("\n");
 
-  return new NextResponse(csv, {
+  return textoComprimido(csv, "text/csv; charset=utf-8", {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="clientes-${range.id}-${new Date().toISOString().slice(0, 10)}.csv"`,
       "Cache-Control": "no-store",
     },

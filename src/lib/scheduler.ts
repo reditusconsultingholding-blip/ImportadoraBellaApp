@@ -16,6 +16,7 @@ import { capturarCorte } from "@/lib/control-publicitario";
 import { repasoDiarioDeCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
 import { recifrarPendientes } from "@/lib/cifrado-repaso";
+import { precalentarPantallas } from "@/lib/precalentar";
 
 // El reloj de la aplicación.
 //
@@ -259,6 +260,14 @@ export async function sincronizarTodo() {
       if (r) resumen.semanal = r;
     } catch (err) {
       resumen.semanal = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Lo último: dejar calculadas las pantallas con los datos recién traídos,
+    // para que nadie espere el cálculo al abrirlas. Ver src/lib/precalentar.ts.
+    try {
+      resumen.precalentado = await precalentarPantallas(org.id);
+    } catch (err) {
+      resumen.precalentado = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
