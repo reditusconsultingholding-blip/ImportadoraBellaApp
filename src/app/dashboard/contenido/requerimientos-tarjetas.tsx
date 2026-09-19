@@ -127,7 +127,7 @@ export default function RequerimientosTarjetas({
       {tarjetas.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">
           {modo === "producto" && !canManage
-            ? "Todavía no tenés productos a cargo. Pedile a dirección que te asigne los tuyos."
+            ? "Todavía no tienes productos a cargo. Pídele a dirección que te asigne los tuyos."
             : "No hay nada que mostrar."}
         </div>
       ) : (

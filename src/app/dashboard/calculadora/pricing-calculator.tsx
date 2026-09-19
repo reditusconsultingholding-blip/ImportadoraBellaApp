@@ -513,7 +513,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             </div>
             <p className="mt-2 text-xs text-muted">
               Van en cero porque en contraentrega no aplican: el cliente paga en efectivo al
-              recibir. Si alguna vez vendés con pago en línea, cargá acá el porcentaje real de tu
+              recibir. Si alguna vez vendes con pago en línea, carga aquí el porcentaje real de tu
               pasarela y del IVA.
             </p>
           </details>

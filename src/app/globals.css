@@ -31,6 +31,14 @@
   --brand-navy-deep: #001b16;
   --brand-green: #00a47c;
   --brand-green-deep: #008060;
+  /* Sobre fondo oscuro (Costeo y utilidad, la sala de voz) los colores de
+     estado de arriba quedan casi negros: el rojo #b42318 sobre #001b16 no se
+     lee. Estas son las mismas señales, aclaradas hasta pasar el contraste
+     AA sobre el navy profundo. No reemplazan a las otras: cada una es para su
+     fondo. */
+  --critical-claro: #ff8a7a;
+  --good-claro: #2fd6a8;
+  --warning-claro: #f5bd4a;
 
   /* Colores de los gráficos. No están elegidos a ojo: se validaron contra el
      fondo de la tarjeta para daltonismo (deuteranopía, protanopía, tritanopía),
@@ -68,6 +76,9 @@
   --color-pending-bg: var(--pending-bg);
   --color-brand-navy: var(--brand-navy);
   --color-brand-navy-deep: var(--brand-navy-deep);
+  --color-critical-claro: var(--critical-claro);
+  --color-good-claro: var(--good-claro);
+  --color-warning-claro: var(--warning-claro);
   --color-brand-green: var(--brand-green);
   --color-brand-green-deep: var(--brand-green-deep);
   --font-sans: var(--font-geist-sans);
@@ -271,5 +282,81 @@ tbody tr:hover {
   .encabezado-resplandor,
   .encabezado-entrada {
     animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Deslizadores de Costeo y utilidad.                                   */
+/*                                                                      */
+/* El control nativo pintado con accent-color se ve como un formulario  */
+/* de sistema: barra fina gris y bolita plana. Acá la pista es un riel   */
+/* con la parte recorrida en degradé y luz propia, y el tirador un       */
+/* punto con halo que crece al tocarlo. El relleno se pasa por          */
+/* --relleno desde el componente, porque el navegador no sabe qué       */
+/* porción va pintada.                                                  */
+/* ------------------------------------------------------------------ */
+.deslizador {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+.deslizador::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, var(--brand-green-deep) 0%, var(--good-claro) var(--relleno, 50%), rgba(255, 255, 255, 0.1) var(--relleno, 50%), rgba(255, 255, 255, 0.1) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 12px -2px color-mix(in srgb, var(--good-claro) 55%, transparent);
+}
+.deslizador::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.deslizador::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand-green-deep), var(--good-claro));
+}
+.deslizador::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: #eafff8;
+  border: 2px solid var(--good-claro);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--good-claro) 18%, transparent),
+    0 0 14px -1px color-mix(in srgb, var(--good-claro) 70%, transparent);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.deslizador::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #eafff8;
+  border: 2px solid var(--good-claro);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--good-claro) 18%, transparent);
+}
+.deslizador:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.deslizador:focus-visible {
+  outline: none;
+}
+.deslizador:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--good-claro) 32%, transparent),
+    0 0 18px 0 color-mix(in srgb, var(--good-claro) 85%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .deslizador::-webkit-slider-thumb {
+    transition: none;
   }
 }

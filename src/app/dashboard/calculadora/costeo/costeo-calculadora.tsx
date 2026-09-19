@@ -184,7 +184,7 @@ function Seccion({
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.02] p-4 md:p-5">
       <div className="mb-4 flex items-baseline gap-2.5">
-        <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-brand-green/50 bg-brand-green/15 text-[10px] font-semibold tabular-nums text-brand-green">
+        <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-good-claro/50 bg-good-claro/15 text-[10px] font-semibold tabular-nums text-good-claro">
           {n}
         </span>
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
@@ -217,7 +217,7 @@ function Campo({
     <label className="block">
       <span className="block text-[11px] leading-tight text-white/55">{etiqueta}</span>
       {ayuda && <span className="block text-[10px] leading-tight text-white/30">{ayuda}</span>}
-      <span className="mt-1.5 flex items-center rounded border border-white/12 bg-black/25 transition focus-within:border-brand-green/70">
+      <span className="mt-1.5 flex items-center rounded border border-white/12 bg-black/25 transition focus-within:border-good-claro/70">
         {prefijo && <span className="pl-2.5 text-xs text-white/35">{prefijo}</span>}
         <input
           inputMode="decimal"
@@ -253,14 +253,18 @@ function Deslizador({
   sufijo?: string;
   paso?: number;
 }) {
+  // Qué porción del riel va pintada. El navegador no lo sabe solo: se le pasa
+  // por una variable CSS que usa el degradé (ver .deslizador en globals.css).
+  const relleno = max > 0 ? Math.min(100, Math.max(0, (valor / max) * 100)) : 0;
+
   return (
     <label className="block">
       <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] text-white/55">
+        <span className="text-[11px] text-white/60">
           {etiqueta}
-          {ayuda && <span className="ml-1.5 text-[10px] text-white/30">{ayuda}</span>}
+          {ayuda && <span className="ml-1.5 text-[10px] text-white/35">{ayuda}</span>}
         </span>
-        <span className="text-[13px] font-semibold tabular-nums text-white">
+        <span className="rounded-md border border-good-claro/30 bg-good-claro/10 px-2 py-0.5 font-mono text-[12px] font-semibold tabular-nums text-good-claro">
           {valor.toLocaleString("es-EC")}
           {sufijo}
         </span>
@@ -272,9 +276,17 @@ function Deslizador({
         step={paso}
         value={valor}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ accentColor: "var(--brand-green)" }}
-        className="mt-2 w-full cursor-pointer"
+        style={{ "--relleno": `${relleno}%` } as React.CSSProperties}
+        className="deslizador mt-2"
       />
+      {/* Los extremos del recorrido, para saber contra qué se está moviendo. */}
+      <span className="mt-0.5 flex justify-between font-mono text-[9px] text-white/25">
+        <span>0</span>
+        <span>
+          {max.toLocaleString("es-EC")}
+          {sufijo}
+        </span>
+      </span>
     </label>
   );
 }
@@ -292,7 +304,7 @@ function Cifra({
   tono?: "neutro" | "bien" | "mal";
   grande?: boolean;
 }) {
-  const color = tono === "bien" ? "text-brand-green" : tono === "mal" ? "text-critical" : "text-white";
+  const color = tono === "bien" ? "text-good-claro" : tono === "mal" ? "text-critical-claro" : "text-white";
   return (
     <div className="rounded border border-white/10 bg-black/20 px-3 py-2.5">
       <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-white/40">
@@ -482,7 +494,7 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
           <select
             value={producto}
             onChange={(e) => elegir(e.target.value)}
-            className="w-full rounded border border-white/12 bg-black/25 px-3 py-2.5 text-[15px] text-white outline-none transition focus:border-brand-green/70"
+            className="w-full rounded border border-white/12 bg-black/25 px-3 py-2.5 text-[15px] text-white outline-none transition focus:border-good-claro/70"
             aria-label="Producto"
           >
             <option value="">Escribir los números a mano</option>
@@ -500,7 +512,7 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
             <Chip>
               {/* El puntito late mientras el catálogo esté fresco: es la señal
                   de que la lista se mantiene sola y no hay que recargar. */}
-              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-brand-green align-middle [animation:respirar_2.4s_ease-in-out_infinite]" />
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-good-claro align-middle [animation:respirar_2.4s_ease-in-out_infinite]" />
               {catalogo.length > 0 ? `${catalogo.length} productos · Shopify en vivo` : "Consultando Shopify…"}
             </Chip>
             {producto && tieneGuardado && <Chip>Ajustes guardados</Chip>}
@@ -586,12 +598,12 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
                 cuando le preguntan si se puede escalar. */}
             <div
               className={`mt-3 rounded border px-3 py-2.5 ${
-                rentable ? "border-brand-green/40 bg-brand-green/10" : "border-critical/40 bg-critical/10"
+                rentable ? "border-good-claro/40 bg-good-claro/10" : "border-critical-claro/40 bg-critical-claro/10"
               }`}
             >
               <span
                 className={`mr-2 inline-block rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.1em] ${
-                  rentable ? "bg-brand-green/25 text-brand-green" : "bg-critical/25 text-critical"
+                  rentable ? "bg-good-claro/15 text-good-claro" : "bg-critical-claro/15 text-critical-claro"
                 }`}
               >
                 {rentable ? "Rentable" : "En pérdida"}
@@ -601,19 +613,19 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
                   <>
                     Ganas <strong className="font-semibold text-white">{usd0(l.utilidadDia)}/día</strong>{" "}
                     (~{usd0(l.utilidadDia * 30)}/mes) con {dec1(l.entregadas)} ventas entregadas.
-                    {holgura >= 10 ? " Acá sí conviene escalar el presupuesto." : " Con poca holgura: subí el presupuesto de a poco."}
+                    {holgura >= 10 ? " Acá sí conviene escalar el presupuesto." : " Con poca holgura: sube el presupuesto de a poco."}
                   </>
                 ) : (
                   <>
-                    Perdés <strong className="font-semibold text-white">{usd0(Math.abs(l.utilidadDia))}/día</strong>.
-                    Bajá el CPA a menos de {usd(l.cpaBreakeven)} por checkout, o subí la confirmación por encima de{" "}
+                    Pierdes <strong className="font-semibold text-white">{usd0(Math.abs(l.utilidadDia))}/día</strong>.
+                    Baja el CPA a menos de {usd(l.cpaBreakeven)} por checkout, o sube la confirmación por encima de{" "}
                     {pctTxt(l.confirmacionEquilibrio)}.
                   </>
                 )}
               </span>
             </div>
 
-            {/* La barra de equilibrio: dónde estás contra dónde tenés que
+            {/* La barra de equilibrio: dónde estás contra dónde tienes que
                 estar. Un número suelto no dice si 70% es mucho o poco. */}
             <div className="mt-3">
               <p className="text-[11px] text-white/50">
@@ -623,7 +635,7 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
               </p>
               <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-white/8">
                 <div
-                  className={`h-full rounded-full ${rentable ? "bg-brand-green" : "bg-critical"}`}
+                  className={`h-full rounded-full ${rentable ? "bg-good-claro" : "bg-critical-claro"}`}
                   style={{ width: `${Math.min(100, Math.max(1, v.confirmacion))}%` }}
                 />
                 <div
@@ -649,11 +661,11 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
               const bueno = e.utilidad >= 0;
               return (
                 <div key={e.nombre} className="flex min-w-[92px] flex-1 flex-col items-center gap-1.5">
-                  <span className={`text-[11px] font-semibold tabular-nums ${bueno ? "text-brand-green" : "text-critical"}`}>
+                  <span className={`text-[11px] font-semibold tabular-nums ${bueno ? "text-good-claro" : "text-critical-claro"}`}>
                     {usd0(e.utilidad)}
                   </span>
                   <div
-                    className={`w-full rounded-t ${bueno ? "bg-brand-green/75" : "bg-critical/70"}`}
+                    className={`w-full rounded-t ${bueno ? "bg-good-claro/75" : "bg-critical-claro/70"}`}
                     style={{ height: `${alto}px` }}
                   />
                   <span className="text-center text-[10px] leading-tight text-white/40">{e.nombre}</span>
@@ -680,7 +692,7 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
                     <td className="py-1.5 text-right tabular-nums text-white/55">{usd(e.aov)}</td>
                     <td className="py-1.5 text-right tabular-nums text-white/55">{pctTxt(e.confirmacion)}</td>
                     <td className="py-1.5 text-right tabular-nums text-white/55">{dec1(e.entregadas)}</td>
-                    <td className={`py-1.5 text-right font-semibold tabular-nums ${e.utilidad >= 0 ? "text-brand-green" : "text-critical"}`}>
+                    <td className={`py-1.5 text-right font-semibold tabular-nums ${e.utilidad >= 0 ? "text-good-claro" : "text-critical-claro"}`}>
                       {usd0(e.utilidad)}
                     </td>
                   </tr>
@@ -774,7 +786,7 @@ export default function CosteoCalculadora({ fichas }: { fichas: FichaCalculadora
                   ))}
                   <tr className="border-t border-white/15">
                     <td className="py-2 font-semibold text-white">Utilidad del día</td>
-                    <td className={`py-2 text-right font-semibold tabular-nums ${rentable ? "text-brand-green" : "text-critical"}`}>
+                    <td className={`py-2 text-right font-semibold tabular-nums ${rentable ? "text-good-claro" : "text-critical-claro"}`}>
                       {usd0(l.utilidadDia)}
                     </td>
                   </tr>
