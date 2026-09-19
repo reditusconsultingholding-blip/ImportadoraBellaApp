@@ -136,29 +136,14 @@ variable faltaba — y uno de ellos consume cuota de las APIs de Meta, TikTok y
 Shopify, mientras el otro genera y guarda PDFs.
 
 Las 9 cuentas del equipo entran con un correo genérico
-`nombre.apellido@bellacorp.store` y la clave `Bella2026!`, que la app obliga
+`nombre.apellido@bellacorp.store` y una clave inicial genérica (la entrega dirección por privado), que la app obliga
 a cambiar en el primer ingreso. Cada uno cambia su correo desde *Mi cuenta*.
 
 ## Correr en local
 
-```bash
-npm install
-npx prisma migrate dev   # crea prisma/dev.db
-npm run db:seed          # carga datos de ejemplo
-npm run dev
-```
+Ver **[docs/FUENTES_DE_CONOCIMIENTO_Y_HANDOVER.md](docs/FUENTES_DE_CONOCIMIENTO_Y_HANDOVER.md)**, sección 3: instalación, variables, migraciones, despliegue y mapa de carpetas. El manual para el equipo está en **[docs/MANUAL_DE_USO.md](docs/MANUAL_DE_USO.md)**.
 
-Abrir http://localhost:3000 (o el puerto que uses) e iniciar sesión con cualquiera
-de estos tres, para ver el panel según cada rol:
-
-```
-importadorabellaav@gmail.com       / Jarvis2026!   (OWNER — Fabrizio)
-reditusconsultingholding@gmail.com / Jarvis2026!   (DIRECTOR — Sebastian)
-editor.demo@reditusconsulting.com  / Jarvis2026!   (EDITOR — Valentina, demo)
-```
-
-Esta clave es genérica a propósito: la primera vez que entra, la app obliga
-a cambiarla antes de dejar pasar al panel.
+> Importante: no hay base de staging. `npm run dev` apunta a la base de producción y el reloj de sincronización queda apagado en desarrollo.
 
 ## Variables de entorno
 
@@ -166,7 +151,7 @@ Copiar `.env.example` a `.env` y completar:
 
 | Variable | Para qué sirve |
 |---|---|
-| `DATABASE_URL` | Ya viene lista para SQLite local. En producción, apuntar a Postgres. |
+| `DATABASE_URL` | Postgres de Supabase (pooler de transacciones). Ver `.env.example`. |
 | `SESSION_SECRET` | Firma las cookies de sesión. Generar uno propio en producción. |
 | `ANTHROPIC_API_KEY` | Sin esto, el chat de Jarvis responde con un aviso en vez de contestar. |
 | `META_APP_ID` / `META_APP_SECRET` | App de Meta for Developers para la Marketing API. |
@@ -237,29 +222,7 @@ Se retoma más adelante, cuando se indique. Ver `docs/DECISIONES.md`.
 
 ## Estructura
 
-```
-src/lib/db.ts                 cliente Prisma (SQLite vía adapter)
-src/lib/auth.ts                sesión (JWT en cookie httpOnly)
-src/lib/metrics.ts             agregación de métricas por producto/plataforma
-src/lib/agent.ts               lógica del chat de Jarvis (Claude + tool use)
-src/lib/alerts.ts               motor de alertas (escala / fatiga / discrepancia)
-src/lib/daily-report.ts         genera el PDF del reporte diario (pdfkit)
-src/lib/profitability.ts        cálculo de la tabla de rentabilidad
-src/lib/logistics.ts            efectividad de envíos por provincia/transportadora
-src/lib/performance.ts          puntaje de desempeño de editores
-src/lib/integrations/          clientes reales de Meta Graph API y TikTok Business API
-src/app/dashboard/              panel general + vista por producto
-src/app/dashboard/jarvis/       chat con Jarvis
-src/app/dashboard/pipeline/     Kanban/tabla del pipeline creativo
-src/app/dashboard/productos/    pipeline específico por producto
-src/app/dashboard/rentabilidad/ tabla de rentabilidad mensual
-src/app/dashboard/calculadora/  calculadora de precios dropshipping Ecuador
-src/app/dashboard/reportes/     historial de reportes diarios en PDF
-src/app/dashboard/logistica/    torre logística Ecuador (Dropi)
-src/app/dashboard/desempeno/    ranking de desempeño del equipo
-prisma/schema.prisma            modelo de datos multi-tenant
-prisma/seed.ts                  datos de ejemplo (productos reales de Fabrizio)
-```
+El mapa de carpetas actualizado está en el documento de handover (sección 3.6).
 
 Nunca se ejecuta una acción de campaña sin aprobación explícita: toda
 propuesta de Jarvis se guarda como `PendingAction` y solo se dispara
