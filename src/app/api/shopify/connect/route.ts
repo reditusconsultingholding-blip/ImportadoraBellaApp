@@ -12,6 +12,7 @@ import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { frenarUsuario } from "@/lib/limite";
 import { z } from "zod";
 import { leerCuerpo } from "@/lib/validacion";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "No se pudo verificar la tienda — revisa el dominio y las credenciales.",
-        detail: err instanceof Error ? err.message : String(err),
+        detail: mensajeSeguro(err),
       },
       { status: 400 }
     );
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       shopName,
       warning: "Se conectó, pero la primera sincronización falló.",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: mensajeSeguro(err),
     });
   }
 }

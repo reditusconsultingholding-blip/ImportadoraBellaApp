@@ -329,10 +329,14 @@ export async function fetchRecentOrders(
         // el número, que es lo que ya había en la base.
         externalId: node.id.split("/").pop() ?? node.id,
         occurredAt: node.createdAt,
-        // El telefono puede venir en la orden o en la ficha del cliente:
-        // Funnelish y Releasit lo ponen en lugares distintos.
+        // El telefono puede venir en la orden, en la ficha del cliente o en la
+        // dirección de envío: Funnelish y Releasit lo ponen en lugares
+        // distintos. La dirección se pedía en la consulta pero no se usaba, y
+        // por eso el 75% de las órdenes quedaba sin teléfono (Releasit lo
+        // guarda solo ahí) y la pantalla de Clientes no podía agruparlas.
         clienteNombre: node.customer?.displayName?.trim() || null,
-        clienteTelefono: (node.phone ?? node.customer?.phone)?.trim() || null,
+        clienteTelefono:
+          [node.phone, node.customer?.phone, node.shippingAddress?.phone].map((t) => t?.trim()).find(Boolean) || null,
         clienteEmail: (node.email ?? node.customer?.email)?.trim() || null,
         provincia: node.shippingAddress?.province?.trim() || null,
         ciudad: node.shippingAddress?.city?.trim() || null,

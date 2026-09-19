@@ -5,6 +5,7 @@ import { createSession } from "@/lib/auth";
 import { contar, excedido, ipDe } from "@/lib/limite";
 import { z } from "zod";
 import { leerCuerpo } from "@/lib/validacion";
+import { contextoDelPedido, registrarActividad } from "@/lib/actividad";
 
 // Freno a la fuerza bruta. Sin esto, con el correo de alguien del equipo (que
 // es público: nombre.apellido@bellacorp.store) se pueden probar contraseñas
@@ -112,10 +113,30 @@ export async function POST(req: NextRequest) {
   if (!user || !valid) {
     registerFailure(key);
     contar(claveIp, IP_MAX_FALLOS, WINDOW_MS);
+    // Un intento fallido contra una cuenta real queda en su seguimiento: es
+    // la señal de que alguien está probando su clave.
+    if (user) {
+      registrarActividad({
+        organizationId: user.organizationId,
+        userId: user.id,
+        tipo: "login_fallido",
+        ruta: "/login",
+        detalle: "Clave incorrecta",
+        ...(await contextoDelPedido()),
+      });
+    }
     return NextResponse.json({ error: "Correo o contraseña incorrectos." }, { status: 401 });
   }
 
   attempts.delete(key);
+
+  registrarActividad({
+    organizationId: user.organizationId,
+    userId: user.id,
+    tipo: "entrada",
+    ruta: "/login",
+    ...(await contextoDelPedido()),
+  });
 
   await createSession({
     userId: user.id,

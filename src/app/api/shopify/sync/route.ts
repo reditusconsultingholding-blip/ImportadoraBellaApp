@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManageConexiones } from "@/lib/permissions";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ordersSynced });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
+      { ok: false, error: mensajeSeguro(err) },
       { status: 502 }
     );
   }

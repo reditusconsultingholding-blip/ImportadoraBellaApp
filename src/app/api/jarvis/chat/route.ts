@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
 import { frenarUsuario } from "@/lib/limite";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...result, conversacionId: id });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error inesperado." },
+      { error: mensajeSeguro(err, "Error inesperado.") },
       { status: 500 }
     );
   }

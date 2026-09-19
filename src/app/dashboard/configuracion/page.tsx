@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { currentTotpCode, nextCodeExpiresAt, totpConfigured } from "@/lib/totp";
 import ProfileScreen from "./profile-screen";
+import SeguimientoActividad from "./seguimiento-actividad";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Administrador",
@@ -34,6 +35,17 @@ export default async function MiPerfilPage() {
   // en el servidor en cada carga; nunca viaja el secreto que lo genera.
   const showCode = me.role === "OWNER" && totpConfigured();
 
+  // El seguimiento de actividad del equipo: solo el administrador.
+  const personas =
+    me.role === "OWNER"
+      ? await db.user.findMany({
+          where: { organizationId: session.organizationId },
+          select: { id: true, name: true, email: true, role: true },
+          orderBy: { name: "asc" },
+        })
+      : null;
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil" }).format(new Date());
+
   return (
     <div className="flex flex-col gap-5">
       <ProfileScreen
@@ -62,6 +74,8 @@ export default async function MiPerfilPage() {
       {/* Los avisos push viven acá y no en el panel: es una preferencia de la
           persona, no algo del negocio. */}
       <PushToggle />
+
+      {personas && <SeguimientoActividad personas={personas} hoy={hoy} />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { canManageConexiones } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { syncAdAccount } from "@/lib/integrations/sync";
 import { frenarUsuario } from "@/lib/limite";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -32,7 +33,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
+      { ok: false, error: mensajeSeguro(err) },
       { status: 502 }
     );
   }

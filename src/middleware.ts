@@ -56,6 +56,27 @@ function origenAjeno(req: NextRequest): boolean {
   }
 }
 
+/**
+ * Marca el pedido para el seguimiento de actividad (src/lib/actividad.ts):
+ * ruta con sus filtros, método, un id único y si es una precarga de Next.
+ * Se PISAN siempre: si el navegador mandara estos encabezados, no llegan.
+ */
+function marcado(req: NextRequest) {
+  const h = new Headers(req.headers);
+  const url = req.nextUrl.clone();
+  url.searchParams.delete("_rsc");
+  const precarga =
+    h.has("next-router-prefetch") ||
+    h.has("next-router-segment-prefetch") ||
+    (h.get("purpose") ?? "").includes("prefetch") ||
+    (h.get("sec-purpose") ?? "").includes("prefetch");
+  h.set("x-jarvis-pedido", crypto.randomUUID());
+  h.set("x-jarvis-ruta", url.pathname + url.search);
+  h.set("x-jarvis-metodo", req.method);
+  h.set("x-jarvis-precarga", precarga ? "1" : "0");
+  return NextResponse.next({ request: { headers: h } });
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -63,7 +84,7 @@ export async function middleware(req: NextRequest) {
     if (origenAjeno(req)) {
       return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
     }
-    return NextResponse.next();
+    return marcado(req);
   }
 
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -95,7 +116,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(mustChangePassword ? "/cambiar-clave" : "/dashboard", req.url));
   }
 
-  return NextResponse.next();
+  return marcado(req);
 }
 
 export const config = {

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canApproveActions } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { executeApprovedAction } from "@/lib/integrations/actions";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         status: "FAILED",
         error:
           "No se pudo ejecutar contra la cuenta real todavía (falta conectar el token de acceso). La acción quedó aprobada y registrada.",
-        detail: err instanceof Error ? err.message : String(err),
+        detail: mensajeSeguro(err),
       },
       { status: 202 }
     );

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { fetchProductCatalog, type ShopifyCatalogProduct } from "@/lib/integrations/shopify";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 // El catálogo completo de la tienda, para el selector de la calculadora.
 //
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
     // muestre el aviso, en vez de quedarse en blanco.
     return NextResponse.json(
       {
-        error: e instanceof Error ? e.message : "No se pudo leer el catálogo de Shopify.",
+        error: mensajeSeguro(e, "No se pudo leer el catálogo de Shopify."),
         productos: [],
         total: 0,
       },

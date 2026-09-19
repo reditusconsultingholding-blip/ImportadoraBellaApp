@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { canManageConexiones } from "@/lib/permissions";
 import { importarNotion } from "@/lib/integrations/notion-import";
 import { NotionError } from "@/lib/integrations/notion";
+import { mensajeSeguro } from "@/lib/respuesta";
 
 // El import puede leer varios cientos de filas y hacer una llamada por cada
 // página relacionada — se le da margen.
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "No se pudo completar el import." },
+      { error: mensajeSeguro(err, "No se pudo completar el import.") },
       { status: 500 }
     );
   }

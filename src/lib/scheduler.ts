@@ -17,6 +17,9 @@ import { repasoDiarioDeCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
 import { recifrarPendientes } from "@/lib/cifrado-repaso";
 import { precalentarPantallas } from "@/lib/precalentar";
+import { limpiarActividadVieja } from "@/lib/actividad";
+
+let ultimaLimpiezaActividad = "";
 
 // El reloj de la aplicación.
 //
@@ -84,6 +87,19 @@ async function soltarCandado(
 export async function sincronizarTodo() {
   const orgs = await db.organization.findMany({ select: { id: true } });
   const resumen: Record<string, string> = {};
+
+  // El seguimiento de actividad se guarda 90 días; lo viejo se borra una vez
+  // por día (ver src/lib/actividad.ts).
+  const hoyUtc = new Date().toISOString().slice(0, 10);
+  if (ultimaLimpiezaActividad !== hoyUtc) {
+    try {
+      const n = await limpiarActividadVieja();
+      ultimaLimpiezaActividad = hoyUtc;
+      if (n) resumen.actividad = `${n} registros de más de 90 días borrados`;
+    } catch (err) {
+      resumen.actividad = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
 
   // Los tokens de terceros que quedaron sin cifrar. Ver src/lib/cifrado-repaso.ts.
   try {

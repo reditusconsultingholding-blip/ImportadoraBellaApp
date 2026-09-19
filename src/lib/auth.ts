@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
+import { registrarPedido } from "@/lib/actividad";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 
@@ -104,6 +105,10 @@ export const getSession = cache(async function getSession(): Promise<SessionPayl
   if (!user) return null;
   // La clave cambió después de emitida esta cookie: sesión revocada.
   if (user.sessionVersion !== version) return null;
+
+  // Seguimiento de actividad: la pantalla o la acción de este pedido. No se
+  // espera: el registro nunca demora ni rompe la respuesta.
+  void registrarPedido(user);
 
   return {
     userId: user.id,

@@ -15,6 +15,14 @@ import { NextResponse } from "next/server";
 
 const MINIMO = 2048;
 
+// Son datos del negocio de alguien con sesión: el navegador no los guarda
+// (una computadora compartida no tiene que poder mostrarlos después).
+function sinCache(init?: ResponseInit) {
+  const h = new Headers(init?.headers);
+  if (!h.has("Cache-Control")) h.set("Cache-Control", "private, no-store");
+  return h;
+}
+
 async function aceptaGzip() {
   try {
     return ((await headers()).get("accept-encoding") ?? "").includes("gzip");
@@ -24,7 +32,7 @@ async function aceptaGzip() {
 }
 
 function comprimida(cuerpo: string, tipo: string, init?: ResponseInit) {
-  const h = new Headers(init?.headers);
+  const h = sinCache(init);
   h.set("Content-Type", tipo);
   h.set("Content-Encoding", "gzip");
   h.set("Vary", "Accept-Encoding");
@@ -34,7 +42,7 @@ function comprimida(cuerpo: string, tipo: string, init?: ResponseInit) {
 /** Como NextResponse.json, pero comprimida cuando conviene. */
 export async function jsonComprimido(datos: unknown, init?: ResponseInit) {
   const cuerpo = JSON.stringify(datos);
-  if (cuerpo.length < MINIMO || !(await aceptaGzip())) return NextResponse.json(datos, init);
+  if (cuerpo.length < MINIMO || !(await aceptaGzip())) return NextResponse.json(datos, { ...init, headers: sinCache(init) });
   return comprimida(cuerpo, "application/json", init);
 }
 
@@ -46,4 +54,27 @@ export async function textoComprimido(cuerpo: string, tipo: string, init?: Respo
     return new NextResponse(cuerpo, { status: init?.status ?? 200, headers: h });
   }
   return comprimida(cuerpo, tipo, init);
+}
+
+/**
+ * El texto de un error, apto para mostrarle a quien usa la app.
+ *
+ * Los mensajes propios ("ese dominio no es de Shopify", "Windsor respondió
+ * 401") se muestran tal cual: explican qué hacer. Los de la base (Prisma) y
+ * los de Node no: pueden traer nombres de tablas, columnas o pedazos de la
+ * consulta. Esos se registran en el log del servidor y a la pantalla llega un
+ * mensaje genérico.
+ */
+export function mensajeSeguro(err: unknown, generico = "Ocurrió un error inesperado. Prueba de nuevo en un momento.") {
+  const e = err as { name?: string; message?: string; code?: unknown } | null;
+  const interno =
+    !e ||
+    typeof e.message !== "string" ||
+    /^PrismaClient|^Prisma/.test(e.name ?? "") ||
+    /prisma|invocation|SELECT |INSERT |UPDATE |DELETE |ECONN|ETIMEDOUT|ENOTFOUND/i.test(e.message);
+  if (interno) {
+    console.error("[error interno]", err);
+    return generico;
+  }
+  return e.message as string;
 }

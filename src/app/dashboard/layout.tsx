@@ -13,6 +13,7 @@ import CapacitacionTour from "./capacitacion-tour";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
 import LiveRefresher from "./live-refresher";
+import RegistroBusquedas from "./registro-busquedas";
 import SidebarNav from "./sidebar-nav";
 import NotificationsBell from "./notifications-bell";
 import MobileNav from "./mobile-nav";
@@ -152,6 +153,7 @@ export default async function DashboardLayout({
           </div>
         </header>
         <LiveRefresher />
+        <RegistroBusquedas />
         <main className="w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
     </div>

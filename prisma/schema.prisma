@@ -77,6 +77,7 @@ model Organization {
   productAssets      ProductAsset[]
   referencias        Referencia[]
   jarvisChats        JarvisConversacion[]
+  actividades        ActividadUsuario[]
   rondas             Ronda[]
   cortes             CortePublicitario[]
   variablesProducto  VariableProducto[]
@@ -307,6 +308,7 @@ model User {
   chatReads               ChatRead[]
   assignedNotes           BoardNote[]          @relation("BoardNoteAssignee")
   jarvisChats             JarvisConversacion[]
+  actividades             ActividadUsuario[]
   noteComments            BoardNoteComment[]
   chatPins                ChatPin[]            @relation("ChatPinsCreated")
   vozPresencia            VoicePresence[]
@@ -1657,4 +1659,29 @@ model ResponsableProducto {
 
   @@id([productId, userId])
   @@index([userId])
+}
+
+// Seguimiento de actividad: qué pantallas abre cada persona, qué acciones
+// hace, qué descarga y qué busca. Lo ve solo el administrador (OWNER) en
+// Configuraciones → Seguimiento. Se registra en el SERVIDOR (ver
+// src/lib/actividad.ts): quien usa la app no puede apagarlo desde su
+// navegador. Se guarda 90 días.
+model ActividadUsuario {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  momento        DateTime     @default(now())
+  // entrada | salida | login_fallido | vista | accion | descarga | busqueda
+  tipo           String
+  // La pantalla o el endpoint, con sus filtros (?rango=30d&vista=…).
+  ruta           String
+  // Método HTTP para acciones, término buscado, motivo del fallo…
+  detalle        String?
+  ip             String?
+  navegador      String?
+
+  @@index([organizationId, userId, momento])
+  @@index([momento])
 }
