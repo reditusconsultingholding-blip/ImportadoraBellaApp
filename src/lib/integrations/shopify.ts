@@ -399,6 +399,8 @@ export type AtribucionOrden = {
   landingPage: string | null;
   origenFuente: string | null;
   origenTipo: string | null;
+  /** Los atributos del embudo, tal cual. Para auditar la clasificación. */
+  origenCrudo: string | null;
 };
 
 type VisitaJourney = {
@@ -414,6 +416,7 @@ type AtribucionPage = {
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
     nodes: {
       id: string;
+      customAttributes: { key: string; value: string | null }[] | null;
       customerJourneySummary: { lastVisit: VisitaJourney; firstVisit: VisitaJourney } | null;
     }[];
   };
@@ -425,6 +428,11 @@ const ATRIBUCION_QUERY = `
       pageInfo { hasNextPage endCursor }
       nodes {
         id
+        # Funnelish y Releasit cobran FUERA de Shopify: la tienda nunca ve la
+        # visita y el recorrido viene vacío. Lo que sí llega son estos
+        # atributos, que el propio embudo escribe en la orden con el utm, el
+        # fbclid o el ttclid con el que entró la persona.
+        customAttributes { key value }
         customerJourneySummary {
           lastVisit { source sourceType referrerUrl landingPage utmParameters { source medium campaign content } }
           firstVisit { source sourceType referrerUrl landingPage utmParameters { source medium campaign content } }
@@ -432,6 +440,62 @@ const ATRIBUCION_QUERY = `
       }
     }
   }`;
+
+/** Las llaves con las que cada embudo nombra lo mismo. */
+const LLAVES: Record<string, string[]> = {
+  utmSource: ["utm_source", "utmsource", "utm-source", "source", "origen", "fuente"],
+  utmMedium: ["utm_medium", "utmmedium", "utm-medium", "medium", "medio"],
+  utmCampaign: ["utm_campaign", "utmcampaign", "utm-campaign", "campaign", "campaña", "campana"],
+  utmContent: ["utm_content", "utmcontent", "utm-content", "content", "ad_id", "adid", "adset", "ad_name"],
+  referrerUrl: ["referrer", "referer", "referring_site", "http_referer", "ref"],
+  landingPage: ["landing_page", "landing", "landing_site", "url", "page"],
+};
+
+/** De los clics pagos: cada plataforma deja su propio identificador. */
+const CLICS: [RegExp, string][] = [
+  [/^fbclid$/i, "facebook"],
+  [/^ttclid$/i, "tiktok"],
+  [/^gclid$/i, "google"],
+  [/^msclkid$/i, "bing"],
+];
+
+function normalizarLlave(k: string) {
+  return k.trim().toLowerCase().replace(/^checkout[_-]?/, "").replace(/s+/g, "_");
+}
+
+/** Lo que el embudo dejó escrito en la orden, traducido a utm. */
+function atributos(lista: { key: string; value: string | null }[] | null) {
+  const salida = {
+    utmSource: null as string | null,
+    utmMedium: null as string | null,
+    utmCampaign: null as string | null,
+    utmContent: null as string | null,
+    referrerUrl: null as string | null,
+    landingPage: null as string | null,
+    origenFuente: null as string | null,
+    crudo: null as string | null,
+  };
+  if (!lista?.length) return salida;
+
+  const utiles: string[] = [];
+  for (const { key, value } of lista) {
+    const v = value?.trim();
+    if (!v) continue;
+    const k = normalizarLlave(key);
+    utiles.push(`${k}=${v}`);
+    for (const [campo, llaves] of Object.entries(LLAVES)) {
+      if (llaves.includes(k) && !salida[campo as keyof typeof salida]) {
+        (salida as Record<string, string | null>)[campo] = v.slice(0, 300);
+      }
+    }
+    // Un identificador de clic pago es tan buena señal como el utm: dice de
+    // qué plataforma vino aunque el embudo no haya copiado el utm_source.
+    const clic = CLICS.find(([r]) => r.test(k));
+    if (clic && !salida.origenFuente) salida.origenFuente = clic[1];
+  }
+  salida.crudo = utiles.length ? utiles.join(" · ").slice(0, 900) : null;
+  return salida;
+}
 
 /**
  * El origen de las órdenes de una ventana. `null` si la tienda no expone el
@@ -461,16 +525,20 @@ export async function fetchOrderAttribution(
         // primera sirve de respaldo cuando la última viene vacía (entró
         // directo porque ya conocía el link).
         const v = n.customerJourneySummary?.lastVisit ?? n.customerJourneySummary?.firstVisit ?? null;
+        const attr = atributos(n.customAttributes);
         salida.push({
           externalId: n.id.split("/").pop() ?? n.id,
-          utmSource: v?.utmParameters?.source ?? null,
-          utmMedium: v?.utmParameters?.medium ?? null,
-          utmCampaign: v?.utmParameters?.campaign ?? null,
-          utmContent: v?.utmParameters?.content ?? null,
-          referrerUrl: v?.referrerUrl ?? null,
-          landingPage: v?.landingPage ?? null,
-          origenFuente: v?.source ?? null,
-          origenTipo: v?.sourceType ?? null,
+          // El recorrido de Shopify manda; los atributos del embudo son el
+          // respaldo, y en esta tienda son casi siempre lo único que hay.
+          utmSource: v?.utmParameters?.source ?? attr.utmSource,
+          utmMedium: v?.utmParameters?.medium ?? attr.utmMedium,
+          utmCampaign: v?.utmParameters?.campaign ?? attr.utmCampaign,
+          utmContent: v?.utmParameters?.content ?? attr.utmContent,
+          referrerUrl: v?.referrerUrl ?? attr.referrerUrl,
+          landingPage: v?.landingPage ?? attr.landingPage,
+          origenFuente: v?.source ?? attr.origenFuente,
+          origenTipo: v?.sourceType ?? (attr.origenFuente ? "embudo" : null),
+          origenCrudo: attr.crudo,
         });
       }
 

@@ -91,9 +91,10 @@ export function clasificarOrigen(o: {
   referrerUrl: string | null;
   origenFuente: string | null;
   origenTipo: string | null;
+  origenCrudo?: string | null;
   atribucionAl: Date | null;
 }): { categoria: CategoriaOrigen; pista: string | null } {
-  const pistas = [o.utmSource, o.utmMedium, o.utmCampaign, o.referrerUrl, o.origenFuente, o.origenTipo].filter(
+  const pistas = [o.utmSource, o.utmMedium, o.utmCampaign, o.referrerUrl, o.origenFuente, o.origenCrudo].filter(
     (x): x is string => Boolean(x && x.trim()),
   );
 
@@ -135,6 +136,7 @@ async function reporteDeOrigenSinMemoria(organizationId: string, range: Range): 
         referrerUrl: string | null;
         origenFuente: string | null;
         origenTipo: string | null;
+        origenCrudo: string | null;
         atribucionAl: Date | null;
         telefono: string | null;
         anteriores: number;
@@ -142,7 +144,7 @@ async function reporteDeOrigenSinMemoria(organizationId: string, range: Range): 
     >`
       SELECT o."externalId", o."occurredAt", o."netSales"::float8 AS "netSales", o.channel,
              o."utmSource", o."utmMedium", o."utmCampaign", o."referrerUrl",
-             o."origenFuente", o."origenTipo", o."atribucionAl",
+             o."origenFuente", o."origenTipo", o."origenCrudo", o."atribucionAl",
              o."clienteTelefono" AS telefono,
              (SELECT count(*)::int FROM "ShopifyOrder" p
                WHERE p."storeId" = o."storeId"

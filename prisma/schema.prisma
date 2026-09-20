@@ -552,6 +552,11 @@ model ShopifyOrder {
   landingPage   String?
   origenFuente  String?
   origenTipo    String?
+  /** Los atributos que deja el embudo (Funnelish, Releasit) en la orden,
+      tal cual vinieron. Es la única fuente cuando el checkout es externo y
+      Shopify no registró ninguna visita. Se guarda crudo para poder auditar
+      de dónde salió cada clasificación. */
+  origenCrudo   String?
   /** Cuándo se leyó el recorrido. Null = todavía no se consultó. */
   atribucionAl  DateTime?
 

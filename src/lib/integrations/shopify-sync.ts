@@ -215,7 +215,7 @@ async function enriquecerOrigen(
       UPDATE "ShopifyOrder" o
          SET "utmSource" = v.src, "utmMedium" = v.med, "utmCampaign" = v.camp, "utmContent" = v.cont,
              "referrerUrl" = v.ref, "landingPage" = v.land,
-             "origenFuente" = v.fuente, "origenTipo" = v.tipo,
+             "origenFuente" = v.fuente, "origenTipo" = v.tipo, "origenCrudo" = v.crudo,
              "atribucionAl" = now()
         FROM (
           SELECT * FROM unnest(
@@ -227,8 +227,9 @@ async function enriquecerOrigen(
             ${lote.map((f) => f.referrerUrl)}::text[],
             ${lote.map((f) => f.landingPage)}::text[],
             ${lote.map((f) => f.origenFuente)}::text[],
-            ${lote.map((f) => f.origenTipo)}::text[]
-          ) AS t(ext, src, med, camp, cont, ref, land, fuente, tipo)
+            ${lote.map((f) => f.origenTipo)}::text[],
+            ${lote.map((f) => f.origenCrudo)}::text[]
+          ) AS t(ext, src, med, camp, cont, ref, land, fuente, tipo, crudo)
         ) v
        WHERE o."storeId" = ${store.id} AND o."externalId" = v.ext`;
   }
