@@ -11,6 +11,7 @@ import {
   rejillaDelMes,
 } from "@/lib/calendario-fechas";
 import { ESTADO_LOTE_LABEL, type EstadoLote } from "@/lib/contenido-opciones";
+import DiaDetalle from "./dia-detalle";
 
 // El calendario de contenido: cuándo tiene que estar listo cada lote. A
 // diferencia del calendario de eventos de la empresa, acá los días son
@@ -56,6 +57,9 @@ export default function CalendarioContenido() {
   const [agendando, setAgendando] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
+  // El día abierto en la ventana de detalle: al tocar la fecha se ven TODOS
+  // los deberes de ese día, no las seis etiquetas que entran en la casilla.
+  const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
 
   async function agendar(dia: string, titulo: string, hora: string) {
     setErrorAlta(null);
@@ -127,8 +131,9 @@ export default function CalendarioContenido() {
           </button>
         </div>
         <p className="text-xs text-muted">
-          Tocá <span className="font-medium text-foreground">+</span> en un día para agendar una
-          actividad. Los lotes se crean desde la ficha de cada producto.
+          Toca la <span className="font-medium text-foreground">fecha</span> para ver todos los deberes de ese día, o
+          el <span className="font-medium text-foreground">+</span> para agendar una actividad. Los lotes se crean desde
+          la ficha de cada producto.
         </p>
       </div>
 
@@ -153,17 +158,20 @@ export default function CalendarioContenido() {
                 className={`group relative min-h-[8rem] p-1 ${casilla.delMes ? "bg-surface" : "bg-surface-2/60"}`}
               >
                 <div className="flex items-center justify-between gap-1">
-                  <span
-                    className={`inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] ${
+                  <button
+                    type="button"
+                    onClick={() => setDiaAbierto(casilla.dia)}
+                    title="Ver todos los deberes de este día"
+                    className={`inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] transition hover:ring-2 hover:ring-accent/40 ${
                       esHoy
                         ? "bg-accent font-semibold text-white"
                         : casilla.delMes
-                          ? "text-foreground"
-                          : "text-muted/60"
+                          ? "text-foreground hover:bg-surface-2"
+                          : "text-muted/60 hover:bg-surface-2"
                     }`}
                   >
                     {Number(casilla.dia.slice(8))}
-                  </span>
+                  </button>
                   <span className="flex items-center gap-1">
                     {tareas > 0 && (
                       <span className="text-[9px] text-muted" title={`${tareas} tareas ese día`}>
@@ -240,9 +248,13 @@ export default function CalendarioContenido() {
                     </Link>
                   ))}
                   {tareas > (datos.etiquetasPorDia[casilla.dia]?.length ?? 0) && (
-                    <span className="px-1 text-[9px] text-muted">
+                    <button
+                      type="button"
+                      onClick={() => setDiaAbierto(casilla.dia)}
+                      className="px-1 text-left text-[9px] text-muted hover:text-foreground hover:underline"
+                    >
                       +{tareas - (datos.etiquetasPorDia[casilla.dia]?.length ?? 0)} más
-                    </span>
+                    </button>
                   )}
 
                   {eventos.map((e) => (
@@ -262,6 +274,20 @@ export default function CalendarioContenido() {
             );
           })}
       </div>
+
+      {diaAbierto && (
+        <DiaDetalle
+          dia={diaAbierto}
+          actividades={datos.actividadesPorDia[diaAbierto] ?? []}
+          eventos={(porDia.get(diaAbierto) ?? []).map((e) => ({
+            id: e.id,
+            titulo: e.titulo,
+            subtitulo: e.subtitulo,
+            href: e.href,
+          }))}
+          onCerrar={() => setDiaAbierto(null)}
+        />
+      )}
 
       {cargando && <p className="text-xs text-muted">Cargando…</p>}
       {!cargando && datos.eventos.length === 0 && (
