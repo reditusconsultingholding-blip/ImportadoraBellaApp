@@ -17,6 +17,10 @@ type Persona = {
   piezasDelPeriodo: number;
   pendientes: number;
   sinClasificar: number;
+  tareas: number;
+  tareasHechas: number;
+  tareasIncumplidas: number;
+  creativos: number;
   productosACargo: string[];
 };
 
@@ -30,13 +34,18 @@ const money = (n: number | null) =>
 export default function PanelRendimiento() {
   const [dias, setDias] = useState<(typeof DIAS)[number]>(30);
   const [equipo, setEquipo] = useState<Persona[] | null>(null);
+  // Los nombres escritos a mano en el día a día que no son de ningún usuario:
+  // ese trabajo no se le cuenta a nadie hasta que alguien diga de quién es.
+  const [sinEnlazar, setSinEnlazar] = useState<{ nombre: string; tareas: number }[]>([]);
 
   useEffect(() => {
     let cancelado = false;
     fetch(`/api/contenido/rendimiento?dias=${dias}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!cancelado) setEquipo(d?.equipo ?? []);
+        if (cancelado) return;
+        setEquipo(d?.equipo ?? []);
+        setSinEnlazar(d?.sinEnlazar ?? []);
       })
       .catch(() => {
         if (!cancelado) setEquipo([]);
@@ -48,7 +57,7 @@ export default function PanelRendimiento() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {DIAS.map((d) => (
           <button
             key={d}
@@ -62,13 +71,34 @@ export default function PanelRendimiento() {
             Últimos {d} días
           </button>
         ))}
+        {/* La misma tabla, en papel: se usa en la reunión de quincena y en la
+            evaluación de cada persona, donde no hay pantalla que mostrar. */}
+        <a
+          href={`/api/contenido/rendimiento/pdf?dias=${dias}`}
+          className="ml-auto rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-border-strong hover:text-foreground"
+        >
+          Descargar PDF
+        </a>
       </div>
+
+      {sinEnlazar.length > 0 && (
+        <div className="rounded border border-warning bg-pending-bg px-3 py-2 text-xs text-warning">
+          <span className="font-medium">
+            Hay tareas a nombre de alguien que no es un usuario:{" "}
+            {sinEnlazar.map((s) => `${s.nombre} (${s.tareas})`).join(", ")}.
+          </span>{" "}
+          <span className="text-muted">
+            Ese trabajo no se le suma a nadie. Si es el apodo de alguien del equipo, anótalo en Usuarios › editar ›
+            «Cómo aparece en el tablero» y pasa a contarle.
+          </span>
+        </div>
+      )}
 
       {equipo == null ? (
         <p className="text-sm text-muted">Cargando…</p>
       ) : equipo.length === 0 ? (
         <div className="rounded border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-muted">Todavía no hay piezas, lotes ni responsables en este período.</p>
+          <p className="text-sm text-muted">Todavía no hay tareas, piezas ni lotes en este período.</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded border border-border bg-surface">
@@ -77,6 +107,9 @@ export default function PanelRendimiento() {
               <thead>
                 <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted">
                   <th className="px-3 py-2">Integrante</th>
+                  <th className="px-3 py-2 text-right" title="Tareas del tablero día a día en el período">Día a día</th>
+                  <th className="px-3 py-2 text-right" title="Tareas del día a día cerradas como hechas">Cerradas</th>
+                  <th className="px-3 py-2 text-right" title="Creativos comprometidos en esas tareas">Creativos</th>
                   <th className="px-3 py-2 text-right" title="Piezas de Requerimientos asignadas en el período">Piezas</th>
                   <th className="px-3 py-2 text-right" title="Pendientes, en edición o para revisar">Abiertas</th>
                   <th className="px-3 py-2 text-right" title="Les falta formato, ángulo, awareness u otro campo">Sin clasificar</th>
@@ -100,6 +133,17 @@ export default function PanelRendimiento() {
                         </span>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p.tareas}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {p.tareasHechas}
+                      {p.tareas > 0 && (
+                        <span className="text-[10px] text-muted"> · {Math.round((p.tareasHechas / p.tareas) * 100)}%</span>
+                      )}
+                      {p.tareasIncumplidas > 0 && (
+                        <span className="block text-[10px] text-critical">{p.tareasIncumplidas} sin cumplir</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted">{p.creativos}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{p.piezasDelPeriodo}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${p.pendientes > 0 ? "text-warning" : "text-muted"}`}>{p.pendientes}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${p.sinClasificar > 0 ? "font-medium text-critical" : "text-muted"}`}>{p.sinClasificar}</td>

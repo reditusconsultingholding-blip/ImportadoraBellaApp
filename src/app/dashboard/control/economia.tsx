@@ -47,6 +47,7 @@ export default function Economia({
   anio,
   mes,
   productos,
+  pautados,
   variables,
   gastoAdm,
   enlaceAdm,
@@ -54,6 +55,8 @@ export default function Economia({
   anio: number;
   mes: number;
   productos: ProductoOpcion[];
+  /** Los que tuvieron gasto ese mes. Es el filtro por defecto de la tabla. */
+  pautados: string[];
   variables: Variable[];
   gastoAdm: number | null;
   enlaceAdm: string | null;
@@ -70,7 +73,10 @@ export default function Economia({
   const [adm, setAdm] = useState(gastoAdm === null ? "" : String(gastoAdm));
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState<string | null>(null);
-  const [soloCargados, setSoloCargados] = useState(false);
+  // Qué productos se listan. Por defecto los que se pautaron ese mes: la
+  // tabla traía el catálogo entero —incluidos los que no se pautan hace
+  // meses— y encontrar el que se busca era el trabajo.
+  const [filtro, setFiltro] = useState<"pautados" | "cargados" | "todos">("pautados");
   const [copiando, setCopiando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -172,7 +178,13 @@ export default function Economia({
     }
   }
 
-  const visibles = soloCargados ? productos.filter((p) => filas.has(p.id)) : productos;
+  const conPauta = useMemo(() => new Set(pautados), [pautados]);
+  const visibles =
+    filtro === "cargados"
+      ? productos.filter((p) => filas.has(p.id))
+      : filtro === "pautados"
+        ? productos.filter((p) => conPauta.has(p.id) || filas.has(p.id))
+        : productos;
   const campo =
     "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-sm tabular-nums outline-none hover:border-border focus:border-accent focus:bg-surface";
 
@@ -234,14 +246,28 @@ export default function Economia({
           >
             {copiando ? "Copiando…" : "Traer del mes anterior"}
           </button>
-          <label className="flex items-center gap-1.5 text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={soloCargados}
-              onChange={(e) => setSoloCargados(e.target.checked)}
-            />
-            Solo los que tienen datos ({filas.size})
-          </label>
+          <span className="flex flex-wrap gap-1">
+            {(
+              [
+                ["pautados", `Pautados este mes (${productos.filter((p) => conPauta.has(p.id) || filas.has(p.id)).length})`],
+                ["cargados", `Con datos (${filas.size})`],
+                ["todos", `Todos (${productos.length})`],
+              ] as const
+            ).map(([id, texto]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setFiltro(id)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                  filtro === id
+                    ? "border-accent bg-good-bg text-accent-strong"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                {texto}
+              </button>
+            ))}
+          </span>
         </div>
       </div>
 

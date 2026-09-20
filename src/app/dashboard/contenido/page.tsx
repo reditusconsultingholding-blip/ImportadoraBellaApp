@@ -10,6 +10,7 @@ import GestionCampanas from "./gestion-campanas";
 import PanelRendimiento from "./panel-rendimiento";
 import Requerimientos from "./requerimientos";
 import { EncabezadoSeccion } from "../encabezado-seccion";
+import { productosPautadosRecientes } from "@/lib/pautados";
 
 const VISTAS = [
   "calendario",
@@ -101,12 +102,18 @@ export default async function ContenidoPage({
           },
         })
       : [];
+  // Cuáles se están pautando ahora mismo. Es con lo que abren las tarjetas:
+  // el catálogo entero son ciento y pico productos y casi ninguno está vivo.
+  const pautados = new Set(
+    vista === "requerimientos" ? await productosPautadosRecientes(session.organizationId) : [],
+  );
   const productosConFicha = products.map((p) => {
     const f = fichas.find((x) => x.id === p.id);
     return {
       ...p,
       angulosPropios: f?.angulosPropios ?? [],
       responsables: f?.responsables.map((r) => r.user) ?? [],
+      pautado: pautados.has(p.id),
     };
   });
 

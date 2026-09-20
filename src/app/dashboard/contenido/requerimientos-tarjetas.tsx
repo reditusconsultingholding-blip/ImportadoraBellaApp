@@ -49,6 +49,10 @@ export default function RequerimientosTarjetas({
 }) {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  // Se abre con los que se están pautando. El resto del catálogo sigue a un
+  // clic: son más de cien productos y en un mes se pautan veinte o treinta,
+  // así que mostrarlos todos era hacer bajar y bajar para encontrar el de hoy.
+  const [soloPautados, setSoloPautados] = useState(true);
   const [hoy] = useState(hoyEcuador);
 
   const tarjetas = useMemo<Tarjeta[]>(() => {
@@ -71,7 +75,10 @@ export default function RequerimientosTarjetas({
       // va a cargar las de hoy. Dirección ve los que tienen piezas o responsables.
       const visibles = productos.filter((p) => {
         const mio = p.responsables.some((r) => r.id === currentUserId);
-        return canManage ? porClave.has(p.id) || p.responsables.length > 0 : mio || porClave.has(p.id);
+        const suyo = canManage ? porClave.has(p.id) || p.responsables.length > 0 : mio || porClave.has(p.id);
+        // Un producto con piezas cargadas se ve siempre, esté o no pautado:
+        // puede ser uno que recién se está preparando para salir.
+        return suyo && (!soloPautados || p.pautado || porClave.has(p.id));
       });
       lista = visibles.map((p) => {
         const piezas = porClave.get(p.id) ?? [];
@@ -104,7 +111,20 @@ export default function RequerimientosTarjetas({
     // Primero lo que tiene trabajo hoy, después lo que tiene piezas sin
     // clasificar, después el resto por nombre.
     return lista.sort((a, b) => b.hoy - a.hoy || b.sinClasificar - a.sinClasificar || a.titulo.localeCompare(b.titulo));
-  }, [filas, productos, users, modo, canManage, currentUserId, busqueda, hoy]);
+  }, [filas, productos, users, modo, canManage, currentUserId, busqueda, hoy, soloPautados]);
+
+  // Cuántos se están dejando fuera, contados con la misma regla de permisos
+  // que arriba: ofrecer "ver 80 más" cuando en realidad ninguno es suyo sería
+  // un número inventado.
+  const ocultos = useMemo(() => {
+    if (modo !== "producto") return 0;
+    const conPiezas = new Set(filas.map((r) => r.productId).filter(Boolean));
+    return productos.filter((p) => {
+      const mio = p.responsables.some((r) => r.id === currentUserId);
+      const suyo = canManage ? conPiezas.has(p.id) || p.responsables.length > 0 : mio || conPiezas.has(p.id);
+      return suyo && !p.pautado && !conPiezas.has(p.id);
+    }).length;
+  }, [modo, filas, productos, canManage, currentUserId]);
 
   const actual = tarjetas.find((t) => t.clave === abierta) ?? null;
 
@@ -116,13 +136,24 @@ export default function RequerimientosTarjetas({
 
   return (
     <div className="flex flex-col gap-4">
-      <input
-        type="search"
-        value={busqueda}
-        onChange={(e) => setBusqueda(e.target.value)}
-        placeholder={modo === "producto" ? "Buscar producto o responsable…" : "Buscar persona…"}
-        className="max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder={modo === "producto" ? "Buscar producto o responsable…" : "Buscar persona…"}
+          className="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+        />
+        {modo === "producto" && (ocultos > 0 || !soloPautados) && (
+          <button
+            type="button"
+            onClick={() => setSoloPautados((v) => !v)}
+            className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted transition hover:border-border-strong hover:text-foreground"
+          >
+            {soloPautados ? `Ver también los que no se están pautando (${ocultos})` : "Ver solo los que se están pautando"}
+          </button>
+        )}
+      </div>
 
       {tarjetas.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">

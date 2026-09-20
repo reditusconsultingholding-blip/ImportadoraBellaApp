@@ -12,6 +12,7 @@ type UserRow = {
   canViewPayroll: boolean;
   mustChangePassword: boolean;
   position: string | null;
+  apodos?: string[];
   createdAt: string;
 };
 
@@ -72,6 +73,7 @@ export default function UsersManager({
     role: string;
     canViewPayroll: boolean;
     newPassword: string;
+    apodos: string;
   } | null>(null);
 
   function startEdit(u: UserRow) {
@@ -84,6 +86,7 @@ export default function UsersManager({
       role: u.role,
       canViewPayroll: u.canViewPayroll,
       newPassword: "",
+      apodos: (u.apodos ?? []).join(", "),
     });
   }
 
@@ -125,6 +128,7 @@ export default function UsersManager({
       name: draft.name,
       email: draft.email,
       role: draft.role,
+      apodos: draft.apodos,
     };
     if (canGrantPayroll) payload.canViewPayroll = draft.canViewPayroll;
     if (draft.newPassword) payload.newPassword = draft.newPassword;
@@ -214,6 +218,19 @@ export default function UsersManager({
             required
             className={inputClass}
                           />
+                        </label>
+                        <label className="block sm:col-span-2">
+                          <span className={labelClass}>Cómo aparece en el tablero</span>
+                          <input
+            value={draft.apodos}
+            onChange={(e) => setDraft({ ...draft, apodos: e.target.value })}
+            placeholder="MAJO, Majo"
+            className={inputClass}
+                          />
+                          <span className="mt-1 block text-[11px] text-muted">
+                            Los nombres con que la escriben en el día a día, separados por coma. Sirven para contarle
+                            su trabajo en Rendimiento cuando la tarea no quedó enlazada a su usuario.
+                          </span>
                         </label>
                         <label className="block">
                           <span className={labelClass}>Correo</span>

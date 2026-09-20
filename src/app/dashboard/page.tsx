@@ -70,7 +70,12 @@ export default async function DashboardPage({
   // el permiso devuelve la CANTIDAD de órdenes y ni siquiera trae el campo de
   // facturación, así que es la única parte de las ventas que ve todo el
   // equipo.
-  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo] = await Promise.all([
+  // Hoy, siempre a la vista. El panel abre con el período que quedó elegido
+  // —muchas veces el mes— y para saber cómo viene el día había que cambiar el
+  // filtro y volverlo a dejar como estaba. Cuando el período YA es hoy no se
+  // pide: sería la misma consulta dos veces.
+  const rangoHoy = range.id === "hoy" ? null : resolveRange("hoy");
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy] = await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
@@ -82,6 +87,9 @@ export default async function DashboardPage({
     verCifras ? resumenSinProducto(session.organizationId, range) : null,
     // A qué hora compran y cuántas ventas van: la tira de arriba.
     ritmoDeVentas(session.organizationId, range),
+    rangoHoy ? ritmoDeVentas(session.organizationId, rangoHoy) : null,
+    rangoHoy && verCifras ? getOverview(session.organizationId, "META", rangoHoy) : null,
+    rangoHoy && verCifras ? getOverview(session.organizationId, "TIKTOK", rangoHoy) : null,
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -128,6 +136,15 @@ export default async function DashboardPage({
         verCifras={verCifras}
         meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases }}
         tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases }}
+        hoy={
+          ritmoHoy
+            ? {
+                ritmo: ritmoHoy,
+                gasto: (metaHoy?.totalSpend ?? 0) + (tiktokHoy?.totalSpend ?? 0),
+                conGasto: Boolean(metaHoy),
+              }
+            : null
+        }
       />
 
       {/* Ventas de Shopify: facturación, ticket promedio y desglose por canal.

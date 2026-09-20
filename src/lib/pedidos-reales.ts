@@ -66,7 +66,7 @@ async function nombresDistintos(organizationId: string): Promise<{ nombre: strin
 }
 
 /** Clasifica cada nombre de línea de pedido distinto de la organización. */
-async function clasificarNombres(organizationId: string) {
+export async function clasificarNombres(organizationId: string) {
   const [nombres, enlaces, excluidos] = await Promise.all([
     nombresDistintos(organizationId),
     db.productoShopify.findMany({

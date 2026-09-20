@@ -34,6 +34,8 @@ export type ProductoFicha = {
   name: string;
   angulosPropios: string[];
   responsables: { id: string; name: string }[];
+  /** Tuvo gasto publicitario en los últimos treinta días. */
+  pautado?: boolean;
 };
 
 const CLASIFICACION = ["adType", "phase", "visualFormat", "angle", "awarenessLevel", "marketOrigin"] as const;

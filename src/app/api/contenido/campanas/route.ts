@@ -24,6 +24,25 @@ export async function GET(req: NextRequest) {
   // defecto todas; la pantalla pide "activas" al abrir.
   const estado = req.nextUrl.searchParams.get("estado"); // activas | inactivas
 
+  // Qué campaña está ENCENDIDA.
+  //
+  // Antes se miraba Campaign.status, que se escribe "ACTIVE" al crearla y no
+  // se vuelve a tocar: Windsor no informa el estado, así que las 3.267 figuran
+  // activas y el filtro "Inactivas" siempre salía vacío. Lo que el equipo
+  // llama encendida es la que está gastando, así que se resuelve por el gasto
+  // de los últimos siete días.
+  const conGasto = await db.metricSnapshot.groupBy({
+    by: ["campaignId"],
+    where: {
+      campaign: { adAccount: { organizationId: session.organizationId } },
+      capturedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+      spend: { gt: 0 },
+    },
+    _sum: { spend: true },
+  });
+  const activas = new Set(conGasto.map((g) => g.campaignId));
+  const gastoDe = new Map(conGasto.map((g) => [g.campaignId, g._sum.spend ?? 0]));
+
   const [campanas, manuales] = await Promise.all([
     db.campaign.findMany({
       where: {
@@ -38,7 +57,11 @@ export async function GET(req: NextRequest) {
             }
           : {}),
         ...(soloSinProducto ? { productId: null } : {}),
-        ...(estado === "activas" ? { status: "ACTIVE" } : estado === "inactivas" ? { status: { not: "ACTIVE" } } : {}),
+        ...(estado === "activas"
+          ? { id: { in: [...activas] } }
+          : estado === "inactivas"
+            ? { id: { notIn: [...activas] } }
+            : {}),
       },
       orderBy: { name: "asc" },
       take: 300,
@@ -75,23 +98,9 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // Lo que gastó cada campaña en los últimos siete días. Ordena la lista —lo
-  // que más mueve arriba— y dice de un vistazo si una "activa" en realidad no
-  // está gastando nada.
-  const gastos = campanas.length
-    ? await db.metricSnapshot.groupBy({
-        by: ["campaignId"],
-        where: {
-          campaignId: { in: campanas.map((c) => c.id) },
-          capturedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
-        },
-        _sum: { spend: true },
-      })
-    : [];
-  const gastoDe = new Map(gastos.map((g) => [g.campaignId, g._sum.spend ?? 0]));
   campanas.sort(
     (a, b) =>
-      Number(b.status === "ACTIVE") - Number(a.status === "ACTIVE") ||
+      Number(activas.has(b.id)) - Number(activas.has(a.id)) ||
       (gastoDe.get(b.id) ?? 0) - (gastoDe.get(a.id) ?? 0) ||
       a.name.localeCompare(b.name),
   );
@@ -107,7 +116,7 @@ export async function GET(req: NextRequest) {
       plataforma: c.adAccount.platform,
       cuenta: c.adAccount.name,
       gasto7d: gastoDe.get(c.id) ?? 0,
-      activa: c.status === "ACTIVE",
+      activa: activas.has(c.id),
       productId: c.productId,
       producto: c.product,
       productManual: c.productManual,

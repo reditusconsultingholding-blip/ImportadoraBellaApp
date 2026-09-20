@@ -29,7 +29,7 @@ type Evento = {
   href: string;
 };
 
-type Etiqueta = { id: string; texto: string; estado: string; responsable: string | null };
+type Etiqueta = { id: string; texto: string; estado: string; tareas: number; hechas: number; detalle: string };
 type Actividad = { id: string; titulo: string; hora: string | null; quien: string };
 type Datos = {
   eventos: Evento[];
@@ -131,9 +131,10 @@ export default function CalendarioContenido() {
           </button>
         </div>
         <p className="text-xs text-muted">
-          Toca la <span className="font-medium text-foreground">fecha</span> para ver todos los deberes de ese día, o
-          el <span className="font-medium text-foreground">+</span> para agendar una actividad. Los lotes se crean desde
-          la ficha de cada producto.
+          Cada etiqueta es una persona con su carga del día. Tócala —o toca la{" "}
+          <span className="font-medium text-foreground">fecha</span>— para ver qué tiene que entregar, o el{" "}
+          <span className="font-medium text-foreground">+</span> para agendar una actividad. Los lotes se crean desde la
+          ficha de cada producto.
         </p>
       </div>
 
@@ -231,29 +232,34 @@ export default function CalendarioContenido() {
                       <span className="opacity-60"> · {a.quien}</span>
                     </span>
                   ))}
-                  {/* Las tareas del día, como en Notion: la etiqueta con el
-                      nombre del producto y el color de su estado. Antes acá
-                      solo había un "7 tareas" arriba a la derecha, y un número
-                      no deja ver de qué es el trabajo ni cómo viene. */}
-                  {(datos.etiquetasPorDia[casilla.dia] ?? []).map((t) => (
-                    <Link
+                  {/* Quién trabaja ese día, una etiqueta por persona con su
+                      carga y su estado. Antes había una etiqueta por tarea con
+                      el nombre del producto: un día con treinta piezas
+                      mostraba seis productos sueltos y "+24 más", que no deja
+                      ver ni quién está cargado ni cómo viene el día. */}
+                  {(datos.etiquetasPorDia[casilla.dia] ?? []).slice(0, 5).map((t) => (
+                    <button
                       key={t.id}
-                      href={`/dashboard/contenido?vista=tablero#${casilla.dia}`}
-                      title={`${t.texto}${t.responsable ? ` · ${t.responsable}` : ""}`}
-                      className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight transition hover:opacity-80 ${
+                      type="button"
+                      onClick={() => setDiaAbierto(casilla.dia)}
+                      title={`${t.texto}: ${t.hechas} de ${t.tareas} cerradas · ${t.detalle}`}
+                      className={`flex w-full items-center justify-between gap-1 truncate rounded px-1 py-0.5 text-[10px] leading-tight transition hover:opacity-80 ${
                         TONO_ETIQUETA[t.estado] ?? TONO_ETIQUETA.PENDIENTE
                       }`}
                     >
-                      {t.texto}
-                    </Link>
+                      <span className="truncate">{t.texto}</span>
+                      <span className="shrink-0 tabular-nums opacity-70">
+                        {t.hechas}/{t.tareas}
+                      </span>
+                    </button>
                   ))}
-                  {tareas > (datos.etiquetasPorDia[casilla.dia]?.length ?? 0) && (
+                  {(datos.etiquetasPorDia[casilla.dia]?.length ?? 0) > 5 && (
                     <button
                       type="button"
                       onClick={() => setDiaAbierto(casilla.dia)}
                       className="px-1 text-left text-[9px] text-muted hover:text-foreground hover:underline"
                     >
-                      +{tareas - (datos.etiquetasPorDia[casilla.dia]?.length ?? 0)} más
+                      +{(datos.etiquetasPorDia[casilla.dia]?.length ?? 0) - 5} personas más
                     </button>
                   )}
 

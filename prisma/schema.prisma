@@ -293,6 +293,13 @@ model User {
   // borra al usarse. Ver src/app/api/auth/recuperar.
   claveResetHash        String?      @unique
   claveResetVence       DateTime?
+  // Cómo la nombra el equipo en el tablero.
+  //
+  // El día a día se cargaba escribiendo el nombre a mano —"MAJO", "ANA"— y
+  // esas filas no se le contaban a nadie: en el reporte de rendimiento María
+  // José aparecía en cero con 170 tareas cargadas. Acá se anotan esos apodos
+  // y el cruce por nombre los reconoce.
+  apodos                String[]     @default([])
   birthDate             DateTime?
   phone                 String?
   organizationId        String

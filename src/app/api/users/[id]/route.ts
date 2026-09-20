@@ -25,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     role?: string;
     canViewPayroll?: boolean;
     newPassword?: string;
+    apodos?: string[] | string;
   };
 
   const data: {
@@ -35,9 +36,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     passwordHash?: string;
     mustChangePassword?: boolean;
     sessionVersion?: { increment: number };
+    apodos?: string[];
   } = {};
 
   if (body.name?.trim()) data.name = body.name.trim();
+
+  // Cómo la nombra el equipo en el tablero: "MAJO", "ANA". Se limpian y se
+  // guardan sin repetidos; una lista vacía borra los que había.
+  if (body.apodos !== undefined) {
+    const crudos = Array.isArray(body.apodos) ? body.apodos : String(body.apodos).split(",");
+    data.apodos = [...new Set(crudos.map((a) => a.trim()).filter(Boolean).map((a) => a.slice(0, 60)))].slice(0, 10);
+  }
 
   if (body.email?.trim()) {
     const email = body.email.trim().toLowerCase();

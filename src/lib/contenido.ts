@@ -107,12 +107,17 @@ export type EventoContenido = {
   href: string;
 };
 
-/** Una tarea del día, como etiqueta para el calendario. */
+/** Una persona con trabajo ese día, como etiqueta para el calendario. */
 export type EtiquetaDia = {
   id: string;
+  /** El nombre de quien lleva las tareas. */
   texto: string;
+  /** El estado del conjunto: cerrado, en curso, pendiente o incumplido. */
   estado: string;
-  responsable: string | null;
+  tareas: number;
+  hechas: number;
+  /** Los productos que toca ese día, para el título al pasar el mouse. */
+  detalle: string;
 };
 
 export type CalendarioContenido = {
@@ -120,17 +125,16 @@ export type CalendarioContenido = {
   /** Cuántas tareas del tablero día a día caen cada día del mes. */
   tareasPorDia: Record<string, number>;
   /**
-   * Las tareas de cada día, como etiquetas.
+   * Quién tiene trabajo cada día, una etiqueta por persona.
    *
-   * Antes el calendario traía solo el CONTEO por día, y un número no dice
-   * nada: un "7" no deja ver si el trabajo de mañana está repartido ni de qué
-   * producto es. Se pidió verlo como en Notion —las etiquetas dentro del día—
-   * y para eso hace falta la lista, no la suma.
+   * Primero fue el conteo ("7 tareas"), que no dice nada. Después una etiqueta
+   * por tarea con el nombre del producto, que llenaba la casilla: un día con
+   * treinta piezas mostraba seis productos sueltos y "+24 más".
    *
-   * Se recortan a seis por día en el servidor: un día con cuarenta tareas
-   * rompería la celda, y nadie lee cuarenta etiquetas de un vistazo. El conteo
-   * completo sigue estando, así que la celda puede decir cuántas quedaron
-   * fuera.
+   * Lo que se mira en un calendario de equipo es quién está cargado, no qué
+   * producto se toca —eso ya está en Requerimientos—. Así que cada día trae
+   * una etiqueta por persona con cuántas lleva y cuántas cerró, y el detalle
+   * completo se abre tocando el día.
    */
   etiquetasPorDia: Record<string, EtiquetaDia[]>;
   /**
@@ -229,22 +233,44 @@ export async function calendarioContenido(
     tareasPorDia[t.fecha.toISOString().slice(0, 10)] = t._count._all;
   }
 
-  // Seis por día: más que eso no se lee y rompe la celda. El conteo total
-  // sigue completo, así que la celda puede decir cuántas quedaron fuera.
-  const etiquetasPorDia: Record<string, EtiquetaDia[]> = {};
+  // Una etiqueta por persona y por día. El estado del conjunto sigue la regla
+  // del semáforo: si algo quedó sin cumplir manda el rojo, si todo está
+  // cerrado manda el verde, y en el medio está lo que está en curso.
+  const porDiaYPersona = new Map<string, Map<string, EtiquetaDia & { productos: Set<string> }>>();
   for (const t of detalle) {
     if (!t.fecha) continue;
-    const clave = t.fecha.toISOString().slice(0, 10);
-    const lista = etiquetasPorDia[clave] ?? [];
-    if (lista.length < 6) {
-      lista.push({
-        id: t.id,
-        texto: t.product?.name ?? t.productoTexto ?? "Sin producto",
-        estado: t.estado,
-        responsable: t.owner?.name ?? t.responsableTexto ?? null,
-      });
-    }
-    etiquetasPorDia[clave] = lista;
+    const dia = t.fecha.toISOString().slice(0, 10);
+    const quien = t.owner?.name ?? t.responsableTexto ?? "Sin responsable";
+    const personas = porDiaYPersona.get(dia) ?? new Map();
+    const e = personas.get(quien) ?? {
+      id: `${dia}:${quien}`,
+      texto: quien.split(" ")[0],
+      estado: "HECHO",
+      tareas: 0,
+      hechas: 0,
+      detalle: "",
+      productos: new Set<string>(),
+    };
+    e.tareas += 1;
+    if (t.estado === "HECHO") e.hechas += 1;
+    e.estado =
+      e.estado === "NO_CUMPLIDO" || t.estado === "NO_CUMPLIDO"
+        ? "NO_CUMPLIDO"
+        : e.estado === "EN_PROGRESO" || t.estado === "EN_PROGRESO"
+          ? "EN_PROGRESO"
+          : t.estado === "HECHO" && e.estado === "HECHO"
+            ? "HECHO"
+            : "PENDIENTE";
+    e.productos.add(t.product?.name ?? t.productoTexto ?? "Sin producto");
+    personas.set(quien, e);
+    porDiaYPersona.set(dia, personas);
+  }
+
+  const etiquetasPorDia: Record<string, EtiquetaDia[]> = {};
+  for (const [dia, personas] of porDiaYPersona) {
+    etiquetasPorDia[dia] = [...personas.values()]
+      .sort((a, b) => b.tareas - a.tareas || a.texto.localeCompare(b.texto))
+      .map(({ productos, ...e }) => ({ ...e, detalle: [...productos].join(" · ") }));
   }
 
   // El día y la hora de Ecuador de cada evento: el inicio es un instante.
@@ -296,6 +322,19 @@ export type RendimientoPersona = {
   piezasDelPeriodo: number;
   pendientes: number;
   sinClasificar: number;
+  /**
+   * El día a día, que es donde de verdad se reparte el trabajo.
+   *
+   * Requerimientos guarda las PIEZAS y buena parte vino de una importación sin
+   * responsable; el tablero del día a día es lo que el equipo carga a mano
+   * todas las mañanas. Un reporte de rendimiento que solo mirara las piezas
+   * mostraba ceros para todo el mundo, que es peor que no mostrar nada: se lee
+   * como "nadie trabajó".
+   */
+  tareas: number;
+  tareasHechas: number;
+  tareasIncumplidas: number;
+  creativos: number;
   /** Los productos que lleva, según PRODUCTOS ORDEN de Notion. */
   productosACargo: string[];
 };
@@ -308,7 +347,7 @@ export async function rendimientoDelEquipo(
 ): Promise<RendimientoPersona[]> {
   const usuarios = await db.user.findMany({
     where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, apodos: true },
   });
 
   // Las piezas del período, por persona, para contar abiertas y sin clasificar.
@@ -316,7 +355,7 @@ export async function rendimientoDelEquipo(
   // primer día a la del día siguiente al último.
   const inicio = new Date(desde.getTime() + 5 * 3600_000);
   const fin = new Date(hasta.getTime() + 29 * 3600_000);
-  const [delPeriodo, aCargo] = await Promise.all([
+  const [delPeriodo, aCargo, tareas] = await Promise.all([
     db.requirement.findMany({
       where: { organizationId, ownerId: { not: null }, date: { gte: inicio, lt: fin } },
       select: {
@@ -334,6 +373,12 @@ export async function rendimientoDelEquipo(
       where: { product: { organizationId, archived: false } },
       select: { userId: true, product: { select: { name: true } } },
     }),
+    // El día a día. `fecha` es marca de día a medianoche UTC, así que se
+    // compara contra los límites tal cual, sin el ajuste de -5h.
+    db.tareaDiaria.findMany({
+      where: { organizationId, fecha: { gte: desde, lte: hasta } },
+      select: { ownerId: true, responsableTexto: true, estado: true, numeroCreativos: true },
+    }),
   ]);
   const ABIERTOS = new Set(["PENDIENTE", "EN_EDICION", "LISTO_PARA_REVISAR"]);
   const porPersona = new Map<string, { total: number; pendientes: number; sinClasificar: number }>();
@@ -348,6 +393,29 @@ export async function rendimientoDelEquipo(
   }
   const productosDe = new Map<string, string[]>();
   for (const x of aCargo) productosDe.set(x.userId, [...(productosDe.get(x.userId) ?? []), x.product.name]);
+
+  // Las tareas por persona. Muchas filas del tablero traen el nombre escrito a
+  // mano y no el usuario enlazado —así se cargaban antes de que el tablero
+  // tuviera responsable—, así que se cruza también por nombre; si no coincide
+  // con nadie, la tarea no se le cuenta a ninguno.
+  const porNombre = new Map<string, string>();
+  for (const u of usuarios) {
+    porNombre.set(u.name.trim().toLowerCase(), u.id);
+    for (const apodo of u.apodos) porNombre.set(apodo.trim().toLowerCase(), u.id);
+    const pila = u.name.trim().split(/\s+/)[0]?.toLowerCase();
+    if (pila && !porNombre.has(pila)) porNombre.set(pila, u.id);
+  }
+  const tareasDe = new Map<string, { tareas: number; hechas: number; incumplidas: number; creativos: number }>();
+  for (const t of tareas) {
+    const id = t.ownerId ?? porNombre.get((t.responsableTexto ?? "").trim().toLowerCase()) ?? null;
+    if (!id) continue;
+    const a = tareasDe.get(id) ?? { tareas: 0, hechas: 0, incumplidas: 0, creativos: 0 };
+    a.tareas += 1;
+    if (t.estado === "HECHO") a.hechas += 1;
+    if (t.estado === "NO_CUMPLIDO") a.incumplidas += 1;
+    a.creativos += t.numeroCreativos ?? 0;
+    tareasDe.set(id, a);
+  }
 
   const [piezas, winners, lotes, campanasConRonda] = await Promise.all([
     db.requirement.groupBy({
@@ -423,6 +491,10 @@ export async function rendimientoDelEquipo(
         piezasDelPeriodo: porPersona.get(u.id)?.total ?? 0,
         pendientes: porPersona.get(u.id)?.pendientes ?? 0,
         sinClasificar: porPersona.get(u.id)?.sinClasificar ?? 0,
+        tareas: tareasDe.get(u.id)?.tareas ?? 0,
+        tareasHechas: tareasDe.get(u.id)?.hechas ?? 0,
+        tareasIncumplidas: tareasDe.get(u.id)?.incumplidas ?? 0,
+        creativos: tareasDe.get(u.id)?.creativos ?? 0,
         productosACargo: (productosDe.get(u.id) ?? []).sort(),
       };
     })
@@ -432,7 +504,50 @@ export async function rendimientoDelEquipo(
         p.piezasEntregadas > 0 ||
         p.campanas > 0 ||
         p.piezasDelPeriodo > 0 ||
+        p.tareas > 0 ||
         p.productosACargo.length > 0,
     )
-    .sort((a, b) => b.piezasDelPeriodo - a.piezasDelPeriodo || b.piezasEntregadas - a.piezasEntregadas);
+    .sort(
+      (a, b) =>
+        b.tareas - a.tareas || b.piezasDelPeriodo - a.piezasDelPeriodo || b.piezasEntregadas - a.piezasEntregadas,
+    );
+}
+
+/**
+ * Los nombres del día a día que no son de nadie.
+ *
+ * El tablero permite escribir el responsable a mano, y así entraron 170
+ * tareas a nombre de "MAJO" que en el reporte no se le contaban a María José:
+ * aparecía en cero habiendo trabajado todo el mes. En vez de adivinar, se
+ * muestran acá para que dirección los anote como apodo en Usuarios.
+ */
+export async function nombresSinEnlazar(organizationId: string, desde: Date, hasta: Date) {
+  const [usuarios, tareas] = await Promise.all([
+    db.user.findMany({
+      where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
+      select: { name: true, apodos: true },
+    }),
+    db.tareaDiaria.findMany({
+      where: { organizationId, ownerId: null, fecha: { gte: desde, lte: hasta } },
+      select: { responsableTexto: true },
+    }),
+  ]);
+
+  const conocidos = new Set<string>();
+  for (const u of usuarios) {
+    conocidos.add(u.name.trim().toLowerCase());
+    for (const a of u.apodos) conocidos.add(a.trim().toLowerCase());
+    const pila = u.name.trim().split(/\s+/)[0]?.toLowerCase();
+    if (pila) conocidos.add(pila);
+  }
+
+  const cuenta = new Map<string, number>();
+  for (const t of tareas) {
+    const texto = (t.responsableTexto ?? "").trim();
+    if (!texto || conocidos.has(texto.toLowerCase())) continue;
+    cuenta.set(texto, (cuenta.get(texto) ?? 0) + 1);
+  }
+  return [...cuenta.entries()]
+    .map(([nombre, tareas]) => ({ nombre, tareas }))
+    .sort((a, b) => b.tareas - a.tareas);
 }

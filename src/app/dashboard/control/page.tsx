@@ -11,6 +11,10 @@ import Resultados from "./resultados";
 import Economia from "./economia";
 import Enlazar from "./enlazar";
 import { resolverPeriodo } from "@/lib/control-opciones";
+import { testeosDelPeriodo } from "@/lib/testeos";
+import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
+import Testeos from "./testeos";
+import { productosPautadosDelMes } from "@/lib/pautados";
 
 // El control de gastos publicitarios.
 //
@@ -24,7 +28,7 @@ import { resolverPeriodo } from "@/lib/control-opciones";
 // src/lib/control-publicitario.ts: los pedidos son los reales de la tienda, y
 // los gastos operativos usan producción más flete.
 
-const VISTAS = ["resultados", "economia", "enlazar"] as const;
+const VISTAS = ["resultados", "economia", "enlazar", "testeos"] as const;
 type Vista = (typeof VISTAS)[number];
 const esVista = (v: string | undefined): v is Vista =>
   Boolean(v && (VISTAS as readonly string[]).includes(v));
@@ -107,7 +111,7 @@ export default async function ControlPage({
   } else if (vista === "economia") {
     const anio = Number(p.anio) || hoy.getUTCFullYear();
     const mes = Number(p.mes) || hoy.getUTCMonth() + 1;
-    const [variables, gastoAdm] = await Promise.all([
+    const [variables, gastoAdm, conGasto] = await Promise.all([
       db.variableProducto.findMany({
         where: { organizationId: session.organizationId, anio, mes },
         select: {
@@ -124,15 +128,39 @@ export default async function ControlPage({
         where: { organizationId_anio_mes: { organizationId: session.organizationId, anio, mes } },
         select: { valor: true, enlace: true },
       }),
+      // Los productos que se pautaron ese mes: es con lo que abre la tabla.
+      productosPautadosDelMes(session.organizationId, anio, mes),
     ]);
     cuerpo = (
       <Economia
         anio={anio}
         mes={mes}
         productos={productos}
+        pautados={conGasto}
         variables={variables}
         gastoAdm={gastoAdm?.valor ?? null}
         enlaceAdm={gastoAdm?.enlace ?? null}
+      />
+    );
+  } else if (vista === "testeos") {
+    // La ventana en instantes: los testeos se cuentan sobre órdenes, que sí
+    // tienen hora (el día de Ecuador arranca a las 05:00 UTC).
+    const desdeInstante = new Date(periodo.desde.getTime() + 5 * 3600_000);
+    const hastaInstante = new Date(periodo.hasta.getTime() + 29 * 3600_000);
+    const [testeos, dias] = await Promise.all([
+      testeosDelPeriodo(session.organizationId, desdeInstante, hastaInstante),
+      pedidosRealesPorDia(session.organizationId, desdeInstante, hastaInstante),
+    ]);
+    const pedidosDelControl = dias.reduce(
+      (t, d) => t + [...d.porProducto.values()].reduce((a, b) => a + b, 0) + d.sinAsignar,
+      0,
+    );
+    cuerpo = (
+      <Testeos
+        datos={testeos}
+        periodo={periodo.id === "personalizado" ? `${isoDay(periodo.desde)} a ${isoDay(periodo.hasta)}` : periodo.id}
+        pedidosDelControl={pedidosDelControl}
+        verCifras={true}
       />
     );
   } else {
@@ -157,6 +185,7 @@ export default async function ControlPage({
     { id: "resultados", label: "Resultados" },
     { id: "economia", label: "Economía por producto" },
     { id: "enlazar", label: "Enlazar pedidos" },
+    { id: "testeos", label: "Testeos" },
   ];
 
   return (

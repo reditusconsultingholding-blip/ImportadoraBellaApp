@@ -52,12 +52,15 @@ export default function IndicadoresRapidos({
   verCifras,
   meta,
   tiktok,
+  hoy,
 }: {
   ritmo: RitmoVentas;
   periodo: string;
   verCifras: boolean;
   meta: { spend: number; purchases: number };
   tiktok: { spend: number; purchases: number };
+  /** Cómo viene el día, cuando el período elegido no es hoy. */
+  hoy: { ritmo: RitmoVentas; gasto: number; conGasto: boolean } | null;
 }) {
   const gasto = meta.spend + tiktok.spend;
   // El CPA que usa el equipo: todo el gasto sobre los pedidos REALES de la
@@ -68,9 +71,42 @@ export default function IndicadoresRapidos({
 
   const mejores = ritmo.mejores;
   const pico = mejores[0];
+  const cpaHoy = hoy && hoy.ritmo.ordenes > 0 ? hoy.gasto / hoy.ritmo.ordenes : null;
 
   return (
     <section aria-label={`Indicadores rápidos · ${periodo}`} className="flex flex-col gap-2">
+      {/* El día de hoy, aunque el filtro esté en otro período. Es la pregunta
+          que más se hace y obligaba a cambiar el rango y volverlo a dejar. */}
+      {hoy && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-accent/30 bg-good-bg/40 px-3 py-2 text-[12px]">
+          <span className="rounded-full bg-accent-strong px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
+            Hoy
+          </span>
+          <span className="text-foreground">
+            <span className="font-semibold tabular-nums">{numero(hoy.ritmo.ordenes)}</span> ventas
+          </span>
+          <span className="text-muted">
+            <span className="font-semibold tabular-nums text-foreground">{hoy.ritmo.porHoraPromedio.toFixed(1)}</span> por
+            hora
+          </span>
+          {hoy.conGasto && (
+            <>
+              <span className="text-muted">
+                gasto <span className="font-semibold tabular-nums text-foreground">{money0(hoy.gasto)}</span>
+              </span>
+              <span className="text-muted">
+                CPA <span className="font-semibold tabular-nums text-foreground">{cpaHoy ? money2(cpaHoy) : "—"}</span>
+              </span>
+              <span className="text-muted">
+                facturado <span className="font-semibold tabular-nums text-foreground">{money0(hoy.ritmo.facturado)}</span>
+              </span>
+            </>
+          )}
+          {hoy.ritmo.mejores[0] && (
+            <span className="text-muted/80">pico {franja(hoy.ritmo.mejores[0].hora)}</span>
+          )}
+        </div>
+      )}
       <div className={`grid grid-cols-2 gap-2 ${verCifras ? "lg:grid-cols-5" : "lg:grid-cols-3"}`}>
         <Dato
           etiqueta="Ventas"

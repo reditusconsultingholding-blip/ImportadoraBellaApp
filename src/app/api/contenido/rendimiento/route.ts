@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
-import { rendimientoDelEquipo } from "@/lib/contenido";
+import { nombresSinEnlazar, rendimientoDelEquipo } from "@/lib/contenido";
 
 const OFFSET_HORAS = -5;
 
@@ -30,7 +30,10 @@ export async function GET(req: NextRequest) {
   desde.setUTCDate(desde.getUTCDate() - (dias - 1));
 
   const verCifras = await veLasCifras(session.userId);
-  const equipo = await rendimientoDelEquipo(session.organizationId, desde, hasta, verCifras);
+  const [equipo, sinEnlazar] = await Promise.all([
+    rendimientoDelEquipo(session.organizationId, desde, hasta, verCifras),
+    nombresSinEnlazar(session.organizationId, desde, hasta),
+  ]);
 
-  return NextResponse.json({ equipo, dias, verCifras });
+  return NextResponse.json({ equipo, sinEnlazar, dias, verCifras });
 }

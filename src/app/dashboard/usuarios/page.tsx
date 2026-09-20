@@ -32,6 +32,7 @@ export default async function UsuariosPage() {
         canViewPayroll: true,
         mustChangePassword: true,
         capacitacionVista: true,
+        apodos: true,
         createdAt: true,
         employee: { select: { position: true } },
       },
