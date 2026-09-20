@@ -52,6 +52,7 @@ export default function IndicadoresRapidos({
   verCifras,
   meta,
   tiktok,
+  testeo,
   hoy,
 }: {
   ritmo: RitmoVentas;
@@ -59,6 +60,8 @@ export default function IndicadoresRapidos({
   verCifras: boolean;
   meta: { spend: number; purchases: number };
   tiktok: { spend: number; purchases: number };
+  /** Pedidos de testeo dentro del período: el control no los cuenta. */
+  testeo: number;
   /** Cómo viene el día, cuando el período elegido no es hoy. */
   hoy: { ritmo: RitmoVentas; gasto: number; conGasto: boolean } | null;
 }) {
@@ -111,7 +114,16 @@ export default function IndicadoresRapidos({
         <Dato
           etiqueta="Ventas"
           valor={numero(ritmo.ordenes)}
-          nota={verCifras ? money0(ritmo.facturado) : periodo}
+          // De dónde sale la diferencia con el control publicitario, que es la
+          // pregunta que aparece cada vez que alguien compara las dos
+          // pantallas: el panel cuenta todo lo que entró a la tienda.
+          nota={
+            testeo > 0
+              ? `${numero(testeo)} de testeo · el control cuenta ${numero(ritmo.ordenes - testeo)}`
+              : verCifras
+                ? money0(ritmo.facturado)
+                : periodo
+          }
           acento
         />
         <Dato

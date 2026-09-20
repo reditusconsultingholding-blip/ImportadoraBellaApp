@@ -23,6 +23,7 @@ import { EncabezadoSeccion, InsigniaEncabezado } from "./encabezado-seccion";
 import type { Platform } from "@/generated/prisma/client";
 import { ritmoDeVentas } from "@/lib/ritmo-ventas";
 import IndicadoresRapidos from "./indicadores-rapidos";
+import { testeosDelPeriodo } from "@/lib/testeos";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -75,7 +76,8 @@ export default async function DashboardPage({
   // filtro y volverlo a dejar como estaba. Cuando el período YA es hoy no se
   // pide: sería la misma consulta dos veces.
   const rangoHoy = range.id === "hoy" ? null : resolveRange("hoy");
-  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy] = await Promise.all([
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos] =
+    await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
     getOverview(session.organizationId, "META", range),
@@ -90,6 +92,10 @@ export default async function DashboardPage({
     rangoHoy ? ritmoDeVentas(session.organizationId, rangoHoy) : null,
     rangoHoy && verCifras ? getOverview(session.organizationId, "META", rangoHoy) : null,
     rangoHoy && verCifras ? getOverview(session.organizationId, "TIKTOK", rangoHoy) : null,
+    // Cuántos de esos pedidos son de testeo. Es la diferencia entre lo que
+    // dice el panel (todo lo que entró en la tienda) y lo que cuenta el
+    // control (lo que se factura al mes), y sin decirla se lee como un error.
+    testeosDelPeriodo(session.organizationId, range.fromInstant, range.toInstant),
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -136,6 +142,7 @@ export default async function DashboardPage({
         verCifras={verCifras}
         meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases }}
         tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases }}
+        testeo={testeos.pedidos}
         hoy={
           ritmoHoy
             ? {
