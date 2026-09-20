@@ -459,6 +459,13 @@ const CLICS: [RegExp, string][] = [
   [/^msclkid$/i, "bing"],
 ];
 
+// Solo se guarda lo que habla del ORIGEN. Los formularios de contraentrega
+// (Releasit) mandan como atributos el nombre, el teléfono y la dirección de
+// quien compra: guardarlos acá sería duplicar datos personales en otra
+// columna sin ninguna necesidad.
+const ES_DE_ORIGEN =
+  /^(utm|.*clid$|source|medium|campaign|content|term|referr?er|referring|landing|origen|fuente|ad_|adset|ad$|placement|site)/i;
+
 function normalizarLlave(k: string) {
   return k.trim().toLowerCase().replace(/^checkout[_-]?/, "").replace(/s+/g, "_");
 }
@@ -482,6 +489,7 @@ function atributos(lista: { key: string; value: string | null }[] | null) {
     const v = value?.trim();
     if (!v) continue;
     const k = normalizarLlave(key);
+    if (!ES_DE_ORIGEN.test(k)) continue;
     utiles.push(`${k}=${v}`);
     for (const [campo, llaves] of Object.entries(LLAVES)) {
       if (llaves.includes(k) && !salida[campo as keyof typeof salida]) {
