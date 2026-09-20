@@ -521,7 +521,7 @@ export async function rendimientoDelEquipo(
  * aparecía en cero habiendo trabajado todo el mes. En vez de adivinar, se
  * muestran acá para que dirección los anote como apodo en Usuarios.
  */
-export async function nombresSinEnlazar(organizationId: string, desde: Date, hasta: Date) {
+export async function responsablesSinEnlazar(organizationId: string, desde: Date, hasta: Date) {
   const [usuarios, tareas] = await Promise.all([
     db.user.findMany({
       where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
