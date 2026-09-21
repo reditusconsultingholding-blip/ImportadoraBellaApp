@@ -5,23 +5,27 @@
 //
 // Versión fijada en 2022-06-28 — sigue vigente sin fecha de baja, y es la
 // que funciona para bases de una sola tabla (una "data source"), que es el
-// caso del equipo. La versión 2025-09-03 mueve la consulta a
-// /v1/data_sources/{id}/query cuando una base tiene VARIAS data sources; acá
-// no hace falta ese camino.
+// caso de las tablas CONTENIDO DEL DÍA.
+//
+// El "Calendario de contenido Marketing", en cambio, ya está en el formato
+// nuevo (varias data sources en una base), y con esa versión Notion se niega a
+// consultarlo. Ahí se usa 2025-09-03, que mueve la consulta a
+// /v1/data_sources/{id}/query. Ver filasDeBaseNueva.
 
 const BASE_URL = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
+const NOTION_VERSION_FUENTES = "2025-09-03";
 
 export class NotionError extends Error {}
 
-async function notionFetch<T>(token: string, path: string, body?: unknown): Promise<T> {
+async function notionFetch<T>(token: string, path: string, body?: unknown, version = NOTION_VERSION): Promise<T> {
   let intentos = 0;
   for (;;) {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Notion-Version": NOTION_VERSION,
+        "Notion-Version": version,
         "Content-Type": "application/json",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -157,6 +161,52 @@ export async function retrieveDatabase(token: string, databaseId: string): Promi
     title: data.title.map((t) => t.plain_text).join("") || "(sin título)",
     properties: data.properties,
   };
+}
+
+/**
+ * Las filas de una base en el formato nuevo de Notion, de todas sus data
+ * sources, desde un día en adelante.
+ *
+ * Cada data source tiene su propio esquema, así que la columna de fecha se
+ * busca en cada una; si no tiene, se traen todas sus filas y el filtro por día
+ * queda para quien llama.
+ */
+export async function filasDeBaseNueva(token: string, databaseId: string, desdeDia: string): Promise<NotionPage[]> {
+  const baseNueva = await notionFetch<{ data_sources?: { id: string }[] }>(
+    token,
+    `/databases/${databaseId}`,
+    undefined,
+    NOTION_VERSION_FUENTES,
+  );
+  const paginas: NotionPage[] = [];
+  for (const fuente of baseNueva.data_sources ?? []) {
+    const esquema = await notionFetch<{ properties: Record<string, { type: string }> }>(
+      token,
+      `/data_sources/${fuente.id}`,
+      undefined,
+      NOTION_VERSION_FUENTES,
+    );
+    const propFecha = Object.entries(esquema.properties ?? {}).find(([, p]) => p.type === "date")?.[0];
+    let cursor: string | undefined;
+    do {
+      const data = await notionFetch<{ results: NotionPage[]; has_more: boolean; next_cursor: string | null }>(
+        token,
+        `/data_sources/${fuente.id}/query`,
+        {
+          page_size: 100,
+          ...(propFecha ? { filter: { property: propFecha, date: { on_or_after: desdeDia } } } : {}),
+          ...(cursor ? { start_cursor: cursor } : {}),
+        },
+        NOTION_VERSION_FUENTES,
+      );
+      for (const p of data.results) {
+        if (p.archived || p.in_trash) continue;
+        paginas.push(p);
+      }
+      cursor = data.has_more ? (data.next_cursor ?? undefined) : undefined;
+    } while (cursor);
+  }
+  return paginas;
 }
 
 /** Trae TODAS las filas de una base, paginando (con un filtro de Notion opcional). */

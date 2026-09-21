@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import {
   retrieveDatabase,
   queryDatabase,
+  filasDeBaseNueva,
+  NotionError,
   buscarBasesConTitulo,
   tituloDePagina,
   paginaMadreDeBase,
@@ -634,14 +636,26 @@ export async function importarNotion(
     }
     if (calendarioId) {
       try {
-        const esquema = await retrieveDatabase(token, calendarioId);
-        const propFecha = Object.entries(esquema.properties).find(([, p]) => p.type === "date")?.[0];
         const desdeDia = new Date(Date.now() - DIAS_ACTIVIDADES * 86_400_000).toISOString().slice(0, 10);
-        const paginas = await queryDatabase(
-          token,
-          calendarioId,
-          propFecha ? { property: propFecha, date: { on_or_after: desdeDia } } : undefined,
-        );
+        // El calendario puede estar en el formato viejo (una tabla) o en el
+        // nuevo (varias data sources). El de este equipo está en el nuevo, y
+        // con la versión vieja de la API Notion se niega a consultarlo: era
+        // la razón de que las actividades de Emilia no entraran nunca.
+        let propFecha: string | undefined;
+        let paginas: Awaited<ReturnType<typeof queryDatabase>>;
+        try {
+          const esquema = await retrieveDatabase(token, calendarioId);
+          propFecha = Object.entries(esquema.properties).find(([, p]) => p.type === "date")?.[0];
+          paginas = await queryDatabase(
+            token,
+            calendarioId,
+            propFecha ? { property: propFecha, date: { on_or_after: desdeDia } } : undefined,
+          );
+        } catch (err) {
+          if (!(err instanceof NotionError) || !/formato nuevo/.test(err.message)) throw err;
+          propFecha = "data sources";
+          paginas = await filasDeBaseNueva(token, calendarioId, desdeDia);
+        }
         const titulos = paginas.map((pg) => tituloDe(pg.properties));
         const conAct = titulos.filter((t) => actividadDelTitulo(t));
         // Los títulos que no son "CONTENIDO DEL DÍA": entre ellos está la
