@@ -453,7 +453,7 @@ export default function TableroNotion({
         <div>
           <h2 className="text-[15px] font-semibold">Contenido del día</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Igual que en Notion: hacé clic en cualquier celda y escribí. Se guarda solo.
+            Igual que en Notion: haz clic en cualquier celda y escribe. Se guarda solo.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -717,7 +717,7 @@ export default function TableroNotion({
                             <td className={CELDA}>
                               <CeldaTexto
                                 valor={t.notas ?? ""}
-                                placeholder="Escribí acá"
+                                placeholder="Escribe aquí"
                                 editable={puedo}
                                 onGuardar={(v) => editar(t.id, "notas", v || null)}
                               />

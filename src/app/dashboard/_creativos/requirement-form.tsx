@@ -223,7 +223,7 @@ export default function RequirementForm({
           required
           className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
         >
-          <option value="">Elegí un responsable</option>
+          <option value="">Elige un responsable</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}

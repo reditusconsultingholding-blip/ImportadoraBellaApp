@@ -91,7 +91,7 @@ export default function Enlazar({
             : `${entero(totalPedidos - resueltos)} pedidos de ${desde} a ${hasta} todavía no tienen producto.`}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Elegí el producto de cada nombre. Si es un envío o una garantía, marcalo como «no es
+          Elige el producto de cada nombre. Si es un envío o una garantía, márcalo como «no es
           producto»; si es un producto en prueba, como «testeo» —sus ventas no se cuentan y su pauta
           sí suma como gasto—. Cada decisión vale para siempre, también para los meses anteriores:
           el control se recalcula solo en unos segundos.

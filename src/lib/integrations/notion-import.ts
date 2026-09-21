@@ -348,6 +348,14 @@ export type ReporteImport = {
     actividades: number;
     /** Tareas que ya no existen en Notion y se quitaron. */
     borradas: number;
+    /**
+     * Qué pasó al buscar las páginas "act …", en una línea.
+     *
+     * La primera versión corrió en producción y leyó cero actividades sin
+     * decir por qué: el error se tragaba en silencio y no había forma de saber
+     * si faltaba el calendario, si no había páginas o si ningún título calzaba.
+     */
+    actividadesDiag: string;
   };
   campanas: {
     manualCreadas: number;
@@ -398,6 +406,7 @@ export async function importarNotion(
       basesConDia: 0,
       actividades: 0,
       borradas: 0,
+      actividadesDiag: "",
     },
     campanas: { manualCreadas: 0, manualActualizadas: 0, vinculadas: 0, sinMatch: 0 },
     columnasNoMapeadas: [],
@@ -620,6 +629,9 @@ export async function importarNotion(
     // casilla entra como una tarea suya de ese día: marcada = hecha.
     const calendarioId = masFrecuente(madres.map((m) => m.baseId));
     let actividadesLeidas = false;
+    if (!calendarioId) {
+      reporte.tareas.actividadesDiag = `sin calendario: ${madres.length} páginas madre, ninguna dentro de una base`;
+    }
     if (calendarioId) {
       try {
         const esquema = await retrieveDatabase(token, calendarioId);
@@ -630,6 +642,15 @@ export async function importarNotion(
           calendarioId,
           propFecha ? { property: propFecha, date: { on_or_after: desdeDia } } : undefined,
         );
+        const titulos = paginas.map((pg) => tituloDe(pg.properties));
+        const conAct = titulos.filter((t) => actividadDelTitulo(t));
+        // Los títulos que no son "CONTENIDO DEL DÍA": entre ellos está la
+        // página de actividades si el nombre no calzó con la regla.
+        const otros = titulos.filter((t) => t && !/contenido/i.test(t) && !actividadDelTitulo(t));
+        reporte.tareas.actividadesDiag =
+          `calendario ok, fecha "${propFecha ?? "—"}", ${paginas.length} páginas, ${conAct.length} de actividades` +
+          (conAct.length ? ` (${[...new Set(conAct)].slice(0, 4).join(" | ")})` : "") +
+          (otros.length ? `; otros títulos: ${[...new Set(otros)].slice(0, 8).join(" | ")}` : "");
         for (const pagina of paginas) {
           const act = actividadDelTitulo(tituloDe(pagina.properties));
           if (!act) continue;
@@ -677,10 +698,11 @@ export async function importarNotion(
           }
         }
         actividadesLeidas = true;
-      } catch {
+      } catch (err) {
         // Si el calendario no se puede leer, las tareas de las tablas igual
         // entran; solo no se tocan las actividades ya guardadas.
         actividadesLeidas = false;
+        reporte.tareas.actividadesDiag = `error leyendo el calendario: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300);
       }
     }
 
@@ -842,7 +864,7 @@ export async function sincronizarNotion(organizationId: string) {
 
   try {
     const r = await importarNotion(organizationId, { dryRun: false });
-    let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.borradas} quitadas, ${r.tareas.basesLeidas} bases (${r.tareas.basesConDia} con fecha del calendario), ${r.tareas.actividades} actividades`;
+    let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.borradas} quitadas, ${r.tareas.basesLeidas} bases (${r.tareas.basesConDia} con fecha del calendario), ${r.tareas.actividades} actividades${r.tareas.actividadesDiag ? ` [${r.tareas.actividadesDiag}]` : ""}`;
 
     // Y quién lleva cada producto, desde PRODUCTOS ORDEN. Va en la misma
     // pasada porque es la misma conexión y el mismo ritmo: lo que Emilia

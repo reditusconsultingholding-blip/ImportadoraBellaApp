@@ -97,7 +97,7 @@ export default function LotesCruzados({
 
   async function crear() {
     if (!nuevo.productId) {
-      setError("Elegí el producto del lote.");
+      setError("Elige el producto del lote.");
       return;
     }
     setGuardando(true);

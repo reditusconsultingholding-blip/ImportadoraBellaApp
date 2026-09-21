@@ -289,7 +289,7 @@ export default function Enlaces({
           )}
 
           <p className="border-t border-border px-4 py-2.5 text-[11px] leading-snug text-muted">
-            El botón verde es la sugerencia automática: aceptarla la guarda. Si está mal, elegí el
+            El botón verde es la sugerencia automática: aceptarla la guarda. Si está mal, elige el
             producto correcto en la lista de al lado —eso pisa la sugerencia— y si el nombre no
             corresponde a ningún producto tuyo, dejalo suelto.
           </p>

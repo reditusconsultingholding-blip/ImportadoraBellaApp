@@ -476,7 +476,7 @@ export default function Requerimientos({
             <div className="border-b border-white/10 px-5 py-4">
               <h3 className="text-sm font-semibold text-white">Nuevo requerimiento</h3>
               <p className="mt-0.5 text-xs text-white/70">
-                Elegí el producto al que pertenece la pieza. Una vez creada se abre sola para
+                Elige el producto al que pertenece la pieza. Una vez creada se abre sola para
                 cargarle enlaces, métricas y estado.
               </p>
             </div>
