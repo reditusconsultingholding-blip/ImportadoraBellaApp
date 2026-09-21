@@ -1,24 +1,52 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { resolveRange } from "@/lib/date-range";
-import { reporteDeOrigen } from "@/lib/origen-ventas";
+import { NOMBRE_CAJA, origenPorVenta, type Caja } from "@/lib/origen-pedidos";
+import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import RangePicker from "../range-picker";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
-// El reporte diario de "¿de dónde salieron las ventas que la pauta no
-// explica?". La explicación del método está en src/lib/origen-ventas.ts.
+// De dónde viene cada venta. El método está en src/lib/origen-pedidos.ts.
+//
+// La regla de esta pantalla: cada número tiene que poder comprobarse. Las
+// cajas suman exactamente las ventas de la tienda, la fila de total lo dice,
+// y abajo está la lista venta por venta (y el archivo para bajarla entera)
+// con la caja de cada una.
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const money = (n: number) =>
-  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 const num = (n: number) => n.toLocaleString("es-EC");
+
+const ORDEN: Caja[] = ["meta", "tiktok", "ambas", "sin_pauta", "sin_identificar", "testeo"];
+
+const EXPLICA: Record<Caja, string> = {
+  meta: "El producto tenía campañas gastando ese día solo en Meta.",
+  tiktok: "El producto tenía campañas gastando ese día solo en TikTok.",
+  ambas: "El producto tenía campañas gastando ese día en Meta y en TikTok a la vez.",
+  sin_pauta:
+    "El producto no gastó un dólar ese día en ninguna plataforma. No la trajo un anuncio de ese día: es recompra, recomendación, WhatsApp o un anuncio viejo que alguien guardó.",
+  sin_identificar:
+    "El nombre del producto en Shopify no está enlazado a ningún producto de Jarvis, así que no se puede saber si tenía pauta. Se arregla enlazándolo.",
+  testeo: "Producto marcado como testeo. El control publicitario no lo cuenta.",
+};
+
+const TONO: Record<Caja, string> = {
+  meta: "bg-accent",
+  tiktok: "bg-[#4338ca]",
+  ambas: "bg-[#0891b2]",
+  sin_pauta: "bg-warning",
+  sin_identificar: "bg-critical",
+  testeo: "bg-muted",
+};
 
 export default async function OrigenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{ rango?: string; desde?: string; hasta?: string; caja?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -26,15 +54,25 @@ export default async function OrigenPage({
   const verCifras = await veLasCifras(session.userId);
 
   const params = await searchParams;
-  const range = resolveRange(params.rango ?? "hoy", params.desde, params.hasta);
-  const r = await reporteDeOrigen(session.organizationId, range);
+  const range = resolveRange(params.rango ?? "ayer", params.desde, params.hasta);
+  const desdeDia = new Date(Date.UTC(range.from.getUTCFullYear(), range.from.getUTCMonth(), range.from.getUTCDate()));
+  const hastaDia = new Date(Date.UTC(range.to.getUTCFullYear(), range.to.getUTCMonth(), range.to.getUTCDate()));
+  const [r, sueltos] = await Promise.all([
+    origenPorVenta(session.organizationId, range),
+    nombresSinEnlazar(session.organizationId, desdeDia, hastaDia),
+  ]);
 
-  const brecha = r.ordenes - r.atribuidas;
-  const pct = (n: number) => (r.ordenes > 0 ? Math.round((n / r.ordenes) * 100) : 0);
-  const pedidosSinPauta = r.sinPauta.reduce((s, p) => s + p.reales, 0);
-  // Lo que queda después de las señales que sí tienen nombre.
-  const señales = r.recompras + pedidosSinPauta + r.sinEnlazar;
-  const subRegistro = Math.max(0, brecha - señales);
+  const pct = (n: number) => (r.total > 0 ? `${Math.round((n / r.total) * 1000) / 10}%` : "0%");
+  const cajaFiltro = (ORDEN as string[]).includes(params.caja ?? "") ? (params.caja as Caja) : null;
+  const filtradas = cajaFiltro ? r.ventas.filter((v) => v.caja === cajaFiltro) : r.ventas;
+  const lista = filtradas.slice(0, 300);
+  const reportadas = r.reportaMeta + r.reportaTiktok;
+  const porEmbudo = r.canales.filter((c) => /funnelish|releasit/i.test(c.canal)).reduce((s, c) => s + c.ventas, 0);
+
+  const query =
+    range.id === "personalizado"
+      ? `rango=personalizado&desde=${isoDay(range.from)}&hasta=${isoDay(range.to)}`
+      : `rango=${range.id}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,7 +80,7 @@ export default async function OrigenPage({
         eyebrow="Números"
         titulo="Origen de las ventas"
         insignia={<InsigniaEncabezado>{range.label}</InsigniaEncabezado>}
-        descripcion="De dónde salen las ventas que Meta y TikTok no se atribuyen. Compara producto por producto lo que vendió la tienda contra lo que reportan sus campañas, y separa lo que sí tiene explicación: clientes que ya habían comprado, productos sin pauta ese día y nombres todavía sin enlazar."
+        descripcion="Cada venta de la tienda, puesta en una sola caja según si su producto tenía anuncios ese día y en qué plataforma. Las cajas suman exactamente el total, y abajo está la lista venta por venta para comprobarlo."
         acciones={
           <RangePicker
             active={range.id}
@@ -55,157 +93,282 @@ export default async function OrigenPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Ventas de la tienda", valor: num(r.ordenes), nota: verCifras ? `${money(r.gasto)} de pauta` : undefined },
-          { label: "Se atribuyen Meta y TikTok", valor: num(r.atribuidas), nota: `${pct(r.atribuidas)}% de las ventas` },
-          { label: "Diferencia a explicar", valor: num(brecha), nota: `${pct(brecha)}% de las ventas` },
-          { label: "Ya habían comprado antes", valor: num(r.recompras), nota: "clientes que vuelven" },
-        ].map((t) => (
-          <div key={t.label} className="rounded border border-border bg-surface p-4">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{t.label}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{t.valor}</p>
-            {t.nota && <p className="text-xs text-muted">{t.nota}</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* El desarme de la diferencia. Es la respuesta corta a la pregunta. */}
-      <section className="rounded border border-border bg-surface p-5">
-        <h2 className="text-sm font-semibold text-foreground">Qué hay detrás de esa diferencia</h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted">
-          Son señales, no cajones: una misma venta puede ser de un cliente que ya había comprado <em>y</em> de un nombre
-          sin enlazar, así que no suman exacto.{" "}
-          {señales >= brecha && brecha > 0
-            ? "Acá alcanzan de sobra para explicar la diferencia: no hay ventas de origen desconocido."
-            : "Lo que sobra después de ellas es sub-registro del píxel."}
-        </p>
-        <ul className="mt-3 flex flex-col gap-2 text-sm">
-          {[
-            {
-              n: r.recompras,
-              texto: "de clientes que ya habían comprado antes. No necesitan ver un anuncio nuevo: entran directo por el enlace que ya tienen.",
-            },
-            {
-              n: pedidosSinPauta,
-              texto: `de ${r.sinPauta.length === 1 ? "un producto que no tuvo" : `${r.sinPauta.length} productos que no tuvieron`} un dólar de pauta en el período.`,
-            },
-            {
-              n: r.sinEnlazar,
-              texto: "de nombres de Shopify todavía sin enlazar a un producto: existen y se cobraron, pero no se pueden comparar contra ninguna campaña.",
-            },
-            {
-              n: subRegistro,
-              texto: "sin otra explicación que el sub-registro del píxel: zona horaria, iOS y la ventana de atribución. Se reparte parejo entre todos los productos, que es la huella de un problema de medición y no de una cuenta publicitaria escondida.",
-            },
-          ]
-            .filter((x) => x.n > 0)
-            .map((x) => (
-              <li key={x.texto} className="flex gap-3">
-                <span className="w-12 shrink-0 text-right text-lg font-semibold tabular-nums text-accent-strong">{num(x.n)}</span>
-                <span className="text-muted">{x.texto}</span>
-              </li>
-            ))}
-          {brecha <= 0 && <li className="text-muted">En este período la pauta se atribuye tantas ventas como las que entraron, o más.</li>}
-        </ul>
-        <p className="mt-4 rounded bg-surface-2 px-3 py-2 text-xs leading-relaxed text-muted">
-          <span className="font-semibold text-foreground">Por qué no se puede afinar más:</span> las ventas entran por
-          Funnelish y Releasit, que cobran fuera de Shopify. La tienda recibe la orden ya hecha y nunca ve la visita, así
-          que no hay UTM ni sitio de referencia que guardar
-          {r.conOrigenPropio > 0 ? ` (hoy solo ${num(r.conOrigenPropio)} órdenes traen ese dato)` : ""}. Para cerrar ese
-          hueco hay que activar en el embudo el paso de los parámetros utm a la orden; el día que lleguen, aparecen acá
-          sin tocar nada.
+      {/* La respuesta en una frase. Es lo que se lee en voz alta en la reunión. */}
+      <section className="rounded-lg border border-accent/40 bg-good-bg/40 p-5">
+        <p className="text-[15px] leading-relaxed text-foreground">
+          En el período ({range.label.toLowerCase()}) entraron <b>{num(r.total)} ventas</b>.{" "}
+          <b>
+            {num(r.conPauta)} ({pct(r.conPauta)})
+          </b>{" "}
+          son de productos que tenían anuncios activos ese mismo día.
+          {r.cajas.sin_pauta > 0 && (
+            <>
+              {" "}
+              <b>{num(r.cajas.sin_pauta)}</b> son de productos sin ningún anuncio ese día.
+            </>
+          )}
+          {r.cajas.sin_identificar > 0 && (
+            <>
+              {" "}
+              <b>{num(r.cajas.sin_identificar)}</b> son de productos que Jarvis todavía no puede identificar (falta
+              enlazar su nombre).
+            </>
+          )}
+          {r.cajas.testeo > 0 && (
+            <>
+              {" "}
+              <b>{num(r.cajas.testeo)}</b> son de testeo.
+            </>
+          )}
         </p>
       </section>
 
+      {/* Las cajas. Una venta está en una sola; la fila de total lo prueba. */}
       <section className="rounded border border-border bg-surface">
         <div className="border-b border-border px-5 py-3">
-          <h2 className="text-sm font-semibold text-foreground">Producto por producto</h2>
+          <h2 className="text-sm font-semibold text-foreground">1. Cada venta, en una sola caja</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Lo que vendió la tienda contra lo que reportan sus campañas. La diferencia repartida entre muchos productos
-            es sub-registro; concentrada en uno solo, es una campaña mal enlazada.
+            Se mira el producto de cada venta y si ese producto gastó en Meta o TikTok ese día (hora de Ecuador). Toca
+            una caja para ver sus ventas en la lista de abajo.
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[600px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
-                <th className="px-5 py-2 font-medium">Producto</th>
-                <th className="px-3 py-2 text-right font-medium">Ventas reales</th>
-                <th className="px-3 py-2 text-right font-medium">Se atribuye la pauta</th>
-                <th className="px-3 py-2 text-right font-medium">Diferencia</th>
-                {verCifras && <th className="px-5 py-2 text-right font-medium">Gasto</th>}
+                <th className="px-5 py-2 font-medium">Caja</th>
+                <th className="px-3 py-2 text-right font-medium">Ventas</th>
+                <th className="px-3 py-2 text-right font-medium">%</th>
+                <th className="px-5 py-2 font-medium">Qué significa</th>
               </tr>
             </thead>
             <tbody>
-              {r.porProducto.map((p) => (
-                <tr key={p.productId} className="border-b border-border/60 last:border-0">
-                  <td className="px-5 py-2">
-                    <span className="font-mono text-[11px] text-muted">{p.codigo}</span>{" "}
-                    <span className="text-foreground">{p.producto}</span>
-                    {p.gasto === 0 && <span className="ml-2 text-[11px] text-warning">sin pauta</span>}
+              {ORDEN.filter((c) => r.cajas[c] > 0 || c === "sin_pauta").map((c) => (
+                <tr key={c} className="border-b border-border/60 align-top">
+                  <td className="px-5 py-2.5">
+                    <Link
+                      href={`/dashboard/origen?${query}&caja=${c}#ventas`}
+                      className="flex items-center gap-2 font-medium text-foreground hover:underline"
+                    >
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONO[c]}`} />
+                      {NOMBRE_CAJA[c]}
+                    </Link>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-foreground">{num(p.reales)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted">{num(p.atribuidas)}</td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      p.diferencia > 0 ? "text-foreground" : p.diferencia < 0 ? "text-muted" : "text-muted"
-                    }`}
-                  >
-                    {p.diferencia > 0 ? `+${num(p.diferencia)}` : num(p.diferencia)}
-                  </td>
-                  {verCifras && <td className="px-5 py-2 text-right tabular-nums text-muted">{money(p.gasto)}</td>}
+                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">{num(r.cajas[c])}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-muted">{pct(r.cajas[c])}</td>
+                  <td className="px-5 py-2.5 text-xs leading-relaxed text-muted">{EXPLICA[c]}</td>
                 </tr>
               ))}
-              {r.porProducto.length === 0 && (
-                <tr>
-                  <td colSpan={verCifras ? 5 : 4} className="px-5 py-6 text-center text-sm text-muted">
-                    No hubo ventas en el período.
-                  </td>
-                </tr>
-              )}
+              <tr className="bg-surface-2">
+                <td className="px-5 py-2.5 font-semibold text-foreground">Total de ventas de la tienda</td>
+                <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">{num(r.total)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-muted">100%</td>
+                <td className="px-5 py-2.5 text-xs text-muted">Es el mismo número de órdenes que muestra Shopify.</td>
+              </tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {r.nombresSinEnlazar.length > 0 && (
-          <section className="rounded border border-warning/40 bg-pending-bg p-5">
-            <h2 className="text-sm font-semibold text-foreground">Nombres sin enlazar</h2>
-            <p className="mt-1 text-xs text-muted">
-              Se vendieron y no caen en ningún producto. Cada uno que se enlace en «Control publicitario › Enlazar
-              pedidos» sale de esta diferencia para siempre.
-            </p>
-            <ul className="mt-3 flex flex-col gap-1 text-sm">
-              {r.nombresSinEnlazar.map((n) => (
-                <li key={n.nombre} className="flex justify-between gap-3">
-                  <span className="min-w-0 truncate text-foreground">{n.nombre}</span>
-                  <span className="shrink-0 tabular-nums text-muted">{num(n.pedidos)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+      {/* Dentro de lo pautado: qué reportan los píxeles contra lo real. */}
+      <section className="rounded border border-border bg-surface p-5">
+        <h2 className="text-sm font-semibold text-foreground">
+          2. De las {num(r.conPauta)} ventas con anuncios, ¿cuántas reportan Meta y TikTok?
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: "Ventas reales con anuncios", valor: num(r.conPauta), nota: "lo que entró a la tienda" },
+            { label: "Reporta Meta", valor: num(r.reportaMeta), nota: "compras en el administrador de anuncios" },
+            { label: "Reporta TikTok", valor: num(r.reportaTiktok), nota: "compras en TikTok Ads" },
+            {
+              label: "Ninguno las reporta",
+              valor: num(r.sinReportar),
+              nota: r.conPauta > 0 ? `${Math.round((r.sinReportar / r.conPauta) * 100)}% de las ventas con anuncios` : "",
+            },
+          ].map((t) => (
+            <div key={t.label} className="rounded border border-border bg-surface-2 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{t.label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{t.valor}</p>
+              <p className="text-xs text-muted">{t.nota}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted">
+          Se compara producto por producto y día por día. Donde hubo más ventas reales que compras reportadas, la
+          diferencia son ventas que los píxeles no vieron (<b className="text-foreground">{num(r.sinReportar)}</b>). Donde
+          los píxeles reportaron más compras que ventas reales, son compras contadas de más (
+          <b className="text-foreground">{num(r.deMas)}</b>): pasa cuando Meta y TikTok se atribuyen la misma compra, o
+          la cuentan en el día del clic y no en el de la compra. Por eso {num(r.reportaMeta)} + {num(r.reportaTiktok)} ={" "}
+          {num(reportadas)} no es igual a {num(r.conPauta)}: las dos diferencias van en sentidos contrarios y no se
+          compensan entre sí.
+        </p>
+      </section>
 
-        {r.recompraPorAntiguedad.length > 0 && (
-          <section className="rounded border border-border bg-surface p-5">
-            <h2 className="text-sm font-semibold text-foreground">Cuándo compraron antes</h2>
-            <p className="mt-1 text-xs text-muted">
-              De los clientes que volvieron en este período. Cuanto más viejo el anterior, menos probable es que la
-              compra de hoy la haya traído un anuncio de hoy.
+      {r.porProducto.length > 0 && (
+        <section className="rounded border border-border bg-surface">
+          <div className="border-b border-border px-5 py-3">
+            <h2 className="text-sm font-semibold text-foreground">3. Producto por producto</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Si las ventas sin reportar se reparten entre muchos productos, es sub-registro de los píxeles. Si se
+              concentran en uno solo, hay que revisar sus campañas.
             </p>
-            <ul className="mt-3 flex flex-col gap-1 text-sm">
-              {r.recompraPorAntiguedad.map((t) => (
-                <li key={t.tramo} className="flex justify-between gap-3">
-                  <span className="text-foreground">{t.tramo}</span>
-                  <span className="tabular-nums text-muted">{num(t.clientes)} clientes</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
+                  <th className="px-5 py-2 font-medium">Producto</th>
+                  <th className="px-3 py-2 text-right font-medium">Ventas reales</th>
+                  <th className="px-3 py-2 text-right font-medium">Reporta Meta</th>
+                  <th className="px-3 py-2 text-right font-medium">Reporta TikTok</th>
+                  <th className="px-3 py-2 text-right font-medium">Sin reportar</th>
+                  <th className="px-5 py-2 text-right font-medium">Reportadas de más</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.porProducto.slice(0, 60).map((p) => (
+                  <tr key={p.producto} className="border-b border-border/60 last:border-0">
+                    <td className="px-5 py-2 text-foreground">{p.producto}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{num(p.ventas)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted">{num(p.meta)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted">{num(p.tiktok)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${p.sinReportar > 0 ? "text-foreground" : "text-muted"}`}>
+                      {num(p.sinReportar)}
+                    </td>
+                    <td className="px-5 py-2 text-right tabular-nums text-muted">{num(p.deMas)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded border border-border bg-surface p-5">
+          <h2 className="text-sm font-semibold text-foreground">Datos aparte (no son cajas)</h2>
+          <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+            {r.canales.map((c) => (
+              <li key={c.canal} className="flex justify-between gap-3">
+                <span className="text-muted">Entraron por {c.canal}</span>
+                <span className="tabular-nums text-foreground">
+                  {num(c.ventas)} <span className="text-muted">({pct(c.ventas)})</span>
+                </span>
+              </li>
+            ))}
+            <li className="flex justify-between gap-3">
+              <span className="text-muted">El comprador ya había comprado antes (mismo teléfono)</span>
+              <span className="tabular-nums text-foreground">
+                {num(r.recurrentes)} <span className="text-muted">({pct(r.recurrentes)})</span>
+              </span>
+            </li>
+          </ul>
+          <p className="mt-3 text-xs text-muted">
+            Un cliente que vuelve puede estar en cualquier caja: si su producto tenía anuncios ese día, cuenta como venta
+            con anuncios. Por eso esto va aparte y no se suma.
+          </p>
+        </section>
+
+        <section className="rounded border border-border bg-surface p-5">
+          <h2 className="text-sm font-semibold text-foreground">Lo que no se puede saber hoy, y cómo resolverlo</h2>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            Qué anuncio exacto trajo a cada comprador. El {pct(porEmbudo)} de las ventas entra por Funnelish o
+            Releasit, que cobran fuera de Shopify: la orden llega ya hecha y sin el enlace de la visita. De{" "}
+            {num(r.total)} órdenes, <b className="text-foreground">{num(r.conUtm)}</b> traen ese dato.
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            <b className="text-foreground">Para tenerlo venta por venta:</b> en Funnelish, activar que los parámetros utm
+            de la visita pasen a la orden de Shopify (como atributos o notas de la orden). Jarvis ya está preparado para
+            leerlos: el día que lleguen, cada venta muestra su campaña sin tocar nada más.
+          </p>
+        </section>
       </div>
+
+      {sueltos.length > 0 && (
+        <section className="rounded border border-warning/40 bg-pending-bg p-5">
+          <h2 className="text-sm font-semibold text-foreground">Productos sin identificar: los nombres a enlazar</h2>
+          <p className="mt-1 text-xs text-muted">
+            Cada nombre que se enlace en «Control publicitario › Enlazar pedidos» sale de la caja roja y pasa a la que le
+            corresponde.
+          </p>
+          <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
+            {sueltos.slice(0, 20).map((n) => (
+              <li key={n.nombre} className="flex justify-between gap-3">
+                <span className="min-w-0 truncate text-foreground">{n.nombre}</span>
+                <span className="shrink-0 tabular-nums text-muted">{num(n.pedidos)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* La prueba: venta por venta. */}
+      <section id="ventas" className="rounded border border-border bg-surface">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-5 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              4. Venta por venta{cajaFiltro ? ` · ${NOMBRE_CAJA[cajaFiltro]}` : ""}
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">
+              El número de Shopify sirve para buscar la orden en el admin.{" "}
+              {lista.length < filtradas.length
+                ? `Se muestran las ${lista.length} más recientes de ${num(filtradas.length)}; el archivo trae todas.`
+                : `Son ${num(filtradas.length)}.`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {cajaFiltro && (
+              <Link
+                href={`/dashboard/origen?${query}#ventas`}
+                className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
+              >
+                Ver todas
+              </Link>
+            )}
+            <a
+              href={`/api/origen/ventas?${query}`}
+              className="rounded-full border border-accent px-3 py-1.5 text-xs font-medium text-accent-strong hover:bg-good-bg"
+            >
+              Descargar todas (Excel)
+            </a>
+          </div>
+        </div>
+        <div className="max-h-[480px] overflow-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="sticky top-0 bg-surface">
+              <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
+                <th className="px-5 py-2 font-medium">Día y hora</th>
+                <th className="px-3 py-2 font-medium">N.º Shopify</th>
+                <th className="px-3 py-2 font-medium">Producto</th>
+                <th className="px-3 py-2 font-medium">Caja</th>
+                <th className="px-3 py-2 font-medium">Entró por</th>
+                <th className="px-3 py-2 font-medium">Ya compró antes</th>
+                {verCifras && <th className="px-5 py-2 text-right font-medium">Valor</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map((v) => (
+                <tr key={v.shopifyId} className="border-b border-border/60 last:border-0">
+                  <td className="px-5 py-1.5 tabular-nums text-muted">
+                    {v.dia.slice(5)} {v.hora}
+                  </td>
+                  <td className="px-3 py-1.5 font-mono text-[11px] text-muted">{v.shopifyId}</td>
+                  <td className="px-3 py-1.5 text-foreground">{v.producto}</td>
+                  <td className="px-3 py-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
+                      <span className={`h-2 w-2 rounded-full ${TONO[v.caja]}`} />
+                      {NOMBRE_CAJA[v.caja]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-muted">{v.canal}</td>
+                  <td className="px-3 py-1.5 text-xs text-muted">{v.recurrente ? "Sí" : "No"}</td>
+                  {verCifras && <td className="px-5 py-1.5 text-right tabular-nums text-muted">{money(v.facturado)}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { proponerEnlaces } from "@/lib/enlace-shopify";
 import { resolverPeriodo } from "@/lib/control-opciones";
 import { ritmoDeVentas } from "@/lib/ritmo-ventas";
 import { testeosDelPeriodo } from "@/lib/testeos";
+import { origenPorVenta } from "@/lib/origen-pedidos";
 
 // Deja calculadas las vistas por defecto de cada pantalla apenas termina un
 // sync.
@@ -45,6 +46,7 @@ export async function precalentarPantallas(organizationId: string) {
     ["panel sin producto", () => resumenSinProducto(organizationId, rPanel)],
     ["panel ritmo", () => ritmoDeVentas(organizationId, rPanel)],
     ["panel testeos", () => testeosDelPeriodo(organizationId, rPanel.fromInstant, rPanel.toInstant)],
+    ["origen de las ventas", () => origenPorVenta(organizationId, resolveRange("ayer"))],
     ["control", () => controlDelPeriodo(organizationId, { desde: control.desde, hasta: control.hasta, hora: 23, productIds: [] })],
     ["control enlazar", () => nombresSinEnlazar(organizationId, control.desde, control.hasta)],
     ["rentabilidad", () => getRentabilidad(organizationId, r30)],
