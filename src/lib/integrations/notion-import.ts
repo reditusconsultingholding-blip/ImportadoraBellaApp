@@ -4,6 +4,11 @@ import {
   queryDatabase,
   buscarBasesConTitulo,
   tituloDePagina,
+  paginaMadreDeBase,
+  casillasDePagina,
+  tituloDe,
+  primeraFecha,
+  type PaginaMadre,
   type NotionDatabaseSchema,
   type NotionPage,
   type NotionPropertyValue,
@@ -22,13 +27,44 @@ import { Prisma } from "@/generated/prisma/client";
 //
 // CÓMO ORGANIZA SUS TAREAS ESTE EQUIPO
 // No con una base y una columna de fecha, sino con una base NUEVA por día,
-// todas llamadas "CONTENIDO DEL DÍA". Eso obliga a dos cosas que no son
+// todas llamadas "CONTENIDO DEL DÍA", cada una dentro de una página del
+// "Calendario de contenido Marketing". Eso obliga a tres cosas que no son
 // obvias: buscar las bases hermanas por título en vez de leer solo la
-// configurada, y sacar la fecha de cada fila de su hora de creación, porque
-// las columnas no la traen.
+// configurada; sacar la fecha de cada fila de la página del calendario donde
+// vive su base (las columnas no la traen, y la hora de creación de la fila
+// miente en cuanto alguien duplica la tabla de otro día); y leer también las
+// páginas "act …" del mismo calendario, donde Emilia anota sus actividades
+// como casillas.
 
 /** Cuántos días hacia atrás se leen. El trabajo del mes pasado ya no se reparte. */
 const TOPE_BASES = 45;
+
+/** Días hacia atrás de las páginas "act …" del calendario que se leen. */
+const DIAS_ACTIVIDADES = 45;
+
+/** Ventana en la que se quitan de Jarvis las filas borradas en Notion. */
+const DIAS_LIMPIEZA = 14;
+
+/** Origen de las tareas que vienen de las casillas de una página "act …". */
+const ORIGEN_ACTIVIDAD = "notion-act";
+
+/** El valor que más se repite (el calendario donde viven las tablas diarias). */
+function masFrecuente(valores: (string | null)[]): string | null {
+  const cuenta = new Map<string, number>();
+  for (const v of valores) if (v) cuenta.set(v, (cuenta.get(v) ?? 0) + 1);
+  let mejor: string | null = null;
+  for (const [v, n] of cuenta) if (!mejor || n > cuenta.get(mejor)!) mejor = v;
+  return mejor;
+}
+
+/** Solo letras, sin tildes y en minúscula: "Emilia Villegas" → "emiliavillegas". */
+function letras(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+}
 
 /** Notion devuelve los ids con y sin guiones según el endpoint. */
 const normalizarId = (id: string) => id.replace(/-/g, "").toLowerCase();
@@ -149,17 +185,53 @@ function marcaDeDiaEc(instante: Date): Date {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
 }
 
+/** El inicio de una fecha de Notion ("2026-09-19" o con hora) como marca del día ecuatoriano. */
+export function diaDeInicio(start: string | null | undefined): Date | null {
+  if (!start) return null;
+  const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(start);
+  if (soloFecha) return new Date(`${start}T00:00:00.000Z`);
+  // Datetime completo: se pasa al día ecuatoriano (-5h) antes de tomar la
+  // marca de día, mismo criterio que el resto del módulo de Contenido.
+  const instante = new Date(start);
+  if (Number.isNaN(instante.getTime())) return null;
+  return marcaDeDiaEc(instante);
+}
+
 /** Fecha de una propiedad `date` — día ecuatoriano como marca UTC de medianoche. */
 function fechaDe(value: NotionPropertyValue): Date | null {
   const d = value.date as { start: string } | null;
-  if (!d?.start) return null;
-  const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(d.start);
-  if (soloFecha) return new Date(`${d.start}T00:00:00.000Z`);
-  // Datetime completo: se pasa al día ecuatoriano (-5h) antes de tomar la
-  // marca de día, mismo criterio que el resto del módulo de Contenido.
-  const instante = new Date(d.start);
-  const local = new Date(instante.getTime() - 5 * 3600_000);
-  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+  return diaDeInicio(d?.start);
+}
+
+/**
+ * ¿Es una página de actividades personales del calendario? ("act emi",
+ * "ACT EMI", "ACTE MI", "emi act"…) — y de quién, por lo que queda del título.
+ *
+ * Se quitan los espacios antes de buscar "act" porque el equipo lo escribe de
+ * todas las formas: "ACTE MI" es "act emi" con el espacio corrido.
+ */
+export function actividadDelTitulo(titulo: string): { quien: string } | null {
+  const plano = titulo
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  if (!plano || plano.startsWith("contenido")) return null;
+  // "act" al principio o al final ("act emi", "emi act"): así "Contacto" o
+  // "Impacto de…" no pasan por páginas de actividades.
+  const m = plano.match(/^(?:actividades|actividad|act)(.*)$/) ?? plano.match(/^(.*?)(?:actividades|actividad|act)$/);
+  if (!m) return null;
+  const quien = m[1];
+  // Un título largo que solo contiene "act" (p. ej. "impacto de la campaña")
+  // no es una página de actividades.
+  if (quien.length === 0 || quien.length > 12) return null;
+  return { quien };
+}
+
+/** Cuántos creativos dice una casilla: "5 CREATIVOS COMBO…" → 5. */
+export function creativosDeTexto(texto: string): number {
+  const m = texto.match(/(\d{1,3})\s*creativ/i);
+  return m ? Number(m[1]) : 0;
 }
 
 function personasDe(value: NotionPropertyValue): { id: string; name: string | null; email: string | null }[] {
@@ -270,6 +342,12 @@ export type ReporteImport = {
     sinFecha: number;
     /** Cuántas bases diarias se leyeron en esta corrida. */
     basesLeidas: number;
+    /** Bases fechadas por su página del calendario (el resto cae a la hora de creación). */
+    basesConDia: number;
+    /** Casillas leídas de las páginas "act …" del calendario. */
+    actividades: number;
+    /** Tareas que ya no existen en Notion y se quitaron. */
+    borradas: number;
   };
   campanas: {
     manualCreadas: number;
@@ -310,7 +388,17 @@ export async function importarNotion(
   const token = conexion.token;
 
   const reporte: ReporteImport = {
-    tareas: { creadas: 0, actualizadas: 0, sinProducto: [], sinResponsable: [], sinFecha: 0, basesLeidas: 0 },
+    tareas: {
+      creadas: 0,
+      actualizadas: 0,
+      sinProducto: [],
+      sinResponsable: [],
+      sinFecha: 0,
+      basesLeidas: 0,
+      basesConDia: 0,
+      actividades: 0,
+      borradas: 0,
+    },
     campanas: { manualCreadas: 0, manualActualizadas: 0, vinculadas: 0, sinMatch: 0 },
     columnasNoMapeadas: [],
     muestras: [],
@@ -318,7 +406,7 @@ export async function importarNotion(
 
   const [products, users, campanasSincronizadas, tareasExistentes, manualesExistentes] = await Promise.all([
     db.product.findMany({ where: { organizationId }, select: { id: true, code: true, name: true } }),
-    db.user.findMany({ where: { organizationId }, select: { id: true, name: true, email: true } }),
+    db.user.findMany({ where: { organizationId }, select: { id: true, name: true, email: true, apodos: true } }),
     db.campaign.findMany({ where: { adAccount: { organizationId } }, select: { id: true, name: true } }),
     db.tareaDiaria.findMany({
       where: { organizationId, notionPageId: { not: null } },
@@ -379,6 +467,16 @@ export async function importarNotion(
     return null;
   }
 
+  /** "emi" → Emilia: primero los apodos anotados en Usuarios, después el nombre. */
+  function porApodo(quien: string) {
+    if (quien.length < 2) return null;
+    return (
+      users.find((u) => u.apodos.some((a) => letras(a) === quien)) ??
+      users.find((u) => letras(u.name.split(" ")[0] ?? "").startsWith(quien)) ??
+      null
+    );
+  }
+
   // --- Tareas diarias --------------------------------------------------------
   if (conexion.tareasDatabaseId) {
     const schema = await retrieveDatabase(token, conexion.tareasDatabaseId);
@@ -398,12 +496,48 @@ export async function importarNotion(
     reporte.tareas.basesLeidas = ids.length;
 
     const creadas: Prisma.TareaDiariaCreateManyInput[] = [];
-    const filas: NotionPage[] = [];
+    const filas: { page: NotionPage; diaBase: Date | null }[] = [];
+    // La página del calendario de cada base: su fecha es el día de todas sus
+    // filas, y su base madre es el calendario donde viven las páginas "act".
+    const madres: PaginaMadre[] = [];
     for (const id of ids) {
-      filas.push(...(await queryDatabase(token, id)));
+      let madre: PaginaMadre | null = null;
+      try {
+        madre = await paginaMadreDeBase(token, id);
+      } catch {
+        madre = null; // sin la página madre se cae a la hora de creación, como antes
+      }
+      if (madre) madres.push(madre);
+      const diaBase = diaDeInicio(madre?.fecha);
+      if (diaBase) reporte.tareas.basesConDia += 1;
+      for (const page of await queryDatabase(token, id)) filas.push({ page, diaBase });
     }
 
-    for (const page of filas) {
+    const vistas = new Set<string>();
+
+    /** Crea o actualiza una tarea venida de Notion (tabla o casilla), solo si cambió. */
+    async function guardar(fila: Prisma.TareaDiariaCreateManyInput & { notionPageId: string }) {
+      const id = fila.notionPageId;
+      const yaExiste = idsTareasExistentes.has(id);
+      if (opciones.dryRun) {
+        if (yaExiste) reporte.tareas.actualizadas += 1;
+        else reporte.tareas.creadas += 1;
+        return;
+      }
+      if (yaExiste) {
+        if (huellaGuardada.get(id) !== huellaTarea(fila)) {
+          await db.tareaDiaria.updateMany({ where: { organizationId, notionPageId: id }, data: fila });
+          reporte.tareas.actualizadas += 1;
+        }
+      } else {
+        creadas.push(fila);
+        idsTareasExistentes.add(id);
+        reporte.tareas.creadas += 1;
+      }
+    }
+
+    for (const { page, diaBase } of filas) {
+      vistas.add(page.id);
       const [producto, responsableTxt, plataforma, estado, notas] = await Promise.all([
         valorDe(token, page, mapeo, "producto"),
         valorDe(token, page, mapeo, "responsable"),
@@ -438,13 +572,17 @@ export async function importarNotion(
       }
       if (responsableTexto && !ownerId) reporte.tareas.sinResponsable.push(responsableTexto);
 
-      // La fecha, con respaldo en cuándo se creó la fila.
+      // La fecha: la de la fila si la trae; si no, la de la página del
+      // calendario donde vive su base; y solo en último caso cuándo se creó la
+      // fila.
       //
-      // Las bases diarias no tienen columna de fecha —la fecha es la base—, así
-      // que sin este respaldo las tareas entraban todas con fecha nula y el
-      // tablero del día quedaba vacío aunque los datos estuvieran importados.
+      // Las bases diarias no tienen columna de fecha —la fecha es la base—.
+      // Usar la hora de creación como primera opción metía en el lunes las
+      // filas del viernes que alguien duplicó o agregó el lunes (video de
+      // Emilia, 21 de septiembre).
       const fechaVal =
         (propFecha ? fechaDe(propFecha) : null) ??
+        diaBase ??
         (page.created_time ? marcaDeDiaEc(new Date(page.created_time)) : null);
       if (!fechaVal) reporte.tareas.sinFecha += 1;
 
@@ -470,22 +608,100 @@ export async function importarNotion(
       };
 
       if (reporte.muestras.length < 5) reporte.muestras.push({ base: "tareas", ...fila });
+      await guardar(fila);
+    }
 
-      const yaExiste = idsTareasExistentes.has(page.id);
-      if (opciones.dryRun) {
-        if (yaExiste) reporte.tareas.actualizadas += 1;
-        else reporte.tareas.creadas += 1;
-        continue;
-      }
+    // --- Actividades personales del calendario ("act emi") -------------------
+    //
+    // Emilia no anota su trabajo en las tablas CONTENIDO DEL DÍA sino en
+    // páginas propias del mismo calendario ("act emi"), con una lista "Por
+    // hacer" de casillas. El import solo leía las tablas, así que sus
+    // actividades no aparecían en Jarvis (video del 21 de septiembre). Cada
+    // casilla entra como una tarea suya de ese día: marcada = hecha.
+    const calendarioId = masFrecuente(madres.map((m) => m.baseId));
+    let actividadesLeidas = false;
+    if (calendarioId) {
+      try {
+        const esquema = await retrieveDatabase(token, calendarioId);
+        const propFecha = Object.entries(esquema.properties).find(([, p]) => p.type === "date")?.[0];
+        const desdeDia = new Date(Date.now() - DIAS_ACTIVIDADES * 86_400_000).toISOString().slice(0, 10);
+        const paginas = await queryDatabase(
+          token,
+          calendarioId,
+          propFecha ? { property: propFecha, date: { on_or_after: desdeDia } } : undefined,
+        );
+        for (const pagina of paginas) {
+          const act = actividadDelTitulo(tituloDe(pagina.properties));
+          if (!act) continue;
+          const dia =
+            diaDeInicio(primeraFecha(pagina.properties)) ??
+            (pagina.created_time ? marcaDeDiaEc(new Date(pagina.created_time)) : null);
 
-      if (yaExiste) {
-        if (huellaGuardada.get(page.id) !== huellaTarea(fila)) {
-          await db.tareaDiaria.updateMany({ where: { organizationId, notionPageId: page.id }, data: fila });
-          reporte.tareas.actualizadas += 1;
+          // Quién: la columna de persona si la página la tiene; si no, lo que
+          // queda del título ("emi") contra los apodos y los nombres.
+          let owner: { id: string; name: string } | null = null;
+          let responsableTexto = act.quien.toUpperCase();
+          for (const prop of Object.values(pagina.properties)) {
+            if (prop.type !== "people") continue;
+            const persona = personasDe(prop)[0];
+            if (persona) {
+              owner = matchResponsable(persona.name, persona.email);
+              responsableTexto = persona.name ?? responsableTexto;
+            }
+            break;
+          }
+          owner ??= porApodo(act.quien);
+          if (owner) responsableTexto = owner.name;
+          else reporte.tareas.sinResponsable.push(responsableTexto);
+
+          for (const casilla of await casillasDePagina(token, pagina.id)) {
+            vistas.add(casilla.id);
+            reporte.tareas.actividades += 1;
+            await guardar({
+              organizationId,
+              fecha: dia,
+              ownerId: owner?.id ?? null,
+              responsableTexto,
+              productId: null,
+              productoTexto: casilla.texto.slice(0, 200),
+              plataforma: null,
+              campanaTiktok: false,
+              campanaMeta: false,
+              numeroCreativos: creativosDeTexto(casilla.texto),
+              estado: casilla.marcada ? "HECHO" : "PENDIENTE",
+              etiquetas: ["actividad"],
+              notas: null,
+              origen: ORIGEN_ACTIVIDAD,
+              notionPageId: casilla.id,
+            });
+          }
         }
-      } else {
-        creadas.push(fila);
-        reporte.tareas.creadas += 1;
+        actividadesLeidas = true;
+      } catch {
+        // Si el calendario no se puede leer, las tareas de las tablas igual
+        // entran; solo no se tocan las actividades ya guardadas.
+        actividadesLeidas = false;
+      }
+    }
+
+    // --- Lo que ya no está en Notion -----------------------------------------
+    //
+    // Una fila borrada en Notion seguía viva en Jarvis para siempre: el import
+    // solo creaba y actualizaba. Se quitan, pero solo dentro de la ventana que
+    // se acaba de leer entera (los últimos días) y con un freno: si fuera a
+    // borrar más de un tercio de esa ventana, algo raro pasó en la lectura y no
+    // se borra nada.
+    if (!opciones.dryRun && ids.length > 0) {
+      const desde = new Date(Date.now() - DIAS_LIMPIEZA * 86_400_000);
+      const origenes = actividadesLeidas ? ["notion", ORIGEN_ACTIVIDAD] : ["notion"];
+      const enVentana = await db.tareaDiaria.findMany({
+        where: { organizationId, origen: { in: origenes }, notionPageId: { not: null }, fecha: { gte: desde } },
+        select: { id: true, notionPageId: true },
+      });
+      const sobran = enVentana.filter((t) => !vistas.has(t.notionPageId!));
+      if (sobran.length > 0 && sobran.length <= enVentana.length / 3) {
+        await db.tareaDiaria.deleteMany({ where: { id: { in: sobran.map((t) => t.id) } } });
+        reporte.tareas.borradas = sobran.length;
       }
     }
 
@@ -626,7 +842,7 @@ export async function sincronizarNotion(organizationId: string) {
 
   try {
     const r = await importarNotion(organizationId, { dryRun: false });
-    let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.basesLeidas} bases`;
+    let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.borradas} quitadas, ${r.tareas.basesLeidas} bases (${r.tareas.basesConDia} con fecha del calendario), ${r.tareas.actividades} actividades`;
 
     // Y quién lleva cada producto, desde PRODUCTOS ORDEN. Va en la misma
     // pasada porque es la misma conexión y el mismo ritmo: lo que Emilia

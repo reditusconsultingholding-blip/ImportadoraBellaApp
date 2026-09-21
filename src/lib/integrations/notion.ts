@@ -159,8 +159,12 @@ export async function retrieveDatabase(token: string, databaseId: string): Promi
   };
 }
 
-/** Trae TODAS las filas de una base, paginando. */
-export async function queryDatabase(token: string, databaseId: string): Promise<NotionPage[]> {
+/** Trae TODAS las filas de una base, paginando (con un filtro de Notion opcional). */
+export async function queryDatabase(
+  token: string,
+  databaseId: string,
+  filtro?: Record<string, unknown>,
+): Promise<NotionPage[]> {
   const paginas: NotionPage[] = [];
   let cursor: string | undefined;
   do {
@@ -170,6 +174,7 @@ export async function queryDatabase(token: string, databaseId: string): Promise<
       next_cursor: string | null;
     }>(token, `/databases/${databaseId}/query`, {
       page_size: 100,
+      ...(filtro ? { filter: filtro } : {}),
       ...(cursor ? { start_cursor: cursor } : {}),
     });
     for (const p of data.results) {
@@ -179,6 +184,106 @@ export async function queryDatabase(token: string, databaseId: string): Promise<
     cursor = data.has_more ? (data.next_cursor ?? undefined) : undefined;
   } while (cursor);
   return paginas;
+}
+
+type PadreNotion =
+  | { type: "page_id"; page_id: string }
+  | { type: "block_id"; block_id: string }
+  | { type: "database_id"; database_id: string }
+  | { type: "workspace" };
+
+export type PaginaMadre = {
+  id: string;
+  titulo: string;
+  /** El valor crudo de la primera propiedad de fecha con dato ("2026-09-19" o con hora). */
+  fecha: string | null;
+  /** La base donde vive la página (el calendario), si es una fila de base. */
+  baseId: string | null;
+};
+
+/**
+ * La página donde vive una base: en este equipo, la entrada del calendario
+ * "Calendario de contenido Marketing" que contiene la tabla CONTENIDO DEL DÍA.
+ *
+ * Esa entrada es la que tiene la fecha verdadera del día. La hora de creación
+ * de cada fila, que era lo que se usaba, falla en cuanto alguien duplica la
+ * tabla de otro día o agrega filas al día siguiente: el lunes 21 aparecían
+ * las tareas del fin de semana porque sus filas se habían creado el lunes.
+ *
+ * Una base insertada dentro de una columna o de un toggle cuelga de un bloque,
+ * no de la página: se sube por los bloques hasta dar con ella.
+ */
+export async function paginaMadreDeBase(token: string, databaseId: string): Promise<PaginaMadre | null> {
+  const base = await notionFetch<{ parent?: PadreNotion }>(token, `/databases/${databaseId}`);
+  let padre = base.parent;
+  for (let nivel = 0; padre && nivel < 5; nivel++) {
+    if (padre.type === "block_id") {
+      const bloque = await notionFetch<{ parent?: PadreNotion }>(token, `/blocks/${padre.block_id}`);
+      padre = bloque.parent;
+      continue;
+    }
+    if (padre.type !== "page_id") return null;
+    const pagina = await notionFetch<{ id: string; parent?: PadreNotion; properties: Record<string, NotionPropertyValue> }>(
+      token,
+      `/pages/${padre.page_id}`,
+    );
+    return {
+      id: pagina.id,
+      titulo: tituloDe(pagina.properties),
+      fecha: primeraFecha(pagina.properties),
+      baseId: pagina.parent?.type === "database_id" ? pagina.parent.database_id : null,
+    };
+  }
+  return null;
+}
+
+/** El título de una fila, sea cual sea el nombre de su columna de título. */
+export function tituloDe(properties: Record<string, NotionPropertyValue>): string {
+  for (const prop of Object.values(properties)) {
+    if (prop.type === "title") return ((prop.title as { plain_text: string }[]) ?? []).map((t) => t.plain_text).join("");
+  }
+  return "";
+}
+
+/** El inicio de la primera propiedad de fecha que tenga dato. */
+export function primeraFecha(properties: Record<string, NotionPropertyValue>): string | null {
+  for (const prop of Object.values(properties)) {
+    if (prop.type !== "date") continue;
+    const d = prop.date as { start?: string } | null;
+    if (d?.start) return d.start;
+  }
+  return null;
+}
+
+export type CasillaNotion = { id: string; texto: string; marcada: boolean };
+
+/**
+ * Las casillas (bloques to_do) del cuerpo de una página, en orden.
+ *
+ * Las páginas "act emi" del calendario no traen tabla: traen una lista "Por
+ * hacer" con casillas. Entra también en toggles, columnas y llamadas, que es
+ * donde se suelen agrupar; no en subpáginas ni en bases, que son otra cosa.
+ */
+export async function casillasDePagina(token: string, pageId: string, profundidad = 0): Promise<CasillaNotion[]> {
+  const casillas: CasillaNotion[] = [];
+  let cursor: string | undefined;
+  do {
+    const data = await notionFetch<{
+      results: { id: string; type: string; has_children?: boolean; to_do?: { checked: boolean; rich_text: { plain_text: string }[] } }[];
+      has_more: boolean;
+      next_cursor: string | null;
+    }>(token, `/blocks/${pageId}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`);
+    for (const b of data.results) {
+      if (b.type === "to_do" && b.to_do) {
+        const texto = b.to_do.rich_text.map((t) => t.plain_text).join("").trim();
+        if (texto) casillas.push({ id: b.id, texto, marcada: b.to_do.checked });
+      }
+      const contenedor = ["toggle", "column_list", "column", "callout", "heading_1", "heading_2", "heading_3", "bulleted_list_item", "numbered_list_item", "to_do", "quote"].includes(b.type);
+      if (b.has_children && contenedor && profundidad < 3) casillas.push(...(await casillasDePagina(token, b.id, profundidad + 1)));
+    }
+    cursor = data.has_more ? (data.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+  return casillas;
 }
 
 /** Trae el título de una página (para resolver una propiedad `relation`). */
