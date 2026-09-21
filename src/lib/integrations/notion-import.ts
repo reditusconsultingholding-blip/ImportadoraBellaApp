@@ -653,8 +653,9 @@ export async function importarNotion(
           );
         } catch (err) {
           if (!(err instanceof NotionError) || !/formato nuevo/.test(err.message)) throw err;
-          propFecha = "data sources";
-          paginas = await filasDeBaseNueva(token, calendarioId, desdeDia);
+          const nueva = await filasDeBaseNueva(token, calendarioId, desdeDia);
+          propFecha = `${nueva.fuentes} data sources, ${nueva.leidas} leídas`;
+          paginas = nueva.paginas;
         }
         const titulos = paginas.map((pg) => tituloDe(pg.properties));
         const conAct = titulos.filter((t) => actividadDelTitulo(t));

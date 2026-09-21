@@ -167,11 +167,17 @@ export async function retrieveDatabase(token: string, databaseId: string): Promi
  * Las filas de una base en el formato nuevo de Notion, de todas sus data
  * sources, desde un día en adelante.
  *
- * Cada data source tiene su propio esquema, así que la columna de fecha se
- * busca en cada una; si no tiene, se traen todas sus filas y el filtro por día
- * queda para quien llama.
+ * El filtro por día se hace acá y no en la consulta: la primera versión le
+ * pedía a Notion "fecha desde tal día" sobre la primera columna de fecha del
+ * esquema, y en el calendario del equipo esa columna no es la que se llena —
+ * volvía una sola página de 45 días—. Ahora se trae todo y se mira la primera
+ * fecha que tenga dato cada página, o cuándo se creó.
  */
-export async function filasDeBaseNueva(token: string, databaseId: string, desdeDia: string): Promise<NotionPage[]> {
+export async function filasDeBaseNueva(
+  token: string,
+  databaseId: string,
+  desdeDia: string,
+): Promise<{ paginas: NotionPage[]; fuentes: number; leidas: number }> {
   const baseNueva = await notionFetch<{ data_sources?: { id: string }[] }>(
     token,
     `/databases/${databaseId}`,
@@ -179,34 +185,34 @@ export async function filasDeBaseNueva(token: string, databaseId: string, desdeD
     NOTION_VERSION_FUENTES,
   );
   const paginas: NotionPage[] = [];
-  for (const fuente of baseNueva.data_sources ?? []) {
-    const esquema = await notionFetch<{ properties: Record<string, { type: string }> }>(
-      token,
-      `/data_sources/${fuente.id}`,
-      undefined,
-      NOTION_VERSION_FUENTES,
-    );
-    const propFecha = Object.entries(esquema.properties ?? {}).find(([, p]) => p.type === "date")?.[0];
+  const fuentes = baseNueva.data_sources ?? [];
+  let leidas = 0;
+  for (const fuente of fuentes) {
     let cursor: string | undefined;
-    do {
+    // Tope de páginas por fuente: un calendario de años no se recorre entero
+    // cada diez minutos. Se piden de la más nueva a la más vieja.
+    for (let vuelta = 0; vuelta < 10; vuelta++) {
       const data = await notionFetch<{ results: NotionPage[]; has_more: boolean; next_cursor: string | null }>(
         token,
         `/data_sources/${fuente.id}/query`,
         {
           page_size: 100,
-          ...(propFecha ? { filter: { property: propFecha, date: { on_or_after: desdeDia } } } : {}),
+          sorts: [{ timestamp: "created_time", direction: "descending" }],
           ...(cursor ? { start_cursor: cursor } : {}),
         },
         NOTION_VERSION_FUENTES,
       );
       for (const p of data.results) {
+        leidas += 1;
         if (p.archived || p.in_trash) continue;
-        paginas.push(p);
+        const dia = (primeraFecha(p.properties) ?? p.created_time ?? "").slice(0, 10);
+        if (dia && dia >= desdeDia) paginas.push(p);
       }
       cursor = data.has_more ? (data.next_cursor ?? undefined) : undefined;
-    } while (cursor);
+      if (!cursor) break;
+    }
   }
-  return paginas;
+  return { paginas, fuentes: fuentes.length, leidas };
 }
 
 /** Trae TODAS las filas de una base, paginando (con un filtro de Notion opcional). */
