@@ -24,6 +24,7 @@ import type { Platform } from "@/generated/prisma/client";
 import { ritmoDeVentas } from "@/lib/ritmo-ventas";
 import IndicadoresRapidos from "./indicadores-rapidos";
 import { testeosDelPeriodo } from "@/lib/testeos";
+import { origenPorVenta } from "@/lib/origen-pedidos";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -76,7 +77,7 @@ export default async function DashboardPage({
   // filtro y volverlo a dejar como estaba. Cuando el período YA es hoy no se
   // pide: sería la misma consulta dos veces.
   const rangoHoy = range.id === "hoy" ? null : resolveRange("hoy");
-  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos] =
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos, origen] =
     await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
@@ -96,6 +97,12 @@ export default async function DashboardPage({
     // dice el panel (todo lo que entró en la tienda) y lo que cuenta el
     // control (lo que se factura al mes), y sin decirla se lee como un error.
     testeosDelPeriodo(session.organizationId, range.fromInstant, range.toInstant),
+    // El CPA objetivo general: el CPA máximo de cada producto pesado por lo
+    // que vendió. Solo hace falta si se ven las cifras, y solo hasta un mes:
+    // recorre venta por venta, y un año son cien mil.
+    verCifras && range.to.getTime() - range.from.getTime() <= 31 * 86400_000
+      ? origenPorVenta(session.organizationId, range)
+      : null,
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -143,6 +150,7 @@ export default async function DashboardPage({
         meta={{ spend: meta.totalSpend, purchases: meta.totalPurchases }}
         tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases }}
         testeo={testeos.pedidos}
+        cpaObjetivo={origen?.cpaObjetivo ?? null}
         hoy={
           ritmoHoy
             ? {

@@ -29,16 +29,22 @@ function Dato({
   valor,
   nota,
   acento,
+  tono,
 }: {
   etiqueta: string;
   valor: string;
   nota?: string;
   acento?: boolean;
+  tono?: "bien" | "mal";
 }) {
   return (
     <div className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{etiqueta}</p>
-      <p className={`mt-0.5 truncate text-[19px] font-semibold tabular-nums ${acento ? "text-accent-strong" : "text-foreground"}`}>
+      <p
+        className={`mt-0.5 truncate text-[19px] font-semibold tabular-nums ${
+          tono === "mal" ? "text-critical" : tono === "bien" ? "text-good" : acento ? "text-accent-strong" : "text-foreground"
+        }`}
+      >
         {valor}
       </p>
       {nota && <p className="truncate text-[11px] text-muted">{nota}</p>}
@@ -53,6 +59,7 @@ export default function IndicadoresRapidos({
   meta,
   tiktok,
   testeo,
+  cpaObjetivo,
   hoy,
 }: {
   ritmo: RitmoVentas;
@@ -62,6 +69,8 @@ export default function IndicadoresRapidos({
   tiktok: { spend: number; purchases: number };
   /** Pedidos de testeo dentro del período: el control no los cuenta. */
   testeo: number;
+  /** CPA máximo de cada producto pesado por sus ventas (ver origen-pedidos). */
+  cpaObjetivo: number | null;
   /** Cómo viene el día, cuando el período elegido no es hoy. */
   hoy: { ritmo: RitmoVentas; gasto: number; conGasto: boolean } | null;
 }) {
@@ -131,7 +140,20 @@ export default function IndicadoresRapidos({
           valor={ritmo.porHoraPromedio.toFixed(1)}
           nota="promedio del período"
         />
-        {verCifras && <Dato etiqueta="CPA promedio" valor={cpa > 0 ? money2(cpa) : "—"} nota="gasto ÷ ventas reales" />}
+        {verCifras && (
+          <Dato
+            etiqueta="CPA general"
+            valor={cpa > 0 ? money2(cpa) : "—"}
+            // Todas las ventas de la tienda, las rastree o no un píxel, contra
+            // el objetivo de la mezcla de productos que se vendió.
+            nota={
+              cpaObjetivo != null && cpa > 0
+                ? `objetivo ${money2(cpaObjetivo)} · ${cpa > cpaObjetivo ? "por encima" : "dentro"}`
+                : "gasto ÷ todas las ventas"
+            }
+            tono={cpaObjetivo != null && cpa > 0 ? (cpa > cpaObjetivo ? "mal" : "bien") : undefined}
+          />
+        )}
         {verCifras && (
           <Dato
             etiqueta="Meta"

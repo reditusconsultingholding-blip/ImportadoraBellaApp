@@ -47,6 +47,7 @@ export async function precalentarPantallas(organizationId: string) {
     ["panel ritmo", () => ritmoDeVentas(organizationId, rPanel)],
     ["panel testeos", () => testeosDelPeriodo(organizationId, rPanel.fromInstant, rPanel.toInstant)],
     ["origen de las ventas", () => origenPorVenta(organizationId, resolveRange("ayer"))],
+    ["panel cpa objetivo", () => origenPorVenta(organizationId, rPanel)],
     ["control", () => controlDelPeriodo(organizationId, { desde: control.desde, hasta: control.hasta, hora: 23, productIds: [] })],
     ["control enlazar", () => nombresSinEnlazar(organizationId, control.desde, control.hasta)],
     ["rentabilidad", () => getRentabilidad(organizationId, r30)],

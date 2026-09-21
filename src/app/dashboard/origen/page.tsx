@@ -20,6 +20,9 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 const num = (n: number) => n.toLocaleString("es-EC");
+const cpa = (n: number | null) =>
+  n == null ? "—" : n.toLocaleString("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const conSigno = (n: number) => (n > 0 ? `+${num(n)}` : n < 0 ? `−${num(-n)}` : "0");
 
 const ORDEN: Caja[] = ["meta", "tiktok", "ambas", "sin_pauta", "sin_identificar", "testeo"];
 
@@ -68,6 +71,39 @@ export default async function OrigenPage({
   const lista = filtradas.slice(0, 300);
   const reportadas = r.reportaMeta + r.reportaTiktok;
   const porEmbudo = r.canales.filter((c) => /funnelish|releasit/i.test(c.canal)).reduce((s, c) => s + c.ventas, 0);
+  const b = r.brecha;
+  // Los términos de la diferencia, en el orden en que se leen. Suman exacto:
+  // ventas − reportadas = sinReportar − deMas + sinPauta + sinIdentificar + testeo − sinProducto.
+  const terminos = [
+    {
+      n: b.sinReportar,
+      texto: "ventas de productos con anuncios que ni Meta ni TikTok reportaron",
+      detalle: "Están en la lista de abajo, producto por producto, con su número de orden.",
+    },
+    {
+      n: -b.deMas,
+      texto: "compras que los píxeles reportaron de más",
+      detalle: "Productos donde Meta y TikTok sumaron más compras que las ventas reales de ese día (doble conteo o compras contadas el día del clic).",
+    },
+    {
+      n: b.sinPauta,
+      texto: "ventas de productos sin ningún anuncio ese día",
+      detalle: "Recompra, recomendación, WhatsApp o un anuncio viejo guardado.",
+    },
+    {
+      n: b.sinIdentificar,
+      texto: "ventas de productos que Jarvis no puede identificar",
+      detalle: "El nombre de Shopify no está enlazado a un producto. Se arregla en Control publicitario › Enlazar pedidos.",
+    },
+    { n: b.testeo, texto: "ventas de testeo", detalle: "Productos marcados como testeo." },
+    {
+      n: -b.sinProducto,
+      texto: "compras reportadas por campañas que no tienen producto asignado",
+      detalle: "Se ven en «Sin nomenclatura». No se pueden cruzar con ninguna venta hasta asignarles producto.",
+    },
+  ].filter((t) => t.n !== 0);
+  const cpaFuera = r.cpaReal != null && r.cpaObjetivo != null && r.cpaReal > r.cpaObjetivo;
+  const pesoFicha = r.objetivoPorProducto.filter((o) => o.deFicha);
 
   const query =
     range.id === "personalizado"
@@ -122,6 +158,180 @@ export default async function OrigenPage({
           )}
         </p>
       </section>
+
+      {/* La diferencia contra los píxeles, desarmada en partes que suman exacto. */}
+      <section className="rounded border border-border bg-surface p-5">
+        <h2 className="text-sm font-semibold text-foreground">
+          Las {num(Math.abs(b.brecha))} ventas {b.brecha >= 0 ? "que Meta y TikTok no explican" : "que Meta y TikTok reportan de más"}
+        </h2>
+        <p className="mt-1 text-xs text-muted">
+          La tienda tuvo <b className="text-foreground">{num(b.ventas)}</b> ventas y Meta + TikTok reportan{" "}
+          <b className="text-foreground">{num(b.reportadas)}</b> compras. La diferencia es{" "}
+          <b className="text-foreground">{conSigno(b.brecha)}</b>, y sale de estas partes (suman exacto):
+        </p>
+        <table className="mt-3 w-full text-sm">
+          <tbody>
+            {terminos.map((t) => (
+              <tr key={t.texto} className="border-b border-border/60 align-top">
+                <td className="w-16 py-2 pr-3 text-right text-base font-semibold tabular-nums text-accent-strong">
+                  {conSigno(t.n)}
+                </td>
+                <td className="py-2">
+                  <span className="text-foreground">{t.texto}</span>
+                  <span className="block text-xs text-muted">{t.detalle}</span>
+                </td>
+              </tr>
+            ))}
+            <tr>
+              <td className="w-16 py-2 pr-3 text-right text-base font-bold tabular-nums text-foreground">
+                = {conSigno(b.brecha)}
+              </td>
+              <td className="py-2 font-semibold text-foreground">
+                Diferencia entre las ventas de la tienda y lo que reportan los píxeles
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-3 rounded bg-surface-2 px-3 py-2 text-xs leading-relaxed text-muted">
+          <b className="text-foreground">Ninguna de estas ventas se deja afuera de los números.</b> El CPA de abajo se
+          calcula sobre las {num(b.ventas)} ventas reales de la tienda, las rastree o no un píxel.
+        </p>
+      </section>
+
+      {/* El CPA general, contando todas las ventas. */}
+      <section className="rounded border border-border bg-surface p-5">
+        <h2 className="text-sm font-semibold text-foreground">CPA general contando todas las ventas</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded border border-border bg-surface-2 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Gasto total</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{money(r.gastoTotal)}</p>
+            <p className="text-xs text-muted">Meta + TikTok, todas las campañas</p>
+          </div>
+          <div className="rounded border border-border bg-surface-2 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Ventas reales</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{num(r.total)}</p>
+            <p className="text-xs text-muted">todas las de la tienda</p>
+          </div>
+          <div className={`rounded border p-3 ${cpaFuera ? "border-critical bg-critical-bg" : "border-accent bg-good-bg"}`}>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">CPA real general</p>
+            <p className={`mt-1 text-2xl font-semibold tabular-nums ${cpaFuera ? "text-critical" : "text-good"}`}>{cpa(r.cpaReal)}</p>
+            <p className="text-xs text-muted">gasto ÷ ventas reales</p>
+          </div>
+          <div className="rounded border border-border bg-surface-2 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted">CPA objetivo general</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{cpa(r.cpaObjetivo)}</p>
+            <p className="text-xs text-muted">el CPA máximo de cada producto, pesado por lo que vendió</p>
+          </div>
+        </div>
+        {r.cpaReal != null && r.cpaObjetivo != null && (
+          <p className={`mt-3 text-sm ${cpaFuera ? "text-critical" : "text-good"}`}>
+            {cpaFuera
+              ? `El CPA real está ${cpa(r.cpaReal - r.cpaObjetivo)} por encima del objetivo: cada venta costó más de lo que el negocio aguanta con esta mezcla de productos.`
+              : `El CPA real está ${cpa(r.cpaObjetivo - r.cpaReal)} por debajo del objetivo: dentro de lo que el negocio aguanta.`}
+          </p>
+        )}
+
+        {r.cpaPorDia.length > 1 && (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
+                  <th className="py-2 pr-3 font-medium">Día</th>
+                  <th className="px-3 py-2 text-right font-medium">Ventas</th>
+                  <th className="px-3 py-2 text-right font-medium">Gasto</th>
+                  <th className="px-3 py-2 text-right font-medium">CPA real</th>
+                  <th className="px-3 py-2 text-right font-medium">CPA objetivo</th>
+                  <th className="py-2 pl-3 font-medium">¿Dentro?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.cpaPorDia.map((d) => {
+                  const fuera = d.cpaReal != null && d.cpaObjetivo != null && d.cpaReal > d.cpaObjetivo;
+                  return (
+                    <tr key={d.dia} className="border-b border-border/60 last:border-0">
+                      <td className="py-1.5 pr-3 tabular-nums text-muted">{d.dia}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{num(d.ventas)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-muted">{money(d.gasto)}</td>
+                      <td className={`px-3 py-1.5 text-right font-medium tabular-nums ${fuera ? "text-critical" : "text-good"}`}>
+                        {cpa(d.cpaReal)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-muted">{cpa(d.cpaObjetivo)}</td>
+                      <td className={`py-1.5 pl-3 text-xs ${fuera ? "text-critical" : "text-good"}`}>
+                        {d.cpaReal == null || d.cpaObjetivo == null ? "—" : fuera ? "Por encima" : "Sí"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <details className="mt-4 text-xs text-muted">
+          <summary className="cursor-pointer text-foreground">Cómo se arma el objetivo ({r.objetivoPorProducto.length} productos)</summary>
+          <p className="mt-2">
+            Cada venta aporta el CPA máximo de su producto (Control publicitario › Economía por producto). El promedio de
+            todas es el objetivo general: si hoy se vende más de un producto con CPA máximo bajo, el objetivo del día baja.
+          </p>
+          {pesoFicha.length > 0 && (
+            <p className="mt-2 rounded border border-warning/50 bg-pending-bg px-3 py-2 text-warning">
+              Ojo: {pesoFicha.map((o) => `${o.producto} (${num(o.ventas)} ventas, ${cpa(o.cpaMax)})`).join(", ")}{" "}
+              {pesoFicha.length === 1 ? "no tiene" : "no tienen"} fila en Economía por producto de este mes y se usa el
+              CPA de su ficha. Si ese número no es el correcto, el objetivo general tampoco: conviene cargarlo en
+              Economía.
+            </p>
+          )}
+          {r.ventasSinObjetivo > 0 && (
+            <p className="mt-2">{num(r.ventasSinObjetivo)} ventas son de productos sin ningún CPA máximo y no entran al objetivo.</p>
+          )}
+          <table className="mt-2 w-full max-w-lg">
+            <tbody>
+              {r.objetivoPorProducto.slice(0, 25).map((o) => (
+                <tr key={o.producto} className="border-b border-border/40">
+                  <td className="py-1 pr-3 text-foreground">{o.producto}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{num(o.ventas)} ventas</td>
+                  <td className="py-1 text-right tabular-nums">
+                    {cpa(o.cpaMax)}
+                    {o.deFicha && <span className="ml-1 text-warning">(ficha)</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </section>
+
+      {r.gruposSinReportar.length > 0 && (
+        <section className="rounded border border-border bg-surface">
+          <div className="border-b border-border px-5 py-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              Las {num(b.sinReportar)} ventas con anuncios que ningún píxel reportó
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Producto y día donde entraron más ventas que las compras que reportan Meta y TikTok. El píxel no dice cuál
+              orden vio y cuál no, así que se muestran todas las órdenes de ese producto ese día para poder revisarlas.
+            </p>
+          </div>
+          <ul className="divide-y divide-border/60">
+            {r.gruposSinReportar.slice(0, 40).map((g) => (
+              <li key={`${g.dia}${g.producto}`} className="px-5 py-2">
+                <details>
+                  <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 text-sm">
+                    <span className="text-foreground">
+                      <span className="tabular-nums text-muted">{g.dia.slice(5)}</span> · {g.producto}
+                    </span>
+                    <span className="text-xs text-muted">
+                      {num(g.reales)} ventas · Meta {num(g.meta)} · TikTok {num(g.tiktok)} ·{" "}
+                      <b className="text-foreground">{num(g.faltan)} sin reportar</b>
+                    </span>
+                  </summary>
+                  <p className="mt-1.5 break-all font-mono text-[11px] leading-relaxed text-muted">{g.pedidos.join(" · ")}</p>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Las cajas. Una venta está en una sola; la fila de total lo prueba. */}
       <section className="rounded border border-border bg-surface">
