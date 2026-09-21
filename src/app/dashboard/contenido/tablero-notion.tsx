@@ -281,6 +281,11 @@ export default function TableroNotion({
   const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
   const [creandoEn, setCreandoEn] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
+  // El día a día es EL día: abre solo con hoy. Los días anteriores seguían
+  // en la pantalla —plegados, pero ahí— y se leían como si fueran de hoy
+  // ("sigue apareciendo lo del viernes", Emilia, 21 de septiembre). La
+  // historia queda a un clic, y con un filtro puesto se ve entera.
+  const [verAnteriores, setVerAnteriores] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -413,6 +418,10 @@ export default function TableroNotion({
   }, [visibles]);
 
   const hoy = hoyEcuador();
+  const hayFiltro = Boolean(persona || estadoFiltro || busqueda.trim());
+  const soloHoy = !verAnteriores && !hayFiltro;
+  const diasVisibles = soloHoy ? dias.filter(([d]) => d === hoy) : dias;
+  const diasAnteriores = dias.filter(([d]) => d !== hoy).length;
 
   /**
    * Qué días arrancan abiertos.
@@ -437,7 +446,6 @@ export default function TableroNotion({
   const claseCampo =
     "rounded border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-border-strong focus:outline-none";
 
-  const hayFiltro = Boolean(persona || estadoFiltro || busqueda.trim());
   const etiquetaPersona =
     persona === SIN_RESPONSABLE
       ? "sin responsable"
@@ -539,14 +547,16 @@ export default function TableroNotion({
 
       {tareas === null ? (
         <p className="text-sm text-muted">Cargando el tablero…</p>
-      ) : dias.length === 0 ? (
+      ) : diasVisibles.length === 0 ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-muted">
           {hayFiltro
             ? "Ninguna tarea coincide con el filtro."
-            : "Todavía no hay tareas cargadas."}
+            : soloHoy
+              ? "Todavía no hay tareas cargadas para hoy."
+              : "Todavía no hay tareas cargadas."}
         </div>
       ) : (
-        dias.map(([dia, filas]) => {
+        diasVisibles.map(([dia, filas]) => {
           const abierto = estaAbierto(dia);
           const hechas = filas.filter((f) => f.estado === "HECHO").length;
           const pendientesDia = filas.length - hechas;
@@ -759,6 +769,15 @@ export default function TableroNotion({
             </section>
           );
         })
+      )}
+      {!hayFiltro && diasAnteriores > 0 && (
+        <button
+          type="button"
+          onClick={() => setVerAnteriores((v) => !v)}
+          className="self-start rounded-full border border-border px-3 py-1.5 text-xs text-muted transition hover:border-border-strong hover:text-foreground"
+        >
+          {verAnteriores ? "Ver solo hoy" : `Ver días anteriores (${diasAnteriores})`}
+        </button>
       )}
     </div>
   );
