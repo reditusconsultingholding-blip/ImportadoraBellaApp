@@ -148,8 +148,17 @@ function getClient(): PrismaClient {
   // cuántos viajes a la base hace una pantalla y cuál es la lenta. Apagado
   // por defecto (en producción sería ruido y costo).
   const perfil = process.env.PERFIL_CONSULTAS === "1";
+  // Cuántas conexiones abre cada instancia.
+  //
+  // El pooler de Supabase (plan gratuito, modo sesión) acepta 15 en total y el
+  // valor por defecto de pg es 10 por proceso. En cada despliegue conviven un
+  // rato la instancia vieja y la nueva: 20 conexiones, y las pantallas
+  // fallaban con "max clients reached" hasta que la vieja se apagaba. Con 6
+  // caben las dos y queda margen; las consultas de más esperan su turno unos
+  // milisegundos en vez de fallar.
+  const maxConexiones = Number(process.env.DB_POOL_MAX) || 6;
   const base = new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+    adapter: new PrismaPg({ connectionString, max: maxConexiones }),
     ...(perfil ? { log: [{ emit: "event" as const, level: "query" as const }] } : {}),
   });
   if (perfil) {

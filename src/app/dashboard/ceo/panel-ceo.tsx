@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import PulseLine, { type PulseTone } from "../pulse-line";
 import type { PanelCeo } from "@/lib/ceo";
+import CampanasAno from "./campanas-ano";
 
 const money = (n: number | null, dec = 0) =>
   n == null
@@ -23,9 +24,11 @@ const ESTADO: Record<PulseTone, { texto: string; chip: string }> = {
   SIN_DATOS: { texto: "Sin pauta", chip: "bg-surface-2 text-muted border-border" },
 };
 
-type Pestana = "resumen" | "productos" | "rentabilidad" | "acciones" | "equipo" | "nomina";
+type Pestana = "campanas" | "resumen" | "productos" | "rentabilidad" | "acciones" | "equipo" | "nomina";
 
 const PESTANAS: { id: Pestana; label: string }[] = [
+  // Primero: es el tablero que el dueño usaba en Looker Studio.
+  { id: "campanas", label: "Campañas del año" },
   { id: "resumen", label: "Resumen" },
   { id: "productos", label: "Productos" },
   { id: "rentabilidad", label: "Rentabilidad" },
@@ -151,7 +154,7 @@ export default function PanelCeoVista({
   periodo: string;
   puedeVerNomina: boolean;
 }) {
-  const [pestana, setPestana] = useState<Pestana>("resumen");
+  const [pestana, setPestana] = useState<Pestana>("campanas");
   // Un filtro por pestaña, no uno compartido: "peores" significa cosas
   // distintas en productos y en rentabilidad, y compartirlo confundiria.
   const [filtroProductos, setFiltroProductos] = useState<"todos" | "mejores" | "peores">("todos");
@@ -178,6 +181,8 @@ export default function PanelCeoVista({
           </button>
         ))}
       </nav>
+
+      {pestana === "campanas" && <CampanasAno />}
 
       {pestana === "resumen" && (
         <div className="flex flex-col gap-4">
