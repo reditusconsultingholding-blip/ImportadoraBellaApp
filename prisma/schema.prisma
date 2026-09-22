@@ -56,6 +56,15 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
+  /**
+   * El libro de Google donde el equipo de ventas lleva los pedidos.
+   *
+   * Vive acá y no en una variable de entorno porque es un dato de ESTA
+   * organización, no del servidor: el día que haya una segunda tienda cada una
+   * va a tener su planilla.
+   */
+  reporteHojaId String?
+
   users              User[]
   adAccounts         AdAccount[]
   products           Product[]
@@ -82,6 +91,7 @@ model Organization {
   cortes             CortePublicitario[]
   variablesProducto  VariableProducto[]
   gastosAdm          GastoAdmMes[]
+  pedidosReporte     PedidoReporte[]
   nombresExcluidos   NombreShopifyExcluido[]
   cortesSinAsignar   CorteSinAsignar[]
   anuncios           Anuncio[]
@@ -1332,6 +1342,57 @@ model VariableProducto {
 
   @@unique([organizationId, productId, anio, mes])
   @@index([organizationId, anio, mes])
+}
+
+// Los pedidos tal como los cuenta el equipo de ventas, traídos de su planilla.
+//
+// POR QUÉ EXISTE ESTA TABLA Y NO SE CUENTAN LOS PEDIDOS DE SHOPIFY
+// El control publicitario tiene que cuadrar al pedido con el reporte que lleva
+// el equipo, porque ESE es el número sobre el que discuten. Shopify se le
+// acerca —en agosto daba 11.804 contra 11.753— pero no es el mismo: buena
+// parte de los pedidos entra por Funnelish y el reporte los recoge a mano, con
+// sus propios estados y su propio vocabulario de nombres.
+//
+// POR QUÉ SE GUARDA ACÁ Y NO SE LEE LA PLANILLA CADA VEZ
+// El equipo BORRA de la planilla los meses de más de dos meses para que no
+// pese. Si el control leyera la planilla en vivo, cada dos meses se
+// evaporarían los números de un mes cerrado y los informes viejos cambiarían
+// solos. Acá se acumula y no se borra nunca: lo que entró una vez se queda,
+// aunque desaparezca del origen.
+model PedidoReporte {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  /** Marca de día a medianoche UTC, igual que el resto de las fechas del control. */
+  fecha DateTime
+
+  /** El nombre tal cual lo escribe el equipo en la planilla. Se muestra así. */
+  productoTexto String
+  /** Sin tildes ni signos: es por acá por donde se cruza con ProductoShopify. */
+  productoNorm  String
+
+  /** Un pedido es una fila de la planilla, no la suma de unidades. */
+  pedidos  Int
+  /** Unidades, que NO es lo mismo: sirve para mirar, no para el control. */
+  unidades Int
+
+  /** El desglose por estado del propio reporte. */
+  confirmados Int @default(0)
+  pendientes  Int @default(0)
+  cancelados  Int @default(0)
+  reagendados Int @default(0)
+  otros       Int @default(0)
+
+  /** De qué pestaña salió, para poder rastrear un número raro. */
+  hoja String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, fecha, productoNorm])
+  @@index([organizationId, fecha])
+  @@index([organizationId, productoNorm])
 }
 
 // El gasto administrativo del mes, entero. Se reparte por día (÷30) y dentro

@@ -15,16 +15,20 @@ import { sincronizarNotion } from "@/lib/integrations/notion-import";
 import { avisarPendientesDelDia } from "@/lib/aviso-pendientes";
 import { enviarProgresoQuincenal } from "@/lib/progreso-quincenal";
 import { capturarCorte } from "@/lib/control-publicitario";
-import { repasoDiarioDeCierres } from "@/lib/control-relleno";
+import { repasoDiarioDeCierres, rellenarCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
 import { recifrarPendientes } from "@/lib/cifrado-repaso";
 import { precalentarPantallas } from "@/lib/precalentar";
 import { limpiarActividadVieja } from "@/lib/actividad";
 import { estadoDelCorreo } from "@/lib/email";
+import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
 
 let ultimaLimpiezaActividad = "";
 /** Cuándo se revisó por última vez el correo saliente. */
 let ultimoCorreo = 0;
+/** Cuándo se miró por última vez la planilla de pedidos del equipo de ventas. */
+const ultimoReporte = new Map<string, number>();
+const REPORTE_CADA_MS = 60 * 60 * 1000;
 
 // El reloj de la aplicación.
 //
@@ -441,6 +445,36 @@ export async function sincronizarTodo(conRapido = true) {
       if (r) resumen.semanal = r;
     } catch (err) {
       resumen.semanal = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // La planilla de pedidos del equipo de ventas, una vez por hora.
+    //
+    // Es la fuente de los pedidos del control publicitario, así que después de
+    // traerla hay que rehacer los cierres de los días que cambiaron: si no, la
+    // planilla queda actualizada y la pantalla sigue mostrando el conteo viejo.
+    // Se rehace desde hace siete días y no desde siempre —catorce meses de
+    // cierres por hora sería absurdo—; un mes viejo que cambie entero se
+    // rehace a mano desde la pantalla.
+    try {
+      const desdeLaUltima = Date.now() - (ultimoReporte.get(org.id) ?? 0);
+      if (desdeLaUltima > REPORTE_CADA_MS) {
+        ultimoReporte.set(org.id, Date.now());
+        const r = await sincronizarReporteVentas(org.id);
+        resumen.reporte = r.error
+          ? "error: " + r.error
+          : r.pestanas.length === 0
+            ? "sin cambios" + (r.sinCambios.length ? " (" + r.sinCambios.join(", ") + ")" : "")
+            : r.pestanas.join(", ") + ": " + r.filas + " filas en " + r.dias + " días";
+
+        if (r.pestanas.length > 0) {
+          const desde = new Date(Date.now() - 7 * 24 * 3600_000);
+          const c = await rellenarCierres(org.id, { desde, rehacer: true });
+          resumen.reporte += " · cierres rehechos: " + c.dias;
+        }
+        await anotarVuelta(org.id, "reporte-ventas", Date.now(), resumen.reporte);
+      }
+    } catch (err) {
+      resumen.reporte = "error: " + (err instanceof Error ? err.message : String(err));
     }
 
     // Cómo está el correo saliente, una vez por hora. Queda escrito en

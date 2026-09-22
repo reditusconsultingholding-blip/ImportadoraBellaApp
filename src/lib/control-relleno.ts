@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { pedidosRealesPorDia, type PedidosDelDia } from "@/lib/pedidos-reales";
+import type { PedidosDelDia } from "@/lib/pedidos-reales";
+import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 
 // Escribir los cortes del control publicitario: el corte en vivo de cada hora
 // y el relleno del cierre de los días que ya pasaron.
@@ -173,7 +174,9 @@ export async function rellenarCierres(
 
   const [plataforma, reales] = await Promise.all([
     plataformaPorDia(organizationId, desdeDia),
-    pedidosRealesPorDia(
+    // La planilla del equipo manda; Shopify completa los días que ella no
+    // cubre. Ver pedidos-del-control.ts.
+    pedidosParaElControl(
       organizationId,
       desdeDia ? new Date(desdeDia.getTime() + 5 * 3600_000) : new Date("2000-01-01T00:00:00Z"),
       new Date(hoy.getTime() + 5 * 3600_000),

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
+import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
 import { cpa, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
@@ -181,10 +181,12 @@ export async function capturarCorte(
   const hasta = instanteDelCorte(dia, corte + 1); // el corte cubre la hora entera
 
   // Lo que dicen las plataformas —con las campañas sin producto incluidas— y
-  // los pedidos reales de la tienda desde la medianoche hasta el corte.
+  // los pedidos del equipo desde la medianoche hasta el corte. Los pedidos
+  // salen de la planilla del equipo de ventas cuando el día está cargado ahí,
+  // y de Shopify mientras no lo esté. Ver pedidos-del-control.ts.
   const [plataforma, reales] = await Promise.all([
     plataformaPorDia(organizationId, dia, dia),
-    pedidosRealesPorDia(organizationId, instanteDelCorte(dia, 0), hasta),
+    pedidosParaElControl(organizationId, instanteDelCorte(dia, 0), hasta),
   ]);
   const { productos, sinAsignar } = filasDelDia(
     organizationId,
@@ -290,7 +292,7 @@ async function controlDelPeriodoSinMemoria(
            AND fecha >= ${desde} AND fecha <= ${hasta}
       ) t GROUP BY fecha`,
     // Cuántos pedidos de testeo hubo, solo para avisarlo: no entran en la cuenta.
-    pedidosRealesPorDia(
+    pedidosParaElControl(
       organizationId,
       new Date(desde.getTime() + 5 * 3600_000),
       new Date(hasta.getTime() + 29 * 3600_000),

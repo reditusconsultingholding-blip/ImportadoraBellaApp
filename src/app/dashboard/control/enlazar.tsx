@@ -161,9 +161,19 @@ function FilaNombre({
     <li className="rounded-xl border border-border bg-surface px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{p.nombre}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+            {/* De qué lado viene el nombre. Los de la planilla son los que
+                mueven los pedidos del control; los de Shopify, la
+                facturación. Enlazarlo una vez sirve para los dos. */}
+            {p.fuente !== "shopify" && (
+              <span className="shrink-0 rounded border border-accent/40 bg-good-bg px-1 py-px text-[10px] font-medium text-accent-strong">
+                {p.fuente === "ambas" ? "planilla + tienda" : "planilla"}
+              </span>
+            )}
+            <span className="truncate">{p.nombre}</span>
+          </p>
           <p className="text-[11px] text-muted">
-            {entero(p.pedidos)} pedidos · {dinero(p.facturado)} facturado
+            {entero(p.pedidos)} pedidos{p.facturado > 0 ? ` · ${dinero(p.facturado)} facturado` : ""}
           </p>
         </div>
 

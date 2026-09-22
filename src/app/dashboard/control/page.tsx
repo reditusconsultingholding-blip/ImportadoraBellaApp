@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { controlDelPeriodo, diaEcuador, ETIQUETA_HORA } from "@/lib/control-publicitario";
 import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
+import OrigenPedidos from "./origen-pedidos";
 import Resultados from "./resultados";
 import Economia from "./economia";
 import Enlazar from "./enlazar";
@@ -216,6 +217,11 @@ export default async function ControlPage({
           </Link>
         ))}
       </nav>
+
+      {/* De dónde salen los pedidos del período que se está mirando. Va
+          arriba de todo: es la primera pregunta cuando un número no cuadra
+          con la planilla del equipo. */}
+      <OrigenPedidos desde={isoDay(periodo.desde)} hasta={isoDay(periodo.hasta)} />
 
       {cuerpo}
     </div>
