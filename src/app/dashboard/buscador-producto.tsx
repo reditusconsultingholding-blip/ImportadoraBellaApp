@@ -44,6 +44,14 @@ export default function BuscadorProducto({
   const [texto, setTexto] = useState("");
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(0);
+  /**
+   * Si la persona ya eligió una fila con las flechas (o escribió algo).
+   *
+   * Sin esto, llegar al campo con Tab y apretar Enter para enviar el
+   * formulario elegía la primera fila de la lista: se perdía el producto que
+   * ya estaba puesto y encima el formulario no se enviaba.
+   */
+  const [navegado, setNavegado] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   const lista = useRef<HTMLUListElement>(null);
   const idLista = useId();
@@ -77,6 +85,7 @@ export default function BuscadorProducto({
     onElegir(o?.id ?? "");
     setAbierto(false);
     setTexto("");
+    setNavegado(false);
   }
 
   const mostrado = abierto ? texto : elegido ? `${elegido.codigo ? `${elegido.codigo} · ` : ""}${elegido.nombre}` : "";
@@ -88,6 +97,8 @@ export default function BuscadorProducto({
         role="combobox"
         aria-expanded={abierto}
         aria-controls={idLista}
+        aria-autocomplete="list"
+        aria-activedescendant={abierto && filas[activo] !== undefined ? `${idLista}-${activo}` : undefined}
         aria-label={ariaLabel}
         disabled={disabled}
         value={mostrado}
@@ -95,29 +106,36 @@ export default function BuscadorProducto({
         onFocus={() => {
           setAbierto(true);
           setActivo(0);
+          setNavegado(false);
         }}
         onChange={(e) => {
           setTexto(e.target.value);
           setAbierto(true);
           setActivo(0);
+          setNavegado(true);
         }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setAbierto(true);
+            setNavegado(true);
             setActivo((a) => Math.min(a + 1, filas.length - 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
+            setNavegado(true);
             setActivo((a) => Math.max(a - 1, 0));
           } else if (e.key === "Enter") {
-            if (abierto && filas.length > 0) {
+            // Solo elige si la persona escribió o se movió con las flechas.
+            // Enter "a secas" deja pasar el envío del formulario.
+            if (abierto && navegado && filas.length > 0) {
               e.preventDefault();
               elegir(filas[activo] ?? null);
             }
           } else if (e.key === "Escape") {
+            // Cierra la lista pero deja el foco donde está: sacarlo obliga a
+            // volver a llegar al campo para corregir.
             setAbierto(false);
             setTexto("");
-            e.currentTarget.blur();
           }
         }}
         className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent disabled:opacity-50"
@@ -136,6 +154,7 @@ export default function BuscadorProducto({
           {filas.map((o, i) => (
             <li
               key={o?.id ?? "__ninguno__"}
+              id={`${idLista}-${i}`}
               role="option"
               aria-selected={i === activo}
               onMouseDown={(e) => {

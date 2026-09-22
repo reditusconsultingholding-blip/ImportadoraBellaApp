@@ -45,20 +45,32 @@ Ver dinero (ingresos, utilidad, costos) y ver nómina son **permisos por persona
 |---|---|
 | **Panel** | El día y el período de un vistazo: ventas, gasto, CPA, alertas. |
 | **Control publicitario** | El Excel de control, automático: pedidos reales, gasto, CPA, utilidad por producto y por día. |
-| **Rentabilidad** / **Costeo y utilidad** | Margen por producto con su economía (precio, costo, flete, efectividad). |
-| **Calculadora** | CPA de equilibrio y CPA objetivo de un producto. |
+| **Rentabilidad** | Margen por producto con su economía (precio, costo, flete, efectividad). |
+| **Calculadora de precios** | A cuánto vender, y qué deja ese precio con la confirmación y las devoluciones reales. Antes eran dos pantallas ("Calculadora" y "Costeo y utilidad"); quedó una sola. |
+| **Origen de las ventas** | De dónde viene cada venta: si su producto tenía anuncios ese día, y en qué plataforma. |
 | **Productos** | Ficha de cada producto: piezas, referencias, repositorio de links, responsables. |
 | **Contenido** | Calendario, Día a día, Requerimientos, Lotes, Referencias, Gestión de campañas, Rendimiento. |
 | **Sin nomenclatura** | Campañas cuyo nombre no permite saber de qué producto son. |
 | **Clientes** | Compradores, recompras y exportación a CSV. |
 | **Torre logística** | Envíos por provincia y transportadora (Dropi). |
 | **Reportes diarios** | PDFs del cierre de cada día e informes descargables. |
-| **Estadísticas CEO** | Resumen ejecutivo para dirección. |
+| **Estadísticas CEO** | Resumen ejecutivo para dirección. Abre en **Campañas del año**: gasto, CPA y conversiones por mes, por plataforma y por producto. |
 | **Preguntarle a Jarvis** | Chat con el asistente: responde sobre tus datos y propone acciones (que nunca se ejecutan sin aprobación). |
 | **Chat interno** | Mensajes del equipo, canales y sala de voz. |
 | **Notificaciones** | Avisos: tus pendientes, lo que terminaste, alertas. |
 | **Conexiones** | Estado de Shopify, Meta/TikTok (vía Windsor), Notion y Dropi. |
 | **Usuarios** / **Nómina** / **Configuraciones** | Administración. |
+
+### Buscar un producto
+
+En todas las pantallas donde se elige un producto (calculadora, requerimientos, lotes, gestión de campañas, día a día, sin nomenclatura, filtros) **se escribe, no se busca en una lista**. Sirven cuatro formas:
+
+- el **código**: `1771`,
+- el **comienzo del nombre**: `gotas de`,
+- **varias palabras empezadas**: `got dren`,
+- las **iniciales**: `gdl` encuentra *Gotas De drenaje Linfático*.
+
+No hace falta poner tildes ni mayúsculas. Con las flechas se recorre la lista y con Enter se elige.
 
 ---
 
@@ -126,6 +138,12 @@ Vale para siempre, y los meses anteriores se recalculan solos en unos segundos.
 
 ### 2.4 Panel y métricas de atribución
 
+Arriba del panel hay una tira de indicadores rápidos: **ventas**, **ventas por hora**, **CPA general** (con su objetivo al lado, en verde o rojo), **gasto de Meta y de TikTok** y **a qué hora compran los clientes**. Aunque el filtro esté en otro período, la franja **Hoy** muestra siempre cómo viene el día.
+
+En **Rendimiento de campañas**, al elegir Meta o TikTok aparece el **CPA de esa plataforma** (su gasto dividido por las compras que ella misma se atribuye). Cambiar de plataforma no mueve la página de lugar.
+
+**De cuándo son los números:** debajo del título *Ventas reales contra lo que atribuye la pauta* se lee hace cuánto entraron las ventas de Shopify (cada 2 minutos) y de qué hora son los datos de Meta y TikTok, con una **cuenta regresiva hasta la próxima actualización**. Windsor renueva esos datos una vez por hora, así que si la pauta se ve baja, ahí se ve si es porque faltan datos o porque de verdad bajó. El mismo contador está arriba a la derecha, en el encabezado.
+
 La franja de atribución del panel compara tres números del período:
 
 1. **Órdenes reales** (Shopify).
@@ -153,6 +171,25 @@ Para que una campaña caiga sola en su producto, su nombre tiene que empezar con
 | Informe de un período | **Reportes diarios → Descargar informe**: elige el rango | PDF |
 | Clientes | **Clientes → Descargar CSV** | CSV (abre en Excel/Sheets) |
 | Reporte semanal | Llega por correo a dirección los lunes | Correo |
+
+### 2.7 Origen de las ventas
+
+Responde "¿de dónde salieron las ventas que la pauta no explica?" sin dejar ninguna afuera. Cada venta cae en **una sola caja**:
+
+| Caja | Qué significa |
+|---|---|
+| Pauta solo en Meta / solo en TikTok / en las dos | El producto tenía campañas gastando **ese día** en esa plataforma. |
+| Producto sin pauta ese día | No gastó un dólar: es recompra, recomendación, WhatsApp o un anuncio viejo. |
+| Producto sin identificar | El nombre de Shopify todavía no está enlazado a un producto. Se arregla en *Control publicitario → Enlazar pedidos*. |
+| Testeo | Producto marcado como testeo; el control no lo cuenta. |
+
+Las cajas **suman exactamente** las órdenes de Shopify, y abajo está la lista venta por venta con su número de orden (y un archivo para Excel con todas). La pantalla también desarma la diferencia contra los píxeles en partes que suman exacto, y calcula el **CPA general sobre todas las ventas** —se rastreen o no— contra el CPA máximo de cada producto pesado por lo que vendió.
+
+Lo que **no** se puede saber hoy: qué anuncio exacto trajo a cada comprador. Las ventas entran por Funnelish y Releasit, que cobran fuera de Shopify y no dejan los utm en la orden. El día que el embudo los pase, aparecen solos.
+
+### 2.8 Anuncios de cada campaña
+
+En la ficha de un producto (**Productos → abrir uno**), el reporte muestra los **mejores anuncios del producto** y, al tocar una campaña, **sus anuncios**: compras, gasto, CPA, CTR, CPM, ROAS, días con gasto y un veredicto contra el CPA objetivo del producto (*escalar*, *bien*, *mirar*, *apagar* o *poco dato* con menos de tres compras). Se traen de Meta y TikTok cada 30 minutos.
 
 ---
 
@@ -249,6 +286,7 @@ El registro se hace en el servidor: no se puede apagar desde el navegador. Es re
 |---|---|---|
 | El panel muestra **0 ventas** a media tarde | La sincronización con Shopify está caída | Mira *Conexiones*. Si Shopify dice error hace más de 30 minutos, avisa a soporte técnico. |
 | El **gasto de hoy** no aparece | Normal en las primeras horas: Meta y TikTok reportan con retraso | Espera. Si a las 12:00 sigue en 0, mira *Conexiones*. |
+| El gasto de Meta/TikTok se ve **viejo** a media tarde | Windsor guarda lo que pide y lo renueva una vez por hora (según el plan) | Mira el contador del encabezado: dice de qué hora son los datos y cuánto falta para los próximos. Para bajar a 15 minutos hace falta el plan Professional de Windsor. |
 | El gasto de una cuenta de TikTok **no aparece nunca** | La cuenta no está conectada en Windsor.ai | Conectarla en Windsor (lo hace quien administra Windsor). En 5 minutos aparece. La historia de 90 días se trae en el repaso semanal. |
 | El **gasto de ayer cambió** | Normal: las plataformas ajustan días después | El cierre se recalcula solo durante 7 días. |
 | Una campaña cayó en el **producto equivocado** | El nombre tiene un código de otro producto | Corrígela en *Gestión de campañas*. La corrección se respeta. |

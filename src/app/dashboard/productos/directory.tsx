@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PulseLine, { type PulseTone } from "../pulse-line";
+import Link from "next/link";
 import {
   ColaDeAprobacion,
   DetalleProducto,
@@ -339,24 +340,41 @@ export default function ProductDirectory({
                   <td className="px-3 py-2.5 text-right align-top text-xs tabular-nums text-muted">
                     {i + 1}
                   </td>
+                  {/* Dos acciones distintas y separadas: la flechita abre el
+                      resumen acá mismo y el NOMBRE abre la ficha del producto.
+                      Antes todo el bloque desplegaba, y no había forma de
+                      adivinar cómo entrar a la ficha. */}
                   <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => setFilaAbierta(abierto ? null : r.id)}
-                      aria-expanded={abierto}
-                      className="flex w-full items-center gap-2 text-left"
-                    >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        aria-hidden
-                        className={`shrink-0 text-muted transition-transform ${abierto ? "rotate-90" : ""}`}
+                    <span className="flex items-start gap-2">
+                      <button
+                        onClick={() => setFilaAbierta(abierto ? null : r.id)}
+                        aria-expanded={abierto}
+                        aria-label={abierto ? `Cerrar el resumen de ${r.name}` : `Ver el resumen de ${r.name}`}
+                        title={abierto ? "Cerrar el resumen" : "Ver el resumen acá mismo"}
+                        className="mt-1 shrink-0 rounded p-0.5 text-muted transition hover:bg-surface-2 hover:text-foreground"
                       >
-                        <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          aria-hidden
+                          className={`transition-transform ${abierto ? "rotate-90" : ""}`}
+                        >
+                          <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      </button>
                       <span className="min-w-0">
-                      <span className="block font-medium">{r.name}</span>
+                      <Link
+                        href={`/dashboard/productos/${encodeURIComponent(r.code)}`}
+                        className="group block font-medium text-foreground hover:text-accent-strong hover:underline"
+                        title={`Abrir la ficha de ${r.name}`}
+                      >
+                        {r.name}
+                        <span className="ml-1 text-xs text-muted opacity-0 transition group-hover:opacity-100">
+                          abrir ficha →
+                        </span>
+                      </Link>
                       <span className="block text-xs text-muted">
                         {r.code}
                         {r.folder ? ` · ${r.folder}` : ""}
@@ -365,7 +383,7 @@ export default function ProductDirectory({
                           : " · sin campañas"}
                       </span>
                       </span>
-                    </button>
+                    </span>
                   </td>
 
                   <td className="px-3 py-2.5">

@@ -188,31 +188,57 @@ npm run dev            # http://localhost:3000
 
 ### 3.5 Flujo de datos: de la venta a la pantalla
 
+Son **dos relojes** (`src/lib/scheduler.ts`), para que lo lento no atrase lo
+urgente: antes todo iba en una fila de cinco minutos y, si Notion o un reporte
+tardaban, la vuelta siguiente se salteaba y la pauta quedaba 10-15 minutos atrás.
+
 ```
-┌───────────────── cada 5 minutos: src/lib/scheduler.ts ─────────────────┐
-│                                                                        │
-│  0. recifrarPendientes()  → cifra tokens que hayan quedado en claro    │
-│                                                                        │
+┌──────── RÁPIDO · cada 2 minutos: sincronizarRapido() ──────────────────┐
 │  1. SHOPIFY  syncShopifyStore()                src/lib/integrations/   │
 │     Admin GraphQL: órdenes de los últimos 2 días (30 la primera vez)   │
-│       → ShopifyOrder (upsert por storeId+externalId)                   │
-│       → ShopifyOrderLineItem (borra y reescribe los renglones)         │
+│       → ShopifyOrder / ShopifyOrderLineItem, SOLO lo que cambió        │
+│       (se compara contra lo guardado: totales, cliente y renglones)    │
 │                                                                        │
-│  2. META / TIKTOK  syncWindsorConnector()                              │
-│     Windsor.ai: gasto, impresiones, clics y compras, últimos 7 días    │
+│  2. META / TIKTOK  syncWindsorConnector()  (los dos en paralelo)       │
+│     Windsor.ai: últimos 3 días; la semana completa cada 30 minutos     │
+│     con refresh_since=3d y refresh_interval (15min → 1h → sin él)      │
 │       → AdAccount, Campaign (producto por el código del nombre:        │
 │         "134142 / …"; lote por "134142-3")                             │
-│       → MetricSnapshot (una fila por campaña y día; se reemplaza)      │
+│       → MetricSnapshot (una fila por campaña y día; solo las que       │
+│         cambiaron, para no vaciar la memoria de las pantallas)         │
 │                                                                        │
-│  3. CONTROL  capturarCorte() / repasoDiarioDeCierres()                 │
+│  3. Si entró algo nuevo: precalentarPantallas(org, true) — el panel    │
+└────────────────────────────────────────────────────────────────────────┘
+┌──────── LENTO · cada 5 minutos: sincronizarTodo(false) ────────────────┐
+│  0. recifrarPendientes()  → cifra tokens que hayan quedado en claro    │
+│                                                                        │
+│  1. ANUNCIOS  sincronizarAnuncios()  (cada 30 min, control adentro)    │
+│     Windsor por anuncio → AdCreativo + AdCreativoDia (120 días)        │
+│                                                                        │
+│  2. CONTROL  capturarCorte() / repasoDiarioDeCierres()                 │
 │     pedidos reales (pedidos-reales.ts: un pedido = un producto)        │
 │     + gasto de plataforma por día y producto                           │
 │       → CortePublicitario (8, 11, 16 y 23 h) + CorteSinAsignar         │
 │                                                                        │
-│  4. NOTION  sincronizarNotion() → TareaDiaria, ResponsableProducto     │
-│  5. Alertas, reporte diario (PDF), aviso de las 8, reporte semanal     │
-│  6. Una vez por semana: repaso de 90 días de Meta y TikTok             │
+│  3. NOTION  sincronizarNotion() → TareaDiaria, ResponsableProducto     │
+│  4. Alertas, reporte diario (PDF), aviso de las 8, reporte semanal     │
+│  5. Una vez por semana: repaso de 90 días de Meta y TikTok             │
+│  6. precalentarPantallas(org) — las veinte pantallas                   │
 └────────────────────────────────────────────────────────────────────────┘
+```
+
+El cron externo sigue como respaldo y llama a `sincronizarTodo()` **completo**
+(con la parte rápida adentro); los candados de `SyncState` evitan que dos vías
+hagan el mismo trabajo. Cada vuelta anota su duración en `SyncState`
+(`reloj-rapido`, `reloj-lento`) y cada conector, cuándo llegó algo nuevo de
+verdad (`frescura-facebook`, `frescura-tiktok`), que es lo que alimenta el
+contador del encabezado (`/api/frescura`).
+
+**La caché de Windsor**: contesta de lo que tiene guardado y lo renueva cada 6
+horas salvo que se le pida otra cosa. Por eso cada pedido lleva
+`refresh_since=3d&refresh_interval=…`; el mínimo depende del plan (Professional
+15 min, Standard/Plus 1 hora) y `windsor.ts` prueba del más corto al más largo y
+recuerda el que aceptó (`intervaloDeWindsor`).
                                   │
                                   ▼
       Pantalla (Server Component) → src/lib/<módulo>.ts → Prisma → Postgres
@@ -223,6 +249,16 @@ npm run dev            # http://localhost:3000
 
 - `MetricSnapshot.capturedAt`, `TareaDiaria.fecha` y `CortePublicitario.fecha` son **marcas de día**: medianoche UTC del día de Ecuador. **Nunca se les restan 5 horas.**
 - `ShopifyOrder.occurredAt`, `Requirement.date` y `EventoCalendario.inicio` son **instantes reales**. Para saber a qué día de Ecuador pertenecen se resta UTC−5.
+
+**Anuncios**: `AdCreativo` (uno por anuncio de una campaña) y `AdCreativoDia`
+(su rendimiento por día, 120 días de retención). Alimentan la ficha del producto
+(`anuncios-producto.ts`): mejores anuncios y, por campaña, su veredicto contra el
+CPA objetivo.
+
+**Origen de cada venta** (`origen-pedidos.ts`): clasifica cada orden en una sola
+caja (pauta en Meta / TikTok / las dos, sin pauta ese día, sin identificar,
+testeo) y desarma la diferencia contra los píxeles en términos que suman exacto.
+De ahí sale también el CPA general contra el objetivo del Panel.
 
 **Atribución campaña → producto:** por el código al principio del nombre (`matchProduct` en `windsor-sync.ts`). También se aceptan los `codigosAnteriores` de un producto fusionado y, si no hay código, el nombre más largo que coincida. Una asignación manual (`productManual`) no se pisa nunca.
 
@@ -311,7 +347,12 @@ No hay Cloudflare, Vercel, GoDaddy ni AWS en el camino. El certificado HTTPS lo 
 
 **Respuestas de API**: las GET grandes usan `jsonComprimido` (`src/lib/respuesta.ts`, gzip + no-store). Los errores hacia la pantalla pasan por `mensajeSeguro`.
 
-**Medir en una máquina**: `next build` y después `RELOJ_APAGADO=1 PERFIL_CONSULTAS=1 next start`. El reloj queda apagado (no sincroniza contra producción) y cada consulta se escribe con su duración. `/api/health` informa `latenciaBaseMs`, la distancia servidor→base.
+**Conexiones a la base**: `DB_POOL_MAX` (6 por defecto). El pooler gratuito de
+Supabase acepta 15 en total y `pg` abre 10 por proceso: en cada despliegue
+conviven la instancia vieja y la nueva, y las pantallas fallaban con
+`max clients reached`.
+
+**Medir en una máquina**: `next build` y después `RELOJ_APAGADO=1 PERFIL_CONSULTAS=1 DB_POOL_MAX=3 next start` (la configuración `bella-prod` de `.claude/launch.json` ya lo hace). El reloj queda apagado (no sincroniza contra producción) y cada consulta se escribe con su duración. `/api/health` informa `latenciaBaseMs`, la distancia servidor→base.
 
 **Seguimiento de actividad** (`src/lib/actividad.ts`, tabla `ActividadUsuario`): el middleware marca cada pedido (`x-jarvis-*`) y `getSession` lo registra. Las búsquedas las manda `registro-busquedas.tsx`. La lectura (`/api/actividad`) es solo para OWNER. Los textos legibles salen de `actividad-texto.ts`: al agregar un endpoint que modifica datos, sumarle su frase en `ACCIONES`. Retención: 90 días.
 

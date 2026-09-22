@@ -9,7 +9,7 @@ import DropiCard from "./dropi-card";
 import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import CorreoCard from "./correo-card";
-import { emailConfigured } from "@/lib/email";
+import { emailConfigured, estadoDelCorreo } from "@/lib/email";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
@@ -19,7 +19,7 @@ export default async function ConexionesPage() {
   // Esta pantalla guarda los tokens de produccion. Antes solo pedia sesion.
   if (!canManageConexiones(session.role)) redirect("/dashboard");
 
-  const [accounts, shopifyStore, dropiConnection, notionConnection] = await Promise.all([
+  const [accounts, shopifyStore, dropiConnection, notionConnection, estadoCorreo] = await Promise.all([
     db.adAccount.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
@@ -27,6 +27,7 @@ export default async function ConexionesPage() {
     db.shopifyStore.findFirst({ where: { organizationId: session.organizationId } }),
     db.dropiConnection.findFirst({ where: { organizationId: session.organizationId } }),
     db.notionConnection.findUnique({ where: { organizationId: session.organizationId } }),
+    estadoDelCorreo(),
   ]);
 
   const metaAccounts = accounts.filter((a) => a.platform === "META");
@@ -118,10 +119,10 @@ export default async function ConexionesPage() {
         <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Correo saliente</h2>
 
         <CollapsibleSection title="Resend" count={emailConfigured() ? 1 : 0}>
-          <CorreoCard
-            configurado={emailConfigured()}
-            dominio={process.env.EMAIL_FROM_DOMAIN?.trim() || null}
-          />
+          {/* El estado se le pregunta a Resend, no se adivina de una variable:
+              con el dominio sin verificar, los correos salen del remitente de
+              prueba y solo los recibe el dueño de la cuenta. */}
+          <CorreoCard configurado={emailConfigured()} dominio={estadoCorreo.dominio} />
         </CollapsibleSection>
       </div>
 

@@ -14,6 +14,7 @@ import MatrixRondas from "./matrix-rondas";
 import HistorialDecisiones from "./historial-decisiones";
 import ReporteProducto from "./reporte-producto";
 import AnclajeProducto from "./anclaje-producto";
+import AyudaPantalla from "../../ayuda-pantalla";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
 
@@ -207,15 +208,49 @@ export default async function ProductoDetailPage({
       )}
 
       {/* Varias formas de mirar el mismo producto. La tabla es la planilla
-          que el equipo ya usa; el kanban, las mismas piezas en tarjetas por
-          etapa (para llenar la fase, el resto se sincroniza solo); el
+          que el equipo ya usa; el tablero por etapa, las mismas piezas en
+          tarjetas (para llenar la fase, el resto se sincroniza solo); el
           repositorio, el material del que salen. */}
-      <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-4">
+        <AyudaPantalla
+          id="ficha-producto"
+          titulo="Las pestañas de un producto"
+          resumen="Todas muestran el mismo producto, cada una para un momento del trabajo."
+          pasos={[
+            {
+              titulo: "Seguimiento de creativos",
+              texto:
+                "La planilla de siempre: una fila por pieza, con su anuncio, formato, ángulo y resultado. Se edita tocando la celda y se guarda sola.",
+            },
+            {
+              titulo: "Lotes · Matrix de rondas",
+              texto:
+                "Las piezas agrupadas en lotes de testeo: cuatro piezas que salen juntas con formato y ángulo distintos, para comparar peras con peras.",
+            },
+            {
+              titulo: "Referencias",
+              texto: "Los anuncios de otros que sirven de ejemplo para este producto.",
+            },
+            {
+              titulo: "Tablero por etapa",
+              texto:
+                "Las mismas piezas de la planilla, pero en tarjetas por etapa (pendiente, en edición, lista, testeada). Se arrastra una tarjeta para cambiarle la etapa. Sirve para ver de un vistazo dónde está trabada la producción.",
+            },
+            {
+              titulo: "Dirección creativa",
+              texto: "El material del que salen las piezas: links, fotos, guiones y lo que el producto necesite.",
+            },
+            {
+              titulo: "Historial de decisiones",
+              texto: "Qué se decidió con este producto y por qué: escalar, apagar, cambiar precio.",
+            },
+          ]}
+        />
         {[
           { id: "tabla", label: "Seguimiento de creativos" },
           { id: "rondas", label: "Lotes" },
           { id: "referencias", label: "Referencias" },
-          { id: "pipeline", label: "Kanban" },
+          { id: "pipeline", label: "Tablero por etapa" },
           { id: "repositorio", label: "Dirección creativa" },
           { id: "historial", label: "Historial de decisiones" },
         ].map((v) => {
@@ -261,7 +296,7 @@ export default async function ProductoDetailPage({
           }))}
           products={[{ id: product.id, code: product.code, name: product.name }]}
           users={users}
-          title={`Kanban — ${product.name}`}
+          title={`Tablero por etapa — ${product.name}`}
           subtitle="Las mismas piezas, en tarjetas por etapa."
         />
       ) : (

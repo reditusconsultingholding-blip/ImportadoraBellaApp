@@ -81,7 +81,9 @@ export default function FrescuraVentas() {
             ? "esperando la primera actualización"
             : proximaPauta! > ahora
               ? `datos de las ${hora(new Date(pautaDe).toISOString())} · próxima en ${faltan(proximaPauta! - ahora)}`
-              : `datos de las ${hora(new Date(pautaDe).toISOString())} · actualizando…`}
+              : ahora - proximaPauta! > Math.max(...datos.conectores.map((c) => c.intervaloMin)) * 60_000
+                ? `sin cambios desde las ${hora(new Date(pautaDe).toISOString())}`
+                : `datos de las ${hora(new Date(pautaDe).toISOString())} · actualizando…`}
         </span>
       </span>
     </p>

@@ -61,12 +61,19 @@ export default function ContadorDatos() {
   const datosDe = masViejo.length ? Math.min(...masViejo) : null;
   const vencido = proxima != null && proxima <= ahora;
 
+  // Pasado el doble del intervalo sin novedades, no es que esté actualizando:
+  // es que Windsor trae lo mismo porque no hubo movimiento (de madrugada
+  // pasa siempre). Decirlo así evita que parezca que quedó colgado.
+  const intervaloMs = Math.max(...datos.map((d) => d.intervaloMin)) * 60_000;
+  const quieto = proxima != null && ahora - proxima > intervaloMs;
   const texto =
     proxima == null
       ? "Meta y TikTok: esperando la primera actualización"
-      : vencido
-        ? `Meta y TikTok: datos de las ${hora(new Date(datosDe!).toISOString())} · actualizando…`
-        : `Meta y TikTok: datos de las ${hora(new Date(datosDe!).toISOString())} · próxima en ${faltan(proxima - ahora)}`;
+      : quieto
+        ? `Meta y TikTok: sin cambios desde las ${hora(new Date(datosDe!).toISOString())}`
+        : vencido
+          ? `Meta y TikTok: datos de las ${hora(new Date(datosDe!).toISOString())} · actualizando…`
+          : `Meta y TikTok: datos de las ${hora(new Date(datosDe!).toISOString())} · próxima en ${faltan(proxima - ahora)}`;
 
   return (
     <div className="relative hidden md:block">
@@ -90,7 +97,9 @@ export default function ContadorDatos() {
                 {d.proxima
                   ? new Date(d.proxima).getTime() > ahora
                     ? `Próxima actualización en ${faltan(new Date(d.proxima).getTime() - ahora)} (${hora(d.proxima)})`
-                    : "Windsor ya debería traer datos nuevos: llegan en la próxima consulta"
+                    : ahora - new Date(d.proxima).getTime() > d.intervaloMin * 60_000
+                      ? "Windsor sigue trayendo los mismos números: no hubo movimiento"
+                      : "Windsor ya debería traer datos nuevos: llegan en la próxima consulta"
                   : "—"}
               </p>
               <p className="text-muted">

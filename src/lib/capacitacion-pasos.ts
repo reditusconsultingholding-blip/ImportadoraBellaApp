@@ -218,6 +218,22 @@ export const PASOS: PasoCapacitacion[] = [
     roles: CON_NUMEROS,
   },
   {
+    id: "origen",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/origen",
+    seccion: "Origen de las ventas",
+    titulo: "De dónde viene cada venta",
+    texto:
+      "Contesta la pregunta que aparece cada vez que los números de Meta no coinciden con los de la tienda: de dónde salieron las ventas que la pauta no explica. Cada venta cae en una sola caja según si su producto tenía anuncios ese día y en qué plataforma, y las cajas suman exactamente las órdenes de Shopify.",
+    puntos: [
+      "La diferencia contra lo que reportan los píxeles se desarma en partes que suman exacto: ventas que ningún píxel vio, compras contadas de más, productos sin pauta, nombres sin enlazar y testeos.",
+      "El CPA general se calcula sobre TODAS las ventas de la tienda, se rastreen o no, y se compara con el CPA máximo de cada producto pesado por lo que vendió ese día.",
+      "Abajo está la lista venta por venta con su número de orden de Shopify, y un archivo para abrir en Excel.",
+      "Lo que no se puede saber hoy: qué anuncio exacto trajo a cada comprador. Las ventas entran por Funnelish y Releasit, que cobran fuera de Shopify y no dejan los utm en la orden.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
     id: "calculadora",
     requierePermisoFinanzas: true,
     ruta: "/dashboard/calculadora",

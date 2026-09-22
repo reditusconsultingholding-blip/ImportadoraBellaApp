@@ -250,7 +250,11 @@ export default function SidebarNav({
         ...(showReportes
           ? [{ href: "/dashboard/reportes", label: "Reportes diarios", icon: "reportes" }]
           : []),
-        ...(showLogistica
+        // Torre logística queda fuera del menú por pedido de dirección
+        // (22 de septiembre de 2026): todavía no tiene datos, porque depende
+        // de la conexión con Dropi. La pantalla sigue viva en
+        // /dashboard/logistica para cuando se conecte.
+        ...(showLogistica && false
           ? [{ href: "/dashboard/logistica", label: "Torre logística", icon: "logistica" }]
           : []),
         ...(showNomina ? [{ href: "/dashboard/nomina", label: "Nómina", icon: "nomina" }] : []),

@@ -114,7 +114,7 @@ export default function PipelineBoard({
                   view === "kanban" ? "bg-accent text-white" : "text-muted hover:bg-surface-2"
                 }`}
               >
-                Kanban
+                Por etapa
               </button>
               <button
                 onClick={() => setVistaLocal("table")}

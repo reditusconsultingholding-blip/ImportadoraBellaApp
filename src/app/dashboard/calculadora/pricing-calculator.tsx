@@ -376,6 +376,10 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   }, []);
 
   function loadFromProduct(name: string) {
+    // Lo que quedó sin guardar del producto anterior se guarda ahora: el
+    // guardado automático espera 800 ms y cambiar de producto en ese rato
+    // mataba el temporizador y el cambio se perdía en silencio.
+    if (selectedProduct && sucio && name !== selectedProduct) void guardar();
     setSelectedProduct(name);
     setSucio(false);
     setGuardado("limpio");

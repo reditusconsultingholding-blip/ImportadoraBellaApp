@@ -20,6 +20,7 @@ import { fetchConReintentos } from "@/lib/http";
 // el de prueba. Así funciona hoy y mejora solo cuando el DNS esté.
 
 const RESEND_URL = "https://api.resend.com/emails";
+const RESEND_DOMINIOS = "https://api.resend.com/domains";
 const FALLBACK_FROM = "Jarvis <onboarding@resend.dev>";
 
 /** Sin clave no hay envío, y quien llama decide si eso es un problema. */
@@ -27,9 +28,71 @@ export function emailConfigured() {
   return Boolean(process.env.RESEND_API_KEY?.trim());
 }
 
-function sender() {
-  const domain = process.env.EMAIL_FROM_DOMAIN?.trim();
-  return domain ? `Jarvis · Importadora Bella <jarvis@${domain}>` : FALLBACK_FROM;
+/**
+ * El dominio verificado en Resend, preguntándoselo a Resend.
+ *
+ * Antes esto dependía de que alguien cargara EMAIL_FROM_DOMAIN a mano. Si no
+ * estaba —y no estaba—, los correos salían desde onboarding@resend.dev, que
+ * Resend **solo entrega a la casilla dueña de la cuenta**: el equipo nunca
+ * recibía nada y no había ningún error a la vista. Ahora se consulta la lista
+ * de dominios y se usa el primero verificado; la variable sigue valiendo si
+ * alguien quiere forzar uno.
+ *
+ * Se recuerda diez minutos: es un dato que casi nunca cambia y no tiene
+ * sentido preguntarlo en cada correo.
+ */
+const dominioRecordado: { valor: string | null; al: number } = { valor: null, al: 0 };
+const DOMINIO_VIGENCIA_MS = 10 * 60 * 1000;
+
+export type EstadoCorreo = {
+  hayClave: boolean;
+  /** El dominio con el que se está enviando, o null si es el de prueba. */
+  dominio: string | null;
+  /** Todos los dominios de la cuenta con su estado, tal cual los da Resend. */
+  dominios: { nombre: string; estado: string }[];
+  error?: string;
+};
+
+/** Le pregunta a Resend qué dominios tiene la cuenta y cómo están. */
+export async function estadoDelCorreo(): Promise<EstadoCorreo> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return { hayClave: false, dominio: null, dominios: [], error: "Falta RESEND_API_KEY." };
+  try {
+    const res = await fetchConReintentos(
+      RESEND_DOMINIOS,
+      { headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } },
+      { timeoutMs: 15_000, reintentos: 1 },
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: { name?: string; status?: string }[];
+      message?: string;
+    };
+    if (!res.ok) {
+      return { hayClave: true, dominio: null, dominios: [], error: json.message ?? `Resend respondió ${res.status}` };
+    }
+    const dominios = (json.data ?? []).map((d) => ({ nombre: String(d.name ?? ""), estado: String(d.status ?? "") }));
+    const verificado = dominios.find((d) => d.estado === "verified")?.nombre ?? null;
+    return { hayClave: true, dominio: process.env.EMAIL_FROM_DOMAIN?.trim() || verificado, dominios };
+  } catch (err) {
+    return {
+      hayClave: true,
+      dominio: null,
+      dominios: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function sender() {
+  const forzado = process.env.EMAIL_FROM_DOMAIN?.trim();
+  if (forzado) return `Jarvis · Importadora Bella <jarvis@${forzado}>`;
+  if (Date.now() - dominioRecordado.al < DOMINIO_VIGENCIA_MS) {
+    return dominioRecordado.valor ? `Jarvis · Importadora Bella <jarvis@${dominioRecordado.valor}>` : FALLBACK_FROM;
+  }
+  const estado = await estadoDelCorreo();
+  dominioRecordado.valor = estado.dominio;
+  dominioRecordado.al = Date.now();
+  return estado.dominio ? `Jarvis · Importadora Bella <jarvis@${estado.dominio}>` : FALLBACK_FROM;
 }
 
 /** La dirección pública de la app, para los enlaces de los correos. */
@@ -66,7 +129,7 @@ export async function sendEmail({
         "Idempotency-Key": randomUUID(),
       },
       body: JSON.stringify({
-        from: sender(),
+        from: await sender(),
         to,
         subject,
         html,

@@ -13,6 +13,7 @@ import { proponerEnlaces } from "@/lib/enlace-shopify";
 import Lista from "./lista";
 import Enlaces from "./enlaces";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
+import AyudaPantalla from "../ayuda-pantalla";
 
 export default async function SinNomenclaturaPage() {
   const session = await getSession();
@@ -60,6 +61,36 @@ export default async function SinNomenclaturaPage() {
           </InsigniaEncabezado>
         }
         descripcion="Las campañas que no cuelgan de ningún producto y los productos que no tienen ninguna campaña. Es lo que hace que el panel diga que hay órdenes sin explicación: la plata se gastó y las ventas entraron, pero no suman a la rentabilidad de nadie. Acá se emparejan."
+        acciones={
+          <AyudaPantalla
+            id="sin-nomenclatura"
+            titulo="Qué hay que hacer en esta pantalla"
+            resumen="Emparejar lo que la tienda vendió y lo que la pauta gastó con los productos de Jarvis. Son tres listas y cada una se resuelve eligiendo un producto."
+            pasos={[
+              {
+                titulo: "Nombres de Shopify sin producto",
+                texto:
+                  "Cada fila es un nombre con el que la tienda facturó y que Jarvis no sabe de qué producto es. Elige el producto (se busca escribiendo: nombre, código o iniciales) y esa facturación empieza a contar en Rentabilidad y en el control. Si el nombre es un envío, una garantía o un testeo, márcalo como «no es un producto» y deja de aparecer.",
+              },
+              {
+                titulo: "Campañas sin producto",
+                texto:
+                  "Campañas que gastaron plata y que Jarvis no puede colgar de ningún producto, casi siempre porque su nombre no empieza con el código. Asígnales el producto acá; la asignación a mano se respeta y la sincronización no la pisa.",
+              },
+              {
+                titulo: "Productos sin campañas",
+                texto:
+                  "Productos que existen en Jarvis y no tienen ninguna campaña asociada. O están sin pautar, o su campaña está en la lista de arriba esperando que alguien la empareje.",
+              },
+              {
+                titulo: "Para que no vuelva a pasar",
+                texto:
+                  "Nombra las campañas empezando por el código del producto: «134142 / TE GINSENG / ABO / COST CAP», y con lote «134142-3 / …». Así se enlazan solas y esta pantalla queda vacía.",
+              },
+            ]}
+            porQue="Mientras algo esté acá, su gasto y su facturación no suman a ningún producto: el panel muestra órdenes sin explicación, la rentabilidad sale corta y el CPA de ese producto no es real."
+          />
+        }
       />
 
       {/* Los enlaces con Shopify van primero: son los que mueven la

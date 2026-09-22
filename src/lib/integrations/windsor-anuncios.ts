@@ -120,7 +120,12 @@ export async function sincronizarAnuncios(organizationId: string, connector: Win
 
     // La historia vieja no se usa en ninguna pantalla y la base es chica.
     await db.adCreativoDia.deleteMany({
-      where: { capturedAt: { lt: new Date(Date.now() - RETENCION_DIAS * 86_400_000) } },
+      where: {
+        capturedAt: { lt: new Date(Date.now() - RETENCION_DIAS * 86_400_000) },
+        // Solo lo de esta organización: sin esto, sincronizar una borraría la
+        // historia de anuncios de todas.
+        ad: { campaign: { adAccount: { organizationId } } },
+      },
     });
 
     const detalle = `${adDe.size} anuncios (${nuevos} nuevos), ${porGuardar.length} días${

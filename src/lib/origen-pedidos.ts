@@ -208,7 +208,9 @@ async function origenPorVentaSinMemoria(organizationId: string, range: Range): P
       SELECT o."externalId", o."occurredAt", o.channel, o."netSales", l.clase, l."productId", l.nombre, o."conUtm",
              EXISTS (
                SELECT 1 FROM "ShopifyOrder" p
+                 JOIN "ShopifyStore" s2 ON s2.id = p."storeId"
                 WHERE o."clienteTelefono" IS NOT NULL
+                  AND s2."organizationId" = ${organizationId}
                   AND p."clienteTelefono" = o."clienteTelefono"
                   AND p."occurredAt" < o."occurredAt"
              ) AS recurrente
@@ -286,8 +288,12 @@ async function origenPorVentaSinMemoria(organizationId: string, range: Range): P
     else if (o.clase !== "producto" || !o.productId) caja = "sin_identificar";
     else {
       const p = pautaDe.get(clave(dia, o.productId));
-      const enMeta = (p?.meta ?? 0) > 0;
-      const enTiktok = (p?.tiktok ?? 0) > 0;
+      // Gasto O compras atribuidas: Meta a veces reporta compras de un día en
+      // el que el gasto todavía figura en cero. Mirando solo el gasto, esa
+      // venta caía en "sin pauta" y sus compras aparecían como "reportadas de
+      // más" — las dos cosas a la vez, que es justo lo que confunde.
+      const enMeta = (p?.meta ?? 0) > 0 || (p?.comprasMeta ?? 0) > 0;
+      const enTiktok = (p?.tiktok ?? 0) > 0 || (p?.comprasTiktok ?? 0) > 0;
       caja = enMeta && enTiktok ? "ambas" : enMeta ? "meta" : enTiktok ? "tiktok" : "sin_pauta";
       if (caja !== "sin_pauta") {
         const k = clave(dia, o.productId);

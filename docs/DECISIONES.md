@@ -124,6 +124,41 @@ sidebar seccionado por categorías (el plano actual todavía alcanza).
 decidido — se agregan al final del plan de integración (sección 6, punto
 12) para no competir por prioridad con lo ya comprometido.
 
+## Una sola calculadora (22 de septiembre de 2026)
+**Decisión:** queda la **Calculadora de precios** y se retira "Costeo y
+utilidad", cuya dirección redirige. De la retirada se trajo lo que servía:
+catálogo de Shopify en vivo, deslizadores, veredicto en una frase,
+confirmación de equilibrio, escenarios en barras y el desglose del día.
+**Por qué:** eran dos entradas seguidas que se leían como lo mismo, y la
+retirada no tenía botón de guardar ni avisaba cuando el servidor rechazaba
+el guardado.
+
+## Frescura de los datos de pauta (22 de septiembre de 2026)
+**Decisión:** dos relojes (ventas y pauta cada 2 minutos; el resto cada 5),
+escritura diferencial en Shopify y Windsor, y `refresh_interval` en cada
+pedido a Windsor (15min → 1h → sin él, según lo que acepte el plan).
+**Por qué:** Windsor contesta de su caché y la renueva cada 6 horas: el panel
+mostraba la foto de la mañana aunque Jarvis preguntara cada 2 minutos. Y cada
+reescritura innecesaria vaciaba la memoria de cálculo de las pantallas.
+**Queda pendiente:** conectar Meta directo por su API (gratis, minutos de
+atraso) o subir a Windsor Professional para bajar de 1 hora a 15 minutos.
+
+## Origen de las ventas: cajas, no señales (21 de septiembre de 2026)
+**Decisión:** cada venta cae en **una sola** caja y las cajas suman exacto el
+total de Shopify; la diferencia contra los píxeles se desarma en términos que
+también suman exacto.
+**Por qué:** la primera versión daba señales que se pisaban entre sí (una venta
+podía ser recompra y a la vez de un nombre sin enlazar) y no sumaban el total,
+y eso se lee como números que no cuadran.
+
+## Anuncios por campaña (21 de septiembre de 2026)
+**Decisión:** se guardan los anuncios de Windsor (`AdCreativo`,
+`AdCreativoDia`, 120 días) y se sincronizan **aparte** de las campañas, cada
+30 minutos.
+**Por qué:** son muchas más filas y, si Windsor rechaza un campo de anuncio, no
+puede arrastrar a la sincronización de campañas, de la que dependen el panel y
+el control.
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).

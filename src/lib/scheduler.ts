@@ -20,8 +20,11 @@ import { resincronizacionProfunda } from "@/lib/resync-profundo";
 import { recifrarPendientes } from "@/lib/cifrado-repaso";
 import { precalentarPantallas } from "@/lib/precalentar";
 import { limpiarActividadVieja } from "@/lib/actividad";
+import { estadoDelCorreo } from "@/lib/email";
 
 let ultimaLimpiezaActividad = "";
+/** Cuándo se revisó por última vez el correo saliente. */
+let ultimoCorreo = 0;
 
 // El reloj de la aplicación.
 //
@@ -62,7 +65,10 @@ const ESPERA_INICIAL_MS = 45 * 1000;
 // Si una corrida quedó marcada como "corriendo" más tiempo que esto, se asume
 // que el proceso murió a mitad de camino. Sin esto, un reinicio en el momento
 // justo dejaría el candado puesto para siempre.
-const CANDADO_VENCE_MS = 15 * 60 * 1000;
+// Con margen para un mal día de Windsor: un pedido puede reintentarse
+// varias veces con hasta tres minutos de espera cada uno, y si el candado
+// venciera antes, una segunda vuelta entraría a escribir las mismas filas.
+const CANDADO_VENCE_MS = 25 * 60 * 1000;
 
 const CONECTORES: WindsorConnector[] = ["facebook", "tiktok"];
 
@@ -157,6 +163,13 @@ export async function sincronizarRapido() {
   for (const org of orgs) {
     const inicio = Date.now();
     let cambio = false;
+    // Lo de ESTA organización. El resumen general se devuelve igual para el
+    // registro, pero lo que se guarda en su SyncState es solo lo suyo.
+    const mio: Record<string, string> = {};
+    const anotar = (clave: string, valor: string) => {
+      resumen[clave] = valor;
+      mio[clave] = valor;
+    };
 
     const tiendas = await db.shopifyStore.findMany({
       where: { organizationId: org.id, connectedAt: { not: null } },
@@ -169,13 +182,13 @@ export async function sincronizarRapido() {
       }
       try {
         const r = await syncShopifyStore(tienda.id);
-        resumen.shopify = `${r.ordersSynced} órdenes`;
+        anotar("shopify", `${r.ordersSynced} órdenes`);
         // Solo cuenta como cambio si entró o se modificó alguna orden.
         if (r.creadas + r.actualizadas > 0) cambio = true;
-        await soltarCandado(org.id, "shopify", { ok: true, detalle: resumen.shopify });
+        await soltarCandado(org.id, "shopify", { ok: true, detalle: mio.shopify });
       } catch (err) {
         const mensaje = err instanceof Error ? err.message : String(err);
-        resumen.shopify = `error: ${mensaje}`;
+        anotar("shopify", `error: ${mensaje}`);
         await soltarCandado(org.id, "shopify", { ok: false, error: mensaje });
       }
     }
@@ -186,7 +199,7 @@ export async function sincronizarRapido() {
       await Promise.all(
         CONECTORES.map(async (conector) => {
           if (!(await tomarCandado(org.id, conector))) {
-            resumen[conector] = "ya estaba corriendo";
+            anotar(conector, "ya estaba corriendo");
             return;
           }
           const t = Date.now();
@@ -194,11 +207,14 @@ export async function sincronizarRapido() {
             const r = await traerPauta(org.id, conector);
             if (r.cambiados > 0) cambio = true;
             await anotarFrescura(org.id, conector, r.cambiados > 0);
-            resumen[conector] = `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
-            await soltarCandado(org.id, conector, { ok: true, detalle: resumen[conector] });
+            anotar(
+              conector,
+              `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`,
+            );
+            await soltarCandado(org.id, conector, { ok: true, detalle: mio[conector] });
           } catch (err) {
             const mensaje = err instanceof Error ? err.message : String(err);
-            resumen[conector] = `error: ${mensaje}`;
+            anotar(conector, `error: ${mensaje}`);
             await soltarCandado(org.id, conector, { ok: false, error: mensaje });
           }
         }),
@@ -209,12 +225,12 @@ export async function sincronizarRapido() {
     // el panel sigue calculado.
     if (cambio) {
       try {
-        resumen.precalentado = await precalentarPantallas(org.id, true);
+        anotar("precalentado", await precalentarPantallas(org.id, true));
       } catch (err) {
-        resumen.precalentado = `error: ${err instanceof Error ? err.message : String(err)}`;
+        anotar("precalentado", `error: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    await anotarVuelta(org.id, "reloj-rapido", inicio, Object.entries(resumen).map(([k, v]) => `${k}: ${v}`).join(" | "));
+    await anotarVuelta(org.id, "reloj-rapido", inicio, Object.entries(mio).map(([k, v]) => `${k}: ${v}`).join(" | "));
   }
   return resumen;
 }
@@ -230,7 +246,6 @@ export async function sincronizarRapido() {
 export async function sincronizarTodo(conRapido = true) {
   const orgs = await db.organization.findMany({ select: { id: true } });
   const resumen: Record<string, string> = conRapido ? await sincronizarRapido() : {};
-  const inicioLento = Date.now();
 
   // El seguimiento de actividad se guarda 90 días; lo viejo se borra una vez
   // por día (ver src/lib/actividad.ts).
@@ -254,6 +269,9 @@ export async function sincronizarTodo(conRapido = true) {
   }
 
   for (const org of orgs) {
+    // El cronómetro arranca con cada organización: si no, la segunda
+    // informaría también el tiempo de la primera.
+    const inicioLento = Date.now();
     // Ventas y pauta van en la vuelta rápida (sincronizarRapido). Acá queda
     // lo que puede esperar unos minutos sin que nadie lo note.
     if (hasWindsorKey()) {
@@ -261,11 +279,31 @@ export async function sincronizarTodo(conRapido = true) {
       // frecuencia vive adentro). Van después de las campañas porque se
       // cuelgan de ellas, y un error acá no toca lo de arriba.
       for (const conector of CONECTORES) {
+        const fuente = `anuncios-${conector}`;
+        // Con candado, como los conectores: el reloj interno y el cron externo
+        // pueden coincidir, y dos sincronizaciones de anuncios a la vez
+        // escriben las mismas filas de AdCreativoDia.
+        if (!(await tomarCandado(org.id, fuente))) {
+          resumen[fuente] = "ya estaba corriendo";
+          continue;
+        }
         try {
           const r = await sincronizarAnuncios(org.id, conector);
-          if (r) resumen[`anuncios-${conector}`] = r;
+          if (r) {
+            resumen[fuente] = r;
+            await soltarCandado(org.id, fuente, { ok: true, detalle: r });
+          } else {
+            // No le tocaba (su control de frecuencia son 30 minutos): se
+            // suelta el candado sin mover okAt, que es justo lo que mide esos
+            // 30 minutos. Marcarlo acá lo reiniciaría en cada vuelta.
+            await db.syncState
+              .update({ where: { organizationId_fuente: { organizationId: org.id, fuente } }, data: { corriendo: false } })
+              .catch(() => {});
+          }
         } catch (err) {
-          resumen[`anuncios-${conector}`] = `error: ${err instanceof Error ? err.message : String(err)}`;
+          const mensaje = err instanceof Error ? err.message : String(err);
+          resumen[fuente] = `error: ${mensaje}`;
+          await soltarCandado(org.id, fuente, { ok: false, error: mensaje });
         }
       }
     }
@@ -403,6 +441,29 @@ export async function sincronizarTodo(conRapido = true) {
       if (r) resumen.semanal = r;
     } catch (err) {
       resumen.semanal = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Cómo está el correo saliente, una vez por hora. Queda escrito en
+    // SyncState para poder mirarlo sin entrar a la app: "no llegan los
+    // correos" casi siempre es el dominio sin verificar en Resend, y eso no
+    // se veía por ningún lado.
+    try {
+      if (Date.now() - ultimoCorreo > 60 * 60 * 1000) {
+        ultimoCorreo = Date.now();
+        const e = await estadoDelCorreo();
+        const base = e.error
+          ? "error: " + e.error
+          : e.dominio
+            ? "enviando desde jarvis@" + e.dominio
+            : "sin dominio verificado: Resend solo entrega al dueño de la cuenta";
+        const lista = e.dominios.length
+          ? " · dominios: " + e.dominios.map((d) => d.nombre + " (" + d.estado + ")").join(", ")
+          : "";
+        resumen.correo = base + lista;
+        await anotarVuelta(org.id, "correo", Date.now(), resumen.correo);
+      }
+    } catch (err) {
+      resumen.correo = "error: " + (err instanceof Error ? err.message : String(err));
     }
 
     // Lo último: dejar calculadas las pantallas con los datos recién traídos,

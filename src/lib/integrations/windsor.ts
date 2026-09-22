@@ -43,11 +43,23 @@ export type WindsorConnector = "facebook" | "tiktok";
 // Plus: 1 hora). Se prueba del más corto al más largo y se recuerda el que
 // Windsor aceptó, para no volver a probar en cada vuelta.
 const INTERVALOS = ["15min", "1h"] as const;
-const intervaloAceptado = new Map<WindsorConnector, string | null>();
+
+/**
+ * Lo que aceptó Windsor la última vez, con cuándo se averiguó.
+ *
+ * Con la hora al lado por dos motivos. Uno: si un día Windsor contesta mal por
+ * algo pasajero (429 por cuota, un 5xx) y hubo que pedir sin refresco, eso no
+ * puede quedar fijo para siempre — se vuelve a probar el intervalo corto al
+ * rato. Dos: si el cliente sube de plan, el intervalo bueno entra solo sin
+ * reiniciar la aplicación.
+ */
+const intervaloAceptado = new Map<WindsorConnector, { intervalo: string | null; al: number }>();
+/** Cada cuánto se vuelve a probar si ahora se acepta un intervalo más corto. */
+const REPROBAR_MS = 30 * 60 * 1000;
 
 /** El intervalo que Windsor está aceptando para un conector (null = el de 6 h). */
 export function intervaloDeWindsor(connector: WindsorConnector) {
-  return intervaloAceptado.get(connector);
+  return intervaloAceptado.get(connector)?.intervalo;
 }
 
 /** Los minutos de un intervalo de Windsor ("15min" → 15, "1h" → 60, null → 360). */
@@ -68,7 +80,11 @@ async function pedirConRefresco(
   opciones: { timeoutMs: number; reintentos: number },
 ): Promise<Response> {
   const conocido = intervaloAceptado.get(connector);
-  const candidatos: (string | null)[] = conocido !== undefined ? [conocido] : [...INTERVALOS, null];
+  // Se prueba la lista entera cuando no se sabe nada, y también cuando lo que
+  // se sabe es "sin refresco" y ya pasó media hora: eso pudo haber sido un
+  // problema pasajero de Windsor, no el plan.
+  const vencido = !conocido || (conocido.intervalo === null && Date.now() - conocido.al > REPROBAR_MS);
+  const candidatos: (string | null)[] = vencido ? [...INTERVALOS, null] : [conocido!.intervalo];
   let ultima: Response | null = null;
   for (const intervalo of candidatos) {
     const extra: Record<string, string> = intervalo ? { refresh_since: "3d", refresh_interval: intervalo } : {};
@@ -77,17 +93,18 @@ async function pedirConRefresco(
       esperaBaseMs: 2_000,
     });
     if (res.ok) {
-      intervaloAceptado.set(connector, intervalo);
+      intervaloAceptado.set(connector, { intervalo, al: Date.now() });
       return res;
     }
     ultima = res;
-    // Solo se prueba el siguiente si Windsor rechazó el pedido (400/403: el
-    // plan no permite ese intervalo). Un 5xx es otra cosa y se devuelve.
-    if (res.status >= 500) return res;
+    // Solo un rechazo del pedido (400/403: el plan no permite ese intervalo)
+    // justifica probar el siguiente. Un 429 o un 5xx son de Windsor, no del
+    // parámetro: se devuelven tal cual y no se toca lo que ya se sabía.
+    if (res.status !== 400 && res.status !== 403) return res;
   }
-  // Si el que se recordaba dejó de valer (cambió el plan), se vuelve a probar
-  // desde el principio en la próxima vuelta.
-  intervaloAceptado.delete(connector);
+  // Ninguno anduvo. NO se borra lo que se sabía: el mismo 400 lo puede causar
+  // un campo que no existe para el conector (ver CAMPOS_ANUNCIO), y perder el
+  // intervalo por eso dejaría los datos viejos y el contador mintiendo.
   return ultima!;
 }
 
