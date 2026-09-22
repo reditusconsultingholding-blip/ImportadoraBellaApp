@@ -33,11 +33,25 @@ export type Descuadre = {
  * propósito y no tienen contra qué compararse.
  */
 export async function descuadreDelControl(organizationId: string): Promise<Descuadre> {
+  // El día en curso NO entra en la comparación.
+  //
+  // El cierre de un día se escribe a las 23:00 y `rellenarCierres` nunca toca
+  // el día que todavía no terminó —un "cierre" de un día abierto sería mentira—.
+  // Si se comparara, hoy siempre daría distinto: la planilla ya tiene los
+  // pedidos de la mañana y el cierre todavía no existe. El resultado sería un
+  // descuadre permanente que además no se puede arreglar, o sea ruido que
+  // enseña a ignorar el aviso.
+  const hoy = new Date(Date.now() - 5 * 3600_000);
+  const desdeCuando = new Date(
+    Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()),
+  );
+
   const filas = await db.$queryRaw<{ fecha: Date; planilla: number; control: number }[]>`
     WITH planilla AS (
       SELECT fecha, sum(pedidos)::int AS pedidos
         FROM "PedidoReporte"
        WHERE "organizationId" = ${organizationId}
+         AND fecha < ${desdeCuando}
        GROUP BY fecha
     ),
     control AS (

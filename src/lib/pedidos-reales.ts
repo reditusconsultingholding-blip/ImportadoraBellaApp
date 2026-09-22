@@ -67,7 +67,7 @@ async function nombresDistintos(organizationId: string): Promise<{ nombre: strin
 
 /** Clasifica cada nombre de línea de pedido distinto de la organización. */
 export async function clasificarNombres(organizationId: string) {
-  const [nombres, enlaces, excluidos] = await Promise.all([
+  const [nombres, enlaces, excluidos, productos] = await Promise.all([
     nombresDistintos(organizationId),
     db.productoShopify.findMany({
       where: { organizationId },
@@ -77,9 +77,25 @@ export async function clasificarNombres(organizationId: string) {
       where: { organizationId },
       select: { nombreNorm: true, motivo: true },
     }),
+    // Un nombre de línea que coincide EXACTO con el nombre o el código de un
+    // producto cae solo, igual que en la planilla del equipo
+    // (pedidos-del-control.ts) y que en la lista de lo que falta enlazar
+    // (enlazar-pedidos.ts). Las tres rutas tienen que cruzar igual: si una
+    // esconde el nombre de la lista de pendientes y otra lo manda a "sin
+    // asignar", queda un pedido sin producto que nadie puede arreglar porque
+    // ya no aparece en ningún lado.
+    db.product.findMany({ where: { organizationId }, select: { id: true, name: true, code: true } }),
   ]);
 
-  const productoDe = new Map(enlaces.map((e) => [e.nombreNorm, e.productId]));
+  const productoDe = new Map<string, string>();
+  for (const p of productos) {
+    const porNombre = normalizarNombre(p.name);
+    if (porNombre) productoDe.set(porNombre, p.id);
+    const porCodigo = normalizarNombre(p.code);
+    if (porCodigo) productoDe.set(porCodigo, p.id);
+  }
+  // Lo que enlazó una persona gana sobre la coincidencia automática.
+  for (const e of enlaces) productoDe.set(e.nombreNorm, e.productId);
   const motivoDe = new Map(excluidos.map((e) => [e.nombreNorm, e.motivo]));
 
   const salida: { nombre: string; clase: ClaseNombre; productId: string | null }[] = [];

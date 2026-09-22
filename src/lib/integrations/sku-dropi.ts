@@ -27,13 +27,27 @@ export async function sincronizarSkus(organizationId: string): Promise<Resultado
   });
   if (!tienda) return { revisados: 0, actualizados: 0, sinSku: 0 };
 
-  const [catalogo, productos] = await Promise.all([
+  const [catalogo, productos, enlaces] = await Promise.all([
     fetchProductCatalog(tienda.shopDomain, tienda.accessToken),
     db.product.findMany({
       where: { organizationId },
       select: { id: true, name: true, shopifyProductId: true, shopifyProductTitle: true, sku: true },
     }),
+    // Los nombres con los que ese producto aparece en la tienda. Hacen falta:
+    // los dos vocabularios NO coinciden —en la pauta es "TE GINSENG" y en
+    // Shopify "Te Ginseng para los Riñones"— y cruzar solo por el nombre
+    // propio encontraba 5 de 116. Estos enlaces ya los hizo una persona en
+    // Control › Enlazar pedidos, así que son la traducción buena.
+    db.productoShopify.findMany({
+      where: { organizationId },
+      select: { productId: true, nombre: true },
+    }),
   ]);
+
+  const nombresDe = new Map<string, string[]>();
+  for (const e of enlaces) {
+    nombresDe.set(e.productId, [...(nombresDe.get(e.productId) ?? []), e.nombre]);
+  }
 
   const porId = new Map(catalogo.map((c) => [c.id, c]));
   const porTitulo = new Map(catalogo.map((c) => [normalizar(c.title), c]));
@@ -42,9 +56,18 @@ export async function sincronizarSkus(organizationId: string): Promise<Resultado
   let sinSku = 0;
 
   for (const p of productos) {
+    // De lo más explícito a lo más suelto: el vínculo que alguien ancló a
+    // mano, el título de la tienda guardado en la ficha, el nombre propio, y
+    // por último los nombres con los que se lo enlazó en los pedidos.
+    const porEnlace = (nombresDe.get(p.id) ?? [])
+      .map((n) => porTitulo.get(normalizar(n)))
+      .find((x) => x?.sku);
+
     const enCatalogo =
       (p.shopifyProductId ? porId.get(p.shopifyProductId) : undefined) ??
-      porTitulo.get(normalizar(p.shopifyProductTitle ?? p.name));
+      (p.shopifyProductTitle ? porTitulo.get(normalizar(p.shopifyProductTitle)) : undefined) ??
+      porTitulo.get(normalizar(p.name)) ??
+      porEnlace;
 
     const sku = enCatalogo?.sku ?? null;
     if (sku == null) {

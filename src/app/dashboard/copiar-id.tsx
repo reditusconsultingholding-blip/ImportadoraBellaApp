@@ -30,6 +30,11 @@ export default function CopiarId({
     // copiar también navega.
     e.preventDefault();
     e.stopPropagation();
+    // El botón se guarda ANTES de esperar: React deja `currentTarget` en null
+    // cuando el manejador termina, así que leerlo después del await —que es
+    // justo lo que pasa en el camino de error— tiraba un TypeError y el
+    // respaldo no llegaba a correr nunca.
+    const boton = e.currentTarget as HTMLElement;
     try {
       await navigator.clipboard.writeText(valor);
     } catch {
@@ -37,7 +42,7 @@ export default function CopiarId({
       // se pueda copiar a mano.
       const s = window.getSelection();
       const r = document.createRange();
-      r.selectNodeContents(e.currentTarget);
+      r.selectNodeContents(boton);
       s?.removeAllRanges();
       s?.addRange(r);
       return;

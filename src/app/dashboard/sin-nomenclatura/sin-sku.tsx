@@ -77,8 +77,8 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Productos sin SKU</span>
           <span className="block text-xs text-muted">
-            {productos.length} productos no están conectados a Dropi — son los candidatos a
-            depurar
+            A {productos.length} productos no se les pudo confirmar el SKU — son los primeros
+            candidatos a revisar
             {conPauta > 0 && (
               <span className="text-warning"> · {conPauta} igual tienen pauta reciente</span>
             )}
@@ -95,11 +95,13 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
       {abierto && (
         <div className="border-t border-border px-4 py-3">
           <p className="mb-3 text-xs leading-relaxed text-muted">
-            Un producto que viene de Dropi trae su SKU. El que no lo trae casi siempre es
-            catálogo viejo que quedó flotando, y es lo que hace pesado emparejar campañas: hay
-            que elegir entre decenas de nombres que ya no se venden. Archivarlos no borra nada
-            —siguen en Productos, en «Inactivos»— pero los saca de los buscadores y de las
-            listas de todos los días.
+            Un producto que viene de Dropi trae su SKU, así que no tenerlo suele significar
+            catálogo viejo que quedó flotando — y es lo que hace pesado emparejar campañas: hay
+            que elegir entre decenas de nombres que ya no se venden. <b>Ojo: también puede ser
+            que el nombre de acá no coincida con el de la tienda</b>, así que conviene mirar
+            cada uno antes de archivarlo. Archivar no borra nada —el producto sigue en
+            Productos, en «Inactivos», con toda su historia— pero lo saca de los buscadores y
+            de las listas de todos los días.
           </p>
 
           {error && (
