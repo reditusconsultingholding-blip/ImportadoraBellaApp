@@ -77,6 +77,13 @@ export default async function SinNomenclaturaPage() {
     }),
   ]);
 
+  // Cuántos productos SÍ resolvieron su SKU. Con pocos, la lista de "sin SKU"
+  // no dice que estén muertos: dice que todavía no los pudimos cruzar con la
+  // tienda, y la pantalla tiene que decir eso y no lo otro.
+  const conSku = await db.product.count({
+    where: { organizationId: session.organizationId, archived: false, sku: { not: null } },
+  });
+
   const sueltas = resumen.campanas;
 
   return (
@@ -136,6 +143,7 @@ export default async function SinNomenclaturaPage() {
       />
 
       <SinSku
+        conSku={conSku}
         productos={sinSku.map((p) => ({
           id: p.id,
           code: p.code,

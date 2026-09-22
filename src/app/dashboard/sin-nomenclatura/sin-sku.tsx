@@ -28,7 +28,14 @@ export type ProductoSinSku = {
   campanas: number;
 };
 
-export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
+export default function SinSku({
+  productos,
+  conSku,
+}: {
+  productos: ProductoSinSku[];
+  /** Cuántos productos SÍ tienen SKU confirmado. Decide si esta lista sirve. */
+  conSku: number;
+}) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -66,6 +73,25 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
     : productos;
   const conPauta = productos.filter((p) => p.conPautaReciente).length;
 
+  /**
+   * ¿Esta lista sirve para depurar, o todavía no sabemos?
+   *
+   * La lista tiene sentido cuando la MAYORÍA de los productos ya resolvió su
+   * SKU: los que quedan afuera son entonces la excepción, y la excepción es
+   * sospechosa. Cuando casi ninguno lo resolvió, lo que la lista muestra no es
+   * "productos muertos" sino "productos que todavía no pudimos cruzar con la
+   * tienda" — y ofrecer un botón de archivar sobre eso es invitar a archivar
+   * productos vivos.
+   *
+   * El SKU se cruza por el nombre, y los dos vocabularios no coinciden: en la
+   * pauta un producto es "TE GINSENG" y en Shopify "Te Ginseng para los
+   * Riñones". Cada nombre que se enlaza en Control › Enlazar pedidos es una
+   * traducción más, así que esto se va llenando solo a medida que el equipo
+   * enlaza.
+   */
+  const total = productos.length + conSku;
+  const seCruzoBien = total > 0 && conSku >= total * 0.5;
+
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface">
       <button
@@ -77,10 +103,19 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Productos sin SKU</span>
           <span className="block text-xs text-muted">
-            A {productos.length} productos no se les pudo confirmar el SKU — son los primeros
-            candidatos a revisar
-            {conPauta > 0 && (
-              <span className="text-warning"> · {conPauta} igual tienen pauta reciente</span>
+            {seCruzoBien ? (
+              <>
+                A {productos.length} de {total} productos no se les pudo confirmar el SKU — son
+                los primeros candidatos a revisar
+                {conPauta > 0 && (
+                  <span className="text-warning"> · {conPauta} igual tienen pauta reciente</span>
+                )}
+              </>
+            ) : (
+              <>
+                Solo {conSku} de {total} productos tienen el SKU confirmado, así que esto
+                todavía no es una lista de productos muertos
+              </>
             )}
           </span>
         </span>
@@ -94,15 +129,28 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
 
       {abierto && (
         <div className="border-t border-border px-4 py-3">
-          <p className="mb-3 text-xs leading-relaxed text-muted">
-            Un producto que viene de Dropi trae su SKU, así que no tenerlo suele significar
-            catálogo viejo que quedó flotando — y es lo que hace pesado emparejar campañas: hay
-            que elegir entre decenas de nombres que ya no se venden. <b>Ojo: también puede ser
-            que el nombre de acá no coincida con el de la tienda</b>, así que conviene mirar
-            cada uno antes de archivarlo. Archivar no borra nada —el producto sigue en
-            Productos, en «Inactivos», con toda su historia— pero lo saca de los buscadores y
-            de las listas de todos los días.
-          </p>
+          {seCruzoBien ? (
+            <p className="mb-3 text-xs leading-relaxed text-muted">
+              Un producto que viene de Dropi trae su SKU, así que no tenerlo suele significar
+              catálogo viejo que quedó flotando — y es lo que hace pesado emparejar campañas:
+              hay que elegir entre decenas de nombres que ya no se venden. Conviene mirar cada
+              uno antes de archivarlo. Archivar no borra nada —el producto sigue en Productos,
+              en «Inactivos», con toda su historia— pero lo saca de los buscadores y de las
+              listas de todos los días.
+            </p>
+          ) : (
+            <p className="mb-3 rounded border border-border bg-surface-2 px-3 py-2 text-xs leading-relaxed text-muted">
+              <b className="text-foreground">Todavía no uses esta lista para archivar.</b> El
+              SKU se busca cruzando el nombre del producto con el de la tienda, y los dos
+              vocabularios no coinciden: acá un producto es «TE GINSENG» y en Shopify «Te
+              Ginseng para los Riñones». Cada nombre que enlaces en{" "}
+              <Link href="/dashboard/control?vista=enlazar" className="font-medium underline">
+                Control › Enlazar pedidos
+              </Link>{" "}
+              es una traducción más, y esta lista se va llenando sola. Cuando la mayoría tenga
+              su SKU, lo que quede acá sí va a ser la lista para depurar.
+            </p>
+          )}
 
           {error && (
             <p className="mb-2 rounded border border-critical bg-critical-bg px-2.5 py-1.5 text-xs text-critical">
@@ -141,7 +189,7 @@ export default function SinSku({ productos }: { productos: ProductoSinSku[] }) {
 
                 {/* Un producto con pauta viva NO es candidato a archivar,
                     tenga SKU o no: alguien le está poniendo plata hoy. */}
-                {p.conPautaReciente ? (
+                {!seCruzoBien ? null : p.conPautaReciente ? (
                   <span className="shrink-0 rounded-full border border-warning/40 bg-pending-bg px-2 py-0.5 text-[10px] font-medium text-warning">
                     con pauta reciente — no archivar
                   </span>
