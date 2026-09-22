@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // La ayuda de una pantalla: qué es, para qué sirve y qué hay que hacer.
 //
@@ -9,6 +10,18 @@ import { useEffect, useState } from "react";
 // Es para las pantallas que no se explican con mirarlas: alguien que entra por
 // primera vez a "Sin nomenclatura" no tiene forma de adivinar qué se espera
 // que haga ahí ni por qué importa.
+//
+// EL DIÁLOGO SE DIBUJA EN EL BODY, NO DONDE ESTÁ EL BOTÓN
+// El botón vive en la franja del encabezado, y esa franja tiene una animación
+// de entrada que mueve un `transform`. Un elemento animado así crea un bloque
+// contenedor: todo `position: fixed` que cuelgue de él deja de medirse contra
+// la ventana y pasa a medirse contra ESE recuadro. El resultado era el diálogo
+// encajado adentro del encabezado, cortado por arriba, con el fondo oscuro
+// tapando solo esa franja en vez de la pantalla entera.
+//
+// Se podría haber sacado el botón del encabezado, pero ahí es donde tiene que
+// estar. Se saca el diálogo: con un portal cuelga del `body` y ya no le importa
+// dónde esté el botón ni qué ancestro tenga un transform.
 
 export type PasoAyuda = { titulo: string; texto: string };
 
@@ -28,7 +41,6 @@ export default function AyudaPantalla({
   porQue?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
-
   useEffect(() => {
     // La primera vez se abre sola. Si el navegador no deja guardar (modo
     // privado), se abre siempre: es mejor de más que de menos.
@@ -75,7 +87,11 @@ export default function AyudaPantalla({
         ¿Cómo funciona?
       </button>
 
-      {abierto && (
+      {/* Sin guardas de montaje: `abierto` arranca en false y solo lo cambia
+          un clic o un efecto, o sea que esto nunca se dibuja en el servidor y
+          `document` siempre existe cuando se llega acá. */}
+      {abierto &&
+        createPortal(
         <div
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
           onClick={(e) => e.target === e.currentTarget && cerrar()}
@@ -126,7 +142,8 @@ export default function AyudaPantalla({
               </button>
             </footer>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
