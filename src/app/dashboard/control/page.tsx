@@ -5,7 +5,7 @@ import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { db } from "@/lib/db";
 import { controlDelPeriodo, diaEcuador, ETIQUETA_HORA } from "@/lib/control-publicitario";
-import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
+import { nombresResueltos, nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 import OrigenPedidos from "./origen-pedidos";
 import Resultados from "./resultados";
@@ -165,10 +165,14 @@ export default async function ControlPage({
       />
     );
   } else {
-    const pendientes = await nombresSinEnlazar(session.organizationId, periodo.desde, periodo.hasta);
+    const [pendientes, resueltos] = await Promise.all([
+      nombresSinEnlazar(session.organizationId, periodo.desde, periodo.hasta),
+      nombresResueltos(session.organizationId, periodo.desde, periodo.hasta),
+    ]);
     cuerpo = (
       <Enlazar
         pendientes={pendientes}
+        resueltos={resueltos}
         productos={productos}
         desde={isoDay(periodo.desde)}
         hasta={isoDay(periodo.hasta)}

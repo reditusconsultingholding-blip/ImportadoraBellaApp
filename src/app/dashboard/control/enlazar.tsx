@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { NombrePendiente } from "@/lib/enlazar-pedidos";
+import type { NombrePendiente, NombreResuelto } from "@/lib/enlazar-pedidos";
+import YaResueltos from "./ya-resueltos";
 
 // Decir de qué producto es cada cosa que vende la tienda.
 //
@@ -28,11 +29,14 @@ const normal = (s: string) =>
 
 export default function Enlazar({
   pendientes,
+  resueltos: yaResueltos,
   productos,
   desde,
   hasta,
 }: {
   pendientes: NombrePendiente[];
+  /** Lo ya decidido, para poder deshacerlo. */
+  resueltos: NombreResuelto[];
   productos: Producto[];
   desde: string;
   hasta: string;
@@ -110,6 +114,8 @@ export default function Enlazar({
       {error && (
         <p className="rounded-lg border border-critical bg-critical-bg px-3 py-2 text-xs text-critical">{error}</p>
       )}
+
+      <YaResueltos resueltos={yaResueltos} />
 
       <ul className="flex flex-col gap-2">
         {pendientes.map((p) => (

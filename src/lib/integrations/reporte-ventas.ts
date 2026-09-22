@@ -268,6 +268,17 @@ export type ResultadoSync = {
   pestanas: string[];
   dias: number;
   filas: number;
+  /**
+   * El día más viejo que cambió, en ISO.
+   *
+   * Hace falta para rehacer los cierres correctos. Rehacer "los últimos siete
+   * días" no alcanza: la planilla trae meses enteros, y si el equipo corrige
+   * el 3 de septiembre —o si la pestaña entra por primera vez— los cierres de
+   * esos días se quedan con el conteo viejo y la pantalla sigue mostrando otra
+   * cosa que la planilla. Es exactamente lo que pasó: del 1 al 12 de
+   * septiembre el control seguía con los números de Shopify.
+   */
+  desdeElDia: string | null;
   /** Pestañas que se saltaron porque no cambió nada desde la última vuelta. */
   sinCambios: string[];
   error?: string;
@@ -292,10 +303,23 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
   const todas = await pestanasDelLibro(hojaId);
   const meses = todas.filter((p) => esPestanaDeMes(p.nombre));
   if (meses.length === 0) {
-    return { pestanas: [], dias: 0, filas: 0, sinCambios: [], error: "No se encontró ninguna pestaña de mes." };
+    return {
+      pestanas: [],
+      dias: 0,
+      filas: 0,
+      sinCambios: [],
+      desdeElDia: null,
+      error: "No se encontró ninguna pestaña de mes.",
+    };
   }
 
-  const resultado: ResultadoSync = { pestanas: [], dias: 0, filas: 0, sinCambios: [] };
+  const resultado: ResultadoSync = {
+    pestanas: [],
+    dias: 0,
+    filas: 0,
+    sinCambios: [],
+    desdeElDia: null,
+  };
 
   for (const pestana of meses) {
     const csv = await csvDePestana(hojaId, pestana.gid);
@@ -377,6 +401,11 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
     resultado.pestanas.push(pestana.nombre);
     resultado.dias += dias.length;
     resultado.filas += contadas.length;
+
+    const masViejo = new Date(Math.min(...dias.map((d) => d.getTime()))).toISOString();
+    if (resultado.desdeElDia == null || masViejo < resultado.desdeElDia) {
+      resultado.desdeElDia = masViejo;
+    }
   }
 
   return resultado;

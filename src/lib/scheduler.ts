@@ -466,9 +466,13 @@ export async function sincronizarTodo(conRapido = true) {
             ? "sin cambios" + (r.sinCambios.length ? " (" + r.sinCambios.join(", ") + ")" : "")
             : r.pestanas.join(", ") + ": " + r.filas + " filas en " + r.dias + " días";
 
-        if (r.pestanas.length > 0) {
-          const desde = new Date(Date.now() - 7 * 24 * 3600_000);
-          const c = await rellenarCierres(org.id, { desde, rehacer: true });
+        if (r.pestanas.length > 0 && r.desdeElDia) {
+          // Desde el día más viejo que cambió, no "los últimos siete": la
+          // planilla trae meses enteros y el equipo corrige días de atrás.
+          const c = await rellenarCierres(org.id, {
+            desde: new Date(r.desdeElDia),
+            rehacer: true,
+          });
           resumen.reporte += " · cierres rehechos: " + c.dias;
         }
         await anotarVuelta(org.id, "reporte-ventas", Date.now(), resumen.reporte);

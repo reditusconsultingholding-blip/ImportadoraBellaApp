@@ -122,6 +122,67 @@ async function nombresSinEnlazarSinMemoria(
   return salida.sort((a, b) => b.pedidos - a.pedidos);
 }
 
+/** Un nombre que ya tiene decisión tomada: producto, testeo o "no es producto". */
+export type NombreResuelto = {
+  nombre: string;
+  producto: { code: string; name: string } | null;
+  motivo: string | null;
+  pedidos: number;
+};
+
+/**
+ * Lo que ya se decidió, para poder deshacerlo.
+ *
+ * Existe porque enlazar sacaba el nombre de la lista y no volvía a aparecer
+ * por ningún lado: un clic equivocado —marcar como testeo algo que no lo es—
+ * movía los números del mes sin dejar dónde arreglarlo.
+ */
+export async function nombresResueltos(
+  organizationId: string,
+  desde: Date,
+  hasta: Date,
+): Promise<NombreResuelto[]> {
+  const [enlaces, excluidos, delReporte] = await Promise.all([
+    db.productoShopify.findMany({
+      where: { organizationId },
+      select: { nombre: true, nombreNorm: true, product: { select: { code: true, name: true } } },
+    }),
+    db.nombreShopifyExcluido.findMany({
+      where: { organizationId },
+      select: { nombre: true, nombreNorm: true, motivo: true },
+    }),
+    db.pedidoReporte.groupBy({
+      by: ["productoNorm"],
+      where: { organizationId, fecha: { gte: desde, lte: hasta } },
+      _sum: { pedidos: true },
+    }),
+  ]);
+
+  const pedidosDe = new Map(delReporte.map((r) => [r.productoNorm, r._sum.pedidos ?? 0]));
+
+  const salida: NombreResuelto[] = [
+    ...enlaces.map((e) => ({
+      nombre: e.nombre,
+      producto: e.product,
+      motivo: null,
+      pedidos: pedidosDe.get(e.nombreNorm) ?? 0,
+    })),
+    ...excluidos.map((e) => ({
+      nombre: e.nombre,
+      producto: null,
+      motivo: e.motivo,
+      pedidos: pedidosDe.get(e.nombreNorm) ?? 0,
+    })),
+  ];
+
+  // Los que más mueven arriba, y los marcados como testeo primero dentro de
+  // esos: son los que más caro salen si están mal.
+  return salida.sort(
+    (a, b) =>
+      Number(b.motivo === "testeo") - Number(a.motivo === "testeo") || b.pedidos - a.pedidos,
+  );
+}
+
 // Cálculos pesados compartidos hasta la próxima escritura en la base.
 // Ver src/lib/memoria.ts.
 export const nombresSinEnlazar = memorizar("enlazar-pedidos.nombresSinEnlazar", nombresSinEnlazarSinMemoria);

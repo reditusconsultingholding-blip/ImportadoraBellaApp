@@ -50,7 +50,7 @@ export async function pedidosParaElControl(
   const desdeDia = diaDeInstante(desde);
   const hastaDia = diaDeInstante(new Date(hasta.getTime() - 1));
 
-  const [deShopify, delReporte, enlaces, excluidos, productos] = await Promise.all([
+  const [deShopify, delReporte, enlaces, productos] = await Promise.all([
     pedidosRealesPorDia(organizationId, desde, hasta),
     db.pedidoReporte.findMany({
       where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
@@ -59,10 +59,6 @@ export async function pedidosParaElControl(
     db.productoShopify.findMany({
       where: { organizationId },
       select: { nombreNorm: true, productId: true },
-    }),
-    db.nombreShopifyExcluido.findMany({
-      where: { organizationId },
-      select: { nombreNorm: true, motivo: true },
     }),
     // El equipo suele escribir en la planilla el mismo nombre que tiene el
     // producto acá —"COMBO BUCAL", "FAJA LIPO 360"—. Cuando coincide exacto no
@@ -90,7 +86,6 @@ export async function pedidosParaElControl(
   // Los enlaces hechos a mano van ÚLTIMOS: si alguien dijo que este nombre es
   // de este producto, eso gana sobre cualquier coincidencia automática.
   for (const e of enlaces) aProducto.set(e.nombreNorm, e.productId);
-  const fuera = new Map(excluidos.map((e) => [e.nombreNorm, e.motivo]));
 
   const porDia = new Map<string, PedidosDelControl>();
   for (const fila of delReporte) {
@@ -104,14 +99,21 @@ export async function pedidosParaElControl(
     };
 
     const productId = aProducto.get(fila.productoNorm);
-    const motivo = fuera.get(fila.productoNorm);
     if (productId) {
       dia.porProducto.set(productId, (dia.porProducto.get(productId) ?? 0) + fila.pedidos);
-    } else if (motivo === "testeo") {
-      // Los de testeo existen pero no se suman: el equipo los llama
-      // "netamente un gasto".
-      dia.testeo += fila.pedidos;
     } else {
+      // TODO lo que está en la planilla cuenta, incluido lo marcado como
+      // testeo o como "no es un producto".
+      //
+      // Con Shopify esas marcas restaban del total, y tenía sentido: ahí un
+      // "pedido" podía ser un envío prioritario suelto. Acá no. El total del
+      // control tiene que dar EXACTO lo que el equipo lee en su planilla —es
+      // la única razón por la que se cambió de fuente— y restar por una marca
+      // que alguien puso en otra pantalla rompe justamente eso. Emilia además
+      // marcó un producto como testeo sin querer y eso le movía el mes entero.
+      //
+      // La marca sigue sirviendo para lo suyo: decir que ese nombre no es un
+      // producto que haya que enlazar.
       dia.sinAsignar += fila.pedidos;
     }
     porDia.set(clave, dia);

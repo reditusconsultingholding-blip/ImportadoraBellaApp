@@ -71,9 +71,9 @@ export async function POST() {
       r.pestanas.length === 0
         ? "Sin cambios desde la última vez."
         : `${r.pestanas.join(", ")}: ${r.filas} filas en ${r.dias} días.`;
-    if (r.pestanas.length > 0) {
+    if (r.pestanas.length > 0 && r.desdeElDia) {
       const c = await rellenarCierres(session.organizationId, {
-        desde: new Date(Date.now() - 7 * 24 * 3600_000),
+        desde: new Date(r.desdeElDia),
         rehacer: true,
       });
       detalle += ` Cierres rehechos: ${c.dias}.`;
