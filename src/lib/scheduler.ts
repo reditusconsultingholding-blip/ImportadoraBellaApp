@@ -37,6 +37,23 @@ let ultimaLimpiezaActividad = "";
 
 const CADA_MS = 5 * 60 * 1000;
 
+// La vuelta rápida: Shopify, Meta y TikTok.
+//
+// "Se demora en cargar la información de Windsor": todo corría en una sola
+// vuelta de cinco minutos, en fila —ventas, pauta, anuncios, Notion, reportes,
+// avisos, precalentado—, y si algo de eso tardaba la vuelta siguiente se
+// salteaba entera. La pauta podía quedar diez o quince minutos atrás. Ahora
+// ventas y pauta van solas cada dos minutos y no esperan a nadie.
+const RAPIDO_CADA_MS = 2 * 60 * 1000;
+
+// Cuántos días se piden en cada vuelta rápida. Hoy y los dos anteriores es lo
+// que se mueve de un rato a otro; la semana completa (Meta sigue ajustando
+// compras hasta siete días después) se repasa cada media hora.
+const PRESET_CORTO = "last_3dT";
+const PRESET_LARGO = "last_7dT";
+const SEMANA_CADA_MS = 30 * 60 * 1000;
+const ultimaSemana = new Map<string, number>();
+
 // Arranca un rato después de levantar el proceso: durante un despliegue las
 // dos instancias conviven unos segundos y no tiene sentido que las dos salgan
 // a sincronizar al mismo tiempo.
@@ -82,13 +99,119 @@ async function soltarCandado(
   });
 }
 
+/** Trae la pauta de un conector; si el rango corto no existe en Windsor, cae al largo. */
+async function traerPauta(organizationId: string, conector: WindsorConnector) {
+  const clave = `${organizationId}|${conector}`;
+  const toca = Date.now() - (ultimaSemana.get(clave) ?? 0) > SEMANA_CADA_MS;
+  if (toca) {
+    const r = await syncWindsorConnector(organizationId, conector, PRESET_LARGO);
+    ultimaSemana.set(clave, Date.now());
+    return { ...r, rango: "7 días" };
+  }
+  try {
+    return { ...(await syncWindsorConnector(organizationId, conector, PRESET_CORTO)), rango: "3 días" };
+  } catch {
+    const r = await syncWindsorConnector(organizationId, conector, PRESET_LARGO);
+    ultimaSemana.set(clave, Date.now());
+    return { ...r, rango: "7 días" };
+  }
+}
+
+/** Deja constancia de cuánto tardó una vuelta, para poder medirlo. */
+async function anotarVuelta(organizationId: string, fuente: string, inicio: number, detalle: string) {
+  const s = ((Date.now() - inicio) / 1000).toFixed(1);
+  await db.syncState
+    .upsert({
+      where: { organizationId_fuente: { organizationId, fuente } },
+      create: { organizationId, fuente, okAt: new Date(), detalle: `${s}s · ${detalle}`.slice(0, 500) },
+      update: { okAt: new Date(), detalle: `${s}s · ${detalle}`.slice(0, 500), error: null },
+    })
+    .catch(() => {});
+}
+
+/**
+ * La vuelta rápida: ventas de Shopify y pauta de Meta y TikTok, y después
+ * dejar calculado el panel con lo nuevo. Cada dos minutos.
+ */
+export async function sincronizarRapido() {
+  const orgs = await db.organization.findMany({ select: { id: true } });
+  const resumen: Record<string, string> = {};
+  for (const org of orgs) {
+    const inicio = Date.now();
+    let cambio = false;
+
+    const tiendas = await db.shopifyStore.findMany({
+      where: { organizationId: org.id, connectedAt: { not: null } },
+      select: { id: true },
+    });
+    for (const tienda of tiendas) {
+      if (!(await tomarCandado(org.id, "shopify"))) {
+        resumen.shopify = "ya estaba corriendo";
+        continue;
+      }
+      try {
+        const r = await syncShopifyStore(tienda.id);
+        resumen.shopify = `${r.ordersSynced} órdenes`;
+        // Solo cuenta como cambio si entró o se modificó alguna orden.
+        if (r.creadas + r.actualizadas > 0) cambio = true;
+        await soltarCandado(org.id, "shopify", { ok: true, detalle: resumen.shopify });
+      } catch (err) {
+        const mensaje = err instanceof Error ? err.message : String(err);
+        resumen.shopify = `error: ${mensaje}`;
+        await soltarCandado(org.id, "shopify", { ok: false, error: mensaje });
+      }
+    }
+
+    if (hasWindsorKey()) {
+      // Meta y TikTok a la vez: son dos pedidos a Windsor independientes, y
+      // en fila uno esperaba al otro sin motivo.
+      await Promise.all(
+        CONECTORES.map(async (conector) => {
+          if (!(await tomarCandado(org.id, conector))) {
+            resumen[conector] = "ya estaba corriendo";
+            return;
+          }
+          const t = Date.now();
+          try {
+            const r = await traerPauta(org.id, conector);
+            if (r.cambiados > 0) cambio = true;
+            resumen[conector] = `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
+            await soltarCandado(org.id, conector, { ok: true, detalle: resumen[conector] });
+          } catch (err) {
+            const mensaje = err instanceof Error ? err.message : String(err);
+            resumen[conector] = `error: ${mensaje}`;
+            await soltarCandado(org.id, conector, { ok: false, error: mensaje });
+          }
+        }),
+      );
+    }
+
+    // Solo si entró algo nuevo: si no cambió nada, la memoria no se vació y
+    // el panel sigue calculado.
+    if (cambio) {
+      try {
+        resumen.precalentado = await precalentarPantallas(org.id, true);
+      } catch (err) {
+        resumen.precalentado = `error: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+    await anotarVuelta(org.id, "reloj-rapido", inicio, Object.entries(resumen).map(([k, v]) => `${k}: ${v}`).join(" | "));
+  }
+  return resumen;
+}
+
 /**
  * Una vuelta completa. La llama el reloj interno y también el cron externo,
  * así que tiene que ser segura de correr dos veces seguidas.
+ *
+ * @param conRapido Si incluye ventas y pauta. El reloj interno la llama sin
+ * ellas, porque de eso se encarga la vuelta rápida; el cron externo (el
+ * respaldo) la llama completa.
  */
-export async function sincronizarTodo() {
+export async function sincronizarTodo(conRapido = true) {
   const orgs = await db.organization.findMany({ select: { id: true } });
-  const resumen: Record<string, string> = {};
+  const resumen: Record<string, string> = conRapido ? await sincronizarRapido() : {};
+  const inicioLento = Date.now();
 
   // El seguimiento de actividad se guarda 90 días; lo viejo se borra una vez
   // por día (ver src/lib/actividad.ts).
@@ -112,47 +235,9 @@ export async function sincronizarTodo() {
   }
 
   for (const org of orgs) {
-    const tiendas = await db.shopifyStore.findMany({
-      where: { organizationId: org.id, connectedAt: { not: null } },
-      select: { id: true },
-    });
-
-    for (const tienda of tiendas) {
-      if (!(await tomarCandado(org.id, "shopify"))) {
-        resumen.shopify = "ya estaba corriendo";
-        continue;
-      }
-      try {
-        const r = await syncShopifyStore(tienda.id);
-        resumen.shopify = `${r.ordersSynced} órdenes`;
-        await soltarCandado(org.id, "shopify", { ok: true, detalle: resumen.shopify });
-      } catch (err) {
-        const mensaje = err instanceof Error ? err.message : String(err);
-        resumen.shopify = `error: ${mensaje}`;
-        await soltarCandado(org.id, "shopify", { ok: false, error: mensaje });
-      }
-    }
-
+    // Ventas y pauta van en la vuelta rápida (sincronizarRapido). Acá queda
+    // lo que puede esperar unos minutos sin que nadie lo note.
     if (hasWindsorKey()) {
-      for (const conector of CONECTORES) {
-        if (!(await tomarCandado(org.id, conector))) {
-          resumen[conector] = "ya estaba corriendo";
-          continue;
-        }
-        try {
-          // "last_7dT" y no "last_7d": la T incluye el día en curso. Sin ella
-          // la pauta de hoy no existía hasta el día siguiente, y el panel
-          // mostraba gasto cero a media tarde.
-          const r = await syncWindsorConnector(org.id, conector, "last_7dT");
-          resumen[conector] = `${r.campaigns} campañas, ${r.snapshots} días`;
-          await soltarCandado(org.id, conector, { ok: true, detalle: resumen[conector] });
-        } catch (err) {
-          const mensaje = err instanceof Error ? err.message : String(err);
-          resumen[conector] = `error: ${mensaje}`;
-          await soltarCandado(org.id, conector, { ok: false, error: mensaje });
-        }
-      }
-
       // Los anuncios de cada campaña, cada 30 minutos (el control de
       // frecuencia vive adentro). Van después de las campañas porque se
       // cuelgan de ellas, y un error acá no toca lo de arriba.
@@ -304,10 +389,11 @@ export async function sincronizarTodo() {
     // Lo último: dejar calculadas las pantallas con los datos recién traídos,
     // para que nadie espere el cálculo al abrirlas. Ver src/lib/precalentar.ts.
     try {
-      resumen.precalentado = await precalentarPantallas(org.id);
+      resumen.precalentadoTodo = await precalentarPantallas(org.id);
     } catch (err) {
-      resumen.precalentado = `error: ${err instanceof Error ? err.message : String(err)}`;
+      resumen.precalentadoTodo = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
+    await anotarVuelta(org.id, "reloj-lento", inicioLento, "notion, anuncios, reportes, avisos y precalentado");
   }
 
   return resumen;
@@ -353,23 +439,43 @@ export function arrancarReloj() {
   // la anterior terminó, y desde que el relleno de clientes corre acá adentro
   // una vuelta puede pasarse de esos cinco minutos. Dos vueltas encimadas
   // repetirían el mismo trabajo y se pelearían los candados.
-  let corriendo = false;
+  //
+  // Son dos relojes: el rápido (ventas y pauta, cada dos minutos) y el lento
+  // (todo lo demás, cada cinco). Cada uno se saltea si su vuelta anterior
+  // sigue viva, pero ya no se frenan entre ellos: que Notion o un reporte
+  // tarden no atrasa la pauta.
+  let corriendoRapido = false;
+  let corriendoLento = false;
 
-  const vuelta = () => {
-    if (corriendo) {
-      console.log("[reloj] la vuelta anterior sigue viva, se saltea esta");
-      return;
-    }
-    corriendo = true;
-    sincronizarTodo()
-      .then((r) => console.log("[reloj] sincronización lista:", JSON.stringify(r)))
-      .catch((err) => console.error("[reloj] falló la vuelta:", err))
+  const rapida = () => {
+    if (corriendoRapido) return;
+    corriendoRapido = true;
+    sincronizarRapido()
+      .then((r) => console.log("[reloj rápido] listo:", JSON.stringify(r)))
+      .catch((err) => console.error("[reloj rápido] falló:", err))
       .finally(() => {
-        corriendo = false;
+        corriendoRapido = false;
       });
   };
 
-  setTimeout(vuelta, ESPERA_INICIAL_MS);
-  guardado.__jarvisReloj = setInterval(vuelta, CADA_MS);
-  console.log(`[reloj] activo, cada ${CADA_MS / 60000} minutos`);
+  const lenta = () => {
+    if (corriendoLento) {
+      console.log("[reloj] la vuelta lenta anterior sigue viva, se saltea esta");
+      return;
+    }
+    corriendoLento = true;
+    sincronizarTodo(false)
+      .then((r) => console.log("[reloj] vuelta lenta lista:", JSON.stringify(r)))
+      .catch((err) => console.error("[reloj] falló la vuelta lenta:", err))
+      .finally(() => {
+        corriendoLento = false;
+      });
+  };
+
+  setTimeout(rapida, ESPERA_INICIAL_MS);
+  // La lenta arranca un minuto después, para no salir las dos juntas.
+  setTimeout(lenta, ESPERA_INICIAL_MS + 60_000);
+  guardado.__jarvisReloj = setInterval(rapida, RAPIDO_CADA_MS);
+  setInterval(lenta, CADA_MS);
+  console.log(`[reloj] activo: ventas y pauta cada ${RAPIDO_CADA_MS / 60000} min, el resto cada ${CADA_MS / 60000}`);
 }

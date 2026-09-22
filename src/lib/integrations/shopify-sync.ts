@@ -71,11 +71,56 @@ export async function syncShopifyStore(
 
     // Quiénes ya estaban ANTES de escribir este lote. Se pregunta primero
     // porque después del createMany ya no se distingue.
+    //
+    // Se trae también lo que tenían guardado, para reescribir solo las que
+    // cambiaron. Antes cada vuelta reescribía las ~800 órdenes recientes y
+    // todos sus renglones aunque fueran idénticos: miles de escrituras cada
+    // pocos minutos, cada una vaciando la memoria de cálculo de las pantallas.
     const previas = await db.shopifyOrder.findMany({
       where: { storeId: store.id, externalId: { in: ids } },
-      select: { externalId: true },
+      select: {
+        externalId: true,
+        channel: true,
+        grossSales: true,
+        discounts: true,
+        shipping: true,
+        taxes: true,
+        netSales: true,
+        clienteNombre: true,
+        clienteTelefono: true,
+        clienteEmail: true,
+        provincia: true,
+        ciudad: true,
+        lineItems: { select: { productName: true, quantity: true, amount: true } },
+      },
     });
     const yaEstaban = new Set(previas.map((p) => p.externalId));
+    const previaDe = new Map(previas.map((p) => [p.externalId, p]));
+    const firma = (items: { productName: string; quantity: number; amount: number }[]) =>
+      items
+        .map((i) => `${i.productName}|${i.quantity}|${Math.round(i.amount * 100)}`)
+        .sort()
+        .join("~");
+    const centavos = (n: number) => Math.round(n * 100);
+    /** Si algo de la orden es distinto de lo guardado. */
+    const cambio = (o: (typeof lote)[number]) => {
+      const p = previaDe.get(o.externalId);
+      if (!p) return true;
+      return (
+        p.channel !== o.channel ||
+        centavos(p.grossSales) !== centavos(o.grossSales) ||
+        centavos(p.discounts) !== centavos(o.discounts) ||
+        centavos(p.shipping) !== centavos(o.shipping) ||
+        centavos(p.taxes) !== centavos(o.taxes) ||
+        centavos(p.netSales) !== centavos(o.netSales) ||
+        (p.clienteNombre ?? null) !== (o.clienteNombre ?? null) ||
+        (p.clienteTelefono ?? null) !== (o.clienteTelefono ?? null) ||
+        (p.clienteEmail ?? null) !== (o.clienteEmail ?? null) ||
+        (p.provincia ?? null) !== (o.provincia ?? null) ||
+        (p.ciudad ?? null) !== (o.ciudad ?? null) ||
+        firma(p.lineItems) !== firma(o.lineItems)
+      );
+    };
 
     const nuevas = lote.filter((o) => !yaEstaban.has(o.externalId));
     if (nuevas.length > 0) {
@@ -115,7 +160,7 @@ export async function syncShopifyStore(
     const aReescribir = lote.filter(
       (o) =>
         yaEstaban.has(o.externalId) &&
-        (forzar || new Date(o.occurredAt) >= revisarDesde)
+        (forzar || (new Date(o.occurredAt) >= revisarDesde && cambio(o)))
     );
 
     if (aReescribir.length > 0) {
@@ -161,17 +206,23 @@ export async function syncShopifyStore(
     }
     // Los renglones se reescriben enteros: es más simple que diferenciarlos y
     // el volumen por lote lo aguanta.
-    const guardadas = await db.shopifyOrder.findMany({
-      where: { storeId: store.id, externalId: { in: ids } },
-      select: { id: true, externalId: true },
-    });
+    // Solo las nuevas y las que cambiaron.
+    const tocadas = [...nuevas, ...aReescribir];
+    const guardadas = tocadas.length
+      ? await db.shopifyOrder.findMany({
+          where: { storeId: store.id, externalId: { in: tocadas.map((o) => o.externalId) } },
+          select: { id: true, externalId: true },
+        })
+      : [];
     const idPorExterno = new Map(guardadas.map((g) => [g.externalId, g.id]));
 
-    await db.shopifyOrderLineItem.deleteMany({
-      where: { orderId: { in: [...idPorExterno.values()] } },
-    });
+    if (idPorExterno.size > 0) {
+      await db.shopifyOrderLineItem.deleteMany({
+        where: { orderId: { in: [...idPorExterno.values()] } },
+      });
+    }
 
-    const renglones = lote.flatMap((o) => {
+    const renglones = tocadas.flatMap((o) => {
       const orderId = idPorExterno.get(o.externalId);
       if (!orderId) return [];
       return o.lineItems.map((li) => ({
@@ -189,10 +240,21 @@ export async function syncShopifyStore(
   // De dónde llegó cada comprador. Va después de guardar las órdenes (necesita
   // que existan) y en su propia consulta: si la tienda no expone el recorrido,
   // las ventas ya quedaron sincronizadas igual.
-  const conOrigen = await enriquecerOrigen(store, since.toISOString(), hastaISO);
+  //
+  // Cada 15 minutos y no en cada vuelta: es una consulta más a Shopify que
+  // tarda, y el recorrido de una orden no cambia después de creada. Un rango
+  // pedido a mano (`days` o `hastaISO`) la hace siempre.
+  let conOrigen: number | null = null;
+  const ahora = Date.now();
+  if (days != null || hastaISO || ahora - (ultimoOrigen.get(store.id) ?? 0) > 15 * 60_000) {
+    conOrigen = await enriquecerOrigen(store, since.toISOString(), hastaISO);
+    ultimoOrigen.set(store.id, ahora);
+  }
 
   return { ordersSynced: orders.length, creadas, actualizadas, conOrigen };
 }
+
+const ultimoOrigen = new Map<string, number>();
 
 /**
  * Escribe el origen de las órdenes de la ventana. Devuelve cuántas quedaron
@@ -231,7 +293,15 @@ async function enriquecerOrigen(
             ${lote.map((f) => f.origenCrudo)}::text[]
           ) AS t(ext, src, med, camp, cont, ref, land, fuente, tipo, crudo)
         ) v
-       WHERE o."storeId" = ${store.id} AND o."externalId" = v.ext`;
+       WHERE o."storeId" = ${store.id} AND o."externalId" = v.ext
+         -- Solo las que cambian: reescribir lo mismo vaciaba la memoria de
+         -- las pantallas sin motivo.
+         AND (o."atribucionAl" IS NULL
+              OR o."utmSource" IS DISTINCT FROM v.src OR o."utmMedium" IS DISTINCT FROM v.med
+              OR o."utmCampaign" IS DISTINCT FROM v.camp OR o."utmContent" IS DISTINCT FROM v.cont
+              OR o."referrerUrl" IS DISTINCT FROM v.ref OR o."landingPage" IS DISTINCT FROM v.land
+              OR o."origenFuente" IS DISTINCT FROM v.fuente OR o."origenTipo" IS DISTINCT FROM v.tipo
+              OR o."origenCrudo" IS DISTINCT FROM v.crudo)`;
   }
   return escritas;
 }

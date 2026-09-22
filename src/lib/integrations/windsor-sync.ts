@@ -60,7 +60,7 @@ export async function syncWindsorConnector(
 ) {
   const rows = await fetchWindsorRows(connector, datePreset);
   if (rows.length === 0) {
-    return { accounts: 0, campaigns: 0, snapshots: 0 };
+    return { accounts: 0, campaigns: 0, snapshots: 0, cambiados: 0 };
   }
 
   const platform = PLATFORM[connector];
@@ -232,8 +232,43 @@ export async function syncWindsorConnector(
   // Se borra y se vuelve a insertar en vez de actualizar fila por fila: lo
   // que dice Windsor reemplaza por completo lo que había para esos días, así
   // que no hay nada que conservar.
-  for (let i = 0; i < porGuardar.length; i += LOTE) {
-    const lote = porGuardar.slice(i, i + LOTE);
+  //
+  // Y solo lo que CAMBIÓ. Antes se reescribían todos los días de todas las
+  // campañas en cada vuelta aunque fueran idénticos: miles de escrituras cada
+  // pocos minutos, y cada escritura vacía la memoria de cálculo de las
+  // pantallas (src/lib/memoria.ts), así que después de cada sync la primera
+  // persona que abría el panel esperaba el cálculo entero. Ahora se compara
+  // contra lo guardado y se escribe la diferencia; si nada cambió, no se toca
+  // la base y las pantallas siguen calculadas.
+  const fechas = [...new Set(porGuardar.map((s) => s.capturedAt.getTime()))].map((t) => new Date(t));
+  const previos = fechas.length
+    ? await db.metricSnapshot.findMany({
+        where: { campaignId: { in: [...campaignIds.values()] }, capturedAt: { in: fechas } },
+        select: { campaignId: true, capturedAt: true, spend: true, impressions: true, clicks: true, purchases: true, revenue: true },
+      })
+    : [];
+  const previoDe = new Map(previos.map((p) => [`${p.campaignId}|${p.capturedAt.getTime()}`, p]));
+  const igual = (a: number, b: number) => Math.abs(a - b) < 0.005;
+  // Una campaña puede venir dos veces el mismo día (dos filas de Windsor): se
+  // queda la última, que es lo que hacía el borrar-y-escribir de antes.
+  const unicos = new Map(porGuardar.map((s) => [`${s.campaignId}|${s.capturedAt.getTime()}`, s]));
+  const aEscribir = [...unicos.entries()]
+    .filter(([k, s]) => {
+      const p = previoDe.get(k);
+      return (
+        !p ||
+        !igual(p.spend, s.spend) ||
+        p.impressions !== s.impressions ||
+        p.clicks !== s.clicks ||
+        p.purchases !== s.purchases ||
+        !igual(p.revenue, s.revenue)
+      );
+    })
+    .map(([, s]) => s);
+  const cambiados = aEscribir.length;
+
+  for (let i = 0; i < aEscribir.length; i += LOTE) {
+    const lote = aEscribir.slice(i, i + LOTE);
     await db.metricSnapshot.deleteMany({
       where: {
         OR: lote.map((s) => ({ campaignId: s.campaignId, capturedAt: s.capturedAt })),
@@ -247,6 +282,7 @@ export async function syncWindsorConnector(
     accounts: accountIds.size,
     campaigns: campaignIds.size,
     snapshots,
+    cambiados,
   };
 }
 

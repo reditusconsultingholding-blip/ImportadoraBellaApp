@@ -31,7 +31,13 @@ import { origenPorVenta } from "@/lib/origen-pedidos";
 //
 // Va en serie y no todo en paralelo: son consultas pesadas y no tiene sentido
 // competir con las personas que están usando la app en ese momento.
-export async function precalentarPantallas(organizationId: string) {
+/**
+ * @param soloLoPrimero Solo lo que se abre primero (el panel y el origen de las
+ * ventas). Es lo que corre después de la vuelta rápida de cada dos minutos:
+ * recalcular las veinte pantallas tan seguido sería cargar la base para cosas
+ * que casi nadie abre en ese rato; esas las deja calculadas la vuelta lenta.
+ */
+export async function precalentarPantallas(organizationId: string, soloLoPrimero = false) {
   const inicio = Date.now();
   const r30 = resolveRange("30d");
   const rPanel = resolveRange(undefined);
@@ -65,7 +71,8 @@ export async function precalentarPantallas(organizationId: string) {
   ];
 
   const fallas: string[] = [];
-  for (const [nombre, fn] of tareas) {
+  const elegidas = soloLoPrimero ? tareas.filter(([n]) => n.startsWith("panel") || n.startsWith("control")) : tareas;
+  for (const [nombre, fn] of elegidas) {
     try {
       await fn();
     } catch (err) {

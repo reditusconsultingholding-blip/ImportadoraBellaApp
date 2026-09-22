@@ -171,7 +171,9 @@ export const db: PrismaClient = new Proxy({} as PrismaClient, {
     if (prop === "$executeRaw" || prop === "$executeRawUnsafe") {
       return async (...args: unknown[]) => {
         const r = await (value as (...a: unknown[]) => Promise<unknown>).apply(client, args);
-        invalidarMemoria();
+        // $executeRaw devuelve cuántas filas tocó: si fueron cero, nada
+        // cambió y las pantallas calculadas siguen valiendo.
+        if (typeof r !== "number" || r > 0) invalidarMemoria();
         return r;
       };
     }
