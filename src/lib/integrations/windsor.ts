@@ -34,6 +34,63 @@ const CONVERSION_FIELDS: Record<WindsorConnector, { purchases: string; value: st
 
 export type WindsorConnector = "facebook" | "tiktok";
 
+// Cada cuánto Windsor vuelve a pedirle los datos recientes a Meta y TikTok.
+//
+// Por defecto lo hace cada 6 horas y mientras tanto contesta lo que tiene
+// guardado: Jarvis preguntaba cada 2 minutos y recibía la foto de la mañana
+// (a mediodía, Meta con $300 de gasto). Con `refresh_interval` se le pide más
+// seguido; el mínimo depende del plan (Professional: 15 minutos; Standard y
+// Plus: 1 hora). Se prueba del más corto al más largo y se recuerda el que
+// Windsor aceptó, para no volver a probar en cada vuelta.
+const INTERVALOS = ["15min", "1h"] as const;
+const intervaloAceptado = new Map<WindsorConnector, string | null>();
+
+/** El intervalo que Windsor está aceptando para un conector (null = el de 6 h). */
+export function intervaloDeWindsor(connector: WindsorConnector) {
+  return intervaloAceptado.get(connector);
+}
+
+/** Los minutos de un intervalo de Windsor ("15min" → 15, "1h" → 60, null → 360). */
+export function minutosDeIntervalo(intervalo: string | null | undefined) {
+  if (!intervalo) return 360;
+  const m = intervalo.match(/^(\d+)(min|h)$/);
+  if (!m) return 360;
+  return Number(m[1]) * (m[2] === "h" ? 60 : 1);
+}
+
+/**
+ * Pide a Windsor con el intervalo de refresco más corto que acepte.
+ * `armar` recibe los parámetros extra y devuelve la URL.
+ */
+async function pedirConRefresco(
+  connector: WindsorConnector,
+  armar: (extra: Record<string, string>) => string,
+  opciones: { timeoutMs: number; reintentos: number },
+): Promise<Response> {
+  const conocido = intervaloAceptado.get(connector);
+  const candidatos: (string | null)[] = conocido !== undefined ? [conocido] : [...INTERVALOS, null];
+  let ultima: Response | null = null;
+  for (const intervalo of candidatos) {
+    const extra: Record<string, string> = intervalo ? { refresh_since: "3d", refresh_interval: intervalo } : {};
+    const res = await fetchConReintentos(armar(extra), { headers: { Accept: "application/json" } }, {
+      ...opciones,
+      esperaBaseMs: 2_000,
+    });
+    if (res.ok) {
+      intervaloAceptado.set(connector, intervalo);
+      return res;
+    }
+    ultima = res;
+    // Solo se prueba el siguiente si Windsor rechazó el pedido (400/403: el
+    // plan no permite ese intervalo). Un 5xx es otra cosa y se devuelve.
+    if (res.status >= 500) return res;
+  }
+  // Si el que se recordaba dejó de valer (cambió el plan), se vuelve a probar
+  // desde el principio en la próxima vuelta.
+  intervaloAceptado.delete(connector);
+  return ultima!;
+}
+
 export type WindsorRow = {
   date: string;
   account_id: string;
@@ -78,19 +135,17 @@ export async function fetchWindsorRows(
   }
 
   const conversion = CONVERSION_FIELDS[connector];
-  const params = new URLSearchParams({
-    api_key: apiKey,
-    date_preset: datePreset,
-    fields: [...COMMON_FIELDS, conversion.purchases, conversion.value].join(","),
-  });
+  const armar = (extra: Record<string, string>) =>
+    `${BASE_URL}/${connector}?${new URLSearchParams({
+      api_key: apiKey,
+      date_preset: datePreset,
+      fields: [...COMMON_FIELDS, conversion.purchases, conversion.value].join(","),
+      ...extra,
+    }).toString()}`;
 
   // Tiempo límite holgado: el repaso semanal de 90 días de TikTok son más de
   // veinte mil filas y Windsor tarda en armarlas.
-  const res = await fetchConReintentos(
-    `${BASE_URL}/${connector}?${params.toString()}`,
-    { headers: { Accept: "application/json" } },
-    { timeoutMs: 180_000, reintentos: 3, esperaBaseMs: 2_000 },
-  ).catch((err) => {
+  const res = await pedirConRefresco(connector, armar, { timeoutMs: 180_000, reintentos: 3 }).catch((err) => {
     // El mensaje de error no puede llevar la URL: tiene la api_key adentro.
     throw new Error(`Windsor.ai no respondió para ${connector}: ${sinSecretos(err instanceof Error ? err.message : String(err))}`);
   });
@@ -173,16 +228,14 @@ export async function fetchWindsorAdRows(
 
   let ultimoError = "";
   for (const extra of CAMPOS_ANUNCIO[connector]) {
-    const params = new URLSearchParams({
-      api_key: apiKey,
-      date_preset: datePreset,
-      fields: ["date", "account_id", "campaign_id", ...extra, "spend", "impressions", "clicks", conversion.purchases, conversion.value].join(","),
-    });
-    const res = await fetchConReintentos(
-      `${BASE_URL}/${connector}?${params.toString()}`,
-      { headers: { Accept: "application/json" } },
-      { timeoutMs: 180_000, reintentos: 2, esperaBaseMs: 2_000 },
-    ).catch((err) => {
+    const armar = (refresco: Record<string, string>) =>
+      `${BASE_URL}/${connector}?${new URLSearchParams({
+        api_key: apiKey,
+        date_preset: datePreset,
+        fields: ["date", "account_id", "campaign_id", ...extra, "spend", "impressions", "clicks", conversion.purchases, conversion.value].join(","),
+        ...refresco,
+      }).toString()}`;
+    const res = await pedirConRefresco(connector, armar, { timeoutMs: 180_000, reintentos: 2 }).catch((err) => {
       throw new Error(`Windsor.ai no respondió para anuncios de ${connector}: ${sinSecretos(err instanceof Error ? err.message : String(err))}`);
     });
     if (!res.ok) {

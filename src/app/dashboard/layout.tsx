@@ -12,6 +12,7 @@ import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
+import ContadorDatos from "./contador-datos";
 import LiveRefresher from "./live-refresher";
 import RegistroBusquedas from "./registro-busquedas";
 import SidebarNav from "./sidebar-nav";
@@ -148,6 +149,7 @@ export default async function DashboardLayout({
               pasos={pasosCapacitacion}
               yaVista={Boolean(me?.capacitacionVista)}
             />
+            <ContadorDatos />
             <LiveIndicator />
             <NotificationsBell />
           </div>

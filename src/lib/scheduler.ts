@@ -4,7 +4,7 @@ import { rellenarClientes } from "@/lib/relleno-clientes";
 import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
-import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
+import { hasWindsorKey, intervaloDeWindsor, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
@@ -117,6 +117,24 @@ async function traerPauta(organizationId: string, conector: WindsorConnector) {
   }
 }
 
+/**
+ * Cuándo llegaron datos nuevos de verdad de un conector, y con qué intervalo
+ * está refrescando Windsor. Es lo que usa el contador del encabezado ("datos
+ * de las 12:40 · próxima actualización en 14:32"). Preguntar no es lo mismo
+ * que recibir algo nuevo: se marca solo cuando algún número cambió.
+ */
+async function anotarFrescura(organizationId: string, conector: WindsorConnector, llegoAlgoNuevo: boolean) {
+  const fuente = `frescura-${conector}`;
+  const detalle = intervaloDeWindsor(conector) ?? "6h";
+  await db.syncState
+    .upsert({
+      where: { organizationId_fuente: { organizationId, fuente } },
+      create: { organizationId, fuente, detalle, okAt: llegoAlgoNuevo ? new Date() : null },
+      update: llegoAlgoNuevo ? { detalle, okAt: new Date() } : { detalle },
+    })
+    .catch(() => {});
+}
+
 /** Deja constancia de cuánto tardó una vuelta, para poder medirlo. */
 async function anotarVuelta(organizationId: string, fuente: string, inicio: number, detalle: string) {
   const s = ((Date.now() - inicio) / 1000).toFixed(1);
@@ -175,6 +193,7 @@ export async function sincronizarRapido() {
           try {
             const r = await traerPauta(org.id, conector);
             if (r.cambiados > 0) cambio = true;
+            await anotarFrescura(org.id, conector, r.cambiados > 0);
             resumen[conector] = `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
             await soltarCandado(org.id, conector, { ok: true, detalle: resumen[conector] });
           } catch (err) {
