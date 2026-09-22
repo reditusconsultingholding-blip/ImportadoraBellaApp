@@ -15,8 +15,13 @@ self.addEventListener("push", (evento) => {
   evento.waitUntil(
     self.registration.showNotification(datos.titulo, {
       body: datos.cuerpo,
-      icon: "/icono-192.png",
-      badge: "/icono-192.png",
+      // El icono del aviso apuntaba a /icono-192.png, que NO EXISTE: la ruta
+      // daba 404 y todas las notificaciones salían con la campanita genérica
+      // del navegador, sin marca. No fallaba nada a la vista, simplemente no
+      // se veía. Se usa el mismo icono de la pestaña, que sí está y es SVG:
+      // Chrome lo acepta para los avisos y escala solo a cualquier tamaño.
+      icon: "/icon.svg",
+      badge: "/icon.svg",
       // La etiqueta agrupa: un aviso nuevo del mismo tipo reemplaza al anterior
       // en vez de apilar diez notificaciones del mismo producto.
       tag: datos.etiqueta || "jarvis",
