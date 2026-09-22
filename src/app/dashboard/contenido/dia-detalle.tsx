@@ -58,6 +58,8 @@ export default function DiaDetalle({
 }) {
   const [tareas, setTareas] = useState<Tarea[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A quién se está mirando. Vacío es todo el equipo.
+  const [quien, setQuien] = useState("");
   const cerrarRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -86,14 +88,19 @@ export default function DiaDetalle({
   // qué", no "qué hay suelto".
   const porPersona = new Map<string, Tarea[]>();
   for (const t of tareas ?? []) {
-    const quien = t.owner?.name ?? t.responsableTexto ?? "Sin responsable";
-    porPersona.set(quien, [...(porPersona.get(quien) ?? []), t]);
+    const suyo = t.owner?.name ?? t.responsableTexto ?? "Sin responsable";
+    porPersona.set(suyo, [...(porPersona.get(suyo) ?? []), t]);
   }
-  const grupos = [...porPersona.entries()].sort((a, b) => {
+  const todos = [...porPersona.entries()].sort((a, b) => {
     if (a[0] === "Sin responsable") return -1;
     if (b[0] === "Sin responsable") return 1;
     return b[1].length - a[1].length;
   });
+
+  // Con una persona elegida se muestra SOLO la suya. Con ocho personas
+  // cargando tareas el día entero no entra en la ventana y había que bajar
+  // hasta el final para encontrar a alguien en particular.
+  const grupos = quien ? todos.filter(([q]) => q === quien) : todos;
 
   return (
     <div
@@ -164,6 +171,46 @@ export default function DiaDetalle({
 
           {tareas !== null && tareas.length === 0 && !error && (
             <p className="py-4 text-sm text-muted">Nadie tiene tareas cargadas para este día.</p>
+          )}
+
+          {/* Quién trabajó ese día, con cuántas tareas tiene cada uno. Se
+              toca un nombre y queda solo esa persona; se vuelve a tocar y
+              vuelve el equipo entero. */}
+          {todos.length > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setQuien("")}
+                aria-pressed={quien === ""}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  quien === ""
+                    ? "border-accent bg-good-bg text-accent-strong"
+                    : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                }`}
+              >
+                Todo el equipo ({tareas?.length ?? 0})
+              </button>
+              {todos.map(([nombre, suyas]) => {
+                const on = quien === nombre;
+                const sinCerrar = suyas.filter((t) => t.estado !== "HECHO").length;
+                return (
+                  <button
+                    key={nombre}
+                    type="button"
+                    onClick={() => setQuien(on ? "" : nombre)}
+                    aria-pressed={on}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                      on
+                        ? "border-accent bg-good-bg text-accent-strong"
+                        : "border-border text-muted hover:border-border-strong hover:text-foreground"
+                    }`}
+                  >
+                    {nombre.split(" ")[0]} ({suyas.length})
+                    {sinCerrar > 0 && <span className="text-warning"> · {sinCerrar} sin cerrar</span>}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {grupos.map(([quien, suyas]) => (

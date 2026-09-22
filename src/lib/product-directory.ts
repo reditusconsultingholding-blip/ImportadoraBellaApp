@@ -42,6 +42,9 @@ export type DirectoryRow = {
   motivos: string[];
   sugerencias: { kind: string; detail: string; reason: string }[];
 
+  /** Archivado: sigue en la lista, pero apagado y fuera del conteo de la operación. */
+  archived: boolean;
+
   campanas: number;
   creativos: number;
   creativosEnProduccion: number;
@@ -64,7 +67,7 @@ export type Directory = {
   }[];
   equipo: { id: string; name: string; role: string }[];
   /** Cuántos productos de la tienda todavía no se siguen. */
-  totales: { productos: number; conPauta: number; sinCosto: number };
+  totales: { productos: number; conPauta: number; sinCosto: number; inactivos: number };
   /** Se arrastra hasta la pantalla para que sepa qué columnas puede dibujar. */
   verCifras: boolean;
 };
@@ -90,11 +93,15 @@ async function getDirectorySinMemoria(
 
   const [productos, pulsos, creativos, pendientes, equipo] = await Promise.all([
     db.product.findMany({
-      where: { organizationId, archived: false },
+      // Los archivados vienen también. La pantalla los esconde por defecto,
+      // pero tienen que poder mirarse: "inactivo" es una respuesta válida a
+      // "¿qué pasó con este producto?", y antes desaparecían sin dejar rastro.
+      where: { organizationId },
       select: {
         id: true,
         code: true,
         name: true,
+        archived: true,
         salePrice: true,
         unitCost: true,
         cpaTarget: true,
@@ -208,6 +215,8 @@ async function getDirectorySinMemoria(
       motivos: (verCifras ? pulso?.motivos : pulso?.motivosSinCifras) ?? [],
       sugerencias: pulso ? sugerirAcciones(pulso, verCifras) : [],
 
+      archived: p.archived,
+
       campanas: p._count.campaigns,
       creativos: conteo?.total ?? 0,
       creativosEnProduccion: conteo?.produccion ?? 0,
@@ -234,12 +243,16 @@ async function getDirectorySinMemoria(
     })),
     equipo,
     totales: {
-      productos: rows.length,
+      // Sin los archivados: son el catálogo viejo, no la operación de hoy.
+      productos: rows.filter((r) => !r.archived).length,
       conPauta: rows.filter((r) => r.conPauta).length,
+      inactivos: rows.filter((r) => r.archived).length,
       // Cuántos productos no tienen cargado su costo. Es un aviso de carga
       // pendiente para la dirección, así que cuando no se ven cifras no se
       // cuenta ni se manda: la pantalla no tendría dónde ponerlo.
-      sinCosto: verCifras ? productos.filter((p) => p.unitCost == null).length : 0,
+      sinCosto: verCifras
+        ? productos.filter((p) => !p.archived && p.unitCost == null).length
+        : 0,
     },
     verCifras,
   };

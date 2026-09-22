@@ -4,6 +4,8 @@
 export type RangeId =
   | "hoy"
   | "ayer"
+  | "semana"
+  | "mes"
   | "7d"
   | "30d"
   | "3m"
@@ -21,6 +23,11 @@ export type RangeId =
 export const RANGES: { id: RangeId; label: string }[] = [
   { id: "hoy", label: "Hoy" },
   { id: "ayer", label: "Ayer" },
+  // Semana y mes CORRIENTES, no los últimos 7 o 30 días. No es lo mismo y se
+  // pedían las dos cosas: "cómo venimos esta semana" se responde desde el
+  // lunes, no desde el martes pasado.
+  { id: "semana", label: "Esta semana" },
+  { id: "mes", label: "Este mes" },
   { id: "7d", label: "Últimos 7 días" },
   { id: "30d", label: "Últimos 30 días" },
   { id: "3m", label: "Últimos 3 meses" },
@@ -112,6 +119,20 @@ export function resolveRange(
       const y = new Date(today);
       y.setUTCDate(y.getUTCDate() - 1);
       return make(y, y, "Ayer", "ayer");
+    }
+    case "semana": {
+      // La semana arranca el lunes: getUTCDay() da 0 para domingo, así que el
+      // domingo cuenta como el día 7 de la semana que termina, no como el
+      // primero de la que viene.
+      const diaSemana = today.getUTCDay();
+      const desdeElLunes = diaSemana === 0 ? 6 : diaSemana - 1;
+      const f = new Date(today);
+      f.setUTCDate(f.getUTCDate() - desdeElLunes);
+      return make(f, today, "Esta semana", "semana");
+    }
+    case "mes": {
+      const f = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      return make(f, today, "Este mes", "mes");
     }
     case "7d": {
       const f = new Date(today);

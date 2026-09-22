@@ -33,6 +33,8 @@ export type DirectoryRow = {
   serie: number[];
   motivos: string[];
   sugerencias: Sugerencia[];
+  /** Archivado: sigue existiendo, pero fuera de la operación. */
+  archived: boolean;
   campanas: number;
   creativos: number;
   creativosEnProduccion: number;
@@ -51,6 +53,20 @@ type Orden = "pulso" | "gasto" | "nombre" | "creativos" | "margen";
 
 // Ordenar por gasto o por margen no tiene sentido cuando esas columnas no
 // existen: el botón quedaría sin efecto visible y parecería roto.
+/** En qué anda el producto, que no es lo mismo que cómo le va. */
+type Actividad = "pautando" | "activos" | "inactivos" | "todos";
+
+const ACTIVIDADES: { id: Actividad; label: string; ayuda: string }[] = [
+  { id: "pautando", label: "Pautando", ayuda: "Gastó en pauta dentro del período elegido." },
+  {
+    id: "activos",
+    label: "Activos sin pauta",
+    ayuda: "Se siguen, pero no tuvieron gasto en el período. Están listos para volver a salir.",
+  },
+  { id: "inactivos", label: "Inactivos", ayuda: "Archivados: fuera de la operación." },
+  { id: "todos", label: "Todos", ayuda: "El catálogo entero, archivados incluidos." },
+];
+
 function ordenesPara(verCifras: boolean): { id: Orden; label: string }[] {
   return [
     { id: "pulso", label: "Pulso" },
@@ -89,6 +105,7 @@ const plano = (s: string) =>
  */
 export default function ProductDirectory({
   rows,
+  periodo,
   carpetas,
   totales,
   puedeGestionar,
@@ -99,7 +116,9 @@ export default function ProductDirectory({
 }: {
   rows: DirectoryRow[];
   carpetas: string[];
-  totales: { productos: number; conPauta: number; sinCosto: number };
+  totales: { productos: number; conPauta: number; sinCosto: number; inactivos: number };
+  /** Cómo se llama el período elegido arriba. Los números de abajo son de ahí. */
+  periodo: string;
   puedeGestionar: boolean;
   /** Si esta persona ve dinero. Define qué columnas existen. */
   verCifras: boolean;
@@ -113,12 +132,20 @@ export default function ProductDirectory({
   const [estado, setEstado] = useState<"" | PulseTone>("");
   const [orden, setOrden] = useState<Orden>("pulso");
   const [filaAbierta, setFilaAbierta] = useState<string | null>(null);
-  // Por defecto solo lo que se está pautando. El catálogo tiene más de cien
-  // productos y la mitad no tiene una campaña corriendo: mezclados, había que
-  // leer la lista entera para encontrar los veinte con los que se trabaja
-  // hoy. Los demás siguen a un clic, no desaparecen.
-  const [soloPautados, setSoloPautados] = useState(true);
-  const sinPauta = rows.filter((r) => !r.conPauta).length;
+  // En qué anda cada producto. Por defecto, lo que se está pautando: el
+  // catálogo tiene más de cien productos y la mitad no tiene una campaña
+  // corriendo, así que mezclados había que leer la lista entera para
+  // encontrar los veinte con los que se trabaja hoy.
+  //
+  // "Pautando" es del período elegido arriba: gastó en esos días. Un producto
+  // puede estar activo —vivo, sin archivar— y no haber gastado ayer.
+  const [actividad, setActividad] = useState<Actividad>("pautando");
+  const cuantos = {
+    pautando: rows.filter((r) => !r.archived && r.conPauta).length,
+    activos: rows.filter((r) => !r.archived && !r.conPauta).length,
+    inactivos: rows.filter((r) => r.archived).length,
+    todos: rows.length,
+  };
 
   // Proponer y decidir usan la misma API que el panel: el flujo es uno solo,
   // se entre por donde se entre.
@@ -163,9 +190,14 @@ export default function ProductDirectory({
     const palabras = q ? q.split(/\s+/) : [];
 
     const filtradas = rows.filter((r) => {
-      // Buscar por nombre o código muestra también los que no se pautan: si
-      // alguien escribe el nombre, lo está buscando a propósito.
-      if (soloPautados && !r.conPauta && palabras.length === 0 && estado !== "SIN_DATOS") return false;
+      // Buscar por nombre o código atraviesa el filtro de actividad: si
+      // alguien escribe el nombre, lo está buscando a propósito —incluso si
+      // está archivado—.
+      if (palabras.length === 0) {
+        if (actividad === "pautando" && (r.archived || !r.conPauta)) return false;
+        if (actividad === "activos" && (r.archived || r.conPauta)) return false;
+        if (actividad === "inactivos" && !r.archived) return false;
+      }
       if (carpeta && r.folder !== carpeta) return false;
       if (estado && r.state !== estado) return false;
       if (palabras.length === 0) return true;
@@ -193,7 +225,7 @@ export default function ProductDirectory({
     };
 
     return [...filtradas].sort(orderBy[orden]);
-  }, [rows, busqueda, carpeta, estado, orden, soloPautados]);
+  }, [rows, busqueda, carpeta, estado, orden, actividad]);
 
   const gastoVisible = visibles.reduce((a, r) => a + (r.spend ?? 0), 0);
   const enRiesgo = visibles.filter((r) => r.state === "RIESGO").length;
@@ -234,7 +266,33 @@ export default function ProductDirectory({
           )}
         </div>
 
+        {/* En qué anda: se está pautando ahora, está vivo pero quieto, o
+            está archivado. Es la primera pregunta —"¿qué tenemos corriendo?"—
+            y antes solo existía como un enlace de texto al pie de la tabla. */}
         <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
+            Estado
+          </span>
+          {ACTIVIDADES.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setActividad(a.id)}
+              title={a.ayuda}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                actividad === a.id
+                  ? "border-accent bg-good-bg text-accent-strong"
+                  : "border-border text-muted hover:border-border-strong hover:text-foreground"
+              }`}
+            >
+              {a.label} ({cuantos[a.id]})
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
+            Pulso
+          </span>
           {(["", "RIESGO", "VIGILAR", "SANO", "SIN_DATOS"] as const).map((e) => (
             <button
               key={e || "todos"}
@@ -270,7 +328,8 @@ export default function ProductDirectory({
         </div>
 
         <p className="text-xs text-muted">
-          {visibles.length} de {totales.productos} productos ·{" "}
+          {visibles.length} de {totales.productos} productos activos ·{" "}
+          <span className="font-medium text-foreground">{periodo}</span> ·{" "}
           {/* Cuántos están corriendo en vez de cuánta plata mueven: sirve
               para lo mismo —saber si la lista de abajo es la operación real
               o el catálogo entero— y no dice un monto. */}
@@ -279,19 +338,8 @@ export default function ProductDirectory({
           {verCifras && totales.sinCosto > 0 && puedeGestionar && (
             <span> · {totales.sinCosto} sin costo por artículo cargado</span>
           )}
-          {sinPauta > 0 && (
-            <>
-              {" · "}
-              <button
-                type="button"
-                onClick={() => setSoloPautados((v) => !v)}
-                className="font-medium text-accent-strong underline-offset-2 hover:underline"
-              >
-                {soloPautados
-                  ? `mostrar también los ${sinPauta} sin pauta en 30 días`
-                  : "ocultar los que no se están pautando"}
-              </button>
-            </>
+          {busqueda.trim() && (
+            <span> · la búsqueda muestra también los apagados y archivados</span>
           )}
         </p>
       </div>
@@ -376,6 +424,14 @@ export default function ProductDirectory({
                         </span>
                       </Link>
                       <span className="block text-xs text-muted">
+                        {/* Con los archivados a la vista hace falta decir cuáles
+                            lo están: si no, un producto muerto se lee como uno
+                            vivo que no gastó. */}
+                        {r.archived && (
+                          <span className="mr-1 rounded border border-border bg-surface-2 px-1 py-px text-[10px] font-medium">
+                            inactivo
+                          </span>
+                        )}
                         {r.code}
                         {r.folder ? ` · ${r.folder}` : ""}
                         {r.campanas > 0
