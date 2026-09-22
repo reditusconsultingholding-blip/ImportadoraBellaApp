@@ -65,6 +65,14 @@ type AjusteCosteo = {
 // vivo (unitCost por variante), CPA y gasto operativo de Rentabilidad.
 export type CalcProduct = {
   name: string;
+  /**
+   * El ID del producto en Dropi.
+   *
+   * Emilia lo pidió con todas las letras: "para yo poder crear la calculadora
+   * y me jale la información, yo pongo el ID". Acá es solo para buscar y para
+   * poder copiarlo; el que manda sigue siendo el nombre.
+   */
+  sku?: string | null;
   price: number | null;
   unitCost: number | null;
   cpa: number | null;
@@ -79,7 +87,13 @@ export type CalcProduct = {
   devoluciones: number | null;
 };
 
-type ProductoShopify = { id: string; titulo: string; precio: number | null; costo: number | null };
+type ProductoShopify = {
+  id: string;
+  titulo: string;
+  sku: string | null;
+  precio: number | null;
+  costo: number | null;
+};
 
 const money = (n: number) =>
   isFinite(n) ? n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 2 }) : "—";
@@ -337,6 +351,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
       if (!porNombre.has(k)) {
         porNombre.set(k, {
           name: c.titulo,
+          sku: c.sku,
           price: c.precio,
           unitCost: c.costo,
           cpa: null,
@@ -673,6 +688,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               opciones={lista.map((p) => ({
                 id: p.name,
                 nombre: p.name,
+                sku: p.sku,
                 detalle: p.unitCost != null ? `costo ${p.unitCost.toFixed(2)}` : undefined,
               }))}
               valor={selectedProduct}

@@ -14,6 +14,7 @@ import Lista from "./lista";
 import Enlaces from "./enlaces";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 import AyudaPantalla from "../ayuda-pantalla";
+import SinSku from "./sin-sku";
 
 export default async function SinNomenclaturaPage() {
   const session = await getSession();
@@ -34,7 +35,12 @@ export default async function SinNomenclaturaPage() {
   // —trescientas filas ya son más de las que nadie va a repasar de una sentada—
   // y contar sobre lo que llegó daría "300 campañas sueltas" cuando son 327: el
   // total tiene que salir de contar todo, no de medir la página.
-  const [campanas, resumen, enlaces, productos, opciones] = await Promise.all([
+  // El corte de "pauta reciente". Sale de resolveRange y no de un Date.now()
+  // suelto: acá adentro estamos en el render de una pantalla, donde leer el
+  // reloj directamente da un límite distinto en cada consulta.
+  const hace90Dias = resolveRange("3m").from;
+
+  const [campanas, resumen, enlaces, productos, opciones, sinSku] = await Promise.all([
     campanasSinProducto(session.organizationId, rango),
     resumenSinProducto(session.organizationId, rango),
     proponerEnlaces(session.organizationId, rango),
@@ -43,6 +49,31 @@ export default async function SinNomenclaturaPage() {
       where: { organizationId: session.organizationId, archived: false },
       select: { id: true, code: true, name: true },
       orderBy: { code: "asc" },
+    }),
+    // Los que no están conectados a Dropi: los candidatos a depurar. Se pide
+    // también si tuvieron pauta en los últimos 90 días, porque un producto con
+    // plata puesta hoy no se archiva aunque le falte el SKU.
+    db.product.findMany({
+      where: { organizationId: session.organizationId, archived: false, sku: null },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        _count: { select: { campaigns: true } },
+        campaigns: {
+          select: {
+            metrics: {
+              where: {
+                capturedAt: { gte: hace90Dias },
+                spend: { gt: 0 },
+              },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -102,6 +133,16 @@ export default async function SinNomenclaturaPage() {
         cobertura={enlaces.cobertura}
         opciones={opciones}
         periodo={rango.label}
+      />
+
+      <SinSku
+        productos={sinSku.map((p) => ({
+          id: p.id,
+          code: p.code,
+          name: p.name,
+          campanas: p._count.campaigns,
+          conPautaReciente: p.campaigns.some((c) => c.metrics.length > 0),
+        }))}
       />
 
       <Lista

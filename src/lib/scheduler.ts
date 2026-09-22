@@ -23,12 +23,15 @@ import { limpiarActividadVieja } from "@/lib/actividad";
 import { estadoDelCorreo } from "@/lib/email";
 import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
 import { descuadreDelControl } from "@/lib/control-cuadre";
+import { sincronizarSkus } from "@/lib/integrations/sku-dropi";
 
 let ultimaLimpiezaActividad = "";
 /** Cuándo se revisó por última vez el correo saliente. */
 let ultimoCorreo = 0;
 /** Cuándo se miró por última vez la planilla de pedidos del equipo de ventas. */
 const ultimoReporte = new Map<string, number>();
+/** Y cuándo se refrescaron los SKU de Dropi, que van al mismo ritmo. */
+const ultimoSku = new Map<string, number>();
 const REPORTE_CADA_MS = 60 * 60 * 1000;
 
 // El reloj de la aplicación.
@@ -493,6 +496,19 @@ export async function sincronizarTodo(conRapido = true) {
       }
     } catch (err) {
       resumen.reporte = "error: " + (err instanceof Error ? err.message : String(err));
+    }
+
+    // El SKU de cada producto —su ID en Dropi—, en la misma vuelta de la
+    // hora. Cambia poco, pero cuando cambia nadie avisa: el equipo crea el
+    // producto en Shopify y le pone el SKU después. Ver sku-dropi.ts.
+    try {
+      if (Date.now() - (ultimoSku.get(org.id) ?? 0) > REPORTE_CADA_MS) {
+        ultimoSku.set(org.id, Date.now());
+        const s = await sincronizarSkus(org.id);
+        if (s.actualizados > 0) resumen.skus = s.actualizados + " SKU actualizados";
+      }
+    } catch (err) {
+      resumen.skus = "error: " + (err instanceof Error ? err.message : String(err));
     }
 
     // Cómo está el correo saliente, una vez por hora. Queda escrito en

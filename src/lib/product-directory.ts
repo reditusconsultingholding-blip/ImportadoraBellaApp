@@ -16,6 +16,8 @@ export type DirectoryRow = {
   id: string;
   code: string;
   name: string;
+  /** El ID del producto en Dropi. Ver integrations/sku-dropi.ts. */
+  sku: string | null;
   folder: string | null;
   /**
    * Precio, costo, margen, objetivo, gasto y CPA solo llegan cuando quien mira
@@ -101,6 +103,7 @@ async function getDirectorySinMemoria(
         id: true,
         code: true,
         name: true,
+        sku: true,
         archived: true,
         salePrice: true,
         unitCost: true,
@@ -191,6 +194,7 @@ async function getDirectorySinMemoria(
       id: p.id,
       code: p.code,
       name: p.name,
+      sku: p.sku,
       folder: p.folder?.name ?? null,
       ...(verCifras
         ? {

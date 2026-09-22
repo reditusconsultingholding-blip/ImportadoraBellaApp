@@ -29,6 +29,7 @@ export default async function CalculadoraPage() {
       where: { organizationId: session.organizationId, archived: false },
       select: {
         code: true,
+        sku: true,
         name: true,
         salePrice: true,
         unitCost: true,
@@ -59,6 +60,7 @@ export default async function CalculadoraPage() {
   for (const c of catalog) {
     byName.set(c.title.trim().toLowerCase(), {
       name: c.title,
+      sku: c.sku,
       price: c.price,
       unitCost: c.unitCost,
       cpa: null,
@@ -74,6 +76,7 @@ export default async function CalculadoraPage() {
   for (const p of fichas) {
     byName.set(p.name.trim().toLowerCase(), {
       name: p.name,
+      sku: p.sku,
       price: p.salePrice,
       unitCost: p.unitCost,
       cpa: p.cpaTarget > 0 ? p.cpaTarget : null,

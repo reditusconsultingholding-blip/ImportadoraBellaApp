@@ -23,11 +23,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ co
     shopifyProductId?: string | null;
     shopifyProductTitle?: string | null;
     campaignId?: string;
+    archived?: boolean;
   };
 
   const data: Record<string, unknown> = {};
   if ("shopifyProductId" in body) data.shopifyProductId = body.shopifyProductId || null;
   if ("shopifyProductTitle" in body) data.shopifyProductTitle = body.shopifyProductTitle || null;
+  // Archivar y desarchivar. No borra: el producto sigue existiendo con toda su
+  // historia, solo sale de los buscadores y de las listas del día a día. Es la
+  // única forma sensata de depurar quinientos productos viejos sin perder el
+  // gasto que tuvieron.
+  if (typeof body.archived === "boolean") data.archived = body.archived;
 
   if (Object.keys(data).length > 0) {
     await db.product.update({ where: { id: product.id }, data });

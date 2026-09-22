@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PulseLine, { type PulseTone } from "../pulse-line";
 import Link from "next/link";
+import CopiarId from "../copiar-id";
 import {
   ColaDeAprobacion,
   DetalleProducto,
@@ -16,6 +17,8 @@ export type DirectoryRow = {
   id: string;
   code: string;
   name: string;
+  /** El ID del producto en Dropi, cuando está conectado. */
+  sku: string | null;
   folder: string | null;
   // Estos seis solo llegan con el permiso de finanzas — ver getDirectory.
   salePrice?: number | null;
@@ -49,7 +52,7 @@ const ESTADO: Record<PulseTone, { texto: string; chip: string }> = {
   SIN_DATOS: { texto: "Sin pauta", chip: "bg-surface-2 text-muted border-border" },
 };
 
-type Orden = "pulso" | "gasto" | "nombre" | "creativos" | "margen";
+type Orden = "pulso" | "gasto" | "nombre" | "creativos" | "margen" | "sku";
 
 // Ordenar por gasto o por margen no tiene sentido cuando esas columnas no
 // existen: el botón quedaría sin efecto visible y parecería roto.
@@ -77,6 +80,9 @@ function ordenesPara(verCifras: boolean): { id: Orden; label: string }[] {
         ] as { id: Orden; label: string }[])
       : []),
     { id: "creativos", label: "Creativos" },
+    // Por SKU es "por ID de Dropi": deja arriba lo que se despacha de verdad
+    // y abajo, juntos, los que no están conectados a nada.
+    { id: "sku", label: "SKU" },
     { id: "nombre", label: "Nombre" },
   ];
 }
@@ -201,8 +207,9 @@ export default function ProductDirectory({
       if (carpeta && r.folder !== carpeta) return false;
       if (estado && r.state !== estado) return false;
       if (palabras.length === 0) return true;
-      // Se busca por nombre y por código: los media buyers piensan en "134142".
-      const heno = plano(`${r.name} ${r.code}`);
+      // Se busca por nombre, por código y por SKU: los media buyers piensan
+      // en "134142" y Fabricio en el ID de Dropi, "177118".
+      const heno = plano(`${r.name} ${r.code} ${r.sku ?? ""}`);
       return palabras.every((p) => heno.includes(p));
     });
 
@@ -222,6 +229,13 @@ export default function ProductDirectory({
       margen: (a, b) => (b.margen ?? -Infinity) - (a.margen ?? -Infinity),
       creativos: (a, b) => b.creativos - a.creativos,
       nombre: (a, b) => a.name.localeCompare(b.name, "es"),
+      // Primero los que están conectados a Dropi, y entre ellos por SKU. Es el
+      // orden con el que el equipo mira su catálogo, y deja abajo —juntos— los
+      // que no se despachan por ningún lado.
+      sku: (a, b) =>
+        Number(!a.sku) - Number(!b.sku) ||
+        (a.sku ?? "").localeCompare(b.sku ?? "", "es", { numeric: true }) ||
+        a.name.localeCompare(b.name, "es"),
     };
 
     return [...filtradas].sort(orderBy[orden]);
@@ -431,6 +445,15 @@ export default function ProductDirectory({
                           <span className="mr-1 rounded border border-border bg-surface-2 px-1 py-px text-[10px] font-medium">
                             inactivo
                           </span>
+                        )}
+                        {/* El SKU adelante: es el número con el que el
+                            equipo piensa y el que Fabricio pone al principio
+                            del nombre de sus campañas. Se copia de un toque
+                            porque se usa fuera de Jarvis. */}
+                        {r.sku && (
+                          <>
+                            <CopiarId valor={r.sku} etiqueta={`el SKU de ${r.name}`} />{" "}
+                          </>
                         )}
                         {r.code}
                         {r.folder ? ` · ${r.folder}` : ""}

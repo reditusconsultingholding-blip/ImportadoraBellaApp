@@ -15,6 +15,8 @@ export type OpcionProducto = {
   id: string;
   nombre: string;
   codigo?: string;
+  /** El ID del producto en Dropi, cuando lo tiene. También encuentra por acá. */
+  sku?: string | null;
   /** Texto chico a la derecha (costo, "sin pauta"…). */
   detalle?: string;
 };
@@ -57,7 +59,7 @@ export default function BuscadorProducto({
   const idLista = useId();
 
   const resultados = useMemo(
-    () => buscarProductos(opciones, texto, (o) => ({ nombre: o.nombre, codigo: o.codigo })),
+    () => buscarProductos(opciones, texto, (o) => ({ nombre: o.nombre, codigo: [o.codigo, o.sku] })),
     [opciones, texto],
   );
   // La primera fila es "ninguno" cuando se permite.

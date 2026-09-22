@@ -76,6 +76,8 @@ export async function GET(req: NextRequest) {
         productos: productos.map((p) => ({
           id: p.id,
           titulo: p.title,
+          // El ID en Dropi: la calculadora busca por él.
+          sku: p.sku,
           precio: p.price,
           costo: p.unitCost,
         })),

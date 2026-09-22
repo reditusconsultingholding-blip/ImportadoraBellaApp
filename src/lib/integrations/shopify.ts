@@ -572,6 +572,8 @@ export type ShopifyCatalogProduct = {
   title: string;
   price: number | null;
   unitCost: number | null;
+  /** El SKU de la primera variante: es el ID del producto en Dropi. */
+  sku: string | null;
 };
 
 // 5 minutos: es lo que se tarda en ver en el buscador un producto que alguien
@@ -588,7 +590,7 @@ const CATALOG_QUERY = `
         id
         title
         variants(first: 1) {
-          nodes { price inventoryItem { unitCost { amount } } }
+          nodes { sku price inventoryItem { unitCost { amount } } }
         }
       }
     }
@@ -603,6 +605,7 @@ type CatalogPage = {
       title: string;
       variants: {
         nodes: {
+          sku: string | null;
           price: string | null;
           inventoryItem?: { unitCost?: { amount: string | null } | null } | null;
         }[];
@@ -637,6 +640,10 @@ export async function fetchProductCatalog(
       products.push({
         id: node.id,
         title: node.title,
+        // Shopify devuelve "" cuando la variante no tiene SKU cargado, y un
+        // string vacío no es lo mismo que "no tiene": dejarlo pasar haría que
+        // la sección de "productos sin SKU" no encontrara ninguno.
+        sku: variant?.sku?.trim() || null,
         price: price != null && Number.isFinite(price) ? price : null,
         unitCost: cost != null && Number.isFinite(Number(cost)) ? Number(cost) : null,
       });

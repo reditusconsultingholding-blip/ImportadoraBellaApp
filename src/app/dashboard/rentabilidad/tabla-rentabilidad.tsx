@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import CopiarId from "../copiar-id";
 import type { FilaRentabilidad, Rentabilidad } from "@/lib/rentabilidad";
 import { semaforoDeFila } from "@/lib/rentabilidad-semaforo";
 
@@ -54,7 +55,7 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
   const visibles = useMemo(() => {
     const q = plano(busqueda.trim());
     return data.filas.filter((f) => {
-      if (q && !plano(`${f.name} ${f.code}`).includes(q)) return false;
+      if (q && !plano(`${f.name} ${f.code} ${f.sku ?? ""}`).includes(q)) return false;
       if (soloEnMarcha && !f.enMarcha) return false;
       if (soloConGasto && f.gastoPauta <= 0) return false;
       if (filtro === "pierden") return f.utilidad != null && f.utilidad < 0;
@@ -203,7 +204,7 @@ export default function TablaRentabilidad({ data }: { data: Rentabilidad }) {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o código…"
+          placeholder="Buscar por nombre, código o SKU…"
           className="flex-1 rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <div className="flex flex-wrap gap-1.5">
@@ -385,13 +386,29 @@ function Fila({
             <span className="min-w-0">
               <span className="block truncate font-medium">{f.name}</span>
               <span className="block text-xs text-muted">
-                {f.code}
                 {!f.tieneEconomia && (
-                  <span className="text-warning"> · sin economía cargada</span>
+                  <span className="text-warning">sin economía cargada</span>
                 )}
               </span>
             </span>
           </button>
+
+          {/* El nombre abría la fila y nada más: para ver la ficha había que
+              copiar el código a mano e irse a Productos. Ahora el enlace y los
+              identificadores viven fuera del botón —adentro serían un botón
+              dentro de otro, que el navegador no deja— y cada uno hace una
+              sola cosa: la flecha despliega, el enlace abre, el número se
+              copia. */}
+          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 pl-[22px]">
+            {f.sku && <CopiarId valor={f.sku} etiqueta={`el SKU de ${f.name}`} />}
+            <CopiarId valor={f.code} etiqueta={`el código de ${f.name}`} />
+            <Link
+              href={`/dashboard/productos/${encodeURIComponent(f.code)}`}
+              className="text-[11px] font-medium text-accent-strong underline-offset-2 hover:underline"
+            >
+              abrir ficha →
+            </Link>
+          </span>
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums">
           {money(f.gastoPauta)}

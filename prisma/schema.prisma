@@ -399,6 +399,17 @@ model Product {
   shopifyProductId    String?
   shopifyProductTitle String?
 
+  /**
+   * El SKU del producto en Shopify, que es el ID con el que vive en Dropi.
+   *
+   * Es el número con el que Emilia y Fabricio piensan —"el 177118"— y el que
+   * Fabricio pone adelante en el nombre de sus campañas. Tener SKU también
+   * significa algo: el producto está conectado a Dropi, o sea que se despacha
+   * de verdad. Los que no lo tienen son, casi siempre, catálogo viejo que
+   * nadie limpió.
+   */
+  sku String?
+
   // La realidad operativa del producto, sin la cual "rentabilidad" es una
   // palabra vacia: en contraentrega no se cobra lo que se vende, se cobra lo
   // que se confirma Y no se devuelve. Sale de la planilla del equipo.

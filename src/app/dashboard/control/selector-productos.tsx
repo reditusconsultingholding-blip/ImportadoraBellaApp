@@ -11,7 +11,7 @@ import { buscarProductos } from "@/lib/buscar-producto";
 // que el equipo ya usa. Se eligen varios a la vez y se aplican juntos, para no
 // recargar la pantalla con cada clic.
 
-type Producto = { id: string; code: string; name: string };
+type Producto = { id: string; code: string; name: string; sku?: string | null };
 
 export default function SelectorProductos({
   productos,
@@ -28,7 +28,12 @@ export default function SelectorProductos({
 
   // Por nombre, código o iniciales ("gdl" → Gotas De drenaje Linfático).
   const visibles = useMemo(
-    () => buscarProductos(productos, texto, (p) => ({ nombre: p.name, codigo: p.code }), Infinity),
+    () => buscarProductos(
+        productos,
+        texto,
+        (p) => ({ nombre: p.name, codigo: [p.code, p.sku] }),
+        Infinity,
+      ),
     [productos, texto],
   );
 

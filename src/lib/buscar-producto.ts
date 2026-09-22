@@ -4,7 +4,7 @@
 // tiene más de cien productos y bajar por un desplegable hasta encontrar uno
 // era la parte lenta de cada pantalla. Acá se aceptan cuatro formas de
 // escribirlo, de la más exacta a la más suelta:
-//   1. el código ("1771…"),
+//   1. el código o el SKU de Dropi ("1771…"),
 //   2. el comienzo del nombre ("gotas de"),
 //   3. el comienzo de varias palabras ("got dren"),
 //   4. las iniciales ("gdl" → Gotas De drenaje Linfático; se pueden saltear
@@ -31,15 +31,24 @@ function enOrden(aguja: string, pajar: string) {
  * Qué tan bien coincide un producto con lo escrito. Menor es mejor; null si no
  * coincide. Sirve para filtrar y para ordenar a la vez.
  */
-export function puntajeProducto(consulta: string, nombre: string, codigo = ""): number | null {
+export function puntajeProducto(
+  consulta: string,
+  nombre: string,
+  codigo: string | (string | null | undefined)[] = "",
+): number | null {
   const q = plano(consulta);
   if (!q) return 0;
   const n = plano(nombre);
-  const c = plano(codigo);
+  // Un producto tiene más de un número: el código con el que se nombran las
+  // campañas y el SKU con el que vive en Dropi. Fabricio busca por el segundo
+  // y el equipo por el primero, así que los dos tienen que encontrar.
+  const codigos = (Array.isArray(codigo) ? codigo : [codigo])
+    .map((x) => plano(x ?? ""))
+    .filter(Boolean);
   const qSin = q.replace(/[^a-z0-9]/g, "");
 
-  if (c && c === qSin) return 0;
-  if (c && c.startsWith(qSin)) return 1;
+  if (codigos.some((c) => c === qSin)) return 0;
+  if (qSin && codigos.some((c) => c.startsWith(qSin))) return 1;
   if (n.startsWith(q)) return 2;
 
   const ps = palabras(nombre);
@@ -54,7 +63,7 @@ export function puntajeProducto(consulta: string, nombre: string, codigo = ""): 
   // Iniciales salteando palabras ("gdl" en "gotas de drenaje linfatico").
   if (qSin.length >= 2 && !/\d/.test(qSin) && enOrden(qSin, iniciales)) return 6;
 
-  if (n.includes(q) || (c && c.includes(qSin))) return 7;
+  if (n.includes(q) || (qSin && codigos.some((c) => c.includes(qSin)))) return 7;
   return null;
 }
 
@@ -62,7 +71,7 @@ export function puntajeProducto(consulta: string, nombre: string, codigo = ""): 
 export function buscarProductos<T>(
   lista: T[],
   consulta: string,
-  datos: (x: T) => { nombre: string; codigo?: string },
+  datos: (x: T) => { nombre: string; codigo?: string | (string | null | undefined)[] },
   tope = 50,
 ): T[] {
   if (!plano(consulta)) return lista.slice(0, tope);

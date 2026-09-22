@@ -70,6 +70,9 @@ export async function GET(req: NextRequest) {
       return {
         shopifyProductId: c.id,
         title: c.title,
+        // El ID del producto en Dropi: se busca por él y se copia. No es una
+        // cifra de dinero, así que va con o sin permiso de finanzas.
+        sku: c.sku,
         ...(verCifras ? { price: c.price, unitCost: c.unitCost } : {}),
         seguido: Boolean(ficha),
         code: ficha?.code ?? null,
@@ -144,6 +147,8 @@ export async function POST(req: NextRequest) {
         name: enCatalogo.title,
         shopifyProductId: enCatalogo.id,
         shopifyProductTitle: enCatalogo.title,
+        // El ID con el que el producto vive en Dropi. Ver sku-dropi.ts.
+        sku: enCatalogo.sku,
         cpaTarget: margen != null ? Math.round(margen * 100) / 100 : 10,
         salePrice: enCatalogo.price,
         unitCost: enCatalogo.unitCost,

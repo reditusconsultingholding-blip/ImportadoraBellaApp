@@ -19,6 +19,8 @@ import { memorizar } from "@/lib/memoria";
 export type FilaRentabilidad = {
   productId: string;
   code: string;
+  /** El ID del producto en Dropi: se busca y se copia por él. */
+  sku: string | null;
   name: string;
 
   gastoPauta: number;
@@ -176,6 +178,7 @@ async function getRentabilidadSinMemoria(
       select: {
         id: true,
         code: true,
+        sku: true,
         name: true,
         salePrice: true,
         unitCost: true,
@@ -250,6 +253,7 @@ async function getRentabilidadSinMemoria(
       filas.push({
         productId: p.id,
         code: p.code,
+        sku: p.sku,
         name: p.name,
         gastoPauta,
         comprasAtribuidas,
@@ -330,6 +334,7 @@ async function getRentabilidadSinMemoria(
     filas.push({
       productId: p.id,
       code: p.code,
+      sku: p.sku,
       name: p.name,
       gastoPauta,
       comprasAtribuidas,
