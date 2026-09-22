@@ -12,6 +12,7 @@ const money = (n: number) =>
 import Link from "next/link";
 import type { ResumenSinProducto } from "@/lib/sin-nomenclatura";
 import FrescuraVentas from "./frescura-ventas";
+import SeccionPlegable from "./seccion-plegable";
 
 export default function AttributionStrip({
   ventasReales,
@@ -80,17 +81,33 @@ export default function AttributionStrip({
   ];
 
   return (
-    <section className="rounded border border-border bg-surface">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5">
-        <h2 className="text-sm font-semibold">Ventas reales contra lo que atribuye la pauta</h2>
-        <span className="text-xs text-muted">{periodo}</span>
-        {/* De cuándo es cada mitad de la comparación. */}
-        <span className="w-full">
-          <FrescuraVentas />
-        </span>
+    // Con color propio y una barra al costado: es el bloque que más se busca
+    // del panel —"¿cuántas ventas van y cuánto de eso se cuelga la pauta?"— y
+    // en gris, igual que todo lo demás, había que bajar leyendo títulos para
+    // encontrarlo.
+    //
+    // Cerrada como el resto del panel, pero con los dos números que la gente
+    // viene a buscar puestos en la propia barra: lo cobrado y qué parte se
+    // llevó la pauta. Abrirla es para ver POR QUÉ no cuadran.
+    <SeccionPlegable
+      id="ventas-reales"
+      tono="destacada"
+      titulo="Ventas reales contra lo que atribuye la pauta"
+      etiqueta={periodo}
+      resumen={
+        <>
+          {money(ventasReales)} cobrados
+          {pesoPauta != null && ` · la pauta se llevó el ${pesoPauta.toFixed(0)}%`} ·{" "}
+          {atribuidas.toLocaleString("es-EC")} compras se atribuyen Meta y TikTok
+        </>
+      }
+    >
+      {/* De cuándo es cada mitad de la comparación. */}
+      <div className="border-b border-border bg-good-bg/40 px-4 py-2">
+        <FrescuraVentas />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 bg-surface lg:grid-cols-4">
         {columnas.map((c, i) => (
           <div
             key={c.titulo}
@@ -218,7 +235,7 @@ export default function AttributionStrip({
           )}
         </div>
       )}
-    </section>
+    </SeccionPlegable>
   );
 }
 

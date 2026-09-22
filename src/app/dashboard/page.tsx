@@ -25,6 +25,7 @@ import { ritmoDeVentas } from "@/lib/ritmo-ventas";
 import IndicadoresRapidos from "./indicadores-rapidos";
 import { testeosDelPeriodo } from "@/lib/testeos";
 import { origenPorVenta } from "@/lib/origen-pedidos";
+import SeccionPlegable from "./seccion-plegable";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -167,11 +168,9 @@ export default async function DashboardPage({
           que sin el permiso no se pide ni se dibuja. */}
       {sales && <SalesOverview data={sales} periodo={range.label} />}
 
-      {/* Cuándo se vende, dentro del período elegido. Va acá arriba y no al
-          final porque es lo primero que se mira después del total: el total
-          dice cuánto, esto dice qué días —o qué horas— lo hicieron. */}
-      <VentasEnElTiempo serie={ventas} periodo={range.label} verCifras={verCifras} />
-
+      {/* Pegada a las ventas de arriba: es la comparación de ESOS números
+          contra lo que se cuelga la pauta, así que separarlas con el gráfico
+          obligaba a bajar a buscarla. */}
       {sales && canManagePipeline(session.role) && (
         <AttributionStrip
           ventasReales={sales.totalSales}
@@ -185,6 +184,11 @@ export default async function DashboardPage({
         />
       )}
 
+      {/* Cuándo se vende, dentro del período elegido. Va acá arriba y no al
+          final porque es lo primero que se mira después del total: el total
+          dice cuánto, esto dice qué días —o qué horas— lo hicieron. */}
+      <VentasEnElTiempo serie={ventas} periodo={range.label} verCifras={verCifras} />
+
       {/* Qué escalar y qué apagar: esto lo ven todos los que entran acá. Las
           cifras de adentro las recorta /api/alertas según quién pregunta. */}
       {canManagePipeline(session.role) && <AlertasPanel />}
@@ -193,14 +197,20 @@ export default async function DashboardPage({
 
       {canManagePipeline(session.role) && <CatalogPicker />}
 
-      <div className="flex flex-col gap-5 border-t border-border pt-6">
+      {/* La tabla de campañas es lo más largo del panel y lo último que se
+          mira: se abre cuando se va a trabajar sobre ella, no cada vez que
+          alguien entra a ver cómo va el día. */}
+      <SeccionPlegable
+        id="rendimiento-campanas"
+        eyebrow="Pauta"
+        titulo="Rendimiento de campañas"
+        resumen={`${overview.rows.length} campañas · solo lo que atribuye la plataforma, las ventas reales están arriba${
+          overview.urgentRows.length > 0 ? ` · ${overview.urgentRows.length} necesitan revisión` : ""
+        }`}
+        etiqueta={range.label}
+      >
+        <div className="flex flex-col gap-5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-[18px] font-semibold">Rendimiento de campañas</h2>
-            <p className="mt-0.5 text-sm text-muted">
-              Solo lo que atribuye la plataforma. Las ventas reales están arriba, y salen de Shopify.
-            </p>
-          </div>
           <PlatformTabs
             active={platform}
             rango={range.id}
@@ -292,7 +302,8 @@ export default async function DashboardPage({
           verCifras={verCifras}
           puedeAbrirProducto={canAccessPipeline(session.role)}
         />
-      </div>
+        </div>
+      </SeccionPlegable>
     </div>
   );
 }

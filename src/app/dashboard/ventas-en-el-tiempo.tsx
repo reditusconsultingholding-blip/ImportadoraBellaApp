@@ -16,6 +16,7 @@ import {
 import { NOMBRE_GRANULARIDAD, type Granularidad } from "@/lib/reporte-medidas";
 import { cuboBajoElCursor } from "@/lib/serie-cubos";
 import type { CuboVentas, SerieVentas } from "@/lib/ventas-medidas";
+import SeccionPlegable from "./seccion-plegable";
 
 // Las ventas del período repartidas en el tiempo, con la granularidad a mano.
 //
@@ -414,20 +415,28 @@ function Tarjeta({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded border border-border bg-surface p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted">
-        {periodo} · ventas en el tiempo
-        {granularidad && <span className="normal-case"> ({granularidad})</span>}
-      </p>
-      {/* Vale la pena decirlo acá: el resto del Panel habla de compras
-          ATRIBUIDAS por Meta y TikTok, que siempre son más. Este bloque es lo
-          que de verdad entró por la tienda. */}
-      <p className="mb-3 mt-0.5 text-xs text-muted">
-        Órdenes reales de Shopify, no compras atribuidas por Meta o TikTok. En hora
-        de Ecuador: una venta de las 21:00 cuenta a las 21:00, no a las 02:00 del
-        día siguiente como la vería el servidor.
-      </p>
-      {children}
-    </div>
+    <SeccionPlegable
+      id="ventas-en-el-tiempo"
+      eyebrow="Cuándo"
+      titulo="Ventas en el tiempo"
+      resumen={
+        granularidad
+          ? `Qué días —o qué horas— hicieron el total (${granularidad})`
+          : "Qué días —o qué horas— hicieron el total"
+      }
+      etiqueta={periodo}
+    >
+      <div className="p-4">
+        {/* Vale la pena decirlo acá: el resto del Panel habla de compras
+            ATRIBUIDAS por Meta y TikTok, que siempre son más. Este bloque es lo
+            que de verdad entró por la tienda. */}
+        <p className="mb-3 text-xs text-muted">
+          Órdenes reales de Shopify, no compras atribuidas por Meta o TikTok. En hora
+          de Ecuador: una venta de las 21:00 cuenta a las 21:00, no a las 02:00 del
+          día siguiente como la vería el servidor.
+        </p>
+        {children}
+      </div>
+    </SeccionPlegable>
   );
 }

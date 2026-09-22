@@ -26,9 +26,16 @@ export default function PulseLine({
 }) {
   const color = TONO[state];
 
-  // Con menos de dos puntos no hay línea que trazar: se dibuja una base plana
-  // en vez de inventar una curva.
-  if (serie.length < 2) {
+  // Sin pulso de verdad —ningún día con gasto, o un solo punto— se dibuja una
+  // base PUNTEADA y sin el punto del final.
+  //
+  // Antes salía una línea llena igual que la de un producto que sí se está
+  // pautando: en la lista se veían todas horizontales y parecía que el trazo
+  // era un adorno. Punteada se lee de un vistazo como "acá no hay nada que
+  // mostrar".
+  const pico = Math.max(...serie);
+  const valle = Math.min(...serie);
+  if (serie.length < 2 || pico === valle) {
     return (
       <svg
         width={width}
@@ -43,23 +50,22 @@ export default function PulseLine({
           x2={width}
           y2={height / 2}
           stroke={color}
-          strokeWidth={2}
+          strokeWidth={1.5}
+          strokeDasharray="2 3"
           strokeLinecap="round"
-          opacity={0.35}
+          opacity={0.45}
         />
       </svg>
     );
   }
 
-  const max = Math.max(...serie);
-  const min = Math.min(...serie);
-  const rango = max - min || 1;
+  const rango = pico - valle || 1;
   const pad = 3;
   const alto = height - pad * 2;
 
   const puntos = serie.map((v, i) => {
     const x = (i / (serie.length - 1)) * width;
-    const y = pad + alto - ((v - min) / rango) * alto;
+    const y = pad + alto - ((v - valle) / rango) * alto;
     return [x, y] as const;
   });
 
