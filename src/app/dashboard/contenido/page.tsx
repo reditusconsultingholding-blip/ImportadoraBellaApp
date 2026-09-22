@@ -12,6 +12,7 @@ import Requerimientos from "./requerimientos";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 import { productosPautadosRecientes } from "@/lib/pautados";
 import { resolveRange, toInputValue } from "@/lib/date-range";
+import { piezasSinClasificar } from "@/lib/piezas-sin-clasificar";
 import RangoContenido from "./rango-contenido";
 
 const VISTAS = [
@@ -114,6 +115,19 @@ export default async function ContenidoPage({
       : [];
   // Cuáles se están pautando ahora mismo. Es con lo que abren las tarjetas:
   // el catálogo entero son ciento y pico productos y casi ninguno está vivo.
+  // Las piezas a medio cargar del período. Un editor ve LAS SUYAS: una lista
+  // de piezas de otros no se arregla sola y solo hace ruido. Dirección ve
+  // todas, que es lo que Emilia pidió poder vigilar.
+  const sinClasificar =
+    vista === "requerimientos"
+      ? await piezasSinClasificar(
+          session.organizationId,
+          range.from,
+          range.to,
+          canManage ? undefined : session.userId,
+        )
+      : [];
+
   const pautados = new Set(
     vista === "requerimientos" ? await productosPautadosRecientes(session.organizationId) : [],
   );
@@ -205,6 +219,7 @@ export default async function ContenidoPage({
           currentUserId={session.userId}
           users={users}
           products={productosConFicha}
+          sinClasificar={sinClasificar}
           desde={desde}
           hasta={hasta}
         />

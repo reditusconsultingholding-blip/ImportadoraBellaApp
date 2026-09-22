@@ -11,6 +11,9 @@ export type Anuncio = {
   id: string;
   nombre: string;
   grupo: string | null;
+  angulo: string | null;
+  formato: string | null;
+  anguloDesde: "anuncio" | "conjunto" | "campana" | null;
   miniaturaUrl: string | null;
   campana: string;
   plataforma: "META" | "TIKTOK";
@@ -87,6 +90,10 @@ export default function AnunciosTabla({
         <thead>
           <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted">
             <th className="px-2.5 py-1.5">Anuncio</th>
+            {/* Lo que el equipo quiere medir de verdad: no qué creativo
+                anduvo, sino QUÉ ÁNGULO anduvo. "Hemos testeado seis ángulos y
+                los que funcionan son dos." */}
+            <th className="px-2.5 py-1.5">Ángulo / formato</th>
             {mostrarCampana && <th className="px-2.5 py-1.5">Campaña</th>}
             <th className="px-2.5 py-1.5 text-right">Compras</th>
             {cifras && <th className="px-2.5 py-1.5 text-right">Gasto</th>}
@@ -129,6 +136,43 @@ export default function AnunciosTabla({
                       </span>
                     </span>
                   </div>
+                </td>
+                {/* La categoría sale del nombre —del conjunto de anuncios,
+                    que es donde el equipo pone el ángulo, o del anuncio o la
+                    campaña—. Cuando el nombre no dice nada se muestra "sin
+                    clasificar" y no se inventa: un ángulo inventado contamina
+                    justo la respuesta que se está buscando. */}
+                <td className="px-2.5 py-1.5">
+                  {a.angulo || a.formato ? (
+                    <span className="flex flex-wrap items-center gap-1">
+                      {a.angulo && (
+                        <span
+                          title={
+                            a.anguloDesde === "conjunto"
+                              ? "Del nombre del conjunto de anuncios"
+                              : a.anguloDesde === "anuncio"
+                                ? "Del nombre del anuncio"
+                                : "Del nombre de la campaña"
+                          }
+                          className="rounded-full border border-accent/40 bg-good-bg px-1.5 py-px text-[10px] font-medium text-accent-strong"
+                        >
+                          {a.angulo}
+                        </span>
+                      )}
+                      {a.formato && (
+                        <span className="rounded-full border border-border bg-surface-2 px-1.5 py-px text-[10px] text-muted">
+                          {a.formato}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[10px] text-muted"
+                      title="El nombre de la campaña, del conjunto y del anuncio no dicen el ángulo. Poniéndolo en el nombre, esta columna se llena sola."
+                    >
+                      sin clasificar
+                    </span>
+                  )}
                 </td>
                 {mostrarCampana && (
                   <td className="max-w-[180px] truncate px-2.5 py-1.5 text-muted" title={a.campana}>

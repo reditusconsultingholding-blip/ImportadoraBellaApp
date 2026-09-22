@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
+import type { PiezaSinClasificar } from "@/lib/piezas-sin-clasificar";
+import AvisoSinClasificar from "./aviso-sin-clasificar";
 import RequirementsTable from "../_creativos/requirements-table";
 import RequirementForm from "../_creativos/requirement-form";
 import RequirementDrawer from "../_creativos/requirement-drawer";
@@ -55,11 +57,14 @@ export default function Requerimientos({
   products,
   desde,
   hasta,
+  sinClasificar,
 }: {
   canManage: boolean;
   currentUserId: string;
   users: UserOption[];
   products: ProductoFicha[];
+  /** Las piezas del período a las que les falta ángulo, formato o fase. */
+  sinClasificar: PiezaSinClasificar[];
   /** El período elegido arriba, común a todas las pestañas de Contenido. */
   desde: string;
   hasta: string;
@@ -284,6 +289,14 @@ export default function Requerimientos({
           </button>
         ))}
       </div>
+
+      {/* Lo que el equipo dejó a medias, arriba de todo: nombrado, no
+          contado, y con el botón para completarlo en el mismo lugar. */}
+      <AvisoSinClasificar
+        piezas={sinClasificar}
+        esDireccion={canManage}
+        onAbrir={setDetalleId}
+      />
 
       {modo !== "lista" && (
         filas === null ? (

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { categoriaDeAnuncio } from "@/lib/categoria-anuncio";
 import { rangoDe, type PeriodoReporte } from "@/lib/reportes-producto";
 
 // Los anuncios de un producto: los de una campaña, o los mejores de todas.
@@ -13,6 +14,17 @@ export type AnuncioDelProducto = {
   id: string;
   nombre: string;
   grupo: string | null;
+  /**
+   * El ángulo de venta y el formato, leídos del nombre. Ver categoria-anuncio.ts.
+   *
+   * Es lo que el equipo quiere medir: "lo que buscamos testear son ángulos de
+   * venta; hemos testeado seis y los que funcionan son dos". Sin esto, comparar
+   * anuncios solo dice cuál creativo anduvo, no POR QUÉ.
+   */
+  angulo: string | null;
+  formato: string | null;
+  /** En qué nombre estaba el ángulo: anuncio, conjunto o campaña. */
+  anguloDesde: "anuncio" | "conjunto" | "campana" | null;
   miniaturaUrl: string | null;
   campanaId: string;
   campana: string;
@@ -66,7 +78,7 @@ export async function anunciosDeProducto(
 ): Promise<AnunciosDelProducto | null> {
   const product = await db.product.findFirst({
     where: { organizationId, code },
-    select: { id: true, cpaTarget: true },
+    select: { id: true, cpaTarget: true, angulosPropios: true },
   });
   if (!product) return null;
 
@@ -103,10 +115,17 @@ export async function anunciosDeProducto(
       const conGasto = a.metricas.filter((m) => m.spend > 0);
       const ultimo = conGasto.reduce<Date | null>((u, m) => (!u || m.capturedAt > u ? m.capturedAt : u), null);
       const cpa = compras > 0 ? gasto / compras : null;
+      const categoria = categoriaDeAnuncio(
+        { anuncio: a.nombre, conjunto: a.grupo, campana: a.campaign.name },
+        product.angulosPropios,
+      );
       return {
         id: a.id,
         nombre: a.nombre,
         grupo: a.grupo,
+        angulo: categoria.angulo,
+        formato: categoria.formato,
+        anguloDesde: categoria.desde,
         miniaturaUrl: a.miniaturaUrl,
         campanaId: a.campaign.id,
         campana: a.campaign.name,
