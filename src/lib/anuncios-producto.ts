@@ -1,0 +1,138 @@
+import { db } from "@/lib/db";
+import { rangoDe, type PeriodoReporte } from "@/lib/reportes-producto";
+
+// Los anuncios de un producto: los de una campaña, o los mejores de todas.
+//
+// "MEJOR" NO ES "EL DE CPA MÁS BAJO"
+// Un anuncio con una sola compra de $1 tiene el mejor CPA del mundo y no dice
+// nada. Se ordena primero por si cumple el CPA objetivo del producto con un
+// mínimo de compras, después por compras y al final por CPA. Así arriba queda
+// lo que de verdad conviene escalar.
+
+export type AnuncioDelProducto = {
+  id: string;
+  nombre: string;
+  grupo: string | null;
+  miniaturaUrl: string | null;
+  campanaId: string;
+  campana: string;
+  plataforma: "META" | "TIKTOK";
+  gasto: number;
+  compras: number;
+  ingreso: number;
+  impresiones: number;
+  clics: number;
+  cpa: number | null;
+  ctr: number | null;
+  cpm: number | null;
+  roas: number | null;
+  /** Días del período en que gastó. */
+  diasActivo: number;
+  /** El último día con gasto: si es viejo, el anuncio probablemente está apagado. */
+  ultimoDia: string | null;
+  veredicto: "escalar" | "bien" | "mirar" | "apagar" | "poco dato";
+};
+
+export type AnunciosDelProducto = {
+  cpaObjetivo: number | null;
+  anuncios: AnuncioDelProducto[];
+  /** Si todavía no llegó ningún anuncio de Windsor (la primera sincronización). */
+  sinDatos: boolean;
+};
+
+/** Con cuántas compras un CPA ya dice algo. */
+const COMPRAS_MINIMAS = 3;
+
+function veredictoDe(
+  a: { gasto: number; compras: number; cpa: number | null },
+  objetivo: number | null,
+): AnuncioDelProducto["veredicto"] {
+  if (objetivo == null || objetivo <= 0) return a.compras >= COMPRAS_MINIMAS ? "bien" : "poco dato";
+  if (a.compras === 0) return a.gasto >= objetivo * 2 ? "apagar" : "poco dato";
+  if (a.compras < COMPRAS_MINIMAS) return a.cpa! <= objetivo ? "poco dato" : a.gasto >= objetivo * 3 ? "apagar" : "poco dato";
+  if (a.cpa! <= objetivo * 0.8) return "escalar";
+  if (a.cpa! <= objetivo) return "bien";
+  if (a.cpa! <= objetivo * 1.3) return "mirar";
+  return "apagar";
+}
+
+const PESO: Record<AnuncioDelProducto["veredicto"], number> = { escalar: 0, bien: 1, mirar: 2, "poco dato": 3, apagar: 4 };
+
+export async function anunciosDeProducto(
+  organizationId: string,
+  code: string,
+  periodo: PeriodoReporte,
+  campanaId?: string,
+): Promise<AnunciosDelProducto | null> {
+  const product = await db.product.findFirst({
+    where: { organizationId, code },
+    select: { id: true, cpaTarget: true },
+  });
+  if (!product) return null;
+
+  const { desdeDia, hastaDia } = rangoDe(periodo);
+  const ads = await db.adCreativo.findMany({
+    where: {
+      campaign: {
+        productId: product.id,
+        adAccount: { organizationId },
+        ...(campanaId ? { id: campanaId } : {}),
+      },
+    },
+    select: {
+      id: true,
+      nombre: true,
+      grupo: true,
+      miniaturaUrl: true,
+      campaign: { select: { id: true, name: true, adAccount: { select: { platform: true } } } },
+      metricas: {
+        where: { capturedAt: { gte: desdeDia, lt: hastaDia } },
+        select: { capturedAt: true, spend: true, purchases: true, revenue: true, impressions: true, clicks: true },
+      },
+    },
+  });
+
+  const objetivo = product.cpaTarget > 0 ? product.cpaTarget : null;
+  const anuncios: AnuncioDelProducto[] = ads
+    .map((a) => {
+      const gasto = a.metricas.reduce((s, m) => s + m.spend, 0);
+      const compras = a.metricas.reduce((s, m) => s + m.purchases, 0);
+      const ingreso = a.metricas.reduce((s, m) => s + m.revenue, 0);
+      const impresiones = a.metricas.reduce((s, m) => s + m.impressions, 0);
+      const clics = a.metricas.reduce((s, m) => s + m.clicks, 0);
+      const conGasto = a.metricas.filter((m) => m.spend > 0);
+      const ultimo = conGasto.reduce<Date | null>((u, m) => (!u || m.capturedAt > u ? m.capturedAt : u), null);
+      const cpa = compras > 0 ? gasto / compras : null;
+      return {
+        id: a.id,
+        nombre: a.nombre,
+        grupo: a.grupo,
+        miniaturaUrl: a.miniaturaUrl,
+        campanaId: a.campaign.id,
+        campana: a.campaign.name,
+        plataforma: a.campaign.adAccount.platform as "META" | "TIKTOK",
+        gasto,
+        compras,
+        ingreso,
+        impresiones,
+        clics,
+        cpa,
+        ctr: impresiones > 0 ? clics / impresiones : null,
+        cpm: impresiones > 0 ? (gasto / impresiones) * 1000 : null,
+        roas: gasto > 0 ? ingreso / gasto : null,
+        diasActivo: conGasto.length,
+        ultimoDia: ultimo ? ultimo.toISOString().slice(0, 10) : null,
+        veredicto: veredictoDe({ gasto, compras, cpa }, objetivo),
+      };
+    })
+    .filter((a) => a.gasto > 0 || a.compras > 0)
+    .sort(
+      (a, b) =>
+        PESO[a.veredicto] - PESO[b.veredicto] ||
+        b.compras - a.compras ||
+        (a.cpa ?? Infinity) - (b.cpa ?? Infinity) ||
+        b.gasto - a.gasto,
+    );
+
+  return { cpaObjetivo: objetivo, anuncios, sinDatos: ads.length === 0 };
+}

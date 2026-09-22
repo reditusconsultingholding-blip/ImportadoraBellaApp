@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import AnunciosTabla from "./anuncios-tabla";
 
 type Campana = {
   id: string;
@@ -42,6 +43,8 @@ export default function ReporteProducto({ code }: { code: string }) {
   const [periodo, setPeriodo] = useState<"diario" | "quincenal" | "historico">("quincenal");
   const [reporte, setReporte] = useState<Reporte | null>(null);
   const [cargando, setCargando] = useState(true);
+  // La campaña abierta: al tocarla se despliegan sus anuncios debajo.
+  const [abierta, setAbierta] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -129,9 +132,20 @@ export default function ReporteProducto({ code }: { code: string }) {
             )}
           </div>
 
+          {/* Los mejores anuncios del producto, de todas sus campañas: lo que
+              se mira para decidir qué creativo escalar. */}
           <div className="md:col-span-3">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Campañas de este producto ({reporte.campanas.length})
+              Mejores anuncios del producto
+            </p>
+            <div className="rounded border border-border">
+              <AnunciosTabla code={code} periodo={periodo} limite={8} mostrarCampana />
+            </div>
+          </div>
+
+          <div className="md:col-span-3">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Campañas de este producto ({reporte.campanas.length}) · toca una para ver sus anuncios
             </p>
             <div className="overflow-x-auto rounded border border-border">
               <table className="w-full text-xs">
@@ -147,14 +161,32 @@ export default function ReporteProducto({ code }: { code: string }) {
                 </thead>
                 <tbody>
                   {reporte.campanas.map((c) => (
-                    <tr key={c.id} className="border-b border-border last:border-b-0">
-                      <td className="max-w-[220px] truncate px-2.5 py-1.5">{c.nombre}</td>
+                    <Fragment key={c.id}>
+                    <tr
+                      onClick={() => setAbierta(abierta === c.id ? null : c.id)}
+                      aria-expanded={abierta === c.id}
+                      className={`cursor-pointer border-b border-border transition last:border-b-0 hover:bg-surface-2/60 ${
+                        abierta === c.id ? "bg-good-bg/40" : ""
+                      }`}
+                    >
+                      <td className="max-w-[220px] truncate px-2.5 py-1.5">
+                        <span className="mr-1.5 inline-block w-3 text-muted">{abierta === c.id ? "▾" : "▸"}</span>
+                        {c.nombre}
+                      </td>
                       <td className="px-2.5 py-1.5">{c.plataforma}</td>
                       <td className="px-2.5 py-1.5">{c.tipoCampana ?? "—"}</td>
                       <td className="px-2.5 py-1.5 font-mono">{c.lote ?? "—"}</td>
                       <td className="px-2.5 py-1.5">{c.compras}</td>
                       {reporte.gastoTotal != null && <td className="px-2.5 py-1.5">{money(c.cpa)}</td>}
                     </tr>
+                    {abierta === c.id && (
+                      <tr className="border-b border-border bg-surface-2/30">
+                        <td colSpan={reporte.gastoTotal != null ? 6 : 5} className="p-0">
+                          <AnunciosTabla code={code} periodo={periodo} campana={c.id} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

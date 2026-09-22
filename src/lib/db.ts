@@ -107,6 +107,8 @@ const SIN_EFECTO_EN_NUMEROS = new Set([
   "JarvisMensaje",
   "JarvisConversacion",
   "ActividadUsuario",
+  "AdCreativo",
+  "AdCreativoDia",
   "User",
 ]);
 

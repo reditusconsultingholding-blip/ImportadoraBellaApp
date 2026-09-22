@@ -16,7 +16,15 @@ function localToday() {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
 }
 
-function rangoDe(periodo: PeriodoReporte) {
+/**
+ * Los días del período, como marcas de día.
+ *
+ * MetricSnapshot.capturedAt es la medianoche UTC del día de Ecuador, no un
+ * instante: antes se lo comparaba contra el instante corrido 5 horas, y la
+ * marca del primer día (00:00) quedaba siempre antes del límite (05:00). El
+ * corte "Diario" salía vacío todos los días y los otros perdían su primer día.
+ */
+export function rangoDe(periodo: PeriodoReporte) {
   const hoy = localToday();
   const desde = new Date(hoy);
   if (periodo === "diario") {
@@ -26,11 +34,7 @@ function rangoDe(periodo: PeriodoReporte) {
   } else {
     desde.setUTCDate(desde.getUTCDate() - 179); // ~6 meses de histórico
   }
-  // El instante real: el día en Ecuador arranca 5 horas después de la
-  // medianoche UTC (mismo criterio que src/lib/date-range.ts).
-  const desdeInstant = new Date(desde.getTime() - OFFSET_HORAS * 3600_000);
-  const hastaInstant = new Date(hoy.getTime() - OFFSET_HORAS * 3600_000 + 86_400_000);
-  return { desdeInstant, hastaInstant };
+  return { desdeDia: desde, hastaDia: new Date(hoy.getTime() + 86_400_000) };
 }
 
 export type CampanaDelReporte = {
@@ -71,7 +75,7 @@ export async function reporteDeProducto(
   });
   if (!product) return null;
 
-  const { desdeInstant, hastaInstant } = rangoDe(periodo);
+  const { desdeDia, hastaDia } = rangoDe(periodo);
 
   const campanas = await db.campaign.findMany({
     where: { productId: product.id },
@@ -82,7 +86,7 @@ export async function reporteDeProducto(
       adAccount: { select: { platform: true } },
       ronda: { select: { nomenclatura: true } },
       metrics: {
-        where: { capturedAt: { gte: desdeInstant, lt: hastaInstant } },
+        where: { capturedAt: { gte: desdeDia, lt: hastaDia } },
         select: { spend: true, purchases: true, revenue: true },
       },
     },

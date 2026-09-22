@@ -3,6 +3,7 @@ import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { rellenarClientes } from "@/lib/relleno-clientes";
 import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
+import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
 import { hasWindsorKey, type WindsorConnector } from "@/lib/integrations/windsor";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
@@ -149,6 +150,18 @@ export async function sincronizarTodo() {
           const mensaje = err instanceof Error ? err.message : String(err);
           resumen[conector] = `error: ${mensaje}`;
           await soltarCandado(org.id, conector, { ok: false, error: mensaje });
+        }
+      }
+
+      // Los anuncios de cada campaña, cada 30 minutos (el control de
+      // frecuencia vive adentro). Van después de las campañas porque se
+      // cuelgan de ellas, y un error acá no toca lo de arriba.
+      for (const conector of CONECTORES) {
+        try {
+          const r = await sincronizarAnuncios(org.id, conector);
+          if (r) resumen[`anuncios-${conector}`] = r;
+        } catch (err) {
+          resumen[`anuncios-${conector}`] = `error: ${err instanceof Error ? err.message : String(err)}`;
         }
       }
     }

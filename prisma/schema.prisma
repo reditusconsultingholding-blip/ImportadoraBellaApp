@@ -474,6 +474,7 @@ model Campaign {
   tipoCampana String?
 
   metrics        MetricSnapshot[]
+  anuncios       AdCreativo[]
   pendingActions PendingAction[]
 
   @@unique([adAccountId, externalId])
@@ -1721,4 +1722,46 @@ model ActividadUsuario {
 
   @@index([organizationId, userId, momento])
   @@index([momento])
+}
+
+
+// Los anuncios de cada campaña, con su rendimiento por día.
+//
+// Hasta acá la app solo sabía de campañas: en la ficha de un producto se veía
+// la campaña con su CPA, pero no qué anuncio adentro estaba vendiendo. Es la
+// pregunta con la que se decide qué creativo escalar y cuál apagar. Llega de
+// Windsor con el mismo formato que las campañas, un renglón por anuncio y día.
+//
+// Se llama AdCreativo y no Anuncio porque Anuncio ya es el aviso interno del
+// equipo (ver model Anuncio).
+model AdCreativo {
+  id           String    @id @default(cuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  externalId   String
+  nombre       String
+  /** El conjunto de anuncios (Meta) o grupo de anuncios (TikTok). */
+  grupo        String?
+  /** La miniatura del creativo, si la plataforma la entrega. */
+  miniaturaUrl String?
+  updatedAt    DateTime  @updatedAt
+  metricas     AdCreativoDia[]
+
+  @@unique([campaignId, externalId])
+}
+
+model AdCreativoDia {
+  id          String     @id @default(cuid())
+  adId        String
+  ad          AdCreativo @relation(fields: [adId], references: [id], onDelete: Cascade)
+  /** Marca de día a medianoche UTC, igual que MetricSnapshot.capturedAt. */
+  capturedAt  DateTime
+  spend       Float
+  impressions Int
+  clicks      Int
+  purchases   Int
+  revenue     Float
+
+  @@unique([adId, capturedAt])
+  @@index([capturedAt])
 }

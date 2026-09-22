@@ -12,12 +12,10 @@
     },
     {
       "name": "bella-prod",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "cmd",
       "runtimeArgs": [
-        "next",
-        "start",
-        "-p",
-        "3481"
+        "/c",
+        "set RELOJ_APAGADO=1&& npx next start -p 3481"
       ],
       "port": 3481
     }

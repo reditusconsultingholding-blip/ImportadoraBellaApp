@@ -125,3 +125,94 @@ export async function fetchWindsorRows(
     }))
     .filter((r) => r.date && r.account_id);
 }
+
+/* ------------------------------- Anuncios -------------------------------- */
+
+export type WindsorAdRow = {
+  date: string;
+  account_id: string;
+  campaign_id: string;
+  ad_id: string;
+  ad_name: string;
+  grupo: string | null;
+  miniatura: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  purchases: number;
+  revenue: number;
+};
+
+// Los campos de anuncio que se piden, del más completo al mínimo.
+//
+// Windsor rechaza la consulta entera si un campo no existe para el conector, y
+// los nombres del conjunto y de la miniatura no son los mismos en Meta y en
+// TikTok. Por eso se prueba primero con todo y, si falla, con menos: sin
+// miniatura el anuncio se ve igual, sin anuncio no hay nada que mostrar.
+const CAMPOS_ANUNCIO: Record<WindsorConnector, string[][]> = {
+  facebook: [
+    ["ad_id", "ad_name", "adset_name", "thumbnail_url"],
+    ["ad_id", "ad_name", "adset_name"],
+    ["ad_id", "ad_name"],
+  ],
+  tiktok: [
+    ["ad_id", "ad_name", "ad_group_name", "video_thumbnail_url"],
+    ["ad_id", "ad_name", "adgroup_name"],
+    ["ad_id", "ad_name"],
+  ],
+};
+
+/** Las filas por anuncio y día. Devuelve también qué juego de campos anduvo. */
+export async function fetchWindsorAdRows(
+  connector: WindsorConnector,
+  datePreset = "last_7dT",
+): Promise<{ filas: WindsorAdRow[]; campos: string[] }> {
+  const apiKey = process.env.WINDSOR_API_KEY?.trim();
+  if (!apiKey) throw new Error("Falta WINDSOR_API_KEY.");
+  const conversion = CONVERSION_FIELDS[connector];
+
+  let ultimoError = "";
+  for (const extra of CAMPOS_ANUNCIO[connector]) {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      date_preset: datePreset,
+      fields: ["date", "account_id", "campaign_id", ...extra, "spend", "impressions", "clicks", conversion.purchases, conversion.value].join(","),
+    });
+    const res = await fetchConReintentos(
+      `${BASE_URL}/${connector}?${params.toString()}`,
+      { headers: { Accept: "application/json" } },
+      { timeoutMs: 180_000, reintentos: 2, esperaBaseMs: 2_000 },
+    ).catch((err) => {
+      throw new Error(`Windsor.ai no respondió para anuncios de ${connector}: ${sinSecretos(err instanceof Error ? err.message : String(err))}`);
+    });
+    if (!res.ok) {
+      ultimoError = `${res.status}: ${sinSecretos((await res.text().catch(() => "")).slice(0, 200))}`;
+      continue;
+    }
+    const json = (await res.json()) as { data?: unknown[] } | unknown[];
+    const rows = (Array.isArray(json) ? json : (json.data ?? [])) as Record<string, unknown>[];
+    const grupoCampo = extra.find((c) => /adset|group/.test(c));
+    const miniCampo = extra.find((c) => /thumbnail/.test(c));
+    const filas = rows
+      .filter((r) => r && typeof r === "object" && r.ad_id && r.campaign_id)
+      .map((r) => ({
+        date: String(r.date ?? "").slice(0, 10),
+        account_id: String(r.account_id ?? ""),
+        campaign_id: String(r.campaign_id ?? ""),
+        ad_id: String(r.ad_id),
+        ad_name: String(r.ad_name ?? "Anuncio sin nombre"),
+        grupo: grupoCampo && r[grupoCampo] ? String(r[grupoCampo]) : null,
+        miniatura: miniCampo && typeof r[miniCampo] === "string" && /^https:\/\//.test(r[miniCampo] as string)
+          ? (r[miniCampo] as string)
+          : null,
+        spend: num(r.spend),
+        impressions: num(r.impressions),
+        clicks: num(r.clicks),
+        purchases: num(r[conversion.purchases]),
+        revenue: num(r[conversion.value]),
+      }))
+      .filter((r) => r.date && r.account_id);
+    return { filas, campos: extra };
+  }
+  throw new Error(`Windsor.ai rechazó los campos de anuncio de ${connector} (${ultimoError}).`);
+}
