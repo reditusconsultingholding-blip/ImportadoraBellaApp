@@ -10,6 +10,7 @@ import {
   VISUAL_FORMATS,
 } from "@/lib/pipeline-options";
 import type { ProductOption, RequirementRow, UserOption } from "./types";
+import BuscadorProducto from "../buscador-producto";
 
 /** Hoy en Ecuador (UTC-5), como "2026-09-17" — que es lo que espera un input date. */
 function hoyEcuador() {
@@ -156,18 +157,13 @@ export default function RequirementForm({
           <span className="block text-xs font-mono uppercase tracking-wide text-muted mb-1">
             Producto
           </span>
-          <select
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent"
-          >
-            <option value="">Sin producto</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.code} — {p.name}
-              </option>
-            ))}
-          </select>
+          <BuscadorProducto
+            opciones={products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }))}
+            valor={productId}
+            onElegir={setProductId}
+            vacio="Sin producto"
+            ariaLabel="Producto"
+          />
         </label>
       )}
 

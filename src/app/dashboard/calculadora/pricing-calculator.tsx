@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BuscadorProducto from "../buscador-producto";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
 //
@@ -661,23 +662,23 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
         <div className="flex flex-col gap-4 rounded border border-border bg-surface p-5">
           <h2 className="text-sm font-semibold">Costos por pedido</h2>
 
-          <label className="block">
+          <div className="block">
             <span className={labelClass}>Cargar datos de un producto</span>
-            <select
-              value={selectedProduct}
-              onChange={(e) => loadFromProduct(e.target.value)}
+            {/* Se busca escribiendo: nombre, código o iniciales. */}
+            <BuscadorProducto
+              opciones={lista.map((p) => ({
+                id: p.name,
+                nombre: p.name,
+                detalle: p.unitCost != null ? `costo ${p.unitCost.toFixed(2)}` : undefined,
+              }))}
+              valor={selectedProduct}
+              onElegir={loadFromProduct}
               disabled={!ajustesListos}
-              className={inputClass}
-            >
-              <option value="">{ajustesListos ? "— Escribir los números a mano —" : "Cargando lo guardado…"}</option>
-              {lista.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                  {p.unitCost != null ? ` · costo ${p.unitCost.toFixed(2)}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+              vacio={ajustesListos ? "— Escribir los números a mano —" : "Cargando lo guardado…"}
+              placeholder="Escribe el nombre o las iniciales del producto…"
+              ariaLabel="Producto"
+            />
+          </div>
 
           <div className="-mt-1 flex flex-wrap items-center gap-2">
             <Chip>

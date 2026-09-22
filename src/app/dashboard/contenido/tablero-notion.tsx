@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BuscadorProducto from "../buscador-producto";
 import {
   ESTADOS_TAREA,
   ESTADO_TAREA_LABEL,
@@ -441,7 +442,7 @@ export default function TableroNotion({
   const opcionesEstado = ESTADOS_TAREA.map((e) => ({ valor: e, texto: ESTADO_TAREA_LABEL[e] }));
   const opcionesPlataforma = PLATAFORMAS.map((p) => ({ valor: p, texto: PLATAFORMA_LABEL[p] }));
   const opcionesResponsable = users.map((u) => ({ valor: u.id, texto: u.name }));
-  const opcionesProducto = products.map((p) => ({ valor: p.id, texto: `${p.code} — ${p.name}` }));
+  const opcionesProducto = products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }));
 
   const claseCampo =
     "rounded border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-border-strong focus:outline-none";
@@ -656,12 +657,15 @@ export default function TableroNotion({
                           >
                             <td className={CELDA}>
                               {canManage && !deRequerimiento ? (
-                                <CeldaSelect
-                                  valor={t.productId ?? ""}
+                                <BuscadorProducto
                                   opciones={opcionesProducto}
-                                  onGuardar={(v) => editar(t.id, "productId", v || null)}
-                                  editable
+                                  valor={t.productId ?? ""}
+                                  onElegir={(v) => {
+                                    if (v !== (t.productId ?? "")) editar(t.id, "productId", v || null);
+                                  }}
                                   vacio={t.productoTexto ?? "Sin producto"}
+                                  ariaLabel="Producto"
+                                  className="min-w-[170px]"
                                 />
                               ) : (
                                 <span className="block truncate">

@@ -8,6 +8,7 @@ import {
   TAMANOS_LOTE,
 } from "@/lib/contenido-opciones";
 import type { ProductOption } from "../_creativos/types";
+import BuscadorProducto from "../buscador-producto";
 
 type Lote = {
   id: string;
@@ -203,18 +204,14 @@ export default function LotesCruzados({
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-muted">Producto</span>
-              <select
-                value={nuevo.productId}
-                onChange={(e) => setNuevo((n) => ({ ...n, productId: e.target.value }))}
-                className={`${claseCampo} min-w-[200px]`}
-              >
-                <option value="">Elegir producto…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
+              <BuscadorProducto
+                opciones={products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }))}
+                valor={nuevo.productId}
+                onElegir={(id) => setNuevo((n) => ({ ...n, productId: id }))}
+                placeholder="Buscar producto…"
+                ariaLabel="Producto del lote"
+                className="min-w-[220px]"
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-muted">Piezas</span>

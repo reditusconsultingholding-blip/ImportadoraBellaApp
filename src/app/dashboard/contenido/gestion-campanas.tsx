@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import BuscadorProducto from "../buscador-producto";
 
 type ProductOption = { id: string; code: string; name: string };
 
@@ -223,18 +224,14 @@ export default function GestionCampanas({ products }: { products: ProductOption[
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-muted">Producto</span>
-              <select
-                value={nueva.productId}
-                onChange={(e) => setNueva((n) => ({ ...n, productId: e.target.value }))}
-                className="min-w-[180px] rounded border border-border bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-border-strong"
-              >
-                <option value="">Sin asignar</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
+              <BuscadorProducto
+                opciones={products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }))}
+                valor={nueva.productId}
+                onElegir={(id) => setNueva((n) => ({ ...n, productId: id }))}
+                vacio="Sin asignar"
+                ariaLabel="Producto"
+                className="min-w-[220px]"
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-muted">Plataforma</span>
@@ -322,19 +319,15 @@ export default function GestionCampanas({ products }: { products: ProductOption[
                     <td className="px-3 py-2 whitespace-nowrap">{c.tipoCampana ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap font-mono">{c.lote?.nomenclatura ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <select
-                        value={c.productId ?? ""}
-                        onChange={(e) => asignarProducto(c, e.target.value)}
+                      <BuscadorProducto
+                        opciones={products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }))}
+                        valor={c.productId ?? ""}
+                        onElegir={(id) => asignarProducto(c, id)}
                         disabled={asignando === c.id}
-                        className="rounded border border-border bg-transparent px-1.5 py-1 text-xs outline-none focus:border-accent"
-                      >
-                        <option value="">Sin producto…</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                        vacio="Sin producto…"
+                        ariaLabel={`Producto de ${c.nombre ?? "la campaña"}`}
+                        className="inline-block min-w-[200px] align-middle"
+                      />
                       {c.producto && (
                         <Link
                           href={`/dashboard/productos/${encodeURIComponent(c.producto.code)}`}

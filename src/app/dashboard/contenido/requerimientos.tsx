@@ -8,6 +8,7 @@ import RequirementDrawer from "../_creativos/requirement-drawer";
 import type { RequirementRow, UserOption } from "../_creativos/types";
 import RequerimientosTarjetas from "./requerimientos-tarjetas";
 import type { ProductoFicha } from "./piezas-producto";
+import BuscadorProducto from "../buscador-producto";
 
 // Los requerimientos, desde Contenido.
 //
@@ -349,19 +350,14 @@ export default function Requerimientos({
             </option>
           ))}
         </select>
-        <select
-          value={filtros.producto}
-          onChange={(e) => cambiarFiltros((f) => ({ ...f, producto: e.target.value }))}
-          className={claseCampo}
-          aria-label="Filtrar por producto"
-        >
-          <option value="">Todos los productos</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.code} — {p.name}
-            </option>
-          ))}
-        </select>
+        <BuscadorProducto
+          opciones={products.map((p) => ({ id: p.id, nombre: p.name, codigo: p.code }))}
+          valor={filtros.producto}
+          onElegir={(id) => cambiarFiltros((f) => ({ ...f, producto: id }))}
+          vacio="Todos los productos"
+          ariaLabel="Filtrar por producto"
+          className="min-w-[220px]"
+        />
         <select
           value={agrupacion}
           onChange={(e) => {

@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import type { CampanasDelAno } from "@/lib/ceo-campanas";
+import BuscadorProducto from "../buscador-producto";
 
 // El tablero "Campañas del año", como el que el dueño usaba en Looker Studio:
 // KPIs, CPA por mes, gasto por mes, Meta contra TikTok, y las tablas por mes
@@ -210,14 +211,14 @@ export default function CampanasAno() {
             </option>
           ))}
         </select>
-        <select value={producto} onChange={(e) => setProducto(e.target.value)} className={`${claseSelect} max-w-[220px]`} aria-label="Producto">
-          <option value="">Todos los productos</option>
-          {datos.productos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.codigo} · {p.nombre}
-            </option>
-          ))}
-        </select>
+        <BuscadorProducto
+          opciones={datos.productos.map((p) => ({ id: p.id, nombre: p.nombre, codigo: p.codigo }))}
+          valor={producto}
+          onElegir={setProducto}
+          vacio="Todos los productos"
+          ariaLabel="Producto"
+          className="min-w-[240px]"
+        />
         <select value={desdeMes} onChange={(e) => setDesdeMes(e.target.value)} className={claseSelect} aria-label="Desde el mes">
           <option value="">Desde el primer mes</option>
           {mesesDisponibles.map((m) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { buscarProductos } from "@/lib/buscar-producto";
 
 // Elegir productos escribiendo.
 //
@@ -11,9 +12,6 @@ import { useMemo, useState } from "react";
 // recargar la pantalla con cada clic.
 
 type Producto = { id: string; code: string; name: string };
-
-const normal = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function SelectorProductos({
   productos,
@@ -28,11 +26,11 @@ export default function SelectorProductos({
   const [texto, setTexto] = useState("");
   const [marcados, setMarcados] = useState<string[]>(seleccion);
 
-  const visibles = useMemo(() => {
-    const t = normal(texto.trim());
-    if (!t) return productos;
-    return productos.filter((p) => normal(p.name).includes(t) || p.code.includes(t));
-  }, [productos, texto]);
+  // Por nombre, código o iniciales ("gdl" → Gotas De drenaje Linfático).
+  const visibles = useMemo(
+    () => buscarProductos(productos, texto, (p) => ({ nombre: p.name, codigo: p.code }), Infinity),
+    [productos, texto],
+  );
 
   const nombre = (id: string) => productos.find((p) => p.id === id)?.name ?? "—";
 
