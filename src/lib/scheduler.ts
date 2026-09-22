@@ -22,6 +22,7 @@ import { precalentarPantallas } from "@/lib/precalentar";
 import { limpiarActividadVieja } from "@/lib/actividad";
 import { estadoDelCorreo } from "@/lib/email";
 import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
+import { descuadreDelControl } from "@/lib/control-cuadre";
 
 let ultimaLimpiezaActividad = "";
 /** Cuándo se revisó por última vez el correo saliente. */
@@ -474,6 +475,19 @@ export async function sincronizarTodo(conRapido = true) {
             rehacer: true,
           });
           resumen.reporte += " · cierres rehechos: " + c.dias;
+        }
+
+        // Y se comprueba que lo que muestra el control dé lo mismo que la
+        // planilla, día por día. No alcanza con rehacer cuando la planilla
+        // cambia: el cierre también se corre al enlazar un nombre, y si ese
+        // recálculo no llegó a correr la pantalla muestra un número viejo con
+        // la misma cara que uno nuevo. Ver control-cuadre.ts.
+        const d = await descuadreDelControl(org.id);
+        if (d.desde) {
+          const c = await rellenarCierres(org.id, { desde: d.desde, rehacer: true });
+          resumen.reporte +=
+            " · descuadre de " + d.pedidos + " pedidos en " + d.dias +
+            " días, rehechos " + c.dias;
         }
         await anotarVuelta(org.id, "reporte-ventas", Date.now(), resumen.reporte);
       }
