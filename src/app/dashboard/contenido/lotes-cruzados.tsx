@@ -38,9 +38,14 @@ function fechaLegible(iso: string | null) {
 export default function LotesCruzados({
   canManage,
   products,
+  desde,
+  hasta,
 }: {
   canManage: boolean;
   products: ProductOption[];
+  /** El período elegido arriba, común a todas las pestañas de Contenido. */
+  desde: string;
+  hasta: string;
 }) {
   const [lotes, setLotes] = useState<Lote[] | null>(null);
   const [filtroEstado, setFiltroEstado] = useState("");
@@ -65,8 +70,9 @@ export default function LotesCruzados({
 
   useEffect(() => {
     let cancelado = false;
-    const qs = filtroEstado ? `?estado=${filtroEstado}` : "";
-    fetch(`/api/contenido/lotes${qs}`)
+    const qs = new URLSearchParams({ desde, hasta });
+    if (filtroEstado) qs.set("estado", filtroEstado);
+    fetch(`/api/contenido/lotes?${qs.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelado) setLotes(d?.lotes ?? []);

@@ -24,7 +24,16 @@ type Campana = {
   lote?: { numero: number; nomenclatura: string | null } | null;
 };
 
-export default function GestionCampanas({ products }: { products: ProductOption[] }) {
+export default function GestionCampanas({
+  products,
+  desde,
+  hasta,
+}: {
+  products: ProductOption[];
+  /** El período elegido arriba. Acá decide qué campañas cuentan como encendidas. */
+  desde: string;
+  hasta: string;
+}) {
   const [campanas, setCampanas] = useState<Campana[]>([]);
   const [manuales, setManuales] = useState<Campana[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -42,7 +51,7 @@ export default function GestionCampanas({ products }: { products: ProductOption[
 
   function cargar() {
     setCargando(true);
-    const qs = new URLSearchParams();
+    const qs = new URLSearchParams({ desde, hasta });
     if (busqueda.trim()) qs.set("buscar", busqueda.trim());
     if (plataforma) qs.set("plataforma", plataforma);
     if (soloSinProducto) qs.set("sinProducto", "1");

@@ -57,12 +57,17 @@ export default function SeccionPlegable({
   // no tiene localStorage y leerlo en el primer render dejaría el HTML del
   // servidor distinto al del navegador.
   useEffect(() => {
+    let guardado: string | null = null;
     try {
-      const guardado = localStorage.getItem(`panel:${id}`);
-      if (guardado === "1" || guardado === "0") setAbierta(guardado === "1");
+      guardado = localStorage.getItem(`panel:${id}`);
     } catch {
       // Navegador con el almacenamiento bloqueado: se queda el valor por defecto.
     }
+    if (guardado !== "1" && guardado !== "0") return;
+    // El cambio se aplica fuera del cuerpo del efecto: hacerlo adentro encadena
+    // un render extra y es lo que marca react-hooks/set-state-in-effect.
+    const t = setTimeout(() => setAbierta(guardado === "1"), 0);
+    return () => clearTimeout(t);
   }, [id]);
 
   const alternar = () => {

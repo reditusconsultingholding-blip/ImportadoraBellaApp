@@ -53,11 +53,16 @@ export default function Requerimientos({
   currentUserId,
   users,
   products,
+  desde,
+  hasta,
 }: {
   canManage: boolean;
   currentUserId: string;
   users: UserOption[];
   products: ProductoFicha[];
+  /** El período elegido arriba, común a todas las pestañas de Contenido. */
+  desde: string;
+  hasta: string;
 }) {
   const [filas, setFilas] = useState<RequirementRow[] | null>(null);
   const [verCifras, setVerCifras] = useState(false);
@@ -83,7 +88,7 @@ export default function Requerimientos({
 
   useEffect(() => {
     let vivo = true;
-    fetch("/api/requirements")
+    fetch(`/api/requirements?desde=${desde}&hasta=${hasta}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error ?? `El servidor respondió ${r.status}`);

@@ -22,12 +22,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Rendimiento es de dirección." }, { status: 403 });
   }
 
-  const diasRaw = Number(req.nextUrl.searchParams.get("dias"));
-  const dias = Number.isFinite(diasRaw) && diasRaw > 0 && diasRaw <= 180 ? diasRaw : 30;
+  // Dos formas de pedir el período, y las dos hacen falta: `desde`/`hasta`
+  // es la que usa el selector común de Contenido, y `dias` la que quedó
+  // andando en los enlaces viejos.
+  const dia = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`) : null;
+  const pedidoDesde = dia(req.nextUrl.searchParams.get("desde"));
+  const pedidoHasta = dia(req.nextUrl.searchParams.get("hasta"));
 
-  const hasta = localToday();
-  const desde = new Date(hasta);
-  desde.setUTCDate(desde.getUTCDate() - (dias - 1));
+  const diasRaw = Number(req.nextUrl.searchParams.get("dias"));
+  const porDias = Number.isFinite(diasRaw) && diasRaw > 0 && diasRaw <= 180 ? diasRaw : 30;
+
+  let desde: Date;
+  let hasta: Date;
+  if (pedidoDesde && pedidoHasta) {
+    desde = pedidoDesde;
+    hasta = pedidoHasta;
+  } else {
+    hasta = localToday();
+    desde = new Date(hasta);
+    desde.setUTCDate(desde.getUTCDate() - (porDias - 1));
+  }
+  const dias = Math.floor((hasta.getTime() - desde.getTime()) / (24 * 3600_000)) + 1;
 
   const verCifras = await veLasCifras(session.userId);
   const [equipo, sinEnlazar] = await Promise.all([

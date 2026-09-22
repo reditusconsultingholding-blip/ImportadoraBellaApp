@@ -31,8 +31,7 @@ const money = (n: number | null) =>
 
 /** Quién hizo qué, y cómo le fue. Es el objetivo de la nomenclatura por lote:
  * trazabilidad de cada campaña y rendimiento de cada integrante. */
-export default function PanelRendimiento() {
-  const [dias, setDias] = useState<(typeof DIAS)[number]>(30);
+export default function PanelRendimiento({ desde, hasta }: { desde: string; hasta: string }) {
   const [equipo, setEquipo] = useState<Persona[] | null>(null);
   // Los nombres escritos a mano en el día a día que no son de ningún usuario:
   // ese trabajo no se le cuenta a nadie hasta que alguien diga de quién es.
@@ -40,7 +39,7 @@ export default function PanelRendimiento() {
 
   useEffect(() => {
     let cancelado = false;
-    fetch(`/api/contenido/rendimiento?dias=${dias}`)
+    fetch(`/api/contenido/rendimiento?desde=${desde}&hasta=${hasta}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelado) return;
@@ -53,28 +52,18 @@ export default function PanelRendimiento() {
     return () => {
       cancelado = true;
     };
-  }, [dias]);
+  }, [desde, hasta]);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* El "últimos 7 / 30 / 90 días" que vivía acá se fue: el período lo
+          elige el selector de arriba y vale para todas las pestañas, que es lo
+          que se pidió —antes cada pantalla contestaba con un recorte distinto—. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {DIAS.map((d) => (
-          <button
-            key={d}
-            onClick={() => setDias(d)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-              dias === d
-                ? "border-accent bg-good-bg text-accent-strong"
-                : "border-border text-muted hover:border-border-strong hover:text-foreground"
-            }`}
-          >
-            Últimos {d} días
-          </button>
-        ))}
         {/* La misma tabla, en papel: se usa en la reunión de quincena y en la
             evaluación de cada persona, donde no hay pantalla que mostrar. */}
         <a
-          href={`/api/contenido/rendimiento/pdf?dias=${dias}`}
+          href={`/api/contenido/rendimiento/pdf?desde=${desde}&hasta=${hasta}`}
           className="ml-auto rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted transition hover:border-border-strong hover:text-foreground"
         >
           Descargar PDF

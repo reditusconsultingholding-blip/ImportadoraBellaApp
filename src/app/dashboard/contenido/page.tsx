@@ -11,6 +11,8 @@ import PanelRendimiento from "./panel-rendimiento";
 import Requerimientos from "./requerimientos";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 import { productosPautadosRecientes } from "@/lib/pautados";
+import { resolveRange, toInputValue } from "@/lib/date-range";
+import RangoContenido from "./rango-contenido";
 
 const VISTAS = [
   "calendario",
@@ -44,7 +46,7 @@ const TABS: { id: Vista; label: string }[] = [
 export default async function ContenidoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string }>;
+  searchParams: Promise<{ vista?: string; rango?: string; desde?: string; hasta?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -59,7 +61,15 @@ export default async function ContenidoPage({
     );
   }
 
-  const { vista: vistaRaw } = await searchParams;
+  const params = await searchParams;
+  const { vista: vistaRaw } = params;
+
+  // UN período para todas las pestañas. Cada una traía el suyo —el día a día
+  // abría en hoy, rendimiento tenía 7/30/90 días, lotes y campañas no tenían
+  // ninguno— y la misma pregunta se contestaba distinto en cada pantalla.
+  const range = resolveRange(params.rango, params.desde, params.hasta);
+  const desde = toInputValue(range.from);
+  const hasta = toInputValue(range.to);
   const canManage = canManagePipeline(session.role);
   // Rendimiento es solo de dirección: quien entra por la URL sin permiso cae
   // en el calendario en vez de ver una pantalla que no le corresponde.
@@ -130,6 +140,9 @@ export default async function ContenidoPage({
         currentUserId={session.userId}
         users={users}
         products={products}
+        desde={desde}
+        hasta={hasta}
+        periodoElegido={Boolean(params.rango)}
       />
     );
   }
@@ -152,13 +165,16 @@ export default async function ContenidoPage({
         }
       />
 
-      <div className="flex flex-wrap gap-1.5 border-b border-border pb-4">
+      <div className="flex flex-col gap-3 border-b border-border pb-4">
+        <div className="flex flex-wrap gap-1.5">
         {TABS.filter((t) => t.id !== "rendimiento" || canManage).map((t) => {
           const activo = vista === t.id;
           return (
             <Link
               key={t.id}
-              href={`/dashboard/contenido?vista=${t.id}`}
+              // El período se conserva al cambiar de pestaña: elegirlo y
+              // perderlo al mirar otra cosa es peor que no tenerlo.
+              href={`/dashboard/contenido?${new URLSearchParams({ vista: t.id, rango: range.id, ...(range.id === "personalizado" ? { desde, hasta } : {}) }).toString()}`}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                 activo
                   ? "border-accent bg-good-bg text-accent-strong"
@@ -169,6 +185,14 @@ export default async function ContenidoPage({
             </Link>
           );
         })}
+        </div>
+
+        {/* El calendario elige su propio mes adentro, así que el selector de
+            período no le aplica: ponerlo ahí diría que filtra algo que no
+            filtra. */}
+        {vista !== "calendario" && (
+          <RangoContenido vista={vista} activo={range.id} desde={desde} hasta={hasta} />
+        )}
       </div>
 
       {vista === "calendario" ? (
@@ -181,13 +205,15 @@ export default async function ContenidoPage({
           currentUserId={session.userId}
           users={users}
           products={productosConFicha}
+          desde={desde}
+          hasta={hasta}
         />
       ) : vista === "lotes" ? (
-        <LotesCruzados canManage={canManage} products={products} />
+        <LotesCruzados canManage={canManage} products={products} desde={desde} hasta={hasta} />
       ) : vista === "campanas" ? (
-        <GestionCampanas products={products} />
+        <GestionCampanas products={products} desde={desde} hasta={hasta} />
       ) : (
-        <PanelRendimiento />
+        <PanelRendimiento desde={desde} hasta={hasta} />
       )}
     </div>
   );

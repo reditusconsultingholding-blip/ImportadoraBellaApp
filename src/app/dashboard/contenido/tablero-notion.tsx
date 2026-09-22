@@ -266,11 +266,26 @@ export default function TableroNotion({
   canManage,
   currentUserId,
   users,
+  desde,
+  hasta,
+  periodoElegido = false,
   products,
 }: {
   canManage: boolean;
   currentUserId: string;
   users: UserOption[];
+  /** El período elegido arriba, común a todas las pestañas de Contenido. */
+  desde: string;
+  hasta: string;
+  /**
+   * Si el período lo eligió una persona o es el que viene por defecto.
+   *
+   * Sin elegir, esta pantalla abre solo con HOY: los días anteriores seguían
+   * ahí plegados y se leían como si fueran de hoy ("sigue apareciendo lo del
+   * viernes", Emilia, 21 de septiembre). Pero cuando alguien pide "este mes"
+   * a propósito, esconderle el mes sería no contestarle.
+   */
+  periodoElegido?: boolean;
   products: ProductOption[];
 }) {
   const [tareas, setTareas] = useState<TareaFila[] | null>(null);
@@ -290,7 +305,7 @@ export default function TableroNotion({
 
   useEffect(() => {
     let vivo = true;
-    fetch("/api/contenido/tareas")
+    fetch(`/api/contenido/tareas?desde=${desde}&hasta=${hasta}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error ?? `El servidor respondió ${r.status}`);
@@ -420,7 +435,7 @@ export default function TableroNotion({
 
   const hoy = hoyEcuador();
   const hayFiltro = Boolean(persona || estadoFiltro || busqueda.trim());
-  const soloHoy = !verAnteriores && !hayFiltro;
+  const soloHoy = !verAnteriores && !hayFiltro && !periodoElegido;
   const diasVisibles = soloHoy ? dias.filter(([d]) => d === hoy) : dias;
   const diasAnteriores = dias.filter(([d]) => d !== hoy).length;
 

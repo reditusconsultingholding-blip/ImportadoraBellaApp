@@ -25,16 +25,40 @@ const piezasDe = memorizar("api.requirements", async (organizationId: string, fi
   }),
 );
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
   if (!canAccessPipeline(session.role)) {
     return NextResponse.json({ error: "Todavía no tienes un rol asignado en el pipeline." }, { status: 403 });
   }
 
+  // El período común de Contenido. Una pieza entra si se ENTREGA en esas
+  // fechas o, cuando no tiene fecha de entrega puesta, si se creó en ellas:
+  // filtrar solo por la entrega escondería las piezas recién pedidas, que son
+  // las que hay que empezar a trabajar.
+  const dia = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`) : null;
+  const desde = dia(req.nextUrl.searchParams.get("desde"));
+  const hasta = dia(req.nextUrl.searchParams.get("hasta"));
+  const enRango =
+    desde && hasta
+      ? (() => {
+          const fin = new Date(hasta.getTime() + 24 * 3600_000 - 1);
+          return {
+            OR: [
+              { dueDate: { gte: desde, lte: fin } },
+              { AND: [{ dueDate: null }, { createdAt: { gte: desde, lte: fin } }] },
+            ],
+          };
+        })()
+      : {};
+
   // Dirección ve todo. Un editor, lo asignado a su nombre y todo lo de los
   // productos que tiene a cargo — ver src/lib/responsables.ts.
-  const requirements = await piezasDe(session.organizationId, JSON.stringify(await piezasVisibles(session)));
+  const requirements = await piezasDe(
+    session.organizationId,
+    JSON.stringify({ ...(await piezasVisibles(session)), ...enRango }),
+  );
 
   // El CPA y el CPM de cada pieza son plata: se cortan acá, no al dibujar.
   const verCifras = await veLasCifras(session.userId);

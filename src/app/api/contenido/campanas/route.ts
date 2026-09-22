@@ -31,11 +31,24 @@ export async function GET(req: NextRequest) {
   // activas y el filtro "Inactivas" siempre salía vacío. Lo que el equipo
   // llama encendida es la que está gastando, así que se resuelve por el gasto
   // de los últimos siete días.
+  // La ventana en la que se mira el gasto. Por defecto los últimos siete
+  // días —"encendida" es lo que está gastando ahora—, pero con el período de
+  // Contenido elegido se mira ESE: la pregunta pasa a ser "cuáles estuvieron
+  // encendidas en esas fechas", que es lo que se quiere al revisar un mes.
+  const dia = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`) : null;
+  const desde = dia(req.nextUrl.searchParams.get("desde"));
+  const hasta = dia(req.nextUrl.searchParams.get("hasta"));
+  const ventana =
+    desde && hasta
+      ? { gte: desde, lte: new Date(hasta.getTime() + 24 * 3600_000 - 1) }
+      : { gte: new Date(Date.now() - 7 * 86400_000) };
+
   const conGasto = await db.metricSnapshot.groupBy({
     by: ["campaignId"],
     where: {
       campaign: { adAccount: { organizationId: session.organizationId } },
-      capturedAt: { gte: new Date(Date.now() - 7 * 86400_000) },
+      capturedAt: ventana,
       spend: { gt: 0 },
     },
     _sum: { spend: true },
