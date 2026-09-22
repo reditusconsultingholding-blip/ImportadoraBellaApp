@@ -80,22 +80,49 @@ No hace falta poner tildes ni mayúsculas. Con las flechas se recorre la lista y
 
 | Número | Fuente | Cada cuánto |
 |---|---|---|
-| **Pedidos reales** | Shopify: las órdenes de la tienda | 5 minutos |
+| **Pedidos** | La planilla de Google del equipo de ventas — la misma que ellos llenan. Shopify solo completa los días que la planilla todavía no cubre. | 1 hora |
 | **Gasto en pauta** | Meta Ads y TikTok Ads, vía Windsor.ai | 5 minutos (últimos 7 días) + repaso semanal de 90 días |
 | **Compras atribuidas** | Lo que dicen Meta y TikTok que vendieron | Igual que el gasto |
 | **Precio, producción, flete, efectividad** | *Economía por producto* (cargada por mes, como la pestaña VARIABLES del Excel) | Manual |
 | **Gasto administrativo** | Total del mes cargado en *Economía por producto* | Manual, una vez por mes |
 | **Responsables de producto** | Base de Notion *PRODUCTOS ORDEN* | 10 minutos |
 
-**Importante:** las plataformas siempre se atribuyen más compras de las que hubo, porque Meta y TikTok cuentan la misma venta cada una. Por eso el control usa los **pedidos reales de Shopify** para el CPA y la utilidad, y muestra lo atribuido solo como referencia. En julio: 7.473 pedidos reales contra 8.022 atribuidos.
+**Importante:** las plataformas siempre se atribuyen más compras de las que hubo, porque Meta y TikTok cuentan la misma venta cada una. Por eso el control usa los **pedidos reales** para el CPA y la utilidad, y muestra lo atribuido solo como referencia. En julio: 7.473 pedidos reales contra 8.022 atribuidos.
+
+**De dónde salen los pedidos.** De la planilla que llena el equipo de ventas, no
+de Shopify: es la que ellos miran y contra la que se discute. Se cuenta **un
+pedido por cada fila** de la planilla y **cuentan todos los estados**,
+cancelados incluidos — que es exactamente como los cuenta el equipo.
+
+Jarvis la revisa **cada hora**, y cuando abren la pestaña de un mes nuevo la
+encuentra sola. Si alguien acaba de cargar pedidos y no quiere esperar, el botón
+**"Traer la planilla ahora"** de Control publicitario la trae en el momento.
+Jarvis **solo lee** esa planilla: nunca escribe ni cambia nada ahí.
+
+Y lo que entra **no se borra nunca**. El equipo elimina de la planilla los meses
+de más de dos meses para que el archivo no pese; en Jarvis se quedan, así que el
+informe de un mes cerrado sigue dando lo mismo dentro de un año.
+
+La planilla usa sus propios nombres de producto. Los que coinciden con el nombre
+o el código del producto caen solos; para los demás hay que decir una vez a qué
+producto pertenecen, en **Control publicitario › Enlazar pedidos**. Mientras no
+se diga, esos pedidos cuentan en el total pero van a la fila *Sin asignar* y no
+suman a la rentabilidad de ningún producto. La barra de arriba del control avisa
+cuántos son.
 
 ### 2.2 Filtrar por fechas
 
 Todas las pantallas de números tienen el mismo selector arriba:
 
-- **Atajos:** Hoy, Ayer, 7 días, 30 días, Este mes, Mes pasado, o cualquier mes.
-- **Rango libre:** elige desde y hasta en el calendario.
+- **Atajos:** Hoy, Ayer, Esta semana, Este mes, y los últimos 7 días, 30 días, 3, 6, 9 y 12 meses.
+- **Rango libre:** "Entre dos fechas" — elige desde y hasta en el calendario.
 - Las fechas son **días de Ecuador** (UTC−5). Un pedido de las 23:30 del martes cuenta el martes.
+- "Esta semana" arranca el lunes y "Este mes" el día 1: no es lo mismo que los últimos 7 o 30 días.
+
+El mismo selector está en **Panel**, **Productos**, **Control publicitario** y
+**Contenido**. En Contenido vale para todas las pestañas a la vez —día a día,
+requerimientos, lotes, campañas y rendimiento— y se conserva al cambiar de
+pestaña, así que se puede mandar el enlace con el período ya puesto.
 
 El día en curso siempre se muestra **en vivo y a medias**. El cierre de un día se escribe a las 23:00. Durante la semana siguiente se vuelve a calcular todas las mañanas, porque Meta y TikTok siguen atribuyendo compras días después: el martes cerrado el viernes puede tener algunas compras más que el martes cerrado el mismo martes.
 
@@ -105,7 +132,7 @@ El día en curso siempre se muestra **en vivo y a medias**. El cierre de un día
 
 | Columna | Cómo se calcula |
 |---|---|
-| Pedidos | Pedidos reales de Shopify. Un pedido = un producto (el renglón de mayor importe). No cuentan envío, garantía ni TESTEO. |
+| Pedidos | De la planilla del equipo de ventas: una fila, un pedido, con todos los estados. En los días que la planilla no cubre se usa Shopify, donde un pedido = un producto (el renglón de mayor importe) y no cuentan envío, garantía ni TESTEO. |
 | Gasto | Todo lo que cobraron Meta y TikTok. Lo que no tiene producto va a la fila **Sin asignar**: no desaparece. |
 | CPA | Gasto ÷ pedidos reales. |
 | Pedidos efectivos | Pedidos × efectividad del mes. |

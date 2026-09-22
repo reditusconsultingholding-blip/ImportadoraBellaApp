@@ -159,6 +159,40 @@ y eso se lee como números que no cuadran.
 puede arrastrar a la sincronización de campañas, de la que dependen el panel y
 el control.
 
+## Los pedidos del control salen de la planilla del equipo (22 de septiembre de 2026)
+**Decisión:** el control publicitario cuenta los pedidos de la planilla de
+Google que lleva el equipo de ventas, no los de Shopify. Un pedido es **una
+fila** y **cuentan todos los estados**, cancelados incluidos. Shopify solo se
+usa para los días que la planilla no cubre, y nunca mezclado dentro de un mismo
+día.
+**Por qué:** Emilia revisa el control contra esa planilla producto por producto.
+Shopify se le acerca —agosto daba 11.804 contra 11.753— pero cuenta otra cosa:
+los pedidos de Funnelish no están y los estados no son los del equipo. Un
+número que no coincide con ninguna de las dos planillas, y que nadie puede
+reproducir a mano, es peor que uno que no está. Verificado: del 1 al 21 de
+septiembre da 104 pedidos de "Cepillo de inodoro desechable" y 136 de "Shampoo
+aceite de batana", exactamente lo que ella lee.
+**Cómo se lee:** la planilla está compartida como "cualquiera con el enlace", así
+que se baja su CSV sin credenciales. **Solo lectura.** Las pestañas de mes se
+descubren solas, así que un mes nuevo entra sin tocar nada.
+**Lo que no se hace:** no se borra. El equipo elimina de la planilla los meses de
+más de dos meses; en Jarvis se quedan, o cada dos meses cambiaría solo el
+resultado de un mes cerrado.
+**Queda pendiente:** los nombres de la planilla que no coinciden con ninguno
+nuestro hay que enlazarlos a mano una vez (Control › Enlazar pedidos). Se
+enlazan a mano y no por parecido a propósito: "Ampolla reafirmante Deep
+Collagen" puede ser *DEEP COLLAGEN AMPOULE* o *SUNGBOON DEEP COLLAGEN*, y
+elegir mal mueve cientos de pedidos al producto equivocado sin que nadie se
+entere.
+
+## Un período para todo Contenido (22 de septiembre de 2026)
+**Decisión:** las seis pestañas de Contenido comparten el período que se elige
+arriba, y viaja en la dirección.
+**Por qué:** cada una traía su propio recorte —el día a día abría en hoy,
+Rendimiento tenía 7/30/90 días, Lotes y Campañas no tenían ninguno— así que la
+misma pregunta se contestaba distinto en cada pantalla. Emilia lo pidió para
+Rendimiento; Sebastián dijo "mejor en todas".
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).

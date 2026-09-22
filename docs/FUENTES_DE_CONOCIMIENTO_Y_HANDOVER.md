@@ -70,6 +70,7 @@ Otros documentos de la carpeta `docs/`:
 | **Windsor.ai** | **Única fuente de Meta Ads y TikTok Ads.** Windsor tiene el permiso sobre las cuentas publicitarias; Jarvis le pide los datos con una API key. | `WINDSOR_API_KEY` | `src/lib/integrations/windsor*.ts` |
 | **Shopify Admin API** | Órdenes, renglones, clientes y catálogo | App "Jarvin Panal" del Dev Dashboard (client credentials) | `src/lib/integrations/shopify*.ts` |
 | **Notion API** | Tareas diarias y responsables de producto (base *PRODUCTOS ORDEN*) | Integration token, guardado **cifrado** en la base | `src/lib/integrations/notion*.ts` |
+| **Google Sheets (planilla de ventas)** | **Los pedidos del control publicitario.** Es la planilla que lleva a mano el equipo de ventas y contra la que se discute todo. | Sin credenciales: está compartida como "cualquiera con el enlace" y se lee su CSV. El id vive en `Organization.reporteHojaId`. Solo lectura. | `src/lib/integrations/reporte-ventas.ts` |
 | **Anthropic** | Motor del chat de Jarvis y los análisis | `ANTHROPIC_API_KEY` | `src/lib/agent.ts`, `src/lib/insights.ts` |
 | **Resend** | Correos: reporte diario y semanal, alertas | `RESEND_API_KEY` + dominio verificado | `src/lib/email.ts` |
 | **Web Push** | Notificaciones en el navegador | Par VAPID propio | `src/lib/push.ts` |
@@ -216,9 +217,13 @@ tardaban, la vuelta siguiente se salteaba y la pauta quedaba 10-15 minutos atrá
 │     Windsor por anuncio → AdCreativo + AdCreativoDia (120 días)        │
 │                                                                        │
 │  2. CONTROL  capturarCorte() / repasoDiarioDeCierres()                 │
-│     pedidos reales (pedidos-reales.ts: un pedido = un producto)        │
+│     pedidos (pedidos-del-control.ts: manda la planilla del equipo,     │
+│     Shopify completa los días que ella no cubre)                       │
 │     + gasto de plataforma por día y producto                           │
 │       → CortePublicitario (8, 11, 16 y 23 h) + CorteSinAsignar         │
+│                                                                        │
+│  2b. PLANILLA DE VENTAS  sincronizarReporteVentas()  (cada hora)       │
+│      Google Sheets → PedidoReporte, y rehace los cierres de 7 días     │
 │                                                                        │
 │  3. NOTION  sincronizarNotion() → TareaDiaria, ResponsableProducto     │
 │  4. Alertas, reporte diario (PDF), aviso de las 8, reporte semanal     │
@@ -233,6 +238,25 @@ hagan el mismo trabajo. Cada vuelta anota su duración en `SyncState`
 (`reloj-rapido`, `reloj-lento`) y cada conector, cuándo llegó algo nuevo de
 verdad (`frescura-facebook`, `frescura-tiktok`), que es lo que alimenta el
 contador del encabezado (`/api/frescura`).
+
+**La planilla de pedidos del equipo**: es la fuente de los pedidos del control
+publicitario, por encima de Shopify. Tiene una pestaña por mes (`SEPTIEMBRE`,
+`AGOSTO`…) más su gemela de porcentajes (`SEPTIEMBRE%`), que se ignora. Las
+pestañas se descubren solas leyendo la página `htmlview` del libro, que lista
+cada nombre con su `gid`; el CSV se baja con `export?format=csv&gid=N`. El otro
+endpoint que anda dando vueltas —`gviz/tq`— **no sirve**: ignora el parámetro
+`sheet` y corta a las primeras seiscientas filas.
+
+**La regla de conteo** —verificada contra los números que el equipo lee en su
+planilla— es que **un pedido es una fila** y **cuentan todos los estados**,
+cancelados incluidos: del 1 al 21 de septiembre da 104 pedidos de "Cepillo de
+inodoro desechable" y 136 de "Shampoo aceite de batana", exactamente lo que
+ellos ven. Sumar la columna CANTIDAD daría 261 y 342.
+
+**Nunca se borra**: el equipo elimina de la planilla los meses de más de dos
+meses para que el archivo no pese. `PedidoReporte` solo reescribe los días que
+la pestaña trae, así que un mes cerrado que desaparezca del origen se queda en
+Jarvis.
 
 **La caché de Windsor**: contesta de lo que tiene guardado y lo renueva cada 6
 horas salvo que se le pida otra cosa. Por eso cada pedido lleva
