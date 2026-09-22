@@ -70,7 +70,7 @@ export default function GestionCampanas({
     const t = setTimeout(cargar, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, plataforma, soloSinProducto, estado]);
+  }, [busqueda, plataforma, soloSinProducto, estado, desde, hasta]);
 
   const todas = useMemo(() => [...campanas, ...manuales], [campanas, manuales]);
   const sinProducto = todas.filter((c) => !c.productId).length;

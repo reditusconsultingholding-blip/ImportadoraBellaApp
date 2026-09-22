@@ -107,7 +107,7 @@ export default function Requerimientos({
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [desde, hasta]);
 
   /** Mete o reemplaza una fila sin volver a pedir la lista entera. */
   const upsert = useCallback((r: RequirementRow) => {

@@ -320,7 +320,7 @@ export default function TableroNotion({
     return () => {
       vivo = false;
     };
-  }, [recarga]);
+  }, [recarga, desde, hasta]);
 
   /** Aplica el cambio en pantalla y lo manda; si falla, revierte. */
   const editar = useCallback(

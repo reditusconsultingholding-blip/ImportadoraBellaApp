@@ -83,7 +83,7 @@ export default function LotesCruzados({
     return () => {
       cancelado = true;
     };
-  }, [filtroEstado, recarga]);
+  }, [filtroEstado, recarga, desde, hasta]);
 
   const porProducto = useMemo(() => {
     const grupos = new Map<string, Lote[]>();

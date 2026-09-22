@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SumarIntegrante from "./sumar-integrante";
 
 type Persona = {
   userId: string;
@@ -24,7 +25,6 @@ type Persona = {
   productosACargo: string[];
 };
 
-const DIAS = [7, 30, 90] as const;
 
 const money = (n: number | null) =>
   n == null ? "—" : n.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -36,6 +36,9 @@ export default function PanelRendimiento({ desde, hasta }: { desde: string; hast
   // Los nombres escritos a mano en el día a día que no son de ningún usuario:
   // ese trabajo no se le cuenta a nadie hasta que alguien diga de quién es.
   const [sinEnlazar, setSinEnlazar] = useState<{ nombre: string; tareas: number }[]>([]);
+  // Se vuelve a pedir el rendimiento cuando alguien le pone dueño a un nombre
+  // suelto: si no, se enlaza y la tabla sigue mostrando a la persona en cero.
+  const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -52,7 +55,7 @@ export default function PanelRendimiento({ desde, hasta }: { desde: string; hast
     return () => {
       cancelado = true;
     };
-  }, [desde, hasta]);
+  }, [desde, hasta, recarga]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,18 +73,7 @@ export default function PanelRendimiento({ desde, hasta }: { desde: string; hast
         </a>
       </div>
 
-      {sinEnlazar.length > 0 && (
-        <div className="rounded border border-warning bg-pending-bg px-3 py-2 text-xs text-warning">
-          <span className="font-medium">
-            Hay tareas a nombre de alguien que no es un usuario:{" "}
-            {sinEnlazar.map((s) => `${s.nombre} (${s.tareas})`).join(", ")}.
-          </span>{" "}
-          <span className="text-muted">
-            Ese trabajo no se le suma a nadie. Si es el apodo de alguien del equipo, anótalo en Usuarios › editar ›
-            «Cómo aparece en el tablero» y pasa a contarle.
-          </span>
-        </div>
-      )}
+      <SumarIntegrante sinEnlazar={sinEnlazar} onListo={() => setRecarga((n) => n + 1)} />
 
       {equipo == null ? (
         <p className="text-sm text-muted">Cargando…</p>

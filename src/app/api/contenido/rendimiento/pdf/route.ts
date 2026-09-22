@@ -26,12 +26,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Rendimiento es de dirección." }, { status: 403 });
   }
 
-  const diasRaw = Number(req.nextUrl.searchParams.get("dias"));
-  const dias = Number.isFinite(diasRaw) && diasRaw > 0 && diasRaw <= 180 ? diasRaw : 30;
+  // El PDF tiene que salir del MISMO período que la tabla que se está
+  // mirando: imprimir otra cosa de la que hay en pantalla es peor que no
+  // tener el botón. `dias` se sigue aceptando por los enlaces viejos.
+  const dia = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`) : null;
+  const pedidoDesde = dia(req.nextUrl.searchParams.get("desde"));
+  const pedidoHasta = dia(req.nextUrl.searchParams.get("hasta"));
 
-  const hasta = hoyEcuador();
-  const desde = new Date(hasta);
-  desde.setUTCDate(desde.getUTCDate() - (dias - 1));
+  const diasRaw = Number(req.nextUrl.searchParams.get("dias"));
+  const porDias = Number.isFinite(diasRaw) && diasRaw > 0 && diasRaw <= 180 ? diasRaw : 30;
+
+  let desde: Date;
+  let hasta: Date;
+  if (pedidoDesde && pedidoHasta) {
+    desde = pedidoDesde;
+    hasta = pedidoHasta;
+  } else {
+    hasta = hoyEcuador();
+    desde = new Date(hasta);
+    desde.setUTCDate(desde.getUTCDate() - (porDias - 1));
+  }
+  const dias = Math.floor((hasta.getTime() - desde.getTime()) / (24 * 3600_000)) + 1;
 
   const verCifras = await veLasCifras(session.userId);
   const { pdf, nombre } = await generarRendimientoPDF(session.organizationId, desde, hasta, verCifras);
