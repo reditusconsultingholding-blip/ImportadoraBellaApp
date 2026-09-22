@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
     dias: cobertura.dias,
     pedidos: cobertura.pedidos,
     ultimoDia: cobertura.ultimoDia?.toISOString().slice(0, 10) ?? null,
+    sinProducto: cobertura.sinProducto,
+    nombresSinProducto: cobertura.nombresSinProducto,
     miradaAl: estado?.okAt?.toISOString() ?? null,
     detalle: estado?.detalle ?? null,
     diasDelPeriodo,

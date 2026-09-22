@@ -65,6 +65,13 @@ async function nombresSinEnlazarSinMemoria(
   ]);
 
   const resueltos = new Set([...enlaces, ...excluidos].map((x) => x.nombreNorm));
+  // Y los que coinciden EXACTO con el nombre o el código de un producto: esos
+  // ya caen solos —ver pedidos-del-control.ts—, así que pedir que alguien los
+  // enlace sería mandarlo a hacer un trabajo que no cambia nada.
+  for (const p of productos) {
+    resueltos.add(normalizarNombre(p.name));
+    resueltos.add(normalizarNombre(p.code));
+  }
 
   // Las dos fuentes se juntan por nombre normalizado antes de filtrar: el
   // mismo producto escrito distinto en cada lado es UN nombre por resolver,

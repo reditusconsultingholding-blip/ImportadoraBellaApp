@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { normalizarNombre } from "@/lib/enlace-shopify";
 import { pedidosRealesPorDia, type PedidosDelDia } from "@/lib/pedidos-reales";
 
 // De dónde salen los pedidos del control publicitario.
@@ -49,7 +50,7 @@ export async function pedidosParaElControl(
   const desdeDia = diaDeInstante(desde);
   const hastaDia = diaDeInstante(new Date(hasta.getTime() - 1));
 
-  const [deShopify, delReporte, enlaces, excluidos] = await Promise.all([
+  const [deShopify, delReporte, enlaces, excluidos, productos] = await Promise.all([
     pedidosRealesPorDia(organizationId, desde, hasta),
     db.pedidoReporte.findMany({
       where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
@@ -63,13 +64,32 @@ export async function pedidosParaElControl(
       where: { organizationId },
       select: { nombreNorm: true, motivo: true },
     }),
+    // El equipo suele escribir en la planilla el mismo nombre que tiene el
+    // producto acá —"COMBO BUCAL", "FAJA LIPO 360"—. Cuando coincide exacto no
+    // hace falta que nadie lo enlace a mano. Es una coincidencia EXACTA y no
+    // un parecido: proponer parecidos es tarea de la pantalla de enlazar, que
+    // los muestra para que una persona decida. Meter un parecido acá sería
+    // sumarle a un producto los pedidos de otro sin que nadie se entere.
+    db.product.findMany({
+      where: { organizationId },
+      select: { id: true, name: true, code: true },
+    }),
   ]);
 
   if (delReporte.length === 0) {
     return deShopify.map((d) => ({ ...d, fuente: "shopify" as const }));
   }
 
-  const aProducto = new Map(enlaces.map((e) => [e.nombreNorm, e.productId]));
+  const aProducto = new Map<string, string>();
+  for (const p of productos) {
+    const porNombre = normalizarNombre(p.name);
+    if (porNombre) aProducto.set(porNombre, p.id);
+    const porCodigo = normalizarNombre(p.code);
+    if (porCodigo) aProducto.set(porCodigo, p.id);
+  }
+  // Los enlaces hechos a mano van ÚLTIMOS: si alguien dijo que este nombre es
+  // de este producto, eso gana sobre cualquier coincidencia automática.
+  for (const e of enlaces) aProducto.set(e.nombreNorm, e.productId);
   const fuera = new Map(excluidos.map((e) => [e.nombreNorm, e.motivo]));
 
   const porDia = new Map<string, PedidosDelControl>();
@@ -113,15 +133,43 @@ export async function pedidosParaElControl(
  * es exactamente lo que hizo que nadie confiara en el control.
  */
 export async function coberturaDelReporte(organizationId: string, desdeDia: Date, hastaDia: Date) {
-  const filas = await db.pedidoReporte.groupBy({
-    by: ["fecha"],
-    where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
-    _sum: { pedidos: true },
-  });
+  const [filas, porNombre, enlaces, excluidos, productos] = await Promise.all([
+    db.pedidoReporte.groupBy({
+      by: ["fecha"],
+      where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
+      _sum: { pedidos: true },
+    }),
+    db.pedidoReporte.groupBy({
+      by: ["productoNorm"],
+      where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
+      _sum: { pedidos: true },
+    }),
+    db.productoShopify.findMany({ where: { organizationId }, select: { nombreNorm: true } }),
+    db.nombreShopifyExcluido.findMany({ where: { organizationId }, select: { nombreNorm: true } }),
+    db.product.findMany({ where: { organizationId }, select: { name: true, code: true } }),
+  ]);
+
   const dias = filas.length;
   const pedidos = filas.reduce((a, f) => a + (f._sum.pedidos ?? 0), 0);
-  const ultimo = filas.length
-    ? new Date(Math.max(...filas.map((f) => f.fecha.getTime())))
-    : null;
-  return { dias, pedidos, ultimoDia: ultimo };
+  const ultimo = filas.length ? new Date(Math.max(...filas.map((f) => f.fecha.getTime()))) : null;
+
+  // Cuántos pedidos de la planilla todavía no caen en ningún producto. Es el
+  // número que decide si el control sirve: van a la fila "sin asignar", sin
+  // ingresos ni costos, y la utilidad del período sale más baja de lo real.
+  const conocidos = new Set<string>();
+  for (const e of enlaces) conocidos.add(e.nombreNorm);
+  for (const e of excluidos) conocidos.add(e.nombreNorm);
+  for (const p of productos) {
+    conocidos.add(normalizarNombre(p.name));
+    conocidos.add(normalizarNombre(p.code));
+  }
+  let sinProducto = 0;
+  let nombresSinProducto = 0;
+  for (const n of porNombre) {
+    if (conocidos.has(n.productoNorm)) continue;
+    sinProducto += n._sum.pedidos ?? 0;
+    nombresSinProducto += 1;
+  }
+
+  return { dias, pedidos, ultimoDia: ultimo, sinProducto, nombresSinProducto };
 }

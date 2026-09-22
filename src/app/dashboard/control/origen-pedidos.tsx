@@ -12,6 +12,7 @@
 // cuando alguien acaba de cargar pedidos y no quiere esperar la hora.
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Estado = {
@@ -22,6 +23,9 @@ type Estado = {
   miradaAl: string | null;
   detalle: string | null;
   diasDelPeriodo: number;
+  /** Pedidos de la planilla que todavía no caen en ningún producto. */
+  sinProducto: number;
+  nombresSinProducto: number;
 };
 
 function haceCuanto(iso: string) {
@@ -115,6 +119,23 @@ export default function OrigenPedidos({ desde, hasta }: { desde: string; hasta: 
       >
         {trayendo ? "Trayendo…" : "Traer la planilla ahora"}
       </button>
+
+      {/* Lo que falta enlazar, con la puerta al lado. Un pedido sin producto
+          cuenta en el total pero va a la fila "sin asignar", sin ingresos ni
+          costos: la utilidad del período sale más baja de lo real y no hay
+          forma de adivinar por qué. */}
+      {estado != null && estado.sinProducto > 0 && (
+        <p className="w-full text-xs text-warning">
+          {estado.sinProducto.toLocaleString("es-EC")} de esos pedidos están a nombre de{" "}
+          {estado.nombresSinProducto}{" "}
+          {estado.nombresSinProducto === 1 ? "producto que todavía no está enlazado" : "productos que todavía no están enlazados"}
+          , así que van a &quot;sin asignar&quot; y no suman a la rentabilidad de nadie.{" "}
+          <Link href="/dashboard/control?vista=enlazar" className="font-medium underline">
+            Enlazarlos
+          </Link>
+          .
+        </p>
+      )}
     </section>
   );
 }
