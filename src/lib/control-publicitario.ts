@@ -270,7 +270,7 @@ async function controlDelPeriodoSinMemoria(
         gasto: true,
         pedidosReales: true,
         productId: true,
-        product: { select: { name: true, code: true } },
+        product: { select: { name: true, code: true, cpaTarget: true } },
       },
     }),
     filtro
@@ -337,6 +337,7 @@ async function controlDelPeriodoSinMemoria(
       pedidos,
       pedidosPlataforma: c.pedidos,
       cpa: cpa(c.gasto, pedidos),
+      cpaObjetivo: c.product.cpaTarget > 0 ? c.product.cpaTarget : null,
       gasto: c.gasto,
       efectividad,
       pedidosEfectivos,
@@ -364,6 +365,8 @@ async function controlDelPeriodoSinMemoria(
       pedidos: s.pedidosReales,
       pedidosPlataforma: s.pedidosPlataforma,
       cpa: 0,
+      // Sin producto no hay objetivo contra el que comparar.
+      cpaObjetivo: null,
       gasto: s.gasto,
       efectividad: 0,
       pedidosEfectivos: 0,
@@ -388,6 +391,8 @@ async function controlDelPeriodoSinMemoria(
         pedidos: 0,
         pedidosPlataforma: 0,
         cpa: 0,
+        // El objetivo es del producto, no del día: se copia tal cual.
+        cpaObjetivo: f.cpaObjetivo,
         gasto: 0,
         efectividad: 0,
         pedidosEfectivos: 0,

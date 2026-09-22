@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   LabelList,
   Legend,
@@ -35,8 +36,30 @@ type Suma = { gasto: number; conversiones: number };
 const cpa = (s: Suma) => (s.conversiones > 0 ? s.gasto / s.conversiones : null);
 
 const GASTO = "var(--chart-1)";
-const CONV = "var(--chart-2)";
 const CPA_COLOR = "var(--chart-3)";
+
+// Meta y TikTok salían del MISMO color en el gráfico que las compara, así que
+// la comparación no se leía: "el moradito qué es", preguntó Fabricio. Ahora
+// cada plataforma tiene el suyo y se dice cuál es cuál debajo del gráfico.
+const META_COLOR = "var(--chart-2)";
+const TIKTOK_COLOR = "var(--chart-3)";
+const colorDe = (nombre: string) => (nombre.startsWith("Meta") ? META_COLOR : TIKTOK_COLOR);
+
+// El tooltip es lo que se mira al pasar el cursor, y estaba heredando el gris
+// por defecto de la librería: sobre el fondo oscuro no se leía, y parecía que
+// "no daba el valor". Se le pone el color del texto de la app y un realce en
+// la columna, para que además se vea que el cursor está haciendo algo.
+const CAJA_TOOLTIP = {
+  background: "var(--surface)",
+  border: "1px solid var(--border-strong)",
+  borderRadius: 6,
+  fontSize: 12,
+  color: "var(--foreground)",
+  boxShadow: "var(--shadow-pop)",
+} as const;
+const TEXTO_TOOLTIP = { color: "var(--foreground)" } as const;
+const ETIQUETA_TOOLTIP = { color: "var(--muted)", fontSize: 11 } as const;
+const REALCE = { fill: "var(--chart-grid)", fillOpacity: 0.55 } as const;
 
 function Kpi({ label, valor, nota }: { label: string; valor: string; nota?: string }) {
   return (
@@ -270,7 +293,10 @@ export default function CampanasAno() {
                 <YAxis tick={eje} axisLine={false} tickLine={false} domain={[0, "auto"]} />
                 <Tooltip
                   formatter={(v) => [usd2(Number(v)), "CPA"]}
-                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", fontSize: 12 }}
+                  contentStyle={CAJA_TOOLTIP}
+                  itemStyle={TEXTO_TOOLTIP}
+                  labelStyle={ETIQUETA_TOOLTIP}
+                  cursor={REALCE}
                 />
                 <Line type="monotone" dataKey="cpa" stroke={CPA_COLOR} strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
                   <LabelList dataKey="cpa" position="top" formatter={(v: unknown) => usd2(Number(v))} style={{ fontSize: 10, fill: "var(--muted)" }} />
@@ -291,21 +317,41 @@ export default function CampanasAno() {
                 <YAxis tick={eje} axisLine={false} tickLine={false} tickFormatter={(v) => miles(Number(v))} />
                 <Tooltip
                   formatter={(v, n) => [n === "Gasto total" ? usd0(Number(v)) : num(Number(v)), n]}
-                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", fontSize: 12 }}
+                  contentStyle={CAJA_TOOLTIP}
+                  itemStyle={TEXTO_TOOLTIP}
+                  labelStyle={ETIQUETA_TOOLTIP}
+                  cursor={REALCE}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="gasto" name="Gasto total" fill={GASTO} isAnimationActive={false}>
+                {/* Una barra por plataforma, cada una de su color. El
+                    relleno se pone por celda y no por serie porque las dos
+                    barras son la MISMA medida de dos plataformas distintas:
+                    pintarlas iguales es lo que hacía que no se distinguieran. */}
+                <Bar dataKey="gasto" name="Gasto total" isAnimationActive={false}>
+                  {porPlataforma.map((d) => (
+                    <Cell key={d.nombre} fill={colorDe(d.nombre)} />
+                  ))}
                   <LabelList dataKey="gasto" position="insideTop" formatter={(v: unknown) => usd0(Number(v))} style={{ fontSize: 10, fill: "#fff" }} />
                 </Bar>
-                <Bar dataKey="conversiones" name="Conversiones" fill={CONV} isAnimationActive={false}>
+                <Bar dataKey="conversiones" name="Conversiones" isAnimationActive={false}>
+                  {porPlataforma.map((d) => (
+                    <Cell key={d.nombre} fill={colorDe(d.nombre)} fillOpacity={0.45} />
+                  ))}
                   <LabelList dataKey="conversiones" position="top" formatter={(v: unknown) => num(Number(v))} style={{ fontSize: 10, fill: "var(--muted)" }} />
                 </Bar>
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          {/* Cuál color es cuál. Sin esto, dos barras de colores distintos
+              siguen sin decir de quién es cada una. */}
           <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
             {porPlataforma.map((p) => (
-              <p key={p.nombre} className="text-muted">
+              <p key={p.nombre} className="flex items-center gap-1.5 text-muted">
+                <span
+                  aria-hidden
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ background: colorDe(p.nombre) }}
+                />
                 {p.nombre}: <b className="text-foreground">CPA {usd2(p.cpa)}</b>
               </p>
             ))}
@@ -322,7 +368,10 @@ export default function CampanasAno() {
                 <YAxis yAxisId="c" orientation="right" hide />
                 <Tooltip
                   formatter={(v, n) => [n === "Gasto total" ? usd0(Number(v)) : n === "CPA" ? usd2(Number(v)) : num(Number(v)), n]}
-                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", fontSize: 12 }}
+                  contentStyle={CAJA_TOOLTIP}
+                  itemStyle={TEXTO_TOOLTIP}
+                  labelStyle={ETIQUETA_TOOLTIP}
+                  cursor={REALCE}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar yAxisId="g" dataKey="gasto" name="Gasto total" fill={GASTO} isAnimationActive={false}>

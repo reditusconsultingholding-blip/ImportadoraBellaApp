@@ -2,7 +2,7 @@
 // Si una de estas pruebas falla, cambió un número que ve dirección.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpa, DIAS_DEL_MES, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
+import { cpa, cpaDeEquilibrio, DIAS_DEL_MES, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
 import { filasDelDia } from "@/lib/control-relleno";
 
 const cerca = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≠ ${b}`);
@@ -78,4 +78,27 @@ test("filas del día: el gasto sin producto no desaparece, va a su fila", () => 
   assert.equal(b.pedidosReales, 3);
   // El testeo no entra en ninguna fila.
   assert.equal(productos.reduce((s, p) => s + p.pedidosReales, 0) + sinAsignar.pedidosReales, 16);
+});
+
+// El CPA de equilibrio es el techo que Fabricio quiere que vean los asesores:
+// un dólar más y la venta cuesta más de lo que deja.
+test("CPA de equilibrio: lo que queda para pauta después de todos los costos", () => {
+  // 100 pedidos, $2.000 de ingresos, $600 de operativos y $150 de admin:
+  // quedan $1.250 para pauta, o sea $12,50 por pedido.
+  assert.equal(
+    cpaDeEquilibrio({ pedidos: 100, ingresos: 2000, gastosOperativos: 600, gastosAdm: 150 }),
+    12.5,
+  );
+
+  // Sin economía cargada los ingresos son cero: no se devuelve un negativo,
+  // que se leería como que el producto pierde siempre.
+  assert.equal(
+    cpaDeEquilibrio({ pedidos: 100, ingresos: 0, gastosOperativos: 0, gastosAdm: 40 }),
+    null,
+  );
+  // Y sin pedidos tampoco hay techo que calcular.
+  assert.equal(
+    cpaDeEquilibrio({ pedidos: 0, ingresos: 500, gastosOperativos: 100, gastosAdm: 10 }),
+    null,
+  );
 });

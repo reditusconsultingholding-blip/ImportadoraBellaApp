@@ -51,6 +51,39 @@ export function utilidad(ingresos: number, gasto: number, gastosOperativos: numb
   return ingresos - gasto - gastosOperativos - gastosAdm;
 }
 
+/**
+ * El CPA máximo que se puede pagar sin perder plata: el punto de equilibrio.
+ *
+ * Fabricio lo pidió con todas las letras: "quiero que cada uno de los asesores
+ * que suben campañas sepa cuál es el CPA ideal y cuál es el CPA break even,
+ * para que sepan hasta cuándo podemos". El ideal es el objetivo del producto;
+ * el de equilibrio es el techo: un dólar más y la venta cuesta más de lo que
+ * deja.
+ *
+ * Sale de despejar la utilidad en cero sobre lo que ya calcula el control:
+ *
+ *   utilidad = ingresos − pauta − operativos − administrativos = 0
+ *   ⟹ pauta = ingresos − operativos − administrativos
+ *   ⟹ CPA de equilibrio = (ingresos − operativos − admin) ÷ pedidos
+ *
+ * Se calcula sobre la fila y no con una fórmula propia a propósito: si mañana
+ * cambia cómo se reparte la administración o cómo se cuentan los operativos,
+ * el punto de equilibrio cambia con ellos en vez de quedarse mintiendo.
+ *
+ * Devuelve null cuando no hay con qué: sin pedidos, o sin economía cargada
+ * —ahí los ingresos son cero y el "equilibrio" daría un número negativo que se
+ * leería como que el producto pierde siempre—.
+ */
+export function cpaDeEquilibrio(f: {
+  pedidos: number;
+  ingresos: number;
+  gastosOperativos: number;
+  gastosAdm: number;
+}): number | null {
+  if (f.pedidos <= 0 || f.ingresos <= 0) return null;
+  return (f.ingresos - f.gastosOperativos - f.gastosAdm) / f.pedidos;
+}
+
 /** CPA sobre pedidos reales. Sin pedidos no hay CPA (0, no infinito). */
 export function cpa(gasto: number, pedidos: number) {
   return pedidos > 0 ? gasto / pedidos : 0;

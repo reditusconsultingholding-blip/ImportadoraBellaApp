@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { cpaDeEquilibrio } from "@/lib/control-calculo";
 import type { ControlPeriodo, FilaControl, FilaPeriodo } from "@/lib/control-opciones";
 import { ETIQUETA_HORA, ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
 import SelectorProductos from "./selector-productos";
@@ -49,6 +50,64 @@ function diaCorto(iso: string) {
     month: "short",
     timeZone: "UTC",
   });
+}
+
+/** La celda del CPA, con el ideal y el punto de equilibrio al lado.
+ *
+ * Fabricio: "quiero que cada uno de los asesores que suben campañas sepa cuál
+ * es el CPA ideal y cuál es el CPA break even, para que sepan hasta cuándo
+ * podemos". No se agregaron dos columnas —la tabla ya tiene nueve y Emilia
+ * pidió no llenarla— sino una segunda línea chica debajo del número, y el
+ * detalle completo al pasar el cursor, que fue lo que se acordó en la llamada.
+ *
+ * El color dice lo único que hay que decidir de un vistazo: verde si está por
+ * debajo del ideal, ámbar si lo pasó pero todavía deja plata, rojo si pasó el
+ * equilibrio y cada venta cuesta más de lo que deja.
+ */
+function CeldaCpa({
+  f,
+  clase,
+}: {
+  f: {
+    pedidos: number;
+    cpa: number;
+    cpaObjetivo: number | null;
+    ingresos: number;
+    gastosOperativos: number;
+    gastosAdm: number;
+  };
+  clase: string;
+}) {
+  if (f.pedidos <= 0) return <td className={clase}>—</td>;
+
+  const equilibrio = cpaDeEquilibrio(f);
+  const tono =
+    equilibrio != null && f.cpa > equilibrio
+      ? "text-critical"
+      : f.cpaObjetivo != null && f.cpa > f.cpaObjetivo
+        ? "text-warning"
+        : "text-good";
+
+  const leyenda = [
+    `CPA real ${dinero2(f.cpa)}`,
+    f.cpaObjetivo != null ? `ideal ${dinero2(f.cpaObjetivo)}` : null,
+    equilibrio != null ? `equilibrio ${dinero2(equilibrio)}` : "equilibrio: falta cargar la economía",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <td className={clase} title={leyenda}>
+      <span className={tono}>{dinero2(f.cpa)}</span>
+      {(f.cpaObjetivo != null || equilibrio != null) && (
+        <span className="block text-[10px] font-normal text-muted">
+          {f.cpaObjetivo != null && <>ideal {dinero2(f.cpaObjetivo)}</>}
+          {f.cpaObjetivo != null && equilibrio != null && " · "}
+          {equilibrio != null && <>equil. {dinero2(equilibrio)}</>}
+        </span>
+      )}
+    </td>
+  );
 }
 
 export default function Resultados({
@@ -433,7 +492,7 @@ function TablaProductos({
                 </span>
               </td>
               <td className={`${TD} ${NUM}`}>{entero(f.pedidos)}</td>
-              <td className={`${TD} ${NUM}`}>{f.pedidos > 0 ? dinero2(f.cpa) : "—"}</td>
+              <CeldaCpa f={f} clase={`${TD} ${NUM}`} />
               <td className={`${TD} ${NUM}`}>{dinero(f.gasto)}</td>
               <td className={`${TD} ${NUM} text-muted`}>{f.pedidos > 0 ? pct(f.efectividad) : "—"}</td>
               <td className={`${TD} ${NUM}`}>{dinero(f.ingresos)}</td>
@@ -517,7 +576,11 @@ function TablaDias({ filas }: { filas: FilaControl[] }) {
               </td>
               <td className={`${TD} ${NUM}`}>{entero(f.pedidos)}</td>
               <td className={`${TD} ${NUM} text-muted`}>{entero(f.pedidosPlataforma)}</td>
-              <td className={`${TD} ${NUM}`}>{f.pedidos > 0 && f.productId ? dinero2(f.cpa) : "—"}</td>
+              {f.productId ? (
+                <CeldaCpa f={f} clase={`${TD} ${NUM}`} />
+              ) : (
+                <td className={`${TD} ${NUM}`}>—</td>
+              )}
               <td className={`${TD} ${NUM}`}>{dinero(f.gasto)}</td>
               <td className={`${TD} ${NUM}`}>{f.productId ? dinero(f.ingresos) : "—"}</td>
               <td className={`${TD} ${NUM} text-muted`}>{dinero(f.gastosOperativos + f.gastosAdm)}</td>
