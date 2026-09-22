@@ -177,12 +177,22 @@ table {
   border-collapse: collapse;
 }
 
-th {
-  font-weight: 500;
-  color: var(--muted);
-  white-space: nowrap;
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+/* Los encabezados de tabla van en gris POR DEFECTO, dentro de la capa base.
+
+   Estaban como regla suelta, y una regla de elemento le gana a un color
+   heredado por más que la clase esté puesta: los encabezados verdes del panel
+   del CEO —con text-white en la fila— salían igual en gris sobre verde, sin
+   contraste y sin que nada fallara. Adentro de @layer base, cualquier utilidad
+   de Tailwind la sobreescribe, que es como tiene que funcionar un valor por
+   defecto. */
+@layer base {
+  th {
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+  }
 }
 
 /* Separadores verticales entre columnas. En una tabla ancha como Rentabilidad

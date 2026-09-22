@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorProducto from "../buscador-producto";
+import CopiarId from "../copiar-id";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
 //
@@ -390,6 +391,9 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     };
   }, []);
 
+  /** El producto que está elegido, para poder mostrar su ID y su origen. */
+  const productoElegido = lista.find((x) => x.name === selectedProduct) ?? null;
+
   function loadFromProduct(name: string) {
     // Lo que quedó sin guardar del producto anterior se guarda ahora: el
     // guardado automático espera 800 ms y cambiar de producto en ese rato
@@ -683,7 +687,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
 
           <div className="block">
             <span className={labelClass}>Cargar datos de un producto</span>
-            {/* Se busca escribiendo: nombre, código o iniciales. */}
+            {/* Se busca escribiendo: nombre, iniciales, código o el SKU de Dropi. */}
             <BuscadorProducto
               opciones={lista.map((p) => ({
                 id: p.name,
@@ -695,9 +699,35 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               onElegir={loadFromProduct}
               disabled={!ajustesListos}
               vacio={ajustesListos ? "— Escribir los números a mano —" : "Cargando lo guardado…"}
-              placeholder="Escribe el nombre o las iniciales del producto…"
+              placeholder="Escribe el nombre, las iniciales o el ID de Dropi…"
               ariaLabel="Producto"
             />
+
+            {/* De dónde salió el precio.
+                Emilia, mirando la pantalla: "no sé si me está jalando el
+                valor, si me jala el valor que está en Shopify… debería coger
+                el precio que yo pongo en Dropi". Hoy sale de Shopify, porque
+                es la única tienda conectada; decirlo evita la duda de si el
+                número está mal o simplemente viene de otro lado. Cuando Dropi
+                entregue su clave, acá va a decir Dropi.
+                Ver docs/DECISIONES.md. */}
+            {productoElegido && (
+              <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                {productoElegido.sku && (
+                  <>
+                    <CopiarId
+                      valor={productoElegido.sku}
+                      etiqueta={`el ID de Dropi de ${productoElegido.name}`}
+                    />
+                    <span>·</span>
+                  </>
+                )}
+                <span>
+                  El precio y el costo salen de Shopify. Si en Dropi tienes otro precio, este
+                  se puede editar abajo y queda guardado.
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="-mt-1 flex flex-wrap items-center gap-2">

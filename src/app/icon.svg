@@ -1,29 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Importadora Bella">
   <!--
-    El icono de la pestaña: la B de Bella, verde sobre fondo claro.
+    El monograma IB de Importadora Bella, blanco sobre el verde de la marca.
 
-    LA LETRA ES SIMÉTRICA A PROPÓSITO. En tipografía la panza de abajo se hace
-    más grande que la de arriba: es una corrección óptica, porque dos panzas
-    iguales se ven pesadas arriba. Acá se eligió la simetría igual, como
-    decisión de marca — a 16 píxeles esa corrección no se percibe y lo que
-    queda es una forma más geométrica.
+    POR QUÉ ASÍ Y NO DE OTRA FORMA
+    Un favicon se ve a 16 píxeles y prácticamente en ningún otro tamaño. A esa
+    escala lo único que decide si se lee es CUÁNTA TINTA hay. El icono anterior
+    era una letra de trazo fino sobre caja blanca con borde: a 16 px se veía
+    hueca y se perdía contra las pestañas claras. Caja llena y letras macizas es
+    lo contrario — una sola mancha verde con dos formas blancas adentro.
 
-    Las medidas salen de esa simetría y conviene no tocarlas sueltas:
-    la letra mide 22 de alto y la unión cae en la mitad exacta, así que cada
-    panza mide 11. Las paredes son 3,2 en los tres lugares —arriba, la barra
-    del medio y abajo— y los dos huecos miden 6,2. Los márgenes laterales son
-    10,3 iguales, así que está centrada de verdad y no de casualidad.
+    LAS LETRAS
+    La I lleva sus dos travesaños. Es el detalle que la hace clásica —una I sin
+    ellos es un palito y no se lee como letra— y de paso le da peso a un
+    carácter que casi no tiene.
 
-    El fondo va relleno y no transparente: sin caja propia, la letra desaparece
-    cuando la barra del navegador es clara o verdosa.
+    La B tiene la panza de abajo MÁS GRANDE que la de arriba: 3,1 de alto contra
+    3,4, y sale 0,4 más a la derecha. No es un descuido, es como se dibuja una B
+    de verdad. Dos panzas iguales se ven pesadas arriba, como si la letra se
+    fuera a caer hacia adelante.
+
+    LAS MEDIDAS, que conviene no tocar sueltas
+    Las dos letras miden 16 de alto (de y=8 a y=24) sobre los 32 del lienzo. La
+    I ocupa de 7,4 a 12,6 y la B de 14,6 a 24,4: quedan 7,4 de aire a la
+    izquierda y 7,6 a la derecha. Esa diferencia de 0,2 es a propósito — la
+    curva de la B se lee más liviana que el remate recto de la I, así que
+    necesita un pelo más de espacio para que el conjunto se vea centrado.
+
+    El fondo es #00674F y no el verde de acción de la app: a 16 px el navegador
+    achica la imagen mezclando píxeles, y un verde más oscuro mantiene el
+    contraste con el blanco cuando eso pasa.
   -->
-  <rect x="1" y="1" width="30" height="30" rx="6" fill="#ffffff" stroke="#008060" stroke-width="2"/>
-  <path
-    fill="#008060"
-    fill-rule="evenodd"
-    d="M10.3 5h5.9a5.5 5.5 0 0 1 0 11h-5.9z
-       M10.3 16h5.9a5.5 5.5 0 0 1 0 11h-5.9z
-       M14.7 8.2h0.7a3.1 3.1 0 0 1 0 6.2h-0.7z
-       M14.7 17.6h0.7a3.1 3.1 0 0 1 0 6.2h-0.7z"
-  />
+  <rect width="32" height="32" rx="7" fill="#00674F"/>
+  <g fill="#ffffff">
+    <!-- I: travesaño de arriba, asta, travesaño de abajo. -->
+    <rect x="7.4" y="8" width="5.2" height="2.5"/>
+    <rect x="9.2" y="8" width="1.6" height="16"/>
+    <rect x="7.4" y="21.5" width="5.2" height="2.5"/>
+    <!-- B: el contorno y, con evenodd, los dos huecos de las panzas. -->
+    <path fill-rule="evenodd" d="M14.6 8h4.9c2.5 0 3.9 1.5 3.9 3.5 0 1.5-.8 2.6-2 3.1 2 .5 3.1 1.8 3.1 3.8 0 2.7-1.9 4.6-4.8 4.6h-5.1V8Zm2.9 2.6v3.1h1.9c1.1 0 1.8-.6 1.8-1.6s-.7-1.5-1.8-1.5h-1.9Zm0 5.6v5.2h2.1c1.4 0 2.2-.9 2.2-2.6s-.8-2.6-2.2-2.6h-2.1Z"/>
+  </g>
 </svg>

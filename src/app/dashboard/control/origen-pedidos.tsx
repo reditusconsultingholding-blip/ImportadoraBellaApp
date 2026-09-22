@@ -89,8 +89,9 @@ export default function OrigenPedidos({ desde, hasta }: { desde: string; hasta: 
           <>
             Salen de{" "}
             <strong className="font-medium text-foreground">
-              la planilla del equipo de ventas
+              Seguimiento de pedidos Shopify y Bellacorp
             </strong>
+            , la planilla del equipo de ventas
             : {estado.pedidos.toLocaleString("es-EC")} pedidos en {estado.dias}{" "}
             {estado.dias === 1 ? "día" : "días"} de este período
             {!completo && (
@@ -104,8 +105,9 @@ export default function OrigenPedidos({ desde, hasta }: { desde: string; hasta: 
           </>
         ) : (
           <>
-            La planilla del equipo no tiene ningún día de este período cargado, así que los
-            pedidos salen de Shopify. Se le acercan, pero no son el mismo número.
+            «Seguimiento de pedidos Shopify y Bellacorp» no tiene ningún día de este período
+            cargado, así que los pedidos salen de Shopify. Se le acercan, pero no son el mismo
+            número.
           </>
         )}
         {error && <span className="text-critical"> · {error}</span>}

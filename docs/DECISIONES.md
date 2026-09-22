@@ -193,6 +193,42 @@ Rendimiento tenía 7/30/90 días, Lotes y Campañas no tenían ninguno— así q
 misma pregunta se contestaba distinto en cada pantalla. Emilia lo pidió para
 Rendimiento; Sebastián dijo "mejor en todas".
 
+## El SKU de Shopify es el ID de Dropi (22 de septiembre de 2026)
+**Decisión:** se guarda el SKU de la primera variante de Shopify en
+`Product.sku` y se refresca cada hora. Se muestra al lado del nombre, se busca
+por él y se copia de un toque.
+**Por qué:** es el número con el que Fabricio y Emilia piensan y el que Fabricio
+pone adelante en el nombre de sus campañas. Y dice algo más: tener SKU
+significa estar conectado a Dropi, o sea que el producto se despacha. Los que
+no lo tienen son catálogo viejo — de ahí "Productos sin SKU" en Sin
+nomenclatura, que es la lista para depurar los cientos que nadie limpió.
+**Lo que no se hace:** si el producto desapareció del catálogo NO se le borra el
+SKU que tenía; mandarlo a la lista de "para depurar" por una consulta que
+volvió corta sería un error caro.
+
+## El ángulo del anuncio se lee del nombre, y no se adivina (22 de septiembre de 2026)
+**Decisión:** `categoria-anuncio.ts` deduce el ángulo y el formato de los
+nombres del anuncio, del conjunto y de la campaña, con los 30 ángulos y 16
+formatos de Super Ads más las formas en que el equipo los escribe de verdad.
+Cuando el nombre no dice nada, queda vacío y en pantalla sale "sin clasificar".
+**Por qué:** es la pregunta para la que existe el tablero de contenido —"¿qué
+ángulo funciona?"— y la tabla de anuncios solo decía qué creativo anduvo. El
+ángulo se busca primero en el CONJUNTO porque es donde el equipo lo pone
+("nosotros manejamos los ángulos a nivel de conjunto de anuncios").
+**Por qué no se adivina:** un ángulo inventado contamina justo la respuesta que
+se está buscando. "Sin clasificar" es información: esa campaña se subió sin
+nomenclatura y no se va a poder comparar.
+**Queda pendiente (del equipo):** que las campañas nuevas traigan el ángulo en
+el nombre. Esto lee lo que ya está escrito, que es la mitad del trabajo.
+
+## El CPA de equilibrio se despeja de la fila, no se calcula aparte (22 de septiembre de 2026)
+**Decisión:** sale de `(ingresos − operativos − administrativos) ÷ pedidos`
+sobre la misma fila que el control ya calculó, y se muestra en la celda del CPA
+junto al objetivo del producto.
+**Por qué:** Fabricio lo pidió para que los asesores sepan "hasta cuándo
+podemos". Y se despeja de la fila para que, si mañana cambia cómo se reparte la
+administración, el equilibrio cambie con ella en vez de quedarse mintiendo.
+
 ## Pendiente de confirmar (no decidido aún)
 - Acceso al repo completo del sistema en Railway (hoy solo hay extractos
   de referencia, ver `REFERENCIA_SISTEMA_RAILWAY.md`).
@@ -200,3 +236,7 @@ Rendimiento; Sebastián dijo "mejor en todas".
   ej. caída/suba de CPA por encima de un umbral en N días).
 - Si `USER_CREATION_CODE` debe poder cambiarse desde el panel más adelante
   o queda fijo.
+- El precio de la calculadora sale de Shopify porque Dropi todavía no entregó
+  su clave de integración (no hay ninguna `DropiConnection` cargada). Cuando la
+  entreguen, el precio pasa a salir de ahí; mientras tanto la pantalla dice de
+  dónde sale, para que la diferencia no se lea como un error.

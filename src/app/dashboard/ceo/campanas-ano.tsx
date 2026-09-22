@@ -376,16 +376,28 @@ export default function CampanasAno() {
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar yAxisId="g" dataKey="gasto" name="Gasto total" fill={GASTO} isAnimationActive={false}>
                   <LabelList dataKey="gasto" position="insideTop" formatter={(v: unknown) => usd0(Number(v))} style={{ fontSize: 9, fill: "#fff" }} />
-                  <LabelList dataKey="conversiones" position="top" formatter={(v: unknown) => num(Number(v))} style={{ fontSize: 9, fill: "var(--muted)" }} />
+                  <LabelList
+                    dataKey="conversiones"
+                    position="top"
+                    formatter={(v: unknown) => num(Number(v))}
+                    style={{ fontSize: 9, fill: "var(--foreground)" }}
+                  />
                 </Bar>
-                <Line yAxisId="c" type="monotone" dataKey="cpa" name="CPA" stroke={CPA_COLOR} strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false}>
-                  <LabelList dataKey="cpa" position="bottom" formatter={(v: unknown) => usd2(Number(v))} style={{ fontSize: 9, fill: "var(--muted)" }} />
-                </Line>
+                {/* El CPA estaba dibujado como etiqueta de una línea invisible,
+                    "abajo" de un eje escondido: en los meses de CPA alto esa
+                    etiqueta caía ENCIMA de la barra verde, en gris, y no se
+                    leía. No se le cambió el color —taparía el problema y
+                    seguiría pisando el número de adentro—: se sacó. El CPA de
+                    cada mes ya está en su propio gráfico, acá arriba, y en la
+                    tabla de abajo; acá era una tercera copia que además
+                    estorbaba. Sigue estando en el tooltip al pasar el cursor. */}
+                <Line yAxisId="c" type="monotone" dataKey="cpa" name="CPA" stroke={CPA_COLOR} strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
           <p className="mt-1 text-[10px] text-muted">
-            Arriba de cada barra, las conversiones del mes; adentro, el gasto; abajo, el CPA.
+            Arriba de cada barra, las conversiones del mes; adentro, el gasto. El CPA de cada
+            mes está en el gráfico de arriba y en la tabla, y aparece al pasar el cursor.
           </p>
         </Caja>
       </div>
@@ -395,7 +407,7 @@ export default function CampanasAno() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-accent/90 text-left text-[11px] font-semibold text-white">
+                <tr className="bg-accent/90 text-left text-[11px] font-semibold text-white [&>th]:text-white">
                   <th className="px-3 py-2">Año y mes</th>
                   <th className="px-3 py-2 text-right">Conversiones</th>
                   <th className="px-3 py-2 text-right">Gasto total</th>
@@ -426,7 +438,7 @@ export default function CampanasAno() {
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0">
-                <tr className="bg-accent/90 text-left text-[11px] font-semibold text-white">
+                <tr className="bg-accent/90 text-left text-[11px] font-semibold text-white [&>th]:text-white">
                   <th className="px-3 py-2">ID</th>
                   <th className="px-3 py-2">Producto</th>
                   {(
