@@ -13,7 +13,7 @@ export async function GET() {
   const estados = await db.syncState.findMany({
     where: {
       organizationId: session.organizationId,
-      fuente: { in: ["frescura-facebook", "frescura-tiktok", "facebook", "tiktok"] },
+      fuente: { in: ["frescura-facebook", "frescura-tiktok", "facebook", "tiktok", "shopify"] },
     },
     select: { fuente: true, okAt: true, detalle: true },
   });
@@ -37,5 +37,14 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ conectores, ahora: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+  // Las ventas son otra cosa: Shopify se lee entero cada 2 minutos, sin
+  // caché de por medio, así que lo que importa es cuándo fue la última.
+  const ventas = {
+    nombre: "Ventas de Shopify",
+    intervaloMin: 2,
+    datosDe: de("shopify")?.okAt?.toISOString() ?? null,
+    proxima: de("shopify")?.okAt ? new Date(de("shopify")!.okAt!.getTime() + 2 * 60_000).toISOString() : null,
+  };
+
+  return NextResponse.json({ conectores, ventas, ahora: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
 }

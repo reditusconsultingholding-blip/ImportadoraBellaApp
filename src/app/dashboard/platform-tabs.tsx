@@ -50,6 +50,7 @@ export default function PlatformTabs({
             key={tab.value}
             href={`/dashboard?platform=${tab.value}${extra}`}
             ariaCurrent={on ? "page" : undefined}
+            sinSalto
             title={tab.short}
             className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
               on

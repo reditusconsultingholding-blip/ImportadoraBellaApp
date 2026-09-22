@@ -11,6 +11,7 @@ const money = (n: number) =>
 
 import Link from "next/link";
 import type { ResumenSinProducto } from "@/lib/sin-nomenclatura";
+import FrescuraVentas from "./frescura-ventas";
 
 export default function AttributionStrip({
   ventasReales,
@@ -80,9 +81,13 @@ export default function AttributionStrip({
 
   return (
     <section className="rounded border border-border bg-surface">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5">
         <h2 className="text-sm font-semibold">Ventas reales contra lo que atribuye la pauta</h2>
         <span className="text-xs text-muted">{periodo}</span>
+        {/* De cuándo es cada mitad de la comparación. */}
+        <span className="w-full">
+          <FrescuraVentas />
+        </span>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4">

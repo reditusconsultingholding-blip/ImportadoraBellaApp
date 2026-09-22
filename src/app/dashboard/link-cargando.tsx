@@ -21,16 +21,26 @@ export default function LinkCargando({
   className,
   title,
   ariaCurrent,
+  /**
+   * Quedarse donde está al navegar.
+   *
+   * Por defecto Next lleva la página al principio en cada navegación. En los
+   * botones que solo cambian una parte de la pantalla —elegir Meta o TikTok
+   * dentro de "Rendimiento de campañas"— eso se ve como si la página entera
+   * se recargara y hay que volver a bajar hasta la tabla.
+   */
+  sinSalto,
   children,
 }: {
   href: string;
   className?: string;
   title?: string;
   ariaCurrent?: "page" | undefined;
+  sinSalto?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <Link href={href} className={className} title={title} aria-current={ariaCurrent}>
+    <Link href={href} className={className} title={title} aria-current={ariaCurrent} scroll={!sinSalto}>
       {children}
       <Indicador />
     </Link>

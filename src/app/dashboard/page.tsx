@@ -209,7 +209,7 @@ export default async function DashboardPage({
           />
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${verCifras ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
           {/* Gasto y ROAS salen de la grilla cuando no corresponde, y su lugar
               lo toman impresiones y CTR. No se ponen en cero ni en guion: un
               cero se lee como un dato, y "—" en una tarjeta de gasto se lee
@@ -224,6 +224,26 @@ export default async function DashboardPage({
             />
           )}
           <StatTile label="Compras atribuidas" value={overview.totalPurchases.toLocaleString("es-EC")} />
+          {/* El CPA de la plataforma que se está mirando: gasto de esa
+              plataforma sobre las compras que ella misma se atribuye. Es el
+              número con el que se compara Meta contra TikTok; el CPA contra
+              las ventas reales de la tienda está arriba, en la tira. */}
+          {verCifras && (
+            <StatTile
+              label={`CPA ${platform === "META" ? "Meta" : "TikTok"}`}
+              value={
+                overview.totalPurchases > 0
+                  ? (overview.totalSpend / overview.totalPurchases).toLocaleString("es-EC", {
+                      style: "currency",
+                      currency: "USD",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "—"
+              }
+              note="gasto ÷ compras atribuidas"
+            />
+          )}
           {verCifras ? (
             <StatTile
               label="ROAS"
