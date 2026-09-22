@@ -220,13 +220,13 @@ export const PASOS: PasoCapacitacion[] = [
   {
     id: "calculadora",
     requierePermisoFinanzas: true,
-    ruta: "/dashboard/calculadora/costeo",
-    seccion: "Costeo y utilidad",
-    titulo: "Cuánto deja de verdad un producto",
+    ruta: "/dashboard/calculadora",
+    seccion: "Calculadora de precios",
+    titulo: "A cuánto vender y cuánto deja de verdad",
     texto:
-      "Eliges el producto y la pantalla arma la cuenta completa: de cada checkout que paga la pauta, cuántos se confirman, cuántos se devuelven y qué queda después del producto, el flete, el gasto administrativo y la publicidad. Te devuelve la utilidad del día, el CPA efectivo, el ROAS y —lo más importante— el CPA máximo que puedes pagar sin perder plata.",
+      "Eliges el producto (la lista sale de Shopify en vivo) y la pantalla te da el precio sugerido para el margen que quieres, y abajo la cuenta completa: de cada checkout que paga la pauta, cuántos se confirman, cuántos se devuelven y qué queda después del producto, el flete, el gasto operativo y la publicidad. Te devuelve la utilidad del día, el CPA breakeven, el CPA ideal y el ROAS.",
     puntos: [
-      "Los ajustes se guardan solos por producto y quedan para todo el equipo: no hay que volver a teclear el flete y la confirmación cada vez.",
+      "Lo que ajustas se guarda solo por producto y queda para todo el equipo; el botón «Guardar cambios» lo confirma y avisa si algo falló.",
       "La barra de equilibrio marca con qué tasa de confirmación se deja de ganar, con todo lo demás igual.",
       "Los escenarios muestran qué pasaría al subir la confirmación, bajar el CPA o escalar los checkouts.",
       "No modifica nada del negocio: es para probar antes de decidir.",

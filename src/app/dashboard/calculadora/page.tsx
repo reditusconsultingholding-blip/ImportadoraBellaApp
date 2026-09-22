@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { canManagePipeline } from "@/lib/permissions";
@@ -150,15 +149,7 @@ export default async function CalculadoraPage() {
         eyebrow="Números"
         titulo="Calculadora de precios"
         insignia={<InsigniaEncabezado>Dropshipping Ecuador</InsigniaEncabezado>}
-        descripcion="Calcula el precio de venta sugerido a partir de costos, comisión de pasarela, IVA y el margen que quieres ganar — y mira abajo qué pasa con ese precio una vez que se descuentan los pedidos que no se confirman y los que se devuelven."
-        acciones={
-          <Link
-            href="/dashboard/calculadora/costeo"
-            className="rounded border border-white/20 px-3 py-1.5 text-xs font-medium text-white/70 transition hover:border-white/45 hover:bg-white/10 hover:text-white"
-          >
-            Costeo y utilidad
-          </Link>
-        }
+        descripcion="El precio de venta sugerido a partir de tus costos y el margen que quieres ganar, y abajo qué pasa con ese precio en la operación real: pedidos que no se confirman, devoluciones, confirmación de equilibrio y escenarios para escalar. Lo que ajustes en un producto se guarda para todo el equipo."
       />
       <div>
         {catalog.length > 0 && (

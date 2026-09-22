@@ -240,11 +240,11 @@ export default function SidebarNav({
               { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: "rentabilidad" },
               { href: "/dashboard/clientes", label: "Clientes", icon: "usuarios" },
               { href: "/dashboard/origen", label: "Origen de las ventas", icon: "panel" },
-              // La "Calculadora de precios" quedó fuera del menú por pedido de
-              // dirección (19 de septiembre de 2026): hacía dos entradas que se
-              // leían como lo mismo. La pantalla sigue viva en
-              // /dashboard/calculadora para quien tenga el enlace.
-              { href: "/dashboard/calculadora/costeo", label: "Costeo y utilidad", icon: "calculadora" },
+              // Una sola calculadora. Hubo dos seguidas ("Calculadora de
+              // precios" y "Costeo y utilidad") que se leían como lo mismo; por
+              // pedido de dirección quedó la de precios, con lo mejor de la
+              // otra adentro (septiembre de 2026).
+              { href: "/dashboard/calculadora", label: "Calculadora de precios", icon: "calculadora" },
             ]
           : []),
         ...(showReportes
