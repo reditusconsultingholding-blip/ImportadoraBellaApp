@@ -25,7 +25,7 @@ export async function POST() {
     return NextResponse.json({ error: "Probar el correo es de dirección." }, { status: 403 });
   }
 
-  if (!emailConfigured()) {
+  if (!(await emailConfigured())) {
     return NextResponse.json(
       { error: "Todavía no hay una clave de Resend cargada en el servidor." },
       { status: 400 },

@@ -23,9 +23,54 @@ const RESEND_URL = "https://api.resend.com/emails";
 const RESEND_DOMINIOS = "https://api.resend.com/domains";
 const FALLBACK_FROM = "Jarvis <onboarding@resend.dev>";
 
+/**
+ * La clave de Resend: primero la variable del servidor, si no la de la base.
+ *
+ * POR QUÉ HAY DOS LUGARES
+ * La variable es lo clásico, pero hay que cargarla en Railway — y quien
+ * administra esto no necesariamente tiene ese acceso a mano. Guardada en la
+ * base se pega desde Conexiones, igual que el token de Notion, y cambiarla no
+ * pide un despliegue. La variable sigue ganando por si algún día conviene
+ * tenerla afuera.
+ *
+ * Se recuerda un minuto. No es por velocidad: es que esto se consulta en cada
+ * correo y en cada vuelta del reloj, y no tiene sentido ir a la base por un
+ * valor que cambia una vez al año.
+ */
+const claveRecordada: { valor: string | null; al: number } = { valor: null, al: 0 };
+const CLAVE_VIGENCIA_MS = 60_000;
+
+export async function claveDeResend(): Promise<string | null> {
+  const deLaVariable = process.env.RESEND_API_KEY?.trim();
+  if (deLaVariable) return deLaVariable;
+
+  if (Date.now() - claveRecordada.al < CLAVE_VIGENCIA_MS) return claveRecordada.valor;
+
+  try {
+    // La primera organización que tenga una. La app es de una sola empresa; el
+    // día que sean varias, esto pasa a recibir el organizationId.
+    const org = await db.organization.findFirst({
+      where: { resendApiKey: { not: null } },
+      select: { resendApiKey: true },
+    });
+    claveRecordada.valor = org?.resendApiKey?.trim() || null;
+  } catch {
+    // Si la base no contesta, se responde que no hay clave: es mejor no mandar
+    // que reventar la vuelta del reloj por un correo.
+    claveRecordada.valor = null;
+  }
+  claveRecordada.al = Date.now();
+  return claveRecordada.valor;
+}
+
+/** Para que quien acaba de guardar una clave no espere el minuto. */
+export function olvidarClaveDeResend() {
+  claveRecordada.al = 0;
+}
+
 /** Sin clave no hay envío, y quien llama decide si eso es un problema. */
-export function emailConfigured() {
-  return Boolean(process.env.RESEND_API_KEY?.trim());
+export async function emailConfigured() {
+  return Boolean(await claveDeResend());
 }
 
 /**
@@ -55,8 +100,15 @@ export type EstadoCorreo = {
 
 /** Le pregunta a Resend qué dominios tiene la cuenta y cómo están. */
 export async function estadoDelCorreo(): Promise<EstadoCorreo> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) return { hayClave: false, dominio: null, dominios: [], error: "Falta RESEND_API_KEY." };
+  const apiKey = await claveDeResend();
+  if (!apiKey) {
+    return {
+      hayClave: false,
+      dominio: null,
+      dominios: [],
+      error: "Falta la clave de Resend. Se pega en Conexiones › Correo saliente.",
+    };
+  }
   try {
     const res = await fetchConReintentos(
       RESEND_DOMINIOS,
@@ -113,8 +165,8 @@ export async function sendEmail({
   html: string;
   attachment?: { filename: string; content: Buffer };
 }): Promise<SendResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "Falta RESEND_API_KEY." };
+  const apiKey = await claveDeResend();
+  if (!apiKey) return { ok: false, error: "Falta la clave de Resend." };
   if (to.length === 0) return { ok: false, error: "No hay destinatarios." };
 
   try {

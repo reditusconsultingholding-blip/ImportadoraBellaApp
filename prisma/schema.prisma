@@ -65,6 +65,21 @@ model Organization {
    */
   reporteHojaId String?
 
+  /**
+   * La clave de Resend con la que salen los correos.
+   *
+   * Vive acá y no en una variable del servidor por una razón práctica: la
+   * variable hay que cargarla en Railway, y quien administra esto no
+   * necesariamente tiene —ni recuerda— ese acceso. Guardada en la base se pega
+   * desde Conexiones, como el token de Notion o el de Shopify, y no hace falta
+   * desplegar nada para cambiarla.
+   *
+   * Se cifra en reposo igual que los demás secretos (src/lib/cifrado.ts vía
+   * db.ts). La variable RESEND_API_KEY sigue funcionando y le gana a esto, por
+   * si algún día conviene tenerla afuera.
+   */
+  resendApiKey String?
+
   users              User[]
   adAccounts         AdAccount[]
   products           Product[]

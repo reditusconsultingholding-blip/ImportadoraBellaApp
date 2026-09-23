@@ -137,7 +137,7 @@ export async function enviarProgresoQuincenal(organizationId: string, ahora = ne
 
     await db.notification.create({ data: { userId: u.id, type: "progreso_quincenal", message: mensaje, link } });
     await avisarA(u.id, { titulo: `Tu progreso · ${periodo.texto}`, cuerpo: mensaje, url: link, etiqueta: "progreso" });
-    if (emailConfigured()) {
+    if (await emailConfigured()) {
       await sendEmail({
         to: [u.email],
         subject: `Tu progreso del ${periodo.texto}`,

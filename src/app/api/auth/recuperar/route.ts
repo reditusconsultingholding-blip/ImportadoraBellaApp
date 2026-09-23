@@ -51,16 +51,19 @@ export async function POST(req: Request) {
     },
   });
 
+  // Se pregunta una vez: la usan el registro de actividad y el envío.
+  const hayCorreo = await emailConfigured();
+
   registrarActividad({
     organizationId: user.organizationId,
     userId: user.id,
     tipo: "recuperacion",
     ruta: "/login",
-    detalle: emailConfigured() ? "Pidió un enlace para recuperar la clave" : "Pidió recuperar la clave (correo sin configurar)",
+    detalle: hayCorreo ? "Pidió un enlace para recuperar la clave" : "Pidió recuperar la clave (correo sin configurar)",
     ...(await contextoDelPedido()),
   });
 
-  if (emailConfigured()) {
+  if (hayCorreo) {
     void sendEmail({
       to: [user.email],
       subject: "Restablecer tu contraseña de Jarvis",

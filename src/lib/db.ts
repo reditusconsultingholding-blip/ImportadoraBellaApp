@@ -13,6 +13,7 @@ const SECRETOS = {
   shopifyStore: "accessToken",
   dropiConnection: "integrationKey",
   notionConnection: "token",
+  organization: "resendApiKey",
 } as const;
 
 type ModeloConSecreto = keyof typeof SECRETOS;
@@ -64,6 +65,7 @@ function conCifrado(base: PrismaClient): PrismaClient {
       shopifyStore: escritura("shopifyStore"),
       dropiConnection: escritura("dropiConnection"),
       notionConnection: escritura("notionConnection"),
+      organization: escritura("organization"),
     },
     result: {
       adAccount: {
@@ -77,6 +79,12 @@ function conCifrado(base: PrismaClient): PrismaClient {
       },
       notionConnection: {
         token: { needs: { token: true }, compute: (r) => descifrar(r.token) ?? null },
+      },
+      organization: {
+        resendApiKey: {
+          needs: { resendApiKey: true },
+          compute: (r) => descifrar(r.resendApiKey) ?? null,
+        },
       },
     },
   }) as unknown as PrismaClient;

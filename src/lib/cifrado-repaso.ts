@@ -17,6 +17,7 @@ const TABLAS = [
   { tabla: "ShopifyStore", campo: "accessToken", modelo: "shopifyStore" },
   { tabla: "DropiConnection", campo: "integrationKey", modelo: "dropiConnection" },
   { tabla: "NotionConnection", campo: "token", modelo: "notionConnection" },
+  { tabla: "Organization", campo: "resendApiKey", modelo: "organization" },
 ] as const;
 
 export async function recifrarPendientes(): Promise<number> {

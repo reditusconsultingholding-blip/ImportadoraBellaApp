@@ -43,7 +43,7 @@ export async function avisarAsignacion(requirementId: string, asignadoPorId: str
     });
     await avisarA(pieza.owner.id, { titulo: "Tienes una pieza nueva", cuerpo: mensaje, url: link, etiqueta: "asignacion" });
 
-    if (emailConfigured()) {
+    if (await emailConfigured()) {
       await sendEmail({
         to: [pieza.owner.email],
         subject: `Te asignaron «${pieza.adName}»`,

@@ -30,6 +30,9 @@ export default async function ConexionesPage() {
     estadoDelCorreo(),
   ]);
 
+  // La clave puede estar en la variable del servidor o guardada en la base.
+  const hayClave = await emailConfigured();
+
   const metaAccounts = accounts.filter((a) => a.platform === "META");
   const tiktokAccounts = accounts.filter((a) => a.platform === "TIKTOK");
 
@@ -118,11 +121,11 @@ export default async function ConexionesPage() {
       <div className="flex flex-col gap-4">
         <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Correo saliente</h2>
 
-        <CollapsibleSection title="Resend" count={emailConfigured() ? 1 : 0}>
+        <CollapsibleSection title="Resend" count={hayClave ? 1 : 0}>
           {/* El estado se le pregunta a Resend, no se adivina de una variable:
               con el dominio sin verificar, los correos salen del remitente de
               prueba y solo los recibe el dueño de la cuenta. */}
-          <CorreoCard configurado={emailConfigured()} dominio={estadoCorreo.dominio} />
+          <CorreoCard configurado={hayClave} dominio={estadoCorreo.dominio} />
         </CollapsibleSection>
       </div>
 

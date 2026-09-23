@@ -321,7 +321,7 @@ export async function generateAndStoreDailyReport(organizationId: string, date: 
   //
   // Va DESPUÉS de crear las notificaciones y no reemplaza a ninguna: si Resend
   // se cae, el aviso dentro de la app ya quedó guardado.
-  if (emailConfigured()) {
+  if (await emailConfigured()) {
     const destinatarios = await reportRecipients(organizationId);
     if (destinatarios.length > 0) {
       const day = dayStart.toISOString().slice(0, 10);
