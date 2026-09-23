@@ -292,7 +292,10 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   const [ordersPerDay, setOrdersPerDay] = useState("20");
   const [adjustForDelivery, setAdjustForDelivery] = useState(true);
   const [priceOverride, setPriceOverride] = useState("");
-  const [verCuenta, setVerCuenta] = useState(false);
+  // Abierta de entrada: es la única parte de la pantalla donde la utilidad se
+  // puede rehacer renglón por renglón, y es justo lo que la gente vino a
+  // comprobar tres veces. Escondida detrás de un botón, no la encontraban.
+  const [verCuenta, setVerCuenta] = useState(true);
 
   // Los ajustes guardados por producto, compartidos con todo el equipo.
   const ajustesRef = useRef<Record<string, Partial<Ajuste> & AjusteCosteo>>({});
@@ -1025,26 +1028,24 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
           </div>
         </div>
 
+        {/* EL ORDEN ES LA EXPLICACIÓN: entregas × utilidad por pedido = utilidad
+            del día, leído de izquierda a derecha.
+
+            Antes el titular era la utilidad por CHECKOUT y estaba pegado a las
+            entregas, dos números que no se multiplican entre sí. Tres personas
+            hicieron la misma cuenta equivocada. Y no es un problema de ellas:
+            el Excel del dueño llama "utilidad por pedido" a la del pedido
+            ENTREGADO, así que ese es el número que esperan ver. Ahora ese es el
+            titular —da lo mismo que su planilla, $4,44 contra $4,44— y el de
+            checkout queda abajo en chico, que es el que sirve para compararlo
+            con el CPA.
+
+            Lo que NO se escribe es "13,7 × $4,44": con dos decimales eso da
+            $60,83 y la utilidad es $60,73, y una diferencia de diez centavos en
+            una cuenta que el dueño va a rehacer a mano vale más desconfianza
+            que la que ahorra. La cuenta exacta, renglón por renglón y en
+            pesos, está abajo en "la cuenta del día". */}
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-          <div className="flex justify-between md:block">
-            <span className="text-xs text-muted">Contribución por checkout</span>
-            <p className={`font-semibold tabular-nums ${analysis.current.contribution >= 0 ? "text-good" : "text-critical"}`}>
-              {money(analysis.current.contribution)}
-            </p>
-            {/* De cada CHECKOUT, no de cada venta cobrada.
-                Es la confusión que reportaron dos personas el mismo día:
-                al lado está "entregas por día" y lo natural es multiplicar
-                los dos números que están pegados —11,9 × $1,87— que no da la
-                utilidad. Hay que multiplicar por los checkouts. Así que se
-                dice acá, y de paso se muestra la otra cifra, la que sí
-                multiplica con las entregas. */}
-            <span className="block text-[11px] leading-tight text-muted">
-              de cada uno de los {num(ordersPerDay).toLocaleString("es-EC")} checkouts
-              {analysis.current.delivered > 0 && (
-                <> · {money(analysis.current.contribution / analysis.current.delivered)} por venta cobrada</>
-              )}
-            </span>
-          </div>
           <div className="flex justify-between md:block">
             <span className="text-xs text-muted">Entregas por día</span>
             <p className="font-semibold tabular-nums">{analysis.current.deliveriesPerDay.toFixed(1)}</p>
@@ -1053,10 +1054,16 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             </span>
           </div>
           <div className="flex justify-between md:block">
-            <span className="text-xs text-muted">Inversión diaria en pauta</span>
-            <p className="font-semibold tabular-nums">{money(analysis.current.adInvestment)}</p>
+            <span className="text-xs text-muted">Utilidad por pedido entregado</span>
+            <p
+              className={`font-semibold tabular-nums ${analysis.current.contribution >= 0 ? "text-good" : "text-critical"}`}
+            >
+              {analysis.current.delivered > 0
+                ? money(analysis.current.contribution / analysis.current.delivered)
+                : "—"}
+            </p>
             <span className="block text-[11px] leading-tight text-muted">
-              {num(ordersPerDay).toLocaleString("es-EC")} × {money(num(adSpend))} de CPA
+              {money(analysis.current.contribution)} por checkout
             </span>
           </div>
           <div className="flex justify-between md:block">
@@ -1064,10 +1071,15 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             <p className={`font-semibold tabular-nums ${analysis.current.dailyProfit >= 0 ? "text-good" : "text-critical"}`}>
               {money(analysis.current.dailyProfit)}
             </p>
-            {/* La cuenta, escrita. Que el número se pueda rehacer a mano es lo
-                que hace que se le crea. */}
             <span className="block text-[11px] leading-tight text-muted">
-              {num(ordersPerDay).toLocaleString("es-EC")} checkouts × {money(analysis.current.contribution)}
+              la cuenta completa, abajo
+            </span>
+          </div>
+          <div className="flex justify-between md:block">
+            <span className="text-xs text-muted">Inversión diaria en pauta</span>
+            <p className="font-semibold tabular-nums">{money(analysis.current.adInvestment)}</p>
+            <span className="block text-[11px] leading-tight text-muted">
+              {num(ordersPerDay).toLocaleString("es-EC")} × {money(num(adSpend))} de CPA
             </span>
           </div>
         </div>
