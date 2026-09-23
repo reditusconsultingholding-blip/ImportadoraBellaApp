@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorProducto from "../buscador-producto";
 import CopiarId from "../copiar-id";
+import { aNumero } from "@/lib/numero-escrito";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
 //
@@ -101,7 +102,11 @@ const money = (n: number) =>
 const money0 = (n: number) =>
   isFinite(n) ? n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—";
 const pct = (n: number) => (isFinite(n) ? `${(n * 100).toFixed(1)}%` : "—");
-const num = (v: string) => Number(v) || 0;
+// Los campos aceptan coma decimal: acá se escribe "28,50", no "28.50".
+// Con `Number()` a secas eso daba NaN y el `|| 0` lo convertía en CERO sin
+// avisar — el costo del producto pasaba a valer nada y el margen salía enorme.
+// Ver src/lib/numero-escrito.ts.
+const num = aNumero;
 
 // --- El modelo de la operación real --------------------------------------
 //
@@ -215,11 +220,9 @@ function Deslizador({
           {/* La cifra también se escribe: el deslizador sirve para explorar,
               el número exacto para cargar el dato real. */}
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={valor}
-            min={0}
-            max={max}
-            step={paso}
             onChange={(e) => onChange(e.target.value)}
             className="w-14 bg-transparent text-right font-mono text-[12px] font-semibold tabular-nums text-accent-strong outline-none"
             aria-label={etiqueta}
@@ -773,19 +776,19 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className={labelClass}>Costo del producto</span>
-              <input className={inputClass} type="number" value={productCost} onChange={(e) => cambia(setProductCost)(e.target.value)} />
+              <input className={inputClass} type="text" inputMode="decimal" value={productCost} onChange={(e) => cambia(setProductCost)(e.target.value)} />
             </label>
             <label className="block">
               <span className={labelClass}>Envío / flete</span>
-              <input className={inputClass} type="number" value={shippingCost} onChange={(e) => cambia(setShippingCost)(e.target.value)} />
+              <input className={inputClass} type="text" inputMode="decimal" value={shippingCost} onChange={(e) => cambia(setShippingCost)(e.target.value)} />
             </label>
             <label className="block">
               <span className={labelClass}>Gasto operativo</span>
-              <input className={inputClass} type="number" value={operatingCost} onChange={(e) => cambia(setOperatingCost)(e.target.value)} />
+              <input className={inputClass} type="text" inputMode="decimal" value={operatingCost} onChange={(e) => cambia(setOperatingCost)(e.target.value)} />
             </label>
             <label className="block">
               <span className={labelClass}>Publicidad (CPA por checkout)</span>
-              <input className={inputClass} type="number" value={adSpend} onChange={(e) => cambia(setAdSpend)(e.target.value)} />
+              <input className={inputClass} type="text" inputMode="decimal" value={adSpend} onChange={(e) => cambia(setAdSpend)(e.target.value)} />
             </label>
           </div>
 
@@ -796,11 +799,11 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
                 <span className={labelClass}>Comisión pasarela (%)</span>
-                <input className={inputClass} type="number" value={gatewayFeePct} onChange={(e) => cambia(setGatewayFeePct)(e.target.value)} />
+                <input className={inputClass} type="text" inputMode="decimal" value={gatewayFeePct} onChange={(e) => cambia(setGatewayFeePct)(e.target.value)} />
               </label>
               <label className="block">
                 <span className={labelClass}>IVA (%)</span>
-                <input className={inputClass} type="number" value={ivaPct} onChange={(e) => cambia(setIvaPct)(e.target.value)} />
+                <input className={inputClass} type="text" inputMode="decimal" value={ivaPct} onChange={(e) => cambia(setIvaPct)(e.target.value)} />
               </label>
             </div>
             <p className="mt-2 text-xs text-muted">
@@ -877,7 +880,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             ) : (
               <label className="block">
                 <span className={labelClass}>Ganancia deseada por pedido ($)</span>
-                <input className={inputClass} type="number" value={fixedProfit} onChange={(e) => cambia(setFixedProfit)(e.target.value)} />
+                <input className={inputClass} type="text" inputMode="decimal" value={fixedProfit} onChange={(e) => cambia(setFixedProfit)(e.target.value)} />
               </label>
             )}
 
@@ -983,7 +986,8 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               <span className={labelClass}>Precio a evaluar</span>
               <input
                 className={`${inputClass} w-40`}
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={priceOverride}
                 placeholder={suggestedPrice ? suggestedPrice.toFixed(2) : "0.00"}
                 onChange={(e) => cambia(setPriceOverride)(e.target.value)}
