@@ -1031,20 +1031,44 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             <p className={`font-semibold tabular-nums ${analysis.current.contribution >= 0 ? "text-good" : "text-critical"}`}>
               {money(analysis.current.contribution)}
             </p>
+            {/* De cada CHECKOUT, no de cada venta cobrada.
+                Es la confusión que reportaron dos personas el mismo día:
+                al lado está "entregas por día" y lo natural es multiplicar
+                los dos números que están pegados —11,9 × $1,87— que no da la
+                utilidad. Hay que multiplicar por los checkouts. Así que se
+                dice acá, y de paso se muestra la otra cifra, la que sí
+                multiplica con las entregas. */}
+            <span className="block text-[11px] leading-tight text-muted">
+              de cada uno de los {num(ordersPerDay).toLocaleString("es-EC")} checkouts
+              {analysis.current.delivered > 0 && (
+                <> · {money(analysis.current.contribution / analysis.current.delivered)} por venta cobrada</>
+              )}
+            </span>
           </div>
           <div className="flex justify-between md:block">
             <span className="text-xs text-muted">Entregas por día</span>
             <p className="font-semibold tabular-nums">{analysis.current.deliveriesPerDay.toFixed(1)}</p>
+            <span className="block text-[11px] leading-tight text-muted">
+              de {num(ordersPerDay).toLocaleString("es-EC")} checkouts
+            </span>
           </div>
           <div className="flex justify-between md:block">
             <span className="text-xs text-muted">Inversión diaria en pauta</span>
             <p className="font-semibold tabular-nums">{money(analysis.current.adInvestment)}</p>
+            <span className="block text-[11px] leading-tight text-muted">
+              {num(ordersPerDay).toLocaleString("es-EC")} × {money(num(adSpend))} de CPA
+            </span>
           </div>
           <div className="flex justify-between md:block">
             <span className="text-xs text-muted">Utilidad diaria</span>
             <p className={`font-semibold tabular-nums ${analysis.current.dailyProfit >= 0 ? "text-good" : "text-critical"}`}>
               {money(analysis.current.dailyProfit)}
             </p>
+            {/* La cuenta, escrita. Que el número se pueda rehacer a mano es lo
+                que hace que se le crea. */}
+            <span className="block text-[11px] leading-tight text-muted">
+              {num(ordersPerDay).toLocaleString("es-EC")} checkouts × {money(analysis.current.contribution)}
+            </span>
           </div>
         </div>
 

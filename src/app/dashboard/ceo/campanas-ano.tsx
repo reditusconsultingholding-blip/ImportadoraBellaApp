@@ -322,7 +322,6 @@ export default function CampanasAno() {
                   labelStyle={ETIQUETA_TOOLTIP}
                   cursor={REALCE}
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
                 {/* Una barra por plataforma, cada una de su color. El
                     relleno se pone por celda y no por serie porque las dos
                     barras son la MISMA medida de dos plataformas distintas:
@@ -335,16 +334,22 @@ export default function CampanasAno() {
                 </Bar>
                 <Bar dataKey="conversiones" name="Conversiones" isAnimationActive={false}>
                   {porPlataforma.map((d) => (
-                    <Cell key={d.nombre} fill={colorDe(d.nombre)} fillOpacity={0.45} />
+                    <Cell key={d.nombre} fill={colorDe(d.nombre)} fillOpacity={0.55} />
                   ))}
                   <LabelList dataKey="conversiones" position="top" formatter={(v: unknown) => num(Number(v))} style={{ fontSize: 10, fill: "var(--muted)" }} />
                 </Bar>
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          {/* Cuál color es cuál. Sin esto, dos barras de colores distintos
-              siguen sin decir de quién es cada una. */}
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          {/* Cuál color es cuál, y cuál barra es cuál.
+              Reemplaza a la leyenda de la librería, que después de pintar por
+              celda se quedó sin color y dibujaba cuadraditos negros sobre el
+              fondo oscuro. Escrito así además dice algo que la leyenda no
+              podía: que el color es la PLATAFORMA y el tono es la medida. */}
+          <p className="mt-2 text-[11px] text-muted">
+            Barra llena, el gasto. Barra clara, las conversiones.
+          </p>
+          <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs">
             {porPlataforma.map((p) => (
               <p key={p.nombre} className="flex items-center gap-1.5 text-muted">
                 <span
@@ -391,7 +396,21 @@ export default function CampanasAno() {
                     cada mes ya está en su propio gráfico, acá arriba, y en la
                     tabla de abajo; acá era una tercera copia que además
                     estorbaba. Sigue estando en el tooltip al pasar el cursor. */}
-                <Line yAxisId="c" type="monotone" dataKey="cpa" name="CPA" stroke={CPA_COLOR} strokeWidth={0} dot={false} activeDot={false} isAnimationActive={false} />
+                <Line
+                  yAxisId="c"
+                  type="monotone"
+                  dataKey="cpa"
+                  name="CPA"
+                  stroke={CPA_COLOR}
+                  strokeWidth={0}
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                  // La línea existe solo para que el CPA salga en el tooltip; sin
+                  // esto la leyenda anunciaba un "CPA" que no se dibuja en
+                  // ningún lado.
+                  legendType="none"
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
