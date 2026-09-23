@@ -71,10 +71,28 @@ function Kpi({ label, valor, nota }: { label: string; valor: string; nota?: stri
   );
 }
 
-function Caja({ titulo, children, className = "" }: { titulo: string; children: React.ReactNode; className?: string }) {
+function Caja({
+  titulo,
+  nota,
+  children,
+  className = "",
+}: {
+  titulo: string;
+  /** De qué período es lo de adentro, cuando no es el mismo que el resto. */
+  nota?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <section className={`rounded border border-border bg-surface p-4 ${className}`}>
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-foreground/90">{titulo}</h3>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/90">{titulo}</h3>
+        {nota && (
+          <span className="rounded-full border border-accent/40 bg-good-bg px-2 py-0.5 text-[11px] font-medium text-accent-strong">
+            {nota}
+          </span>
+        )}
+      </div>
       {children}
     </section>
   );
@@ -83,7 +101,18 @@ function Caja({ titulo, children, className = "" }: { titulo: string; children: 
 const claseSelect =
   "rounded border border-border bg-surface px-3 py-2 text-xs text-foreground outline-none focus:border-accent";
 
-export default function CampanasAno() {
+export default function CampanasAno({
+  periodo,
+  rango,
+  desde,
+  hasta,
+}: {
+  /** Cómo se llama el período elegido arriba ("Hoy", "Este mes"…). */
+  periodo: string;
+  rango: string;
+  desde: string;
+  hasta: string;
+}) {
   const [anio, setAnio] = useState(new Date().getUTCFullYear());
   const [datos, setDatos] = useState<CampanasDelAno | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +126,7 @@ export default function CampanasAno() {
 
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/ceo/campanas?anio=${anio}`)
+    fetch(`/api/ceo/campanas?anio=${anio}&rango=${rango}&desde=${desde}&hasta=${hasta}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`El servidor respondió ${r.status}`))))
       .then((d: CampanasDelAno) => {
         if (!vivo) return;
@@ -108,7 +137,10 @@ export default function CampanasAno() {
     return () => {
       vivo = false;
     };
-  }, [anio]);
+    // El rango va en las dependencias: sin él, cambiar la fecha de arriba no
+    // volvía a pedir nada y la tabla de CPA por producto se quedaba con lo de
+    // antes — que es exactamente lo que se reportó.
+  }, [anio, rango, desde, hasta]);
 
   const cuentaDe = useMemo(() => new Map((datos?.cuentas ?? []).map((c) => [c.id, c])), [datos]);
   const productoDe = useMemo(() => new Map((datos?.productos ?? []).map((p) => [p.id, p])), [datos]);
@@ -166,9 +198,27 @@ export default function CampanasAno() {
       });
   }, [filas, anio]);
 
+  // OJO: esta tabla NO sale de `filas` como el resto del tablero.
+  //
+  // Todo lo demás de esta pantalla es por mes y del año elegido — es la
+  // pregunta que contesta, y así se queda. Pero el CPA por producto se mira
+  // para decidir hoy, y mostraba el año entero mientras el selector de arriba
+  // decía "Hoy". Fabricio: "si cambio la fecha, el CPA por producto sí se
+  // debería actualizar; el gráfico de la izquierda obviamente que no".
+  //
+  // Así que sale de `filasRango`, que el servidor trae para el período exacto
+  // —con granularidad de día, no de mes—. Los filtros de plataforma, centro y
+  // producto se le aplican igual que a lo demás.
   const porProducto = useMemo(() => {
+    const delRango = (datos?.filasRango ?? []).filter((f) => {
+      if (plataforma && f.plataforma !== plataforma) return false;
+      if (centro && cuentaDe.get(f.cuentaId)?.centro !== centro) return false;
+      if (producto && f.productoId !== producto) return false;
+      return true;
+    });
+
     const m = new Map<string, Suma>();
-    for (const f of filas) {
+    for (const f of delRango) {
       const k = f.productoId ?? "__sin__";
       const s = m.get(k) ?? { gasto: 0, conversiones: 0 };
       s.gasto += f.gasto;
@@ -193,7 +243,7 @@ export default function CampanasAno() {
             ? b.conversiones - a.conversiones
             : b.gasto - a.gasto,
       );
-  }, [filas, productoDe, ordenProducto]);
+  }, [datos, plataforma, centro, producto, cuentaDe, productoDe, ordenProducto]);
 
   if (error) return <p className="rounded border border-critical bg-critical-bg px-4 py-3 text-sm text-critical">{error}</p>;
   if (!datos) return <p className="py-8 text-center text-sm text-muted">Cargando las campañas del año…</p>;
@@ -453,7 +503,7 @@ export default function CampanasAno() {
           </div>
         </Caja>
 
-        <Caja titulo="CPA por producto">
+        <Caja titulo="CPA por producto" nota={periodo}>
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0">

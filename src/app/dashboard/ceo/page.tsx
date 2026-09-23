@@ -60,6 +60,9 @@ export default async function PanelCeoPage({
       <PanelCeoVista
         data={data}
         periodo={range.label}
+        rango={range.id}
+        desde={isoDay(range.from)}
+        hasta={isoDay(range.to)}
         puedeVerNomina={Boolean(usuario?.canViewPayroll)}
       />
     </div>

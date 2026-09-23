@@ -148,10 +148,17 @@ function Tarjeta({
 export default function PanelCeoVista({
   data,
   periodo,
+  rango,
+  desde,
+  hasta,
   puedeVerNomina,
 }: {
   data: PanelCeo;
   periodo: string;
+  /** El período elegido arriba. Solo lo usa la tabla de CPA por producto. */
+  rango: string;
+  desde: string;
+  hasta: string;
   puedeVerNomina: boolean;
 }) {
   const [pestana, setPestana] = useState<Pestana>("campanas");
@@ -182,7 +189,9 @@ export default function PanelCeoVista({
         ))}
       </nav>
 
-      {pestana === "campanas" && <CampanasAno />}
+      {pestana === "campanas" && (
+        <CampanasAno periodo={periodo} rango={rango} desde={desde} hasta={hasta} />
+      )}
 
       {pestana === "resumen" && (
         <div className="flex flex-col gap-4">
