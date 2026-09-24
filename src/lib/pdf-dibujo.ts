@@ -355,6 +355,17 @@ export function pie(doc: Doc, texto: string) {
   const rango = doc.bufferedPageRange();
   for (let i = rango.start; i < rango.start + rango.count; i++) {
     doc.switchToPage(i);
+    // EL PIE VA POR DEBAJO DEL MARGEN INFERIOR, y eso pdfkit lo lee como texto
+    // que no entra en la página: agregaba una hoja en blanco por cada pie que
+    // se dibujaba. Como el pie se dibuja UNA VEZ POR PÁGINA y al final, todos
+    // los informes salían con el doble de hojas — una escrita, una vacía,
+    // alternadas — y nadie lo relacionaba con el pie de página.
+    //
+    // `lineBreak: false` no alcanza: evita que el texto se parta, no que
+    // pdfkit decida que no entra. Hay que correrle el margen mientras escribe
+    // y devolvérselo, que además deja intacto el resto del dibujo.
+    const margenAbajo = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc
       .fillColor(COLOR.suave)
       .fontSize(7.5)
@@ -363,5 +374,6 @@ export function pie(doc: Doc, texto: string) {
         align: "center",
         lineBreak: false,
       });
+    doc.page.margins.bottom = margenAbajo;
   }
 }
