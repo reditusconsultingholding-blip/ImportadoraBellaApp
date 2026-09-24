@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorProducto from "../buscador-producto";
 import CopiarId from "../copiar-id";
 import { aNumero } from "@/lib/numero-escrito";
+import { CPA_EQUILIBRIO, CPA_OBJETIVO } from "@/lib/cpa-glosario";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
 //
@@ -141,7 +142,7 @@ function computeOperation(i: OperationInput) {
 
   // Hasta cuánto se puede pagar por checkout sin perder plata.
   const breakevenCpa = netPerDelivered * delivered - i.cogs * delivered - i.flete * i.conf - i.admin * delivered;
-  const idealCpa = breakevenCpa - i.targetProfitPct * i.aov * delivered;
+  const objetivoCpa = breakevenCpa - i.targetProfitPct * i.aov * delivered;
 
   // A qué confirmación la contribución llega a cero, con todo lo demás igual.
   // En este modelo la contribución es lineal en la confirmación:
@@ -160,7 +161,7 @@ function computeOperation(i: OperationInput) {
     delivered,
     contribution,
     breakevenCpa,
-    idealCpa,
+    objetivoCpa,
     confEquilibrio,
     deliveriesPerDay,
     dailyProfit,
@@ -180,7 +181,7 @@ function verdict(cpa: number, op: Operation) {
   // Un centavo de tolerancia: cuando el precio se calcula justo para el margen
   // objetivo, el CPA queda exactamente sobre el ideal y sin esto marcaría "en
   // el límite" por un error de redondeo.
-  if (cpa <= op.idealCpa + 0.01) return { label: "Rentable", tone: "good" as const };
+  if (cpa <= op.objetivoCpa + 0.01) return { label: "Rentable", tone: "good" as const };
   if (cpa <= op.breakevenCpa) return { label: "En el límite", tone: "warn" as const };
   return { label: "Perdiendo", tone: "bad" as const };
 }
@@ -1060,13 +1061,13 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="rounded bg-surface-2 p-3">
-            <p className="text-xs text-muted">CPA breakeven</p>
+            <p className="text-xs text-muted">{CPA_EQUILIBRIO}</p>
             <p className="text-xl font-semibold tabular-nums">{money(analysis.current.breakevenCpa)}</p>
             <p className="mt-1 text-xs text-muted">arriba de esto se pierde plata</p>
           </div>
           <div className="rounded bg-surface-2 p-3">
-            <p className="text-xs text-muted">CPA ideal</p>
-            <p className="text-xl font-semibold tabular-nums">{money(analysis.current.idealCpa)}</p>
+            <p className="text-xs text-muted">{CPA_OBJETIVO}</p>
+            <p className="text-xl font-semibold tabular-nums">{money(analysis.current.objetivoCpa)}</p>
             <p className="mt-1 text-xs text-muted">
               {mode === "margin" ? `con ${marginPct}% de margen objetivo` : "define un margen % para calcularlo"}
             </p>
@@ -1198,7 +1199,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                 <th className="py-2 pr-4 text-right">Contribución / checkout</th>
                 <th className="py-2 pr-4 text-right">Utilidad diaria</th>
                 <th className="py-2 pr-4 text-right">eCPA</th>
-                <th className="py-2 pr-4 text-right">CPA breakeven</th>
+                <th className="py-2 pr-4 text-right">{CPA_EQUILIBRIO}</th>
                 <th className="py-2 text-right">ROAS</th>
               </tr>
             </thead>

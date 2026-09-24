@@ -31,8 +31,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
 
   if (await veLasCifras(session.userId)) return jsonComprimido({ ...r, verCifras: true });
 
+  // Sin permiso para ver cifras no va ninguno de los dos: el objetivo y el de
+  // equilibrio dicen, juntos, cuánto deja el producto.
   return jsonComprimido({
     cpaObjetivo: null,
+    cpaEquilibrio: null,
     sinDatos: r.sinDatos,
     verCifras: false,
     anuncios: r.anuncios.map((a) => ({

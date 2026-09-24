@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cpaDeEquilibrio } from "@/lib/control-calculo";
+import { CPA_EQUILIBRIO, CPA_OBJETIVO, CPA_REAL } from "@/lib/cpa-glosario";
 import type { ControlPeriodo, FilaControl, FilaPeriodo } from "@/lib/control-opciones";
 import { ETIQUETA_HORA, ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
 import SelectorProductos from "./selector-productos";
@@ -52,7 +53,7 @@ function diaCorto(iso: string) {
   });
 }
 
-/** La celda del CPA, con el ideal y el punto de equilibrio al lado.
+/** La celda del CPA, con el objetivo y el de equilibrio al lado.
  *
  * Fabricio: "quiero que cada uno de los asesores que suben campañas sepa cuál
  * es el CPA ideal y cuál es el CPA break even, para que sepan hasta cuándo
@@ -60,9 +61,14 @@ function diaCorto(iso: string) {
  * pidió no llenarla— sino una segunda línea chica debajo del número, y el
  * detalle completo al pasar el cursor, que fue lo que se acordó en la llamada.
  *
+ * Lo que él llamó "ideal" acá se dice OBJETIVO, y en toda la app igual: es la
+ * misma cifra que el Pulso y la ficha del producto ya nombraban así, y tener
+ * dos nombres para un solo número fue lo que lo hizo pedir, después, que se
+ * estandarizaran los conceptos. Los nombres salen de cpa-glosario.ts.
+ *
  * El color dice lo único que hay que decidir de un vistazo: verde si está por
- * debajo del ideal, ámbar si lo pasó pero todavía deja plata, rojo si pasó el
- * equilibrio y cada venta cuesta más de lo que deja.
+ * debajo del objetivo, ámbar si lo pasó pero todavía deja plata, rojo si pasó
+ * el equilibrio y cada venta cuesta más de lo que deja.
  */
 function CeldaCpa({
   f,
@@ -89,9 +95,11 @@ function CeldaCpa({
         : "text-good";
 
   const leyenda = [
-    `CPA real ${dinero2(f.cpa)}`,
-    f.cpaObjetivo != null ? `ideal ${dinero2(f.cpaObjetivo)}` : null,
-    equilibrio != null ? `equilibrio ${dinero2(equilibrio)}` : "equilibrio: falta cargar la economía",
+    `${CPA_REAL} ${dinero2(f.cpa)}`,
+    f.cpaObjetivo != null ? `${CPA_OBJETIVO} ${dinero2(f.cpaObjetivo)}` : null,
+    equilibrio != null
+      ? `${CPA_EQUILIBRIO} ${dinero2(equilibrio)}`
+      : `${CPA_EQUILIBRIO}: falta cargar la economía`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -101,9 +109,9 @@ function CeldaCpa({
       <span className={tono}>{dinero2(f.cpa)}</span>
       {(f.cpaObjetivo != null || equilibrio != null) && (
         <span className="block text-[10px] font-normal text-muted">
-          {f.cpaObjetivo != null && <>ideal {dinero2(f.cpaObjetivo)}</>}
+          {f.cpaObjetivo != null && <>objetivo {dinero2(f.cpaObjetivo)}</>}
           {f.cpaObjetivo != null && equilibrio != null && " · "}
-          {equilibrio != null && <>equil. {dinero2(equilibrio)}</>}
+          {equilibrio != null && <>equilibrio {dinero2(equilibrio)}</>}
         </span>
       )}
     </td>

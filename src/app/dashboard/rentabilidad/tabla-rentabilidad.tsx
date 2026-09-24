@@ -348,7 +348,7 @@ function Fila({
   const margenVis = r?.margen ?? f.margen;
 
   const pierde = utilidadVis != null && utilidadVis < 0;
-  const sobreObjetivo = f.cpa != null && f.cpaBreakeven != null && f.cpa > f.cpaBreakeven;
+  const sobreEquilibrio = f.cpa != null && f.cpaBreakeven != null && f.cpa > f.cpaBreakeven;
 
   // El semáforo de la fila. Tintes muy suaves a propósito: tienen que dejarse
   // barrer con la vista para encontrar lo que necesita atención, sin que la
@@ -427,7 +427,7 @@ function Fila({
           )}
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums">
-          <span className={sobreObjetivo ? "text-critical" : undefined}>{money(f.cpa, 2)}</span>
+          <span className={sobreEquilibrio ? "text-critical" : undefined}>{money(f.cpa, 2)}</span>
           {/* Contra el período anterior del mismo largo: con "Hoy" arriba, es
               contra ayer. Un CPA suelto no dice si viene subiendo o bajando, y
               eso es lo que decide si se toca el presupuesto. */}

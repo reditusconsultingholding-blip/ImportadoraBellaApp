@@ -240,7 +240,7 @@ export const PASOS: PasoCapacitacion[] = [
     seccion: "Calculadora de precios",
     titulo: "A cuánto vender y cuánto deja de verdad",
     texto:
-      "Eliges el producto (la lista sale de Shopify en vivo) y la pantalla te da el precio sugerido para el margen que quieres, y abajo la cuenta completa: de cada checkout que paga la pauta, cuántos se confirman, cuántos se devuelven y qué queda después del producto, el flete, el gasto operativo y la publicidad. Te devuelve la utilidad del día, el CPA breakeven, el CPA ideal y el ROAS.",
+      "Eliges el producto (la lista sale de Shopify en vivo) y la pantalla te da el precio sugerido para el margen que quieres, y abajo la cuenta completa: de cada checkout que paga la pauta, cuántos se confirman, cuántos se devuelven y qué queda después del producto, el flete, el gasto operativo y la publicidad. Te devuelve la utilidad del día, el CPA de equilibrio, el CPA objetivo y el ROAS.",
     puntos: [
       "Lo que ajustas se guarda solo por producto y queda para todo el equipo; el botón «Guardar cambios» lo confirma y avisa si algo falló.",
       "La barra de equilibrio marca con qué tasa de confirmación se deja de ganar, con todo lo demás igual.",

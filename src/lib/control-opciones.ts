@@ -45,7 +45,7 @@ export type FilaControl = {
   pedidos: number;
   pedidosPlataforma: number;
   cpa: number;
-  /** El CPA objetivo del producto: el "ideal". null en la fila sin asignar. */
+  /** El CPA objetivo del producto: la meta con colchón. null si no está asignada. */
   cpaObjetivo: number | null;
   gasto: number;
 

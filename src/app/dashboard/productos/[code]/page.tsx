@@ -6,6 +6,8 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { getHistorialDecisiones } from "@/lib/historial-decisiones";
 import { puedeDecidir } from "@/lib/product-actions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
+import { calcular, economiaDe } from "@/lib/economia";
+import { CPA_EQUILIBRIO, CPA_OBJETIVO } from "@/lib/cpa-glosario";
 import PipelineBoard from "../../_creativos/pipeline-board";
 import TablaCreativos, { type Creativo } from "./tabla-creativos";
 import Repositorio from "./repositorio";
@@ -39,6 +41,12 @@ export default async function ProductoDetailPage({
 
   const canManage = canManagePipeline(session.role);
   const verCifras = await veLasCifras(session.userId);
+
+  // El techo, para ponerlo al lado de la meta. La cuenta es la de economia.ts
+  // —la misma que la calculadora y la tabla de rentabilidad— y da null si al
+  // producto le falta precio o costo.
+  const ecoProducto = economiaDe(product);
+  const cpaEquilibrio = ecoProducto ? calcular(ecoProducto, null).cpaBreakeven : null;
 
   // El historial solo se pide cuando se está mirando: son dos consultas más y
   // la ficha se abre casi siempre en la tabla de seguimiento.
@@ -130,11 +138,17 @@ export default async function ProductoDetailPage({
             <h1 className="text-xl font-semibold">{product.name}</h1>
             <p className="text-xs font-mono text-muted">
               {product.code}
-              {/* El CPA objetivo es el umbral en dólares del producto. Sin el
+              {/* El CPA objetivo es el umbral en dólares del producto, y el de
+                  equilibrio es dónde deja de ganarse plata. Van juntos: el
+                  objetivo solo dice a qué apuntar, no cuánto se aguanta. Sin el
                   permiso queda solo el código: el veredicto de cada pieza
                   —buen o bajo rendimiento— sigue estando abajo, que es lo que
                   el equipo creativo necesita. */}
-              {verCifras && ` · CPA objetivo ${product.cpaTarget.toFixed(2)}`}
+              {verCifras && ` · ${CPA_OBJETIVO} ${product.cpaTarget.toFixed(2)}`}
+              {verCifras &&
+                cpaEquilibrio != null &&
+                cpaEquilibrio > 0 &&
+                ` · ${CPA_EQUILIBRIO} ${cpaEquilibrio.toFixed(2)}`}
             </p>
           </div>
         </div>

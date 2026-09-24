@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { categoriaDeAnuncio } from "@/lib/categoria-anuncio";
 import { rangoDe, type PeriodoReporte } from "@/lib/reportes-producto";
+import { calcular, economiaDe } from "@/lib/economia";
 
 // Los anuncios de un producto: los de una campaña, o los mejores de todas.
 //
@@ -47,6 +48,19 @@ export type AnuncioDelProducto = {
 
 export type AnunciosDelProducto = {
   cpaObjetivo: number | null;
+  /**
+   * El techo del producto, para ponerlo al lado del objetivo.
+   *
+   * El veredicto de cada anuncio se sigue midiendo contra el OBJETIVO —es la
+   * meta, y con 30% de colchón—, pero quien mira esta tabla decide si apaga o
+   * si aguanta, y para eso necesita saber dónde empieza a perder. Fabricio:
+   * "es importante que se salga el cpa breackeven para que sepan cuando se
+   * esta perdiendo plata".
+   *
+   * null cuando el producto no tiene cargados precio y costo: ahí no hay
+   * equilibrio que calcular, y mostrar un cero sería peor que no mostrar nada.
+   */
+  cpaEquilibrio: number | null;
   anuncios: AnuncioDelProducto[];
   /** Si todavía no llegó ningún anuncio de Windsor (la primera sincronización). */
   sinDatos: boolean;
@@ -78,7 +92,19 @@ export async function anunciosDeProducto(
 ): Promise<AnunciosDelProducto | null> {
   const product = await db.product.findFirst({
     where: { organizationId, code },
-    select: { id: true, cpaTarget: true, angulosPropios: true },
+    select: {
+      id: true,
+      cpaTarget: true,
+      angulosPropios: true,
+      // Para el punto de equilibrio. Son los mismos campos que usa la ficha de
+      // rentabilidad; la cuenta vive en economia.ts y no se repite acá.
+      salePrice: true,
+      unitCost: true,
+      efectividad: true,
+      devoluciones: true,
+      flete: true,
+      gastoAdmPorPedido: true,
+    },
   });
   if (!product) return null;
 
@@ -105,6 +131,8 @@ export async function anunciosDeProducto(
   });
 
   const objetivo = product.cpaTarget > 0 ? product.cpaTarget : null;
+  const eco = economiaDe(product);
+  const equilibrio = eco ? calcular(eco, null).cpaBreakeven : null;
   const anuncios: AnuncioDelProducto[] = ads
     .map((a) => {
       const gasto = a.metricas.reduce((s, m) => s + m.spend, 0);
@@ -153,5 +181,10 @@ export async function anunciosDeProducto(
         b.gasto - a.gasto,
     );
 
-  return { cpaObjetivo: objetivo, anuncios, sinDatos: ads.length === 0 };
+  return {
+    cpaObjetivo: objetivo,
+    cpaEquilibrio: equilibrio != null && equilibrio > 0 ? equilibrio : null,
+    anuncios,
+    sinDatos: ads.length === 0,
+  };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CPA_EQUILIBRIO, CPA_OBJETIVO } from "@/lib/cpa-glosario";
 
 // Los anuncios de una campaña, o los mejores del producto.
 //
@@ -54,7 +55,13 @@ export default function AnunciosTabla({
   limite?: number;
   mostrarCampana?: boolean;
 }) {
-  const [datos, setDatos] = useState<{ anuncios: Anuncio[]; verCifras: boolean; sinDatos: boolean; cpaObjetivo: number | null } | null>(null);
+  const [datos, setDatos] = useState<{
+    anuncios: Anuncio[];
+    verCifras: boolean;
+    sinDatos: boolean;
+    cpaObjetivo: number | null;
+    cpaEquilibrio: number | null;
+  } | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -199,10 +206,20 @@ export default function AnunciosTabla({
           })}
         </tbody>
       </table>
+      {/* El veredicto se mide contra el OBJETIVO, pero quien lee esta tabla
+          decide si apaga un anuncio o lo aguanta, y para eso hace falta el
+          otro número: dónde deja de ganarse plata. */}
       {cifras && datos.cpaObjetivo != null && (
         <p className="px-2.5 py-1.5 text-[10px] text-muted">
-          El veredicto compara el CPA de cada anuncio contra el CPA objetivo del producto ({money(datos.cpaObjetivo)}),
-          y pide al menos 3 compras antes de opinar.
+          El veredicto compara el CPA de cada anuncio contra el {CPA_OBJETIVO.toLowerCase()} del producto (
+          {money(datos.cpaObjetivo)}), y pide al menos 3 compras antes de opinar.
+          {datos.cpaEquilibrio != null && (
+            <>
+              {" "}
+              El {CPA_EQUILIBRIO.toLowerCase()} está en <b>{money(datos.cpaEquilibrio)}</b>: arriba de ahí cada venta
+              cuesta más de lo que deja.
+            </>
+          )}
         </p>
       )}
     </div>
