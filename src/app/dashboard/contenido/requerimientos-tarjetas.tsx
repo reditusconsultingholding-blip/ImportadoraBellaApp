@@ -222,6 +222,7 @@ export default function RequerimientosTarjetas({
               users={users}
               canManage={canManage}
               puedeEditar={puedeEditar(actual)}
+              currentUserId={currentUserId}
               onCambio={onCambio}
               onAbrir={onAbrir}
               onAngulo={(a) =>
@@ -245,6 +246,7 @@ export default function RequerimientosTarjetas({
                     users={users}
                     canManage={canManage}
                     puedeEditar={canManage || ficha.responsables.some((r) => r.id === currentUserId)}
+                    currentUserId={currentUserId}
                     onCambio={onCambio}
                     onAbrir={onAbrir}
                     onAngulo={(a) =>
@@ -307,15 +309,20 @@ function Responsables({
     );
   }
 
-  const editores = users.filter((u) => u.role === "EDITOR");
+  // Editores y dirección: Emilia lleva tres productos y es DIRECTOR, así que
+  // filtrar por EDITOR dejaba fuera de la lista a gente que ya figuraba como
+  // responsable. Quedaba marcada de forma invisible —seguía guardándose— pero
+  // no había manera de quitarla, ni de poner a otra persona de dirección.
+  const asignables = users.filter((u) => u.role === "EDITOR" || u.role === "DIRECTOR");
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
       <p className="text-[11px] text-muted">
-        Solo los responsables cargan y editan las piezas de {producto.name}, y a ellos les llega el
-        aviso de las ocho si quedan sin clasificar.
+        Los responsables ven y editan TODAS las piezas de {producto.name}, y a ellos les llega el aviso
+        de las ocho si quedan sin clasificar. Para que alguien cubra el producto un día suelto no hace
+        falta sumarlo acá: quien tiene una pieza asignada a su nombre siempre puede completarla.
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {editores.map((u) => {
+        {asignables.map((u) => {
           const on = marcados.includes(u.id);
           return (
             <button

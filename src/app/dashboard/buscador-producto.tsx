@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { buscarProductos } from "@/lib/buscar-producto";
 
 // Un campo para elegir un producto escribiendo: nombre, código o iniciales.
@@ -30,6 +30,7 @@ export default function BuscadorProducto({
   className = "",
   ariaLabel = "Producto",
   disabled,
+  ayudaVacio,
 }: {
   opciones: OpcionProducto[];
   /** El id elegido, o "" si ninguno. */
@@ -41,6 +42,15 @@ export default function BuscadorProducto({
   className?: string;
   ariaLabel?: string;
   disabled?: boolean;
+  /**
+   * Qué hacer cuando el producto no está en la lista.
+   *
+   * El campo decía "Ningún producto coincide con «berb»" y ahí se terminaba.
+   * Emilia: "no sé cómo agregar nuevos productos para que me salgan en
+   * requerimientos" — el alta existe y ella tiene permiso, pero está en otra
+   * pantalla, y este era el momento exacto en que hacía falta saberlo.
+   */
+  ayudaVacio?: ReactNode;
 }) {
   const elegido = opciones.find((o) => o.id === valor) ?? null;
   const [texto, setTexto] = useState("");
@@ -151,7 +161,10 @@ export default function BuscadorProducto({
           className="absolute left-0 right-0 z-40 mt-1 max-h-72 overflow-auto rounded border border-border bg-surface py-1 shadow-lg"
         >
           {filas.length === 0 && (
-            <li className="px-3 py-2 text-xs text-muted">Ningún producto coincide con «{texto}».</li>
+            <li className="px-3 py-2 text-xs text-muted">
+              Ningún producto coincide con «{texto}».
+              {ayudaVacio && <span className="mt-1 block">{ayudaVacio}</span>}
+            </li>
           )}
           {filas.map((o, i) => (
             <li

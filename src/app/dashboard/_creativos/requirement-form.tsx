@@ -10,6 +10,7 @@ import {
   VISUAL_FORMATS,
 } from "@/lib/pipeline-options";
 import type { ProductOption, RequirementRow, UserOption } from "./types";
+import Link from "next/link";
 import BuscadorProducto from "../buscador-producto";
 
 /** Hoy en Ecuador (UTC-5), como "2026-09-17" — que es lo que espera un input date. */
@@ -163,6 +164,18 @@ export default function RequirementForm({
             onElegir={setProductId}
             vacio="Sin producto"
             ariaLabel="Producto"
+            ayudaVacio={
+              <>
+                Si es un producto nuevo, se da de alta en{" "}
+                <Link
+                  href="/dashboard/productos"
+                  className="text-accent underline underline-offset-2 hover:text-accent-strong"
+                >
+                  Productos → + Nuevo producto
+                </Link>
+                . Lo hace dirección; apenas existe, aparece acá.
+              </>
+            }
           />
         </label>
       )}

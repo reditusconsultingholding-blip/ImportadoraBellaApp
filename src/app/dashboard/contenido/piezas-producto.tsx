@@ -118,6 +118,7 @@ export default function PiezasProducto({
   users,
   canManage,
   puedeEditar,
+  currentUserId,
   onCambio,
   onAbrir,
   onAngulo,
@@ -126,8 +127,10 @@ export default function PiezasProducto({
   piezas: RequirementRow[];
   users: UserOption[];
   canManage: boolean;
-  /** Dirección o responsable del producto. */
+  /** Dirección o responsable del producto: puede tocar TODAS las piezas. */
   puedeEditar: boolean;
+  /** Quién está mirando, para las piezas que tiene asignadas a su nombre. */
+  currentUserId: string;
   onCambio: (r: RequirementRow) => void;
   onAbrir: (id: string) => void;
   onAngulo: (angulo: string) => void;
@@ -244,6 +247,29 @@ export default function PiezasProducto({
           </thead>
           <tbody>
             {ordenadas.slice(0, tope).map((r) => {
+              // QUIÉN PUEDE LLENAR ESTA FILA
+              //
+              // Dos caminos, no uno: dirección y los responsables del producto
+              // pueden con todas, y además cada quien puede con las piezas que
+              // tiene asignadas a su nombre, sea responsable del producto o no.
+              //
+              // Faltaba el segundo. Majo: "cuando asigno a alguien que no es
+              // responsable de producto, pero ese día hará contenido del
+              // producto, no le da opción para llenar lo de control super
+              // ads". Es un caso normal —alguien cubre un producto por un día—
+              // y quedaba en un lugar sin salida: la pieza aparecía a su
+              // nombre, con todo en "—", y no había forma de completarla ni de
+              // saber por qué.
+              //
+              // El servidor ya lo permitía (puedeTocarPieza acepta al dueño de
+              // la pieza); la que era más estricta era esta pantalla. Los
+              // permisos partidos entre el cliente y el servidor se separan
+              // así, en silencio y para el lado que no se nota hasta que
+              // alguien no puede trabajar.
+              //
+              // Reasignar la pieza a otra persona sigue siendo de dirección
+              // —la columna Editor va por canManage—, igual que en el PATCH.
+              const editable = puedeEditar || r.ownerId === currentUserId;
               const usados = formatosPorAdset.get(adsetDe(r));
               const bloqueados = new Set([...(usados?.entries() ?? [])].filter(([, id]) => id !== r.id).map(([f]) => f));
               return (
@@ -255,13 +281,13 @@ export default function PiezasProducto({
                     </span>
                   </td>
                   <td className={CELDA}>
-                    <Celda valor={r.adType} opciones={AD_TYPES} editable={puedeEditar} onGuardar={(v) => guardar(r, "adType", v)} />
+                    <Celda valor={r.adType} opciones={AD_TYPES} editable={editable} onGuardar={(v) => guardar(r, "adType", v)} />
                   </td>
                   <td className={CELDA}>
-                    <Celda valor={r.phase} opciones={PHASES} editable={puedeEditar} onGuardar={(v) => guardar(r, "phase", v)} />
+                    <Celda valor={r.phase} opciones={PHASES} editable={editable} onGuardar={(v) => guardar(r, "phase", v)} />
                   </td>
                   <td className={CELDA}>
-                    {puedeEditar ? (
+                    {editable ? (
                       <input
                         key={r.ronda ?? ""}
                         defaultValue={r.ronda ?? ""}
@@ -281,7 +307,7 @@ export default function PiezasProducto({
                       valor={r.visualFormat}
                       opciones={VISUAL_FORMATS}
                       bloqueadas={bloqueados}
-                      editable={puedeEditar}
+                      editable={editable}
                       onGuardar={(v) => guardar(r, "visualFormat", v)}
                     />
                   </td>
@@ -289,22 +315,22 @@ export default function PiezasProducto({
                     <Celda
                       valor={r.angle}
                       opciones={angulos}
-                      editable={puedeEditar}
+                      editable={editable}
                       onGuardar={(v) => guardar(r, "angle", v)}
                       extra={{ texto: "+ Agregar ángulo de este producto…", accion: () => agregarAngulo(r) }}
                     />
                   </td>
                   <td className={CELDA}>
-                    <Celda valor={r.awarenessLevel} opciones={AWARENESS_LEVELS} editable={puedeEditar} onGuardar={(v) => guardar(r, "awarenessLevel", v)} />
+                    <Celda valor={r.awarenessLevel} opciones={AWARENESS_LEVELS} editable={editable} onGuardar={(v) => guardar(r, "awarenessLevel", v)} />
                   </td>
                   <td className={CELDA}>
-                    <Celda valor={r.marketOrigin} opciones={MARKET_ORIGINS} editable={puedeEditar} onGuardar={(v) => guardar(r, "marketOrigin", v)} />
+                    <Celda valor={r.marketOrigin} opciones={MARKET_ORIGINS} editable={editable} onGuardar={(v) => guardar(r, "marketOrigin", v)} />
                   </td>
                   <td className={CELDA}>
                     <Celda
                       valor={STATUS_LABEL[r.status] ?? r.status}
                       opciones={statusOpciones}
-                      editable={puedeEditar}
+                      editable={editable}
                       onGuardar={(v) => {
                         const clave = REQUIREMENT_STATUSES.find((s) => (STATUS_LABEL[s] ?? s) === v);
                         if (clave) guardar(r, "status", clave);
