@@ -593,6 +593,12 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   // El AOV del análisis: el precio que acaba de sugerir la calculadora, salvo
   // que se escriba uno propio (útil para evaluar el precio que YA se cobra).
   const suggestedPrice = result.valid ? result.price : 0;
+  // Si hay IVA o comisión de pasarela cargados. Para esta operación lo normal
+  // es que estén en cero —contraentrega, se paga en efectivo al recibir— así
+  // que tenerlos prendidos es la excepción, y la excepción tiene que verse sin
+  // abrir nada.
+  const hayRetenciones = num(ivaPct) > 0 || num(gatewayFeePct) > 0;
+
   const aov = num(priceOverride) > 0 ? num(priceOverride) : suggestedPrice;
 
   const analysis = useMemo(() => {
@@ -795,10 +801,41 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
             </label>
           </div>
 
-          {/* Pasarela e IVA quedan plegados y en cero: en contraentrega se
-              cobra en efectivo al recibir, no hay pasarela ni IVA retenido. */}
-          <details className="rounded border border-border bg-surface-2 px-3 py-2">
-            <summary className="cursor-pointer text-xs text-muted">Comisión de pasarela e IVA — apagados</summary>
+          {/* Pasarela e IVA van plegados y en cero: en contraentrega se cobra
+              en efectivo al recibir, así que normalmente no aplican.
+
+              PERO EL TÍTULO DECÍA "APAGADOS" SIEMPRE, fuera verdad o no.
+              Estaba escrito a mano. Un producto con 15% de IVA y 4% de
+              pasarela guardados mostraba la sección cerrada, diciendo que
+              estaban apagados, y mientras tanto se los descontaba del precio:
+              la utilidad del día daba $18 donde el Excel del dueño daba $90, y
+              no había forma de ver por qué sin abrir un desplegable que
+              afirmaba que no había nada adentro.
+
+              Ahora el título dice lo que hay, y si hay algo prendido la
+              sección se abre sola y se marca: para esta operación lo NORMAL es
+              que estén en cero, así que tenerlos prendidos es la excepción y
+              la excepción tiene que verse. */}
+          <details
+            open={hayRetenciones}
+            className={`rounded border px-3 py-2 ${
+              hayRetenciones ? "border-warning/50 bg-pending-bg" : "border-border bg-surface-2"
+            }`}
+          >
+            <summary
+              className={`cursor-pointer text-xs ${hayRetenciones ? "font-medium text-warning" : "text-muted"}`}
+            >
+              {hayRetenciones ? (
+                <>
+                  Ojo: se están descontando{" "}
+                  {num(ivaPct) > 0 && <>IVA {num(ivaPct)}%</>}
+                  {num(ivaPct) > 0 && num(gatewayFeePct) > 0 && " y "}
+                  {num(gatewayFeePct) > 0 && <>comisión de pasarela {num(gatewayFeePct)}%</>}
+                </>
+              ) : (
+                "Comisión de pasarela e IVA — apagados"
+              )}
+            </summary>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
                 <span className={labelClass}>Comisión pasarela (%)</span>
@@ -810,8 +847,18 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               </label>
             </div>
             <p className="mt-2 text-xs text-muted">
-              Van en cero porque en contraentrega no aplican: el cliente paga en efectivo al recibir. Si alguna vez vendes
-              con pago en línea, carga aquí el porcentaje real de tu pasarela y del IVA.
+              {hayRetenciones ? (
+                <>
+                  En contraentrega esto normalmente va en CERO: el cliente paga en efectivo al recibir, no hay
+                  pasarela que cobre comisión ni IVA que retener. Si este producto no se vende con pago en línea,
+                  ponlos en 0 y la utilidad va a subir. Así como están, se descuentan de cada venta cobrada.
+                </>
+              ) : (
+                <>
+                  Van en cero porque en contraentrega no aplican: el cliente paga en efectivo al recibir. Si alguna
+                  vez vendes con pago en línea, carga aquí el porcentaje real de tu pasarela y del IVA.
+                </>
+              )}
             </p>
           </details>
 
@@ -983,6 +1030,16 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               De cada 100 checkouts se cobran {(delivered * 100).toFixed(0)} — confirmación {confirmationPct}% menos{" "}
               {returnPct}% de devoluciones. Todo lo de abajo sale de ese número.
             </p>
+            {/* Si hay retenciones prendidas, acá también cambian los números, y
+                este es el panel contra el que la gente compara su Excel. */}
+            {hayRetenciones && (
+              <p className="mt-1 text-xs text-warning">
+                Y se descuentan {num(ivaPct) > 0 ? `IVA ${num(ivaPct)}%` : ""}
+                {num(ivaPct) > 0 && num(gatewayFeePct) > 0 ? " y " : ""}
+                {num(gatewayFeePct) > 0 ? `comisión de pasarela ${num(gatewayFeePct)}%` : ""} del precio. Si este
+                producto se cobra en efectivo al recibir, ponlos en cero arriba.
+              </p>
+            )}
           </div>
           <div className="flex items-end gap-3">
             <label className="block">
