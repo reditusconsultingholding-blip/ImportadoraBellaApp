@@ -82,9 +82,22 @@ export async function GET() {
     // "build" identifica qué versión está sirviendo. Sin esto no había forma
     // de saber si una respuesta venía del despliegue nuevo o del anterior
     // reiniciado, y se termina probando contra código viejo sin darse cuenta.
+    //
+    // Y no la había EN LA PRÁCTICA: APP_BUILD nunca se configuró, así que esto
+    // venía respondiendo "sin-marcar" desde el primer día. Para saber si un
+    // cambio ya estaba arriba había que mirar uptimeSeconds y adivinar cuál de
+    // los últimos push había sido — que es exactamente el problema que este
+    // campo existía para resolver.
+    //
+    // Railway publica el commit en RAILWAY_GIT_COMMIT_SHA sin que haya que
+    // configurar nada. Se usa como respaldo, recortado a siete caracteres, que
+    // es como se ve en `git log --oneline` y lo vuelve comparable de un vistazo.
     {
       ok: true,
-      build: process.env.APP_BUILD ?? "sin-marcar",
+      build:
+        process.env.APP_BUILD ??
+        process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ??
+        "sin-marcar",
       database: "ok",
       latenciaBaseMs,
       datosFrescos,
