@@ -225,6 +225,24 @@ export default function CapacitacionTour({
   // andando dejaba al navegador hablando solo hasta terminar el párrafo.
   useEffect(() => () => callar(), []);
 
+  /**
+   * Traer a la vista el enlace del menú que este paso explica.
+   *
+   * El menú es más largo que la pantalla. En una ventana de 720 píxeles, el
+   * enlace de "Usuarios" —que está al final— cae en el 776: el aro se dibujaba
+   * bien, en el lugar correcto, fuera de la pantalla. La persona veía todo
+   * oscurecido y NADA iluminado justo en los pasos del final, que son los que
+   * explican cómo agregar gente.
+   *
+   * Con "nearest" se mueve lo mínimo necesario: si el enlace ya se ve, no se
+   * mueve nada, y el recorrido no salta de arriba abajo en cada paso.
+   */
+  useEffect(() => {
+    if (!abierto || !paso?.ruta) return;
+    const enlace = document.querySelector<HTMLElement>(`aside a[href="${paso.ruta}"]`);
+    enlace?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [abierto, paso]);
+
   function cambiarVoz() {
     const siguiente = !quiereVoz;
     setQuiereVoz(siguiente);
