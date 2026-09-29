@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canManageUsers } from "@/lib/permissions";
 
 /**
  * Le vuelve a mandar el recorrido a alguien del equipo.
@@ -16,9 +17,9 @@ import { getSession } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (session.role !== "OWNER") {
+  if (!canManageUsers(session.role)) {
     return NextResponse.json(
-      { error: "Solo un administrador puede reiniciar la capacitación." },
+      { error: "Solo el administrador y la dirección pueden reiniciar la capacitación." },
       { status: 403 }
     );
   }
@@ -35,7 +36,12 @@ export async function POST(req: NextRequest) {
       // Sin el filtro por vista tambien alcanza a quien nunca la termino pero
       // ya gasto sus tres aperturas: a esa persona reiniciar tiene que
       // servirle igual.
-      where: { organizationId: session.organizationId },
+      //
+      // A QUIEN APRIETA EL BOTÓN NO SE LE REINICIA. Antes sí, y mandar a
+      // recapacitar al equipo te dejaba a vos con el recorrido abierto encima
+      // de la pantalla desde la que lo mandaste. Quien quiera volver a verla
+      // la tiene en el botón "Capacitación" del encabezado.
+      where: { organizationId: session.organizationId, id: { not: session.userId } },
       // Las aperturas vuelven a cero: si no, reiniciarle el recorrido a quien
       // ya lo vio tres veces no se lo abriria nunca y el boton pareceria roto.
       data: { capacitacionVista: false, capacitacionAperturas: 0 },

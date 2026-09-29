@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
+import { alTenerVoces, callar, hablar, hayVoz, textoDelPaso, vozEnEspanol } from "@/lib/voz-capacitacion";
 
 // El recorrido guiado de la herramienta.
 //
@@ -20,6 +21,27 @@ import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
 //
 // Qué explica cada paso está en `src/lib/capacitacion-pasos.ts`. Acá solo está
 // la mecánica: moverse, navegar, cerrar y avisarle al servidor.
+
+/** Dónde se recuerda si la persona quiere escuchar la explicación. */
+const CLAVE_VOZ = "capacitacion-voz";
+
+/**
+ * La voz arranca ENCENDIDA.
+ *
+ * Es una capacitación: la primera vez que alguien entra, lo que hace falta es
+ * que le expliquen, no que descubra que hay un botón para que le expliquen.
+ * Quien prefiera leer la apaga una vez y queda apagada.
+ */
+function vozPreferida() {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(CLAVE_VOZ) !== "0";
+  } catch {
+    // Modo incógnito o almacenamiento bloqueado: se sigue con el valor por
+    // defecto en vez de romper el recorrido entero por una preferencia.
+    return true;
+  }
+}
 
 /** Lo que se puede enfocar con Tab dentro del globo. */
 const ENFOCABLES =
@@ -101,6 +123,23 @@ export default function CapacitacionTour({
   const globoRef = useRef<HTMLDivElement>(null);
   const lanzadorRef = useRef<HTMLButtonElement>(null);
 
+  // LA VOZ
+  //
+  // `vozLista` no es lo mismo que "el navegador puede hablar": las voces
+  // llegan después de cargar la página, y hasta que llegan no se sabe si hay
+  // alguna en español. Sin esperarlas, el primer paso —el único que algunos
+  // van a escuchar— salía mudo o leído por una voz en inglés.
+  const [quiereVoz, setQuiereVoz] = useState(vozPreferida);
+  const [vozLista, setVozLista] = useState(false);
+  const [hablando, setHablando] = useState(false);
+  // Si el navegador bloqueó la reproducción por no haber habido un gesto
+  // todavía. Pasa cuando el recorrido se abre solo al entrar: el globo
+  // aparece sin que nadie haya tocado nada, y ahí algunos navegadores no
+  // dejan sonar. Se resuelve solo en cuanto la persona aprieta algo.
+  const [esperandoGesto, setEsperandoGesto] = useState(false);
+
+  useEffect(() => alTenerVoces(() => setVozLista(true)), []);
+
   // Se anota en la base que se abrio sola, para que la proxima cuente.
   //
   // Va en un efecto y no al construir el estado porque es un pedido al
@@ -133,6 +172,74 @@ export default function CapacitacionTour({
     () => "",
   );
   const esUltimo = indice === pasos.length - 1;
+
+  /**
+   * Decir el paso en el que estamos.
+   *
+   * Se corta SIEMPRE lo anterior antes de empezar. El navegador encola las
+   * frases: sin cortar, apretar "Siguiente" tres veces rápido hacía que la
+   * persona escuchara los tres pasos seguidos mientras miraba el cuarto.
+   */
+  useEffect(() => {
+    // Sin voz en español NO se habla. Una voz inglesa leyendo castellano no se
+    // entiende, y dejarla sonar consigue que la persona apague la voz para
+    // siempre y se pierda la capacitación hablada en la computadora donde sí
+    // habría funcionado.
+    if (!abierto || !quiereVoz || !vozLista || !paso || !vozEnEspanol()) {
+      callar();
+      return;
+    }
+
+    // Ningún setState sale de acá directamente: los avisos vienen del propio
+    // navegador —cuando la voz ARRANCA y cuando termina— y del temporizador de
+    // abajo. Marcar "hablando" al pedirlo sería mentir en el caso que importa,
+    // que es justo cuando el navegador no deja sonar.
+    const cortar = hablar(textoDelPaso(paso), {
+      alEmpezar: () => {
+        setHablando(true);
+        setEsperandoGesto(false);
+      },
+      alTerminar: () => setHablando(false),
+    });
+
+    // Algunos navegadores aceptan el pedido y no suenan si todavía no hubo un
+    // gesto de la persona. Pasa siempre que el recorrido se abre solo al
+    // entrar: el globo aparece sin que nadie haya tocado nada. No hay forma
+    // directa de preguntarlo, así que se mira un instante después si arrancó,
+    // y si no, se avisa en el globo en vez de dejar a alguien esperando una
+    // voz que no va a llegar.
+    const revisar = window.setTimeout(() => {
+      if (hayVoz() && !window.speechSynthesis.speaking) {
+        setEsperandoGesto(true);
+        setHablando(false);
+      }
+    }, 700);
+
+    return () => {
+      window.clearTimeout(revisar);
+      cortar();
+    };
+  }, [abierto, quiereVoz, vozLista, paso]);
+
+  // Al salir de la pantalla, callar. Sin esto, cerrar el recorrido con la voz
+  // andando dejaba al navegador hablando solo hasta terminar el párrafo.
+  useEffect(() => () => callar(), []);
+
+  function cambiarVoz() {
+    const siguiente = !quiereVoz;
+    setQuiereVoz(siguiente);
+    if (!siguiente) {
+      callar();
+      setHablando(false);
+    }
+    setEsperandoGesto(false);
+    try {
+      window.localStorage.setItem(CLAVE_VOZ, siguiente ? "1" : "0");
+    } catch {
+      // Que no se pueda recordar la preferencia no es motivo para no aplicarla
+      // en esta sesión.
+    }
+  }
 
   /**
    * Deja anotado en la base si ya la vio.
@@ -168,6 +275,8 @@ export default function CapacitacionTour({
   }
 
   function terminar() {
+    callar();
+    setHablando(false);
     setAbierto(false);
     setIndice(0);
     anotar(true);
@@ -177,6 +286,8 @@ export default function CapacitacionTour({
   // después y en la próxima entrada le vuelve a aparecer. Saltarla es una
   // decisión distinta y tiene su propio botón.
   function cerrarPorAhora() {
+    callar();
+    setHablando(false);
     setAbierto(false);
   }
 
@@ -324,7 +435,48 @@ export default function CapacitacionTour({
               <div className="flex items-start justify-between gap-3">
                 <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
                   {paso.seccion} · paso {indice + 1} de {pasos.length}
+                  {hablando && <span className="ml-1.5 text-accent">· hablando</span>}
                 </p>
+                <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-0.5">
+                {/* El control de la voz vive acá arriba y no abajo con los
+                    botones de avanzar: es una preferencia sobre CÓMO se
+                    recibe el recorrido, no un paso del recorrido. */}
+                {hayVoz() && (
+                  <button
+                    type="button"
+                    onClick={cambiarVoz}
+                    aria-pressed={quiereVoz}
+                    title={quiereVoz ? "Silenciar la explicación" : "Escuchar la explicación"}
+                    className={`grid h-7 w-7 place-items-center rounded transition hover:bg-surface-2 ${
+                      quiereVoz ? "text-accent" : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      width="15"
+                      height="15"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 7.5h2.5L10 4.5v11L6.5 12.5H4z" />
+                      {quiereVoz ? (
+                        <>
+                          <path d="M13 7.5a3.5 3.5 0 0 1 0 5" />
+                          <path d="M15.2 5.2a6.5 6.5 0 0 1 0 9.6" />
+                        </>
+                      ) : (
+                        <path d="M13.5 8l4 4M17.5 8l-4 4" />
+                      )}
+                    </svg>
+                    <span className="sr-only">
+                      {quiereVoz ? "Silenciar la explicación" : "Escuchar la explicación"}
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={cerrarPorAhora}
@@ -344,6 +496,7 @@ export default function CapacitacionTour({
                     <path d="M5 5l10 10M15 5L5 15" />
                   </svg>
                 </button>
+                </div>
               </div>
 
               {/* El texto se anuncia al cambiar de paso: el foco se queda en
@@ -376,6 +529,19 @@ export default function CapacitacionTour({
                   </ul>
                 )}
               </div>
+
+              {quiereVoz && esperandoGesto && (
+                <p className="mt-3 rounded border border-border bg-surface-2 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
+                  El navegador no deja sonar hasta que toques algo en la página. Apretá «Siguiente» y la
+                  explicación se escucha desde el paso que sigue.
+                </p>
+              )}
+              {quiereVoz && vozLista && !vozEnEspanol() && (
+                <p className="mt-3 rounded border border-border bg-surface-2 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
+                  Este navegador no tiene ninguna voz en español instalada, así que el recorrido va escrito.
+                  En Chrome suele estar; si no, se agrega desde los idiomas del sistema.
+                </p>
+              )}
 
               <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
                 <button

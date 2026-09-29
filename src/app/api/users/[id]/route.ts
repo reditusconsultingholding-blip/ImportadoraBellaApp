@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { canManageUsers, puedeEditarUsuario, puedeOtorgarRol } from "@/lib/permissions";
 
 const ROLES = ["OWNER", "DIRECTOR", "EDITOR", "PENDING"] as const;
 type RoleValue = (typeof ROLES)[number];
@@ -9,14 +10,23 @@ type RoleValue = (typeof ROLES)[number];
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (session.role !== "OWNER") {
-    return NextResponse.json({ error: "Solo un administrador puede editar usuarios." }, { status: 403 });
+  if (!canManageUsers(session.role)) {
+    return NextResponse.json(
+      { error: "Solo el administrador y la dirección pueden editar usuarios." },
+      { status: 403 },
+    );
   }
 
   const { id } = await params;
   const target = await db.user.findUnique({ where: { id } });
   if (!target || target.organizationId !== session.organizationId) {
     return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
+  }
+  // Dirección no toca a un administrador. Sin esto, abrir el alta a dirección
+  // habría alcanzado para cambiarle el correo a un dueño y quedarse con la
+  // cuenta por "¿olvidaste tu contraseña?".
+  if (!puedeEditarUsuario(session.role, target.role)) {
+    return NextResponse.json({ error: "No puedes editar a un administrador." }, { status: 403 });
   }
 
   const body = (await req.json()) as {
@@ -64,6 +74,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (body.role && ROLES.includes(body.role as RoleValue)) {
     const nextRole = body.role as RoleValue;
+    if (!puedeOtorgarRol(session.role, nextRole)) {
+      return NextResponse.json(
+        { error: "No puedes asignar un rol más alto que el tuyo." },
+        { status: 403 },
+      );
+    }
     // No dejar la organización sin ningún administrador: si este es el último
     // OWNER, no se le puede bajar el rol (ni siquiera a sí mismo).
     if (target.role === "OWNER" && nextRole !== "OWNER") {
@@ -139,8 +155,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  if (session.role !== "OWNER") {
-    return NextResponse.json({ error: "Solo un administrador puede eliminar usuarios." }, { status: 403 });
+  if (!canManageUsers(session.role)) {
+    return NextResponse.json(
+      { error: "Solo el administrador y la dirección pueden eliminar usuarios." },
+      { status: 403 },
+    );
   }
 
   const { id } = await params;
@@ -148,6 +167,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const target = await db.user.findUnique({ where: { id } });
   if (!target || target.organizationId !== session.organizationId) {
     return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
+  }
+  if (!puedeEditarUsuario(session.role, target.role)) {
+    return NextResponse.json({ error: "No puedes eliminar a un administrador." }, { status: 403 });
   }
   if (target.id === session.userId) {
     return NextResponse.json({ error: "No puedes eliminar tu propio usuario." }, { status: 400 });

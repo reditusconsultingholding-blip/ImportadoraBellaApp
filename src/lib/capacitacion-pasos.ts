@@ -1,5 +1,5 @@
 import type { SessionPayload } from "@/lib/auth";
-import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { canAccessPipeline, canManageConexiones, canManagePipeline } from "@/lib/permissions";
 
 // Qué le explica el recorrido guiado a cada quien.
 //
@@ -56,6 +56,8 @@ const SOLO_EDITOR = CON_PIPELINE.filter((rol) => !canManagePipeline(rol));
 /** Todavía sin rol asignado: no entra a nada del trabajo diario. */
 const SIN_ROL = ROLES.filter((rol) => !canAccessPipeline(rol));
 const SOLO_DUENO: RolUsuario[] = ["OWNER"];
+/** Quién abre Conexiones. NO es todo el mundo, aunque el paso lo diera por hecho. */
+const CON_CONEXIONES = ROLES.filter(canManageConexiones);
 
 export const PASOS: PasoCapacitacion[] = [
   {
@@ -150,6 +152,8 @@ export const PASOS: PasoCapacitacion[] = [
     texto:
       "Acá registras qué hiciste cada día —producto, plataforma, cuántos creativos— y ves los lotes que tienes a cargo, con su nomenclatura lista para copiar y pegar al nombrar la campaña.",
     puntos: [
+      "Si una pieza está a tu nombre, la llenas vos: tipo, fase, adset, formato visual, ángulo, awareness, mercado y situación. No importa de quién sea el producto. Cuando cubres un producto por un día no hace falta que te sumen como responsable del producto: alcanza con que te asignen la pieza.",
+      "Los productos que llevas a cargo son otra cosa: de esos ves y editas TODAS las piezas, sean tuyas o no.",
       "El tablero día a día es tuyo: cargas tu fila, dirección ve la del equipo completo.",
       "Cada lote trae la nomenclatura ya armada («código-1», «código-2»...): úsala tal cual en el nombre de la campaña para que quede a tu nombre.",
       "El calendario te muestra cuándo tiene que estar listo cada lote.",
@@ -160,14 +164,15 @@ export const PASOS: PasoCapacitacion[] = [
     id: "productos-gestion",
     ruta: "/dashboard/productos",
     seccion: "Productos",
-    titulo: "En qué estado está cada producto",
+    titulo: "Acá se dan de alta los productos, y acá se ve cómo va cada uno",
     texto:
-      "Un renglón por producto seguido, con su pulso —sano, vigilar o riesgo—, el gasto, el CPA contra el objetivo, precio, costo, margen y cuántos creativos tiene en curso. Es la lista desde la que se decide dónde poner plata esta semana.",
+      "Esta es la pantalla donde entra un producto nuevo a Jarvis. Si te llegó mercadería nueva y no te aparece para armarle requerimientos, es porque todavía no está dada de alta: se hace desde acá, y desde el momento en que existe aparece en Contenido, en el buscador de requerimientos y en todo el resto. Abajo, un renglón por producto con su pulso —sano, vigilar o riesgo—, el gasto, el CPA contra el objetivo, precio, costo y margen.",
     puntos: [
+      "PARA AGREGAR UN PRODUCTO NUEVO hay dos botones arriba. «Traer del catálogo» te lista lo que ya está en Shopify y sigues varios de una: es el camino normal cuando llega mercadería nueva. «+ Nuevo producto» lo creas a mano, con nombre y código, cuando todavía no está en la tienda.",
+      "Al crearlo lo puedes anclar al producto de Shopify, a una campaña que ya esté corriendo y a sus links de trackeo. El anclaje es lo que hace que las ventas y el gasto se le peguen al producto correcto.",
       "El CPA objetivo aparece como provisional mientras el producto no tenga cargado su costo real: hasta ahí es una estimación.",
       "Al expandir un producto editas precio, costo y CPA objetivo sin salir de la lista.",
       "La cola de aprobación de arriba es donde apruebas o rechazas lo que propuso el equipo. Aprobar un pedido de creativos crea las piezas en Contenido, ya asignadas y notificadas.",
-      "Con el selector de catálogo sigues varios productos de Shopify a la vez; con «Nuevo producto» creas uno a mano y lo anclas al producto de Shopify, a una campaña que ya esté corriendo y a sus links de trackeo.",
       "Dentro de cada producto tienes su reporte —diario, quincenal, histórico— con cuál campaña rinde más y qué formato es el winner.",
       "La ventana de la lista es siempre de los últimos 30 días: acá no hay selector de período.",
     ],
@@ -344,9 +349,9 @@ export const PASOS: PasoCapacitacion[] = [
     puntos: [
       "Cada cuenta muestra si está conectada o pendiente, y tiene un «Sincronizar ahora» para traer los datos sin esperar al ciclo automático.",
       "Dropi figura como módulo a futuro: cargarle la clave hoy no enciende la torre logística.",
-      "Cualquiera que entre al panel puede tocar estas credenciales. Son las llaves de las cuentas de publicidad reales.",
+      "Son las llaves de las cuentas de publicidad reales: esta pantalla la abren solo el administrador y la dirección operativa.",
     ],
-    roles: CON_PIPELINE,
+    roles: CON_CONEXIONES,
   },
   {
     id: "configuracion",
@@ -364,15 +369,33 @@ export const PASOS: PasoCapacitacion[] = [
     id: "usuarios",
     ruta: "/dashboard/usuarios",
     seccion: "Usuarios",
-    titulo: "Quién entra, con qué rol y quién ya se capacitó",
+    titulo: "Acá se agrega a alguien nuevo al equipo",
     texto:
-      "Das de alta a la gente, le asignas rol y decides quién ve la nómina. El rol es lo que define qué secciones ve cada quien: un director operativo ve los números y Contenido completo, un editor solo las piezas que tiene asignadas.",
+      "Cuando entra una compañera nueva, su cuenta se crea desde acá. Le pones nombre, correo, una contraseña provisoria y el rol, y con eso ya puede entrar: apenas entra, la app la obliga a cambiar esa contraseña por una suya. No hace falta pedirle el alta a nadie más.",
     puntos: [
-      "Crear una cuenta pide además un código de autorización: sin eso no se crea, aunque alguien llegue a esta pantalla. Cuando está configurado el código rotativo, lo ves en tu perfil y se renueva cada medio minuto.",
+      "El botón para darla de alta está arriba de la tabla. Nombre, correo, contraseña provisoria y rol: eso es todo lo que pide.",
+      "En «Cómo aparece en el tablero» le pones el apodo con el que el equipo la nombra —«MAJO», «ANA»—, y así sus piezas se cruzan solas con lo que carga en el día a día.",
+      "Crear una cuenta puede pedir además un código de autorización; cuando está configurado el código rotativo, lo ves en tu perfil y se renueva cada medio minuto.",
       "Ver la nómina es un permiso aparte del rol, y solo alguien que ya la ve puede dárselo a otro.",
-      "Abajo, «Capacitación en la plataforma» te dice quién hizo este recorrido y quién no, y te deja volvérselo a mandar a una persona o a todo el equipo.",
+      "Abajo, «Capacitación en la plataforma» te dice quién hizo este recorrido y quién no, y te deja volvérselo a mandar a una persona o a todo el equipo. Es lo que se usa cuando cambia una pantalla.",
     ],
-    roles: SOLO_DUENO,
+    roles: CON_NUMEROS,
+  },
+  {
+    id: "rangos",
+    ruta: "/dashboard/usuarios",
+    seccion: "Usuarios",
+    titulo: "Los cuatro rangos, y qué abre cada uno",
+    texto:
+      "El rol no es una jerarquía de quién manda: es qué pantallas se le abren a cada quien. Elegir mal el rol es la razón más común por la que alguien dice «no me aparece»: le aparece a quien tiene el rango que lo abre.",
+    puntos: [
+      "ADMINISTRADOR: todo. Los números del negocio, las conexiones con Meta, TikTok y Shopify, y es el único que puede nombrar a otro administrador.",
+      "DIRECTOR OPERATIVO: la operación completa. Contenido de todo el equipo, Productos, Control publicitario, Rentabilidad, los reportes, y dar de alta gente. No toca las conexiones ni puede nombrar administradores.",
+      "EDITOR / CREADOR: su trabajo. El día a día, sus lotes, las piezas que tiene asignadas y las de los productos que lleva a cargo. Ve el pulso de los productos para saber cómo le va a lo que hizo, pero no la plata de la empresa.",
+      "PENDIENTE DE ROL: recién creada, todavía no abre nada. Es el estado en el que queda una cuenta hasta que le eliges rol — si alguien dice que entró y no ve nada, mirá esto primero.",
+      "Aparte del rol hay dos permisos que se dan por persona: ver la nómina y ver las cifras del negocio. Un director operativo puede no tenerlos.",
+    ],
+    roles: CON_NUMEROS,
   },
   {
     id: "cierre",

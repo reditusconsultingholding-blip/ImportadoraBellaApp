@@ -19,6 +19,58 @@ export function canAccessRequirement(
 }
 
 /**
+ * Quién da de alta gente y reparte roles.
+ *
+ * Era solo el dueño. Emilia —directora operativa— es quien arma el equipo y
+ * quien sabe cuándo entra alguien nuevo: "tenemos que agregar a una nueva
+ * compañera, ¿cómo agregaríamos?". Tener que pedirle el alta a Fabricio o a
+ * Sebastián cada vez convertía un trámite de dos minutos en algo que espera
+ * un día, y mientras tanto la persona nueva no puede trabajar.
+ */
+export function canManageUsers(role: SessionPayload["role"]) {
+  return role === "OWNER" || role === "DIRECTOR";
+}
+
+/**
+ * Los rangos, de más a menos. Es el orden que decide quién puede sobre quién.
+ *
+ * PENDING no es "menos permisos": es "todavía sin decidir". Va abajo porque no
+ * abre nada, pero no es un castigo — es el estado de quien recién se creó.
+ */
+const RANGO: Record<string, number> = { OWNER: 3, DIRECTOR: 2, EDITOR: 1, PENDING: 0 };
+
+/**
+ * NADIE PUEDE DAR UN ROL MÁS ALTO QUE EL SUYO.
+ *
+ * Es la regla que evita que abrir el alta a dirección sea, en la práctica,
+ * volver administrador a cualquiera: sin esto, una directora podría crearse
+ * una segunda cuenta de administrador y quedarse con la facturación, las
+ * conexiones y los tokens de producción. No hace falta mala intención —alcanza
+ * con elegir mal en un desplegable.
+ */
+export function puedeOtorgarRol(quienOtorga: SessionPayload["role"], rolPedido: string) {
+  const pedido = RANGO[rolPedido];
+  if (pedido === undefined) return false;
+  return pedido <= (RANGO[quienOtorga] ?? -1);
+}
+
+/**
+ * Si alguien puede editar o dar de baja a otra persona.
+ *
+ * El dueño puede con todos. Dirección puede con todos MENOS con un
+ * administrador: si no, bastaría con editarle el correo a un dueño para
+ * quedarse con su cuenta.
+ */
+export function puedeEditarUsuario(
+  quienEdita: SessionPayload["role"],
+  rolDelOtro: string,
+) {
+  if (quienEdita === "OWNER") return true;
+  if (!canManageUsers(quienEdita)) return false;
+  return (RANGO[rolDelOtro] ?? 99) < RANGO.OWNER;
+}
+
+/**
  * Quién puede tocar las conexiones: cuentas de Meta y TikTok, y la tienda.
  *
  * Esta pantalla guarda y reemplaza los TOKENS de producción. Hasta ahora solo

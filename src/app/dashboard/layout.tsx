@@ -5,6 +5,7 @@ import {
   canAccessPipeline,
   canManageConexiones,
   canManagePipeline,
+  canManageUsers,
   canUseJarvis,
   canViewFinancials,
 } from "@/lib/permissions";
@@ -79,7 +80,7 @@ export default async function DashboardLayout({
 
   const nav = (
     <SidebarNav
-      showUsuarios={session.role === "OWNER"}
+      showUsuarios={canManageUsers(session.role)}
       showContenido={canAccessPipeline(session.role)}
       showRentabilidad={canManagePipeline(session.role) && veCifras}
       showReportes={canManagePipeline(session.role)}

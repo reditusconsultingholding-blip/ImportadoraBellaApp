@@ -25,17 +25,37 @@ const ROLE_LABEL: Record<string, string> = {
 
 const ROLE_ORDER = ["EDITOR", "DIRECTOR", "OWNER", "PENDING"] as const;
 
+/** Sobre quién puede actuar cada quien. La regla real vive en permissions.ts. */
+function puedeTocarA(esDueno: boolean, rolDelOtro: string) {
+  return esDueno || rolDelOtro !== "OWNER";
+}
+
+/** Qué roles puede repartir cada quien: nunca uno más alto que el propio. */
+function rolesQuePuedeDar(esDueno: boolean) {
+  return esDueno ? [...ROLE_ORDER] : ROLE_ORDER.filter((r) => r !== "OWNER");
+}
+
 const inputClass =
   "w-full border border-border rounded px-3 py-2 text-sm bg-transparent outline-none focus:border-accent";
 const labelClass = "block text-xs font-medium text-muted mb-1";
 
 export default function UsersManager({
   currentUserId,
+  esDueno,
   canGrantPayroll,
   requiereCodigo,
   initialUsers,
 }: {
   currentUserId: string;
+  /**
+   * Si quien mira es administrador.
+   *
+   * Dirección administra al equipo pero no nombra administradores: el
+   * desplegable no ofrece ese rol. El servidor lo vuelve a comprobar —ver
+   * permissions.ts—; esto es para que la pantalla no ofrezca algo que después
+   * rebota con un error.
+   */
+  esDueno: boolean;
   // Solo quien ya ve la nómina puede dar o quitar ese permiso.
   canGrantPayroll: boolean;
   /**
@@ -51,6 +71,7 @@ export default function UsersManager({
   initialUsers: UserRow[];
 }) {
   const router = useRouter();
+  const rolesDisponibles = rolesQuePuedeDar(esDueno);
   const [users, setUsers] = useState(initialUsers);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -249,7 +270,7 @@ export default function UsersManager({
             onChange={(e) => setDraft({ ...draft, role: e.target.value })}
             className={inputClass}
                           >
-                            {ROLE_ORDER.map((r) => (
+                            {rolesDisponibles.map((r) => (
                               <option key={r} value={r}>
                                 {ROLE_LABEL[r]}
                               </option>
@@ -342,20 +363,28 @@ export default function UsersManager({
                       )}
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => startEdit(u)}
-            className="text-xs font-medium border border-border rounded px-2.5 py-1 hover:bg-surface-2 transition"
-                      >
-                        Editar
-                      </button>
-                      {u.id !== currentUserId && (
-                        <button
-                          onClick={() => deleteUser(u.id)}
-                          disabled={deletingId === u.id}
-            className="ml-2 text-xs text-critical hover:underline disabled:opacity-60"
-                        >
-                          {deletingId === u.id ? "Eliminando…" : "Eliminar"}
-                        </button>
+                      {puedeTocarA(esDueno, u.role) ? (
+                        <>
+                          <button
+                            onClick={() => startEdit(u)}
+                            className="text-xs font-medium border border-border rounded px-2.5 py-1 hover:bg-surface-2 transition"
+                          >
+                            Editar
+                          </button>
+                          {u.id !== currentUserId && (
+                            <button
+                              onClick={() => deleteUser(u.id)}
+                              disabled={deletingId === u.id}
+                              className="ml-2 text-xs text-critical hover:underline disabled:opacity-60"
+                            >
+                              {deletingId === u.id ? "Eliminando…" : "Eliminar"}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted" title="Solo otro administrador puede editarlo">
+                          administrador
+                        </span>
                       )}
                     </td>
                   </>
@@ -409,7 +438,7 @@ export default function UsersManager({
             <label className="block">
               <span className={labelClass}>Rol</span>
               <select value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
-                {ROLE_ORDER.map((r) => (
+                {rolesDisponibles.map((r) => (
                   <option key={r} value={r}>
                     {ROLE_LABEL[r]}
                   </option>

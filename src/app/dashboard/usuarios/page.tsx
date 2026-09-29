@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { totpConfigured } from "@/lib/totp";
+import { canManageUsers } from "@/lib/permissions";
 import UsersManager from "./users-manager";
 import CapacitacionEquipo from "./capacitacion-equipo";
 import { EncabezadoSeccion } from "../encabezado-seccion";
@@ -10,15 +11,20 @@ export default async function UsuariosPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  if (session.role !== "OWNER") {
+  if (!canManageUsers(session.role)) {
     return (
       <div className="bg-surface border border-border rounded p-6">
         <p className="text-sm text-muted">
-          Esta sección es solo para administradores de la organización.
+          Esta sección es para el administrador y la dirección operativa.
         </p>
       </div>
     );
   }
+
+  // Dirección da de alta y administra al equipo, pero no toca a un
+  // administrador ni puede nombrar uno nuevo. La pantalla lo refleja para que
+  // no ofrezca opciones que el servidor después rechaza.
+  const esDueno = session.role === "OWNER";
 
   const [users, me] = await Promise.all([
     db.user.findMany({
@@ -52,6 +58,7 @@ export default async function UsuariosPage() {
       />
       <UsersManager
         currentUserId={session.userId}
+        esDueno={esDueno}
         canGrantPayroll={Boolean(me?.canViewPayroll)}
         requiereCodigo={totpConfigured() || Boolean(process.env.USER_CREATION_CODE?.trim())}
         initialUsers={users.map((u) => ({

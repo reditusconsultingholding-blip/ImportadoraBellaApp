@@ -6,6 +6,7 @@ import { totpConfigured, verifyTotpCode } from "@/lib/totp";
 import { frenarUsuario } from "@/lib/limite";
 import { z } from "zod";
 import { leerCuerpo, correo, clave, texto, rol } from "@/lib/validacion";
+import { canManageUsers, puedeOtorgarRol } from "@/lib/permissions";
 
 export async function GET() {
   const session = await getSession();
@@ -14,9 +15,9 @@ export async function GET() {
   // autenticado: cualquiera que se registrara — incluso con rol PENDING, sin
   // acceso a ninguna otra cosa — se llevaba nombres, correos y roles de todo
   // el equipo.
-  if (session.role !== "OWNER") {
+  if (!canManageUsers(session.role)) {
     return NextResponse.json(
-      { error: "Solo un administrador puede ver los usuarios." },
+      { error: "Solo el administrador y la dirección pueden ver los usuarios." },
       { status: 403 }
     );
   }
@@ -41,8 +42,11 @@ export async function POST(req: NextRequest) {
   // Crear cuentas en masa no es un uso normal.
   const frenado = frenarUsuario("crear-usuario", session.userId, 20, 60 * 60 * 1000);
   if (frenado) return frenado;
-  if (session.role !== "OWNER") {
-    return NextResponse.json({ error: "Solo un administrador puede crear usuarios." }, { status: 403 });
+  if (!canManageUsers(session.role)) {
+    return NextResponse.json(
+      { error: "Solo el administrador y la dirección pueden crear usuarios." },
+      { status: 403 },
+    );
   }
 
   // El correo se guarda en minúsculas: el login lo busca así, y una cuenta
@@ -86,6 +90,16 @@ export async function POST(req: NextRequest) {
     if (!rotatingOk && !fixedOk) {
       return NextResponse.json({ error: "Código de autorización incorrecto." }, { status: 403 });
     }
+  }
+
+  // Nadie da un rol más alto que el suyo: una directora crea editores y
+  // directoras, no administradores. Se comprueba acá y no solo escondiendo la
+  // opción del desplegable, porque esto es un POST que se puede llamar a mano.
+  if (!puedeOtorgarRol(session.role, finalRole)) {
+    return NextResponse.json(
+      { error: "No puedes asignar un rol más alto que el tuyo." },
+      { status: 403 },
+    );
   }
 
   const existing = await db.user.findUnique({ where: { email } });
