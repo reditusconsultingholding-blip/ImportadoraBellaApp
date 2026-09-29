@@ -115,6 +115,12 @@ export async function POST(req: NextRequest) {
       passwordHash,
       role: finalRole,
       organizationId: session.organizationId,
+      // La contraseña la eligió OTRA persona: la cambia al entrar. Es lo que
+      // el login ya le promete a todo el equipo —"una clave provisoria que vas
+      // a cambiar apenas entres"— y lo que hace el otro camino de alta, el de
+      // Contenido. Sin esto, la clave que tecleó quien dio de alta quedaba
+      // como la definitiva, y quien la creó la sabía para siempre.
+      mustChangePassword: true,
     },
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });

@@ -373,8 +373,8 @@ export const PASOS: PasoCapacitacion[] = [
     texto:
       "Cuando entra una compañera nueva, su cuenta se crea desde acá. Le pones nombre, correo, una contraseña provisoria y el rol, y con eso ya puede entrar: apenas entra, la app la obliga a cambiar esa contraseña por una suya. No hace falta pedirle el alta a nadie más.",
     puntos: [
-      "El botón para darla de alta está arriba de la tabla. Nombre, correo, contraseña provisoria y rol: eso es todo lo que pide.",
-      "En «Cómo aparece en el tablero» le pones el apodo con el que el equipo la nombra —«MAJO», «ANA»—, y así sus piezas se cruzan solas con lo que carga en el día a día.",
+      "El botón para darla de alta está arriba de la tabla. Nombre, correo, contraseña provisoria y rol: eso es todo lo que pide. La contraseña que le pongas es provisoria de verdad: apenas entra, la app la obliga a cambiarla por una suya.",
+      "Después, con «Editar» en su fila, tienes «Cómo aparece en el tablero»: ahí va el apodo con el que el equipo la nombra —«MAJO», «ANA»— y así sus piezas se cruzan solas con lo que carga en el día a día.",
       "Crear una cuenta puede pedir además un código de autorización; cuando está configurado el código rotativo, lo ves en tu perfil y se renueva cada medio minuto.",
       "Ver la nómina es un permiso aparte del rol, y solo alguien que ya la ve puede dárselo a otro.",
       "Abajo, «Capacitación en la plataforma» te dice quién hizo este recorrido y quién no, y te deja volvérselo a mandar a una persona o a todo el equipo. Es lo que se usa cuando cambia una pantalla.",
