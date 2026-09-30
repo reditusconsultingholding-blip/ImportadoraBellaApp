@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { versionDeLaApp } from "@/lib/version-app";
 import { db } from "@/lib/db";
 
 // Endpoint de salud, pensado para un monitor externo (UptimeRobot, Better
@@ -94,10 +95,7 @@ export async function GET() {
     // es como se ve en `git log --oneline` y lo vuelve comparable de un vistazo.
     {
       ok: true,
-      build:
-        process.env.APP_BUILD ??
-        process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ??
-        "sin-marcar",
+      build: versionDeLaApp(),
       database: "ok",
       latenciaBaseMs,
       datosFrescos,

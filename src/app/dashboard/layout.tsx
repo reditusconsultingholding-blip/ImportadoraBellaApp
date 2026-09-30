@@ -11,6 +11,8 @@ import {
 } from "@/lib/permissions";
 import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
+import AvisoVersion from "./aviso-version";
+import { versionDeLaApp } from "@/lib/version-app";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
 import ContadorDatos from "./contador-datos";
@@ -150,6 +152,10 @@ export default async function DashboardLayout({
               pasos={pasosCapacitacion}
               yaVista={Boolean(me?.capacitacionVista)}
             />
+            {/* Jarvis es una sola página que navega sin volver a pedir el
+                JavaScript: una pestaña abierta desde el lunes sigue corriendo
+                el código del lunes. El equipo la deja abierta todo el día. */}
+            <AvisoVersion versionCargada={versionDeLaApp()} />
             <ContadorDatos />
             <LiveIndicator />
             <NotificationsBell />
