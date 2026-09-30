@@ -44,6 +44,55 @@ export async function puedeTocarPieza(
   return Boolean(r);
 }
 
+/**
+ * Marca cada pieza con SI QUIEN PIDE LA PUEDE EDITAR.
+ *
+ * Esto existe porque el permiso se calculaba dos veces: el servidor decidía
+ * quién podía guardar, y la pantalla volvía a deducir por su cuenta quién
+ * podía escribir. Dos reglas que dicen lo mismo con código distinto no siguen
+ * diciendo lo mismo mucho tiempo, y cuando se separan lo hacen en silencio y
+ * para el lado que no se nota: la persona ve todo en gris, no puede trabajar,
+ * y no hay ningún error en ninguna pantalla que lo explique.
+ *
+ * Ya pasó una vez —la pantalla preguntaba "¿sos responsable del producto?" y
+ * el servidor aceptaba además al dueño de la pieza— y volvió a reportarse
+ * después de arreglarlo. Así que deja de haber dos reglas: el servidor manda
+ * el permiso ya resuelto, con la MISMA cuenta que después usa para autorizar
+ * el guardado, y la pantalla solo lo obedece.
+ *
+ * Se resuelve en bloque, no pieza por pieza: son 6.000 filas y una consulta
+ * por cada una haría inusable la pantalla.
+ */
+export async function conPermisoDeEdicion<T extends { ownerId: string | null; productId: string | null }>(
+  session: SessionPayload,
+  piezas: T[],
+): Promise<(T & { puedeEditar: boolean })[]> {
+  if (canManagePipeline(session.role)) {
+    return piezas.map((p) => ({ ...p, puedeEditar: true }));
+  }
+  const aCargo = new Set(await productosACargo(session.userId));
+  return piezas.map((p) => ({ ...p, puedeEditar: decidePermiso(session.userId, aCargo, p) }));
+}
+
+/**
+ * LA REGLA, sin base de datos de por medio, para poder probarla.
+ *
+ * Dos caminos, no uno. Se escribe acá una sola vez porque la versión que
+ * vivía en la pantalla se separó de la del servidor y el equipo se quedó una
+ * semana sin poder cargar su trabajo.
+ */
+export function decidePermiso(
+  userId: string,
+  productosACargoDeEsaPersona: Set<string>,
+  pieza: { ownerId: string | null; productId: string | null },
+) {
+  // 1. La pieza está a su nombre. Alcanza: cubrir un producto un día suelto
+  //    es normal y no debería exigir que la sumen como responsable.
+  if (pieza.ownerId === userId) return true;
+  // 2. O lleva ese producto, y entonces puede con todas sus piezas.
+  return pieza.productId != null && productosACargoDeEsaPersona.has(pieza.productId);
+}
+
 /** Si una persona puede crear piezas en un producto. */
 export async function puedeCrearEn(session: SessionPayload, productId: string | null) {
   if (canManagePipeline(session.role)) return true;

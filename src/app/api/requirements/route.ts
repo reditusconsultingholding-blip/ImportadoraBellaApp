@@ -5,7 +5,7 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
-import { formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
+import { conPermisoDeEdicion, formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
 import { jsonComprimido } from "@/lib/respuesta";
 import { memorizar } from "@/lib/memoria";
 import { avisarAsignacion } from "@/lib/aviso-asignacion";
@@ -62,8 +62,10 @@ export async function GET(req: NextRequest) {
 
   // El CPA y el CPM de cada pieza son plata: se cortan acá, no al dibujar.
   const verCifras = await veLasCifras(session.userId);
+  // Cada pieza viaja con si quien pide la puede editar, resuelto por la misma
+  // función que después autoriza el PATCH. La pantalla no vuelve a deducirlo.
   return jsonComprimido({
-    requirements: creativosSinCifras(requirements, verCifras),
+    requirements: await conPermisoDeEdicion(session, creativosSinCifras(requirements, verCifras)),
     verCifras,
   });
 }

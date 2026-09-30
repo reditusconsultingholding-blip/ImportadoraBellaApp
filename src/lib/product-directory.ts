@@ -196,14 +196,23 @@ async function getDirectorySinMemoria(
       name: p.name,
       sku: p.sku,
       folder: p.folder?.name ?? null,
+      // EL CPA LO VE TODO EL EQUIPO. Lo que no ve quien no tiene el permiso
+      // de finanzas es la plata de la empresa: precio, costo, margen y gasto.
+      //
+      // Fabricio lo pidió así en la reunión de agosto —"los editores NO ven
+      // dinero, sí CPA, CTR y creativos"— y tiene sentido: el CPA es la nota
+      // del trabajo de quien hizo la pieza. Sin él, una editora no tiene forma
+      // de saber si lo que hizo funcionó, y la pantalla de Productos le queda
+      // en compras y nada más. Emilia: "a los chicos en la parte de producto
+      // no les aparece el cpa".
+      cpaTarget: p.cpaTarget,
+      cpa: pulso?.cpa ?? null,
       ...(verCifras
         ? {
             salePrice: p.salePrice,
             unitCost: p.unitCost,
             margen,
-            cpaTarget: p.cpaTarget,
             spend: pulso?.spend ?? 0,
-            cpa: pulso?.cpa ?? null,
           }
         : {}),
       // La ficha dice si el objetivo se puso sin conocer la economía real.

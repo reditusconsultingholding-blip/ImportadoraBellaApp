@@ -13,6 +13,12 @@ export type RequirementRow = {
   awarenessLevel: string;
   marketOrigin: string;
   ownerId: string | null;
+  /**
+   * Si quien está mirando puede editar ESTA pieza. Lo resuelve el servidor con
+   * la misma cuenta que autoriza el guardado — ver conPermisoDeEdicion en
+   * src/lib/responsables.ts. La pantalla no lo deduce.
+   */
+  puedeEditar?: boolean;
   owner: { id: string; name: string } | null;
   status: string;
   // Qué está haciendo la pieza EN LA PAUTA, y a qué ronda de cuatro pertenece.

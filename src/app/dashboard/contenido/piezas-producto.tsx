@@ -247,7 +247,7 @@ export default function PiezasProducto({
           </thead>
           <tbody>
             {ordenadas.slice(0, tope).map((r) => {
-              // QUIÉN PUEDE LLENAR ESTA FILA
+              // QUIÉN PUEDE LLENAR ESTA FILA: LO DICE EL SERVIDOR.
               //
               // Dos caminos, no uno: dirección y los responsables del producto
               // pueden con todas, y además cada quien puede con las piezas que
@@ -269,7 +269,13 @@ export default function PiezasProducto({
               //
               // Reasignar la pieza a otra persona sigue siendo de dirección
               // —la columna Editor va por canManage—, igual que en el PATCH.
-              const editable = puedeEditar || r.ownerId === currentUserId;
+              //
+              // `r.puedeEditar` viene resuelto por la misma función del
+              // servidor que autoriza el guardado. El cálculo local que quedó
+              // detrás del `??` es solo para una fila vieja que todavía no lo
+              // traiga —una pestaña abierta desde antes del despliegue—, no
+              // una segunda opinión.
+              const editable = r.puedeEditar ?? (puedeEditar || r.ownerId === currentUserId);
               const usados = formatosPorAdset.get(adsetDe(r));
               const bloqueados = new Set([...(usados?.entries() ?? [])].filter(([, id]) => id !== r.id).map(([f]) => f));
               return (

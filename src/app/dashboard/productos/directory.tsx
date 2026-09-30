@@ -247,7 +247,7 @@ export default function ProductDirectory({
   const ORDENES = ordenesPara(verCifras);
   // Ocho columnas cuando se ven las cifras; cinco cuando las cuatro de plata
   // se reemplazan por una sola de compras.
-  const columnas = verCifras ? 8 : 5;
+  const columnas = verCifras ? 8 : 6;
 
   return (
     <div className="flex flex-col gap-4">
@@ -374,7 +374,10 @@ export default function ProductDirectory({
                   <th className="px-3 py-2 text-right font-semibold">Margen</th>
                 </>
               ) : (
-                <th className="px-3 py-2 text-right font-semibold">Compras</th>
+                <>
+                  <th className="px-3 py-2 text-right font-semibold">Compras</th>
+                  <th className="px-3 py-2 text-right font-semibold">CPA / objetivo</th>
+                </>
               )}
               <th className="px-3 py-2 text-right font-semibold">Creativos</th>
             </tr>
@@ -517,15 +520,35 @@ export default function ProductDirectory({
                       </td>
                     </>
                   ) : (
-                    // Las compras atribuidas ocupan el lugar de las cuatro
-                    // columnas de plata: es la medida de volumen que sí
-                    // corresponde ver, y deja la tabla sin huecos.
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {r.purchases > 0 ? r.purchases.toLocaleString("es-EC") : "—"}
-                      {r.conPauta && r.purchases === 0 && (
-                        <span className="block text-xs text-warning">con pauta, sin compras</span>
-                      )}
-                    </td>
+                    // Sin el permiso de finanzas quedan las compras y el CPA.
+                    // El CPA no es la plata de la empresa: es la nota del
+                    // trabajo de quien hizo la pieza, y sin él esta pantalla no
+                    // le sirve de nada al equipo creativo. Lo que sigue oculto
+                    // es gasto, precio, costo y margen.
+                    <>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {r.purchases > 0 ? r.purchases.toLocaleString("es-EC") : "—"}
+                        {r.conPauta && r.purchases === 0 && (
+                          <span className="block text-xs text-warning">con pauta, sin compras</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        <span className={excedido ? "text-critical" : undefined}>
+                          {r.cpa == null ? "—" : money(r.cpa)}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          obj {money(r.cpaTarget ?? null)}
+                          {r.cpaTargetProvisional && (
+                            <span
+                              className="text-warning"
+                              title="El objetivo se puso sin conocer el costo real del producto"
+                            >
+                              {" · provisional"}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    </>
                   )}
 
                   <td className="px-3 py-2.5 text-right tabular-nums">
