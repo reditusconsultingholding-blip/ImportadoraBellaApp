@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fechaDeLaFila } from "@/lib/fecha-importada";
 import { db } from "@/lib/db";
 import { cronAuthorized } from "@/lib/cron-auth";
 import { normalizar } from "@/lib/product-code";
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
     const datos = {
       organizationId: org.id,
       productId: producto?.id ?? null,
-      date: e.fecha ? new Date(`${e.fecha}T12:00:00.000Z`) : new Date(),
+      date: fechaDeLaFila(e.fecha) ?? new Date(),
       adName: nombre.slice(0, 300),
       adType,
       phase,
