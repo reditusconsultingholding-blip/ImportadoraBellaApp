@@ -1,0 +1,170 @@
+{
+  "bienvenida": {
+    "archivo": "bienvenida.mp3",
+    "huella": "8d298781",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:04:33.799Z"
+  },
+  "sin-rol": {
+    "archivo": "sin-rol.mp3",
+    "huella": "02885265",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:04:39.833Z"
+  },
+  "panel-gestion": {
+    "archivo": "panel-gestion.mp3",
+    "huella": "1e7cb1d7",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:04:48.816Z"
+  },
+  "panel-editor": {
+    "archivo": "panel-editor.mp3",
+    "huella": "b669715f",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:04:54.381Z"
+  },
+  "ceo": {
+    "archivo": "ceo.mp3",
+    "huella": "5b9e73db",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:05:03.475Z"
+  },
+  "contenido-gestion": {
+    "archivo": "contenido-gestion.mp3",
+    "huella": "df782658",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:05:18.039Z"
+  },
+  "contenido-editor": {
+    "archivo": "contenido-editor.mp3",
+    "huella": "cbcce86d",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:05:27.978Z"
+  },
+  "productos-gestion": {
+    "archivo": "productos-gestion.mp3",
+    "huella": "0d6a9004",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:05:50.304Z"
+  },
+  "productos-editor": {
+    "archivo": "productos-editor.mp3",
+    "huella": "14faeaa0",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:05:59.144Z"
+  },
+  "rentabilidad": {
+    "archivo": "rentabilidad.mp3",
+    "huella": "9adfee55",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:08.368Z"
+  },
+  "clientes": {
+    "archivo": "clientes.mp3",
+    "huella": "0f5b799b",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:17.172Z"
+  },
+  "origen": {
+    "archivo": "origen.mp3",
+    "huella": "62c21182",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:28.152Z"
+  },
+  "calculadora": {
+    "archivo": "calculadora.mp3",
+    "huella": "432aa858",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:37.349Z"
+  },
+  "reportes": {
+    "archivo": "reportes.mp3",
+    "huella": "37c0a420",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:45.497Z"
+  },
+  "logistica": {
+    "archivo": "logistica.mp3",
+    "huella": "cca2efb9",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:06:53.519Z"
+  },
+  "nomina": {
+    "archivo": "nomina.mp3",
+    "huella": "5e199c77",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:05.516Z"
+  },
+  "chat": {
+    "archivo": "chat.mp3",
+    "huella": "c667e063",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:13.657Z"
+  },
+  "notificaciones": {
+    "archivo": "notificaciones.mp3",
+    "huella": "dcd71da9",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:20.165Z"
+  },
+  "jarvis": {
+    "archivo": "jarvis.mp3",
+    "huella": "3baef1a1",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:30.644Z"
+  },
+  "conexiones": {
+    "archivo": "conexiones.mp3",
+    "huella": "8796b770",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:39.871Z"
+  },
+  "configuracion": {
+    "archivo": "configuracion.mp3",
+    "huella": "7305c482",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:07:43.937Z"
+  },
+  "usuarios": {
+    "archivo": "usuarios.mp3",
+    "huella": "932e7d87",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:08:01.272Z"
+  },
+  "rangos": {
+    "archivo": "rangos.mp3",
+    "huella": "d992b979",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:08:18.220Z"
+  },
+  "cierre": {
+    "archivo": "cierre.mp3",
+    "huella": "c2cc57a3",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-09-30T13:08:23.526Z"
+  }
+}

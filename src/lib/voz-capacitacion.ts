@@ -11,6 +11,70 @@
 // voces que llegan tarde, el corte a los quince segundos, el permiso de
 // reproducción— y el componente solo tiene que pedir "decí esto".
 
+import { huellaDeTexto } from "@/lib/huella-texto";
+
+/* ---------------------------------------------------------------------
+ * LA GRABACIÓN
+ *
+ * La capacitación tiene voz grabada —"El Faraón", de ElevenLabs— y la voz
+ * sintética del navegador como respaldo. La grabada suena a persona; la del
+ * navegador suena a navegador, pero está siempre.
+ *
+ * El problema real de tener audio pregrabado es que la pantalla y la voz pasan
+ * a ser dos copias de lo mismo: en cuanto alguien corrige un paso y no vuelve
+ * a grabar, la capacitación EXPLICA UNA PANTALLA QUE YA CAMBIÓ, sin fallar, sin
+ * avisar, y sin que quien la escucha tenga cómo saberlo.
+ *
+ * Por eso cada grabación queda atada a una huella del texto con el que se
+ * hizo. Si no coincide, ese paso —solo ese— cae a la voz del navegador. Peor
+ * voz, pero diciendo lo que la pantalla dice.
+ * ------------------------------------------------------------------- */
+
+type EntradaManifiesto = { archivo: string; huella: string; voz: string; modelo: string };
+type Manifiesto = Record<string, EntradaManifiesto>;
+
+const CARPETA = "/audio/capacitacion";
+
+let manifiesto: Manifiesto | null = null;
+let pedido: Promise<Manifiesto> | null = null;
+
+/**
+ * El índice de las grabaciones, pedido una sola vez.
+ *
+ * Si no está —nunca se grabó, o el despliegue no lo incluye— devuelve un
+ * índice vacío y todo cae a la voz del navegador. Que falten los audios no
+ * puede dejar la capacitación muda.
+ */
+export function cargarManifiesto(): Promise<Manifiesto> {
+  if (manifiesto) return Promise.resolve(manifiesto);
+  if (pedido) return pedido;
+  pedido = fetch(`${CARPETA}/manifiesto.json`, { cache: "force-cache" })
+    .then((r) => (r.ok ? (r.json() as Promise<Manifiesto>) : {}))
+    .catch(() => ({}))
+    .then((m) => {
+      manifiesto = m;
+      return m;
+    });
+  return pedido;
+}
+
+/**
+ * La grabación de un paso, si existe y si corresponde al texto de hoy.
+ *
+ * Devuelve null cuando no hay audio o cuando el texto cambió después de
+ * grabarlo. Ese null es el que manda el paso a la voz sintética.
+ */
+export function grabacionDelPaso(
+  id: string,
+  texto: string,
+  indice: Manifiesto | null,
+): string | null {
+  const e = indice?.[id];
+  if (!e) return null;
+  if (e.huella !== huellaDeTexto(texto)) return null;
+  return `${CARPETA}/${e.archivo}`;
+}
+
 /** Si el navegador puede hablar. En el servidor, no. */
 export function hayVoz() {
   return typeof window !== "undefined" && "speechSynthesis" in window;

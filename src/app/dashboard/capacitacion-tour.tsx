@@ -10,7 +10,16 @@ import {
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import type { PasoCapacitacion } from "@/lib/capacitacion-pasos";
-import { alTenerVoces, callar, hablar, hayVoz, textoDelPaso, vozEnEspanol } from "@/lib/voz-capacitacion";
+import {
+  alTenerVoces,
+  callar,
+  cargarManifiesto,
+  grabacionDelPaso,
+  hablar,
+  hayVoz,
+  textoDelPaso,
+  vozEnEspanol,
+} from "@/lib/voz-capacitacion";
 
 // El recorrido guiado de la herramienta.
 //
@@ -140,6 +149,25 @@ export default function CapacitacionTour({
 
   useEffect(() => alTenerVoces(() => setVozLista(true)), []);
 
+  // El índice de las grabaciones. Mientras no llega, `null`: no se habla
+  // todavía, para no arrancar con la voz sintética y pisarla medio segundo
+  // después con la grabada.
+  const [manifiesto, setManifiesto] = useState<Record<string, { archivo: string; huella: string; voz: string; modelo: string }> | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    cargarManifiesto().then((m) => {
+      if (vivo) setManifiesto(m);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  // El reproductor de las grabaciones. Uno solo, reutilizado: crear un
+  // <audio> por paso deja al navegador con veinte elementos sonando si algo
+  // sale mal.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Se anota en la base que se abrio sola, para que la proxima cuente.
   //
   // Va en un efecto y no al construir el estado porque es un pedido al
@@ -185,8 +213,41 @@ export default function CapacitacionTour({
     // entiende, y dejarla sonar consigue que la persona apague la voz para
     // siempre y se pierda la capacitación hablada en la computadora donde sí
     // habría funcionado.
-    if (!abierto || !quiereVoz || !vozLista || !paso || !vozEnEspanol()) {
+    if (!abierto || !quiereVoz || !paso || manifiesto === null) {
       callar();
+      audioRef.current?.pause();
+      return;
+    }
+
+    // PRIMERO LA GRABACIÓN.
+    const texto = textoDelPaso(paso);
+    const grabacion = grabacionDelPaso(paso.id, texto, manifiesto);
+    if (grabacion) {
+      const audio = audioRef.current ?? new Audio();
+      audioRef.current = audio;
+      audio.src = grabacion;
+      audio.onplay = () => {
+        setHablando(true);
+        setEsperandoGesto(false);
+      };
+      audio.onended = () => setHablando(false);
+      // play() devuelve una promesa que se RECHAZA cuando el navegador no deja
+      // sonar por no haber habido un gesto todavía. Es una respuesta directa,
+      // mucho mejor que la que hay que adivinar con la voz sintética.
+      audio.play().catch(() => {
+        setEsperandoGesto(true);
+        setHablando(false);
+      });
+      return () => {
+        audio.pause();
+        audio.onplay = null;
+        audio.onended = null;
+      };
+    }
+
+    // Sin grabación al día, la voz del navegador. Sin voz en español tampoco,
+    // el recorrido va escrito.
+    if (!vozLista || !vozEnEspanol()) {
       return;
     }
 
@@ -194,7 +255,7 @@ export default function CapacitacionTour({
     // navegador —cuando la voz ARRANCA y cuando termina— y del temporizador de
     // abajo. Marcar "hablando" al pedirlo sería mentir en el caso que importa,
     // que es justo cuando el navegador no deja sonar.
-    const cortar = hablar(textoDelPaso(paso), {
+    const cortar = hablar(texto, {
       alEmpezar: () => {
         setHablando(true);
         setEsperandoGesto(false);
@@ -219,7 +280,7 @@ export default function CapacitacionTour({
       window.clearTimeout(revisar);
       cortar();
     };
-  }, [abierto, quiereVoz, vozLista, paso]);
+  }, [abierto, quiereVoz, vozLista, paso, manifiesto]);
 
   // Al salir de la pantalla, callar. Sin esto, cerrar el recorrido con la voz
   // andando dejaba al navegador hablando solo hasta terminar el párrafo.
@@ -248,6 +309,7 @@ export default function CapacitacionTour({
     setQuiereVoz(siguiente);
     if (!siguiente) {
       callar();
+      audioRef.current?.pause();
       setHablando(false);
     }
     setEsperandoGesto(false);
@@ -294,6 +356,7 @@ export default function CapacitacionTour({
 
   function terminar() {
     callar();
+    audioRef.current?.pause();
     setHablando(false);
     setAbierto(false);
     setIndice(0);
@@ -305,6 +368,7 @@ export default function CapacitacionTour({
   // decisión distinta y tiene su propio botón.
   function cerrarPorAhora() {
     callar();
+    audioRef.current?.pause();
     setHablando(false);
     setAbierto(false);
   }
@@ -554,12 +618,15 @@ export default function CapacitacionTour({
                   explicación se escucha desde el paso que sigue.
                 </p>
               )}
-              {quiereVoz && vozLista && !vozEnEspanol() && (
+              {quiereVoz &&
+                vozLista &&
+                !vozEnEspanol() &&
+                !grabacionDelPaso(paso.id, textoDelPaso(paso), manifiesto) && (
                 <p className="mt-3 rounded border border-border bg-surface-2 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted">
                   Este navegador no tiene ninguna voz en español instalada, así que el recorrido va escrito.
-                  En Chrome suele estar; si no, se agrega desde los idiomas del sistema.
-                </p>
-              )}
+                    En Chrome suele estar; si no, se agrega desde los idiomas del sistema.
+                  </p>
+                )}
 
               <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
                 <button
