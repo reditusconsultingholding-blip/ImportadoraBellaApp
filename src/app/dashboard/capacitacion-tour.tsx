@@ -90,9 +90,14 @@ function alMoverse(avisar: () => void) {
  * botón. Se quitó el tope: la bienvenida acompaña hasta que la persona la
  * TERMINA, y desde ese momento no vuelve a salir sola.
  *
- * El freno real es `yaVista`, que se marca al apretar "Terminar" o "Saltarla"
- * —no al cerrar con la equis—. Quien la interrumpe la retoma en la entrada
- * siguiente. */
+ * El freno real es `yaVista`, y ahora SOLO se marca al llegar al final y
+ * apretar "Terminar". Cerrar con la equis o con "seguir después" no la da por
+ * vista: el recorrido retoma en el mismo paso la próxima vez que entre.
+ *
+ * Es a propósito. La capacitación explica cosas que, cuando no se ven, vuelven
+ * como reportes de error: cómo se da de alta un producto, qué abre cada rango,
+ * que la pieza que te asignan la podés llenar aunque el producto no sea tuyo.
+ * Una salida en el primer paso la volvía opcional en los hechos. */
 
 export default function CapacitacionTour({
   pasos,
@@ -629,15 +634,31 @@ export default function CapacitacionTour({
                 )}
 
               <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
-                <button
-                  type="button"
-                  onClick={terminar}
-                  className="text-left text-xs text-muted transition hover:text-foreground hover:underline"
-                >
-                  {esUltimo
-                    ? "No volver a mostrarla"
-                    : "Saltarla y no volver a mostrarla"}
-                </button>
+                {/* NO SE PUEDE SALTAR. Solo se termina llegándole al final.
+                    //
+                    // Antes había un "saltarla y no volver a mostrarla" que la
+                    // marcaba como hecha en el primer paso. La capacitación es
+                    // obligatoria y explica cosas que después se reportan como
+                    // errores —cómo dar de alta un producto, qué abre cada
+                    // rango, que la pieza asignada se puede llenar—, así que
+                    // una salida en el paso uno la volvía opcional en los
+                    // hechos.
+                    //
+                    // Esto no es encerrar a nadie: "seguir después" cierra el
+                    // globo y el recorrido retoma en el mismo paso la próxima
+                    // vez que entre. Lo único que ya no se puede es darla por
+                    // vista sin haberla visto. */}
+                {esUltimo ? (
+                  <span className="text-xs text-muted">Último paso</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={cerrarPorAhora}
+                    className="text-left text-xs text-muted transition hover:text-foreground hover:underline"
+                  >
+                    Seguir después
+                  </button>
+                )}
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"

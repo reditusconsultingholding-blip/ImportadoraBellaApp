@@ -166,5 +166,19 @@
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
     "generado": "2026-09-30T13:08:23.526Z"
+  },
+  "control": {
+    "archivo": "control.mp3",
+    "huella": "e0e3cba1",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-10-01T21:03:00.773Z"
+  },
+  "sin-nomenclatura": {
+    "archivo": "sin-nomenclatura.mp3",
+    "huella": "10cf9c80",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-10-01T21:03:10.302Z"
   }
 }

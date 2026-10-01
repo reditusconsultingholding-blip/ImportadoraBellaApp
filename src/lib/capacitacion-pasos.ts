@@ -193,6 +193,45 @@ export const PASOS: PasoCapacitacion[] = [
     roles: SOLO_EDITOR,
   },
   {
+    // FALTABA. Control publicitario no tenía un solo paso, y es la pantalla
+    // donde dirección decide todos los días. Se descubrió comparando las 19
+    // secciones del menú contra las rutas del recorrido: aparecían dos sin
+    // cubrir, esta y Sin nomenclatura.
+    id: "control",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/control",
+    seccion: "Control publicitario",
+    titulo: "Lo que se vendió de verdad contra todo lo que se gastó",
+    texto:
+      "Es la planilla del equipo de ventas, calculada sola. Los pedidos no salen de lo que reportan Meta y TikTok —que siempre se atribuyen de más— sino del reporte diario que carga el equipo comercial, y se cruzan contra el gasto real de pauta para dar la utilidad de cada producto. Si hay una pantalla para abrir todas las mañanas, es esta.",
+    puntos: [
+      "La planilla se relee sola cada hora. «Traer la planilla ahora» la fuerza cuando acaban de cargar pedidos y no querés esperar.",
+      "Los avisos de arriba son trabajo pendiente, no decoración: pedidos sin producto enlazado no suman a la rentabilidad de nadie, y sin gasto administrativo cargado la utilidad sale más alta que la real.",
+      "En cada fila, debajo del CPA, están el objetivo y el de equilibrio: verde si está debajo del objetivo, ámbar si lo pasó pero todavía deja plata, rojo si pasó el equilibrio y cada venta cuesta más de lo que deja.",
+      "«Economía por producto» es donde se cargan precio, costo, flete y efectividad de cada mes. De ahí sale todo lo demás: sin eso, la utilidad es una estimación.",
+      "«Enlazar pedidos» resuelve los pedidos cuyo nombre no coincide con ningún producto. «Testeos» separa lo que se está probando para que no ensucie los números de lo que ya funciona.",
+      "El selector de cierre (8h, 11h, 16h) es para comparar contra el corte que usa el equipo, no para cambiar los datos.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
+    // La otra que faltaba.
+    id: "sin-nomenclatura",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/sin-nomenclatura",
+    seccion: "Sin nomenclatura",
+    titulo: "Lo que gastó o vendió sin que se sepa de qué producto es",
+    texto:
+      "Cuando una campaña no se llama con el código del producto, o la tienda factura con un nombre que Jarvis no conoce, esa plata queda en el aire: se gastó y se vendió, pero no suma a la rentabilidad de nadie. Acá se empareja, y es lo que hace que los números del control dejen de tener agujeros.",
+    puntos: [
+      "Son tres listas y cada una se resuelve eligiendo un producto: nombres de Shopify sin producto, campañas sin producto, y productos sin ninguna campaña.",
+      "El producto se busca escribiendo —nombre, código o iniciales—, no hace falta recordar el código exacto.",
+      "Si un nombre es un envío, una garantía o un testeo, se marca como «no es un producto» y deja de aparecer. No todo lo que factura la tienda es un producto.",
+      "Lo que asignás a mano manda: la sincronización automática no lo pisa después.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
     id: "rentabilidad",
     requierePermisoFinanzas: true,
     ruta: "/dashboard/rentabilidad",
