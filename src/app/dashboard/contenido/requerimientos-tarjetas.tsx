@@ -276,8 +276,15 @@ function Responsables({
   const [editando, setEditando] = useState(false);
   const [marcados, setMarcados] = useState<string[]>(producto.responsables.map((r) => r.id));
   const [error, setError] = useState<string | null>(null);
+  // Mientras guarda, el botón se apaga. Sin esto cada clic mandaba otro PUT y
+  // los pedidos se pisaban entre sí: el registro de actividad llegó a tener
+  // cuatro guardados del mismo producto en tres segundos, y el responsable
+  // terminaba borrado.
+  const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
+    if (guardando) return;
+    setGuardando(true);
     setError(null);
     try {
       const res = await fetch(`/api/productos/${encodeURIComponent(producto.code)}/responsables`, {
@@ -291,6 +298,8 @@ function Responsables({
       setEditando(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardando(false);
     }
   }
 
@@ -340,8 +349,13 @@ function Responsables({
       </div>
       {error && <p className="text-xs text-critical">{error}</p>}
       <div className="flex gap-2">
-        <button type="button" onClick={guardar} className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-strong">
-          Guardar
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={guardando}
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong disabled:opacity-60"
+        >
+          {guardando ? "Guardando…" : "Guardar"}
         </button>
         <button type="button" onClick={() => setEditando(false)} className="px-2 text-xs text-muted hover:text-foreground">
           Cancelar

@@ -38,11 +38,44 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ code
     select: { id: true },
   });
 
+  // SE GUARDA LA DIFERENCIA, NO SE BORRA TODO Y SE VUELVE A ESCRIBIR.
+  //
+  // Antes era borrar la lista entera y recrearla. Con un solo pedido funciona;
+  // con dos a la vez, no. Y llegaban de a varios: el botón no se bloqueaba
+  // mientras guardaba, así que cada clic mandaba otro PUT —el registro de
+  // actividad muestra cuatro del mismo producto en tres segundos—. Dos de esos
+  // borrados y escrituras pisándose dejan la lista vacía, y el responsable que
+  // alguien acababa de poner desaparece.
+  //
+  // Emilia: "ayer le asigné el tema de responsable y como que se borró, le
+  // tuve que poner como tres veces". Dicho así parece que no se guarda; lo que
+  // pasaba es que se guardaba y el pedido siguiente lo borraba.
+  //
+  // Calculando la diferencia, repetir el mismo pedido no cambia nada: quita
+  // solo a quien sobra y agrega solo a quien falta.
+  const actuales = await db.responsableProducto.findMany({
+    where: { productId: producto.id },
+    select: { userId: true },
+  });
+  const quedan = new Set(validos.map((u) => u.id));
+  const yaEstan = new Set(actuales.map((r) => r.userId));
+  const sacar = [...yaEstan].filter((id) => !quedan.has(id));
+  const poner = [...quedan].filter((id) => !yaEstan.has(id));
+
   await db.$transaction([
-    db.responsableProducto.deleteMany({ where: { productId: producto.id } }),
-    db.responsableProducto.createMany({
-      data: validos.map((u) => ({ productId: producto.id, userId: u.id })),
-    }),
+    ...(sacar.length > 0
+      ? [db.responsableProducto.deleteMany({ where: { productId: producto.id, userId: { in: sacar } } })]
+      : []),
+    ...(poner.length > 0
+      ? [
+          db.responsableProducto.createMany({
+            data: poner.map((userId) => ({ productId: producto.id, userId })),
+            // Si dos pedidos llegan juntos, el segundo no revienta por
+            // duplicado: simplemente no tiene nada que agregar.
+            skipDuplicates: true,
+          }),
+        ]
+      : []),
   ]);
 
   const responsables = await db.responsableProducto.findMany({

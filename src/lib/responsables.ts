@@ -20,6 +20,26 @@ export async function productosACargo(userId: string): Promise<string[]> {
   return filas.map((f) => f.productId);
 }
 
+/**
+ * Junta varios filtros de Prisma sin que se pisen entre sí.
+ *
+ * NUNCA fusionar filtros con spread. Dos filtros distintos pueden traer la
+ * misma clave —`OR` es la típica— y al fusionarlos el segundo borra al
+ * primero sin decir nada.
+ *
+ * Pasó, y fue caro: el filtro de "qué piezas puedo ver" se combinaba por
+ * spread con el de "qué entra en estas fechas". Los dos usan `OR`. Como la
+ * pantalla siempre manda fechas, la visibilidad quedaba anulada en TODAS las
+ * peticiones y cada editora recibía las piezas de toda la empresa. No falló
+ * nada; simplemente dejó de filtrar.
+ */
+export function combinarFiltros(...partes: object[]): object {
+  const usables = partes.filter((p) => p && Object.keys(p).length > 0);
+  if (usables.length === 0) return {};
+  if (usables.length === 1) return usables[0];
+  return { AND: usables };
+}
+
 /** El filtro de Prisma con las piezas que una persona puede ver. */
 export async function piezasVisibles(session: SessionPayload) {
   if (canManagePipeline(session.role)) return {};

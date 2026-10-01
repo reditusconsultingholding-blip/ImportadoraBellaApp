@@ -5,7 +5,13 @@ import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
 import { creativosSinCifras, veLasCifras } from "@/lib/finanzas";
 import { REQUIREMENT_STATUSES } from "@/lib/pipeline-options";
 import { sincronizarTareaDeRequerimiento } from "@/lib/tarea-de-requerimiento";
-import { conPermisoDeEdicion, formatoRepetido, piezasVisibles, puedeCrearEn } from "@/lib/responsables";
+import {
+  combinarFiltros,
+  conPermisoDeEdicion,
+  formatoRepetido,
+  piezasVisibles,
+  puedeCrearEn,
+} from "@/lib/responsables";
 import { jsonComprimido } from "@/lib/respuesta";
 import { memorizar } from "@/lib/memoria";
 import { avisarAsignacion } from "@/lib/aviso-asignacion";
@@ -55,9 +61,22 @@ export async function GET(req: NextRequest) {
 
   // Dirección ve todo. Un editor, lo asignado a su nombre y todo lo de los
   // productos que tiene a cargo — ver src/lib/responsables.ts.
+  //
+  // VAN EN UN `AND`, NO FUSIONADOS CON SPREAD.
+  //
+  // Antes era `{ ...piezasVisibles(session), ...enRango }`. Los dos objetos
+  // traen una clave `OR` —uno para "qué puedo ver", otro para "qué entra en
+  // estas fechas"— y al fusionarlos el segundo PISABA al primero. Como la
+  // pantalla siempre manda fechas, el filtro de visibilidad no se aplicaba
+  // NUNCA: cada editora recibía todas las piezas de la organización.
+  //
+  // No se notaba como un error. Se notaba como "no puedo editar algunos
+  // productos", porque las piezas ajenas aparecen en la lista y salen
+  // bloqueadas, que es lo correcto. El equipo lo reportó tres veces y las tres
+  // sonaba a un problema de permisos de edición.
   const requirements = await piezasDe(
     session.organizationId,
-    JSON.stringify({ ...(await piezasVisibles(session)), ...enRango }),
+    JSON.stringify(combinarFiltros(await piezasVisibles(session), enRango)),
   );
 
   // El CPA y el CPM de cada pieza son plata: se cortan acá, no al dibujar.
