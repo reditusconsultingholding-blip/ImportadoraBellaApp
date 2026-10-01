@@ -138,7 +138,10 @@ export default async function DashboardLayout({
         <AvisoLlamada />
         <AnunciosGlobales />
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur-sm">
-          <div className="flex h-14 items-center justify-end gap-3 px-4 md:px-8">
+          {/* Mismo ancho y mismo centrado que <main>, si no los iconos quedan
+              pegados al borde del monitor y el contenido en otro lado: en una
+              pantalla de 1920 estaban a 470 píxeles de distancia. */}
+          <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-end gap-3 px-4 md:px-8">
             {/* El recorrido va en el encabezado y no en el menú lateral porque
                 es lo único que se puede necesitar estando en cualquier
                 pantalla: desde acá se abre sin perder dónde estabas, y en el
@@ -163,7 +166,21 @@ export default async function DashboardLayout({
         </header>
         <LiveRefresher />
         <RegistroBusquedas />
-        <main className="w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-8">{children}</main>
+        {/* EL ANCHO DEL PANEL.
+            //
+            // Estaba en `max-w-[1200px]` SIN `mx-auto`: el contenido quedaba
+            // clavado a la izquierda y en un monitor de 1920 sobraban 480
+            // píxeles de negro a la derecha —un cuarto de la pantalla— mientras
+            // la barra de arriba sí ocupaba todo el ancho. Esa mezcla es la que
+            // se ve rota: no parece una decisión de diseño, parece que algo no
+            // cargó.
+            //
+            // Ahora va centrado y hasta 1600, que es lo que usa de verdad una
+            // pantalla grande. Se puede ensanchar sin miedo a los renglones
+            // kilométricos porque los textos largos ya están acotados aparte
+            // (EncabezadoSeccion los deja en max-w-2xl) y lo que ocupa el resto
+            // son tablas y tarjetas, que agradecen el espacio. */}
+        <main className="mx-auto w-full max-w-[1600px] px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
     </div>
   );
