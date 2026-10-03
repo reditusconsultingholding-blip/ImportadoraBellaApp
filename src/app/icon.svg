@@ -2,28 +2,35 @@
   <!--
     El icono de la pestaña: la B de Bella, verde sobre fondo claro.
 
-    LA LETRA ES SIMÉTRICA A PROPÓSITO. En tipografía la panza de abajo se hace
-    más grande que la de arriba: es una corrección óptica, porque dos panzas
-    iguales se ven pesadas arriba. Acá se eligió la simetría igual, como
-    decisión de marca — a 16 píxeles esa corrección no se percibe y lo que
-    queda es una forma más geométrica.
+    La forma salió de cuatro propuestas generadas con Recraft; se eligió la
+    maciza, de asta sólida y contraformas redondas. Pero el archivo está
+    DIBUJADO A MANO, no trazado de la imagen: la versión generada tenía la
+    panza de abajo unos píxeles más ancha que la de arriba, y lo que se pidió
+    fue una B simétrica. Una simetría "casi" no es simetría — a 16 píxeles no
+    se nota, en el círculo de carga a 44 píxeles sí.
 
-    Las medidas salen de esa simetría y conviene no tocarlas sueltas:
-    la letra mide 22 de alto y la unión cae en la mitad exacta, así que cada
-    panza mide 11. Las paredes son 3,2 en los tres lugares —arriba, la barra
-    del medio y abajo— y los dos huecos miden 6,2. Los márgenes laterales son
-    10,3 iguales, así que está centrada de verdad y no de casualidad.
+    LA SIMETRÍA ES EXACTA Y SE PUEDE COMPROBAR LEYENDO LOS NÚMEROS:
+    las dos panzas son semicírculos del mismo radio (5.5) con centros en
+    y=10.5 e y=21.5, espejo perfecto respecto de y=16, que es la mitad de la
+    letra (va de y=5 a y=27). Las dos contraformas son círculos del mismo
+    radio (2.7) centrados a la altura de su panza.
+
+    En tipografía esto se hace al revés: la panza de abajo se dibuja más grande
+    porque dos iguales se ven pesadas arriba. Es una corrección óptica para
+    texto corrido; en una marca de una sola letra se eligió la geometría.
 
     El fondo va relleno y no transparente: sin caja propia, la letra desaparece
     cuando la barra del navegador es clara o verdosa.
+
+    ESTA MISMA PIEZA gira en el centro del círculo de carga
+    (cargando-con-logo.tsx). Cambiarla acá la cambia en los dos lados.
   -->
   <rect x="1" y="1" width="30" height="30" rx="6" fill="#ffffff" stroke="#008060" stroke-width="2"/>
   <path
     fill="#008060"
     fill-rule="evenodd"
-    d="M10.3 5h5.9a5.5 5.5 0 0 1 0 11h-5.9z
-       M10.3 16h5.9a5.5 5.5 0 0 1 0 11h-5.9z
-       M14.7 8.2h0.7a3.1 3.1 0 0 1 0 6.2h-0.7z
-       M14.7 17.6h0.7a3.1 3.1 0 0 1 0 6.2h-0.7z"
+    d="M9.5 5h7a5.5 5.5 0 0 1 0 11 5.5 5.5 0 0 1 0 11h-7Z
+       M19.2 10.5a2.7 2.7 0 1 0-5.4 0 2.7 2.7 0 0 0 5.4 0Z
+       M19.2 21.5a2.7 2.7 0 1 0-5.4 0 2.7 2.7 0 0 0 5.4 0Z"
   />
 </svg>
