@@ -85,36 +85,76 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* LOS COLORES OSCUROS, EN UN SOLO LUGAR.
+ *
+ * Se aplican de dos formas y tienen que ser idénticas: cuando el sistema
+ * operativo está en oscuro, y cuando la persona lo elige a mano desde el
+ * encabezado. Tenerlos escritos dos veces garantizaba que algún día uno de los
+ * dos se quedara viejo y la app se viera distinta según cómo llegaste a ella.
+ *
+ * El interruptor manda sobre el sistema: si alguien eligió claro, el modo
+ * oscuro del sistema no se lo pisa. Por eso el `:root[data-tema="claro"]`
+ * aparece DESPUÉS y vuelve a poner los valores claros. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f1113;
-    --surface: #1a1d1f;
-    --surface-2: #232629;
-    --foreground: #e6e7e8;
-    --muted: #9ca0a4;
-    --border: #303437;
-    --border-strong: #45494d;
-    --accent: #36c39b;
-    --accent-strong: #6fdcbb;
-    --good: #4cbe86;
-    --good-bg: #12291f;
-    --critical: #e08376;
-    --critical-bg: #331a17;
-    --warning: #d9a441;
-    --pending-bg: #2e2415;
-    /* El modo oscuro lleva sus propios pasos, no los mismos aclarados: sobre
-       fondo oscuro los del modo claro se salen de la banda de luminosidad y
-       dejan de distinguirse. Estos se validaron aparte. */
-    --chart-1: #17a882;
-    --chart-2: #7385f0;
-    --chart-3: #d06735;
-    --chart-4: #be5fa8;
-    --chart-muted: #6b7280;
-    --chart-grid: #2a2e31;
+  :root:not([data-tema="claro"]) {
+  --background: #0f1113;
+      --surface: #1a1d1f;
+      --surface-2: #232629;
+      --foreground: #e6e7e8;
+      --muted: #9ca0a4;
+      --border: #303437;
+      --border-strong: #45494d;
+      --accent: #36c39b;
+      --accent-strong: #6fdcbb;
+      --good: #4cbe86;
+      --good-bg: #12291f;
+      --critical: #e08376;
+      --critical-bg: #331a17;
+      --warning: #d9a441;
+      --pending-bg: #2e2415;
+      /* El modo oscuro lleva sus propios pasos, no los mismos aclarados: sobre
+         fondo oscuro los del modo claro se salen de la banda de luminosidad y
+         dejan de distinguirse. Estos se validaron aparte. */
+      --chart-1: #17a882;
+      --chart-2: #7385f0;
+      --chart-3: #d06735;
+      --chart-4: #be5fa8;
+      --chart-muted: #6b7280;
+      --chart-grid: #2a2e31;
 
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-    --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.55);
+      --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+      --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.55);
   }
+}
+
+:root[data-tema="oscuro"] {
+  --background: #0f1113;
+      --surface: #1a1d1f;
+      --surface-2: #232629;
+      --foreground: #e6e7e8;
+      --muted: #9ca0a4;
+      --border: #303437;
+      --border-strong: #45494d;
+      --accent: #36c39b;
+      --accent-strong: #6fdcbb;
+      --good: #4cbe86;
+      --good-bg: #12291f;
+      --critical: #e08376;
+      --critical-bg: #331a17;
+      --warning: #d9a441;
+      --pending-bg: #2e2415;
+      /* El modo oscuro lleva sus propios pasos, no los mismos aclarados: sobre
+         fondo oscuro los del modo claro se salen de la banda de luminosidad y
+         dejan de distinguirse. Estos se validaron aparte. */
+      --chart-1: #17a882;
+      --chart-2: #7385f0;
+      --chart-3: #d06735;
+      --chart-4: #be5fa8;
+      --chart-muted: #6b7280;
+      --chart-grid: #2a2e31;
+
+      --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+      --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.55);
 }
 
 body {

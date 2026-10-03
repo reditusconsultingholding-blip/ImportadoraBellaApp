@@ -12,6 +12,7 @@ import {
 import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
 import AvisoVersion from "./aviso-version";
+import SelectorTema from "./selector-tema";
 import { versionDeLaApp } from "@/lib/version-app";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
@@ -159,6 +160,10 @@ export default async function DashboardLayout({
                 JavaScript: una pestaña abierta desde el lunes sigue corriendo
                 el código del lunes. El equipo la deja abierta todo el día. */}
             <AvisoVersion versionCargada={versionDeLaApp()} />
+            {/* Claro / oscuro / el del sistema. Va acá porque es lo único que
+                se puede necesitar desde cualquier pantalla y no pertenece a
+                ninguna. */}
+            <SelectorTema />
             <ContadorDatos />
             <LiveIndicator />
             <NotificationsBell />

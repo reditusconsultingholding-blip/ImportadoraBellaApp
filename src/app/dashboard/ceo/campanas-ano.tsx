@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import type { CampanasDelAno } from "@/lib/ceo-campanas";
 import BuscadorProducto from "../buscador-producto";
+import CargandoConLogo from "../cargando-con-logo";
 
 // El tablero "Campañas del año", como el que el dueño usaba en Looker Studio:
 // KPIs, CPA por mes, gasto por mes, Meta contra TikTok, y las tablas por mes
@@ -294,7 +295,16 @@ export default function CampanasAno({
   }, [delRango, productoDe, ordenProducto]);
 
   if (error) return <p className="rounded border border-critical bg-critical-bg px-4 py-3 text-sm text-critical">{error}</p>;
-  if (!datos) return <p className="py-8 text-center text-sm text-muted">Cargando las campañas del año…</p>;
+  // Esta pantalla cruza año y medio de campañas en el navegador y tarda
+  // entre dos y cuatro segundos. Una línea de texto gris sobre el vacío se
+  // leía como que se colgó; el círculo dice que está trabajando y por qué.
+  if (!datos)
+    return (
+      <CargandoConLogo
+        detalle="Estamos cruzando todas las campañas del período. La calidad pesa un poco."
+        alto="min-h-[26rem]"
+      />
+    );
 
   const hayFiltro = Boolean(plataforma || centro || producto || desdeMes || hastaMes);
   const eje = { fontSize: 10, fill: "var(--muted)" };
