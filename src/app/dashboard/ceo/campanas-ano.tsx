@@ -164,9 +164,39 @@ export default function CampanasAno({
     });
   }, [datos, plataforma, centro, producto, desdeMes, hastaMes, cuentaDe]);
 
+  /**
+   * Las filas del PERÍODO elegido arriba, con los mismos filtros de
+   * plataforma, centro y producto.
+   *
+   * `filas` es por mes y del año; esto es por día y del rango exacto. De acá
+   * salen los KPI's, Meta contra TikTok y el CPA por producto — todo lo que
+   * contesta "cómo viene esto AHORA". Los dos gráficos de línea y barras por
+   * mes siguen saliendo de `filas`, porque su pregunta es la evolución del
+   * año y recortarla al rango la vaciaría.
+   */
+  const delRango = useMemo(
+    () =>
+      (datos?.filasRango ?? []).filter((f) => {
+        if (plataforma && f.plataforma !== plataforma) return false;
+        if (centro && cuentaDe.get(f.cuentaId)?.centro !== centro) return false;
+        if (producto && f.productoId !== producto) return false;
+        return true;
+      }),
+    [datos, plataforma, centro, producto, cuentaDe],
+  );
+
+  // LOS KPI's SON DEL RANGO, NO DEL AÑO.
+  //
+  // Mostraban el año entero con el selector de arriba diciendo otra cosa:
+  // "gasto total $402.407" con "últimos 30 días" al lado. Fabricio: "esa parte
+  // debe también actualizarse según la fecha de rango que coloque".
   const total = useMemo(
-    () => filas.reduce((s, f) => ({ gasto: s.gasto + f.gasto, conversiones: s.conversiones + f.conversiones }), { gasto: 0, conversiones: 0 }),
-    [filas],
+    () =>
+      delRango.reduce(
+        (s, f) => ({ gasto: s.gasto + f.gasto, conversiones: s.conversiones + f.conversiones }),
+        { gasto: 0, conversiones: 0 },
+      ),
+    [delRango],
   );
 
   const porMes = useMemo(() => {
@@ -182,9 +212,11 @@ export default function CampanasAno({
       .map(([mes, s]) => ({ mes, etiqueta: etiquetaMes(mes), ...s, cpa: cpa(s) }));
   }, [filas]);
 
+  // También del rango. Y sin el año pegado al nombre: decía "Meta Ads 2026"
+  // mientras el selector marcaba "mes pasado", que son dos cosas distintas.
   const porPlataforma = useMemo(() => {
     const m = new Map<string, Suma>();
-    for (const f of filas) {
+    for (const f of delRango) {
       const s = m.get(f.plataforma) ?? { gasto: 0, conversiones: 0 };
       s.gasto += f.gasto;
       s.conversiones += f.conversiones;
@@ -194,9 +226,9 @@ export default function CampanasAno({
       .filter((p) => m.has(p))
       .map((p) => {
         const s = m.get(p)!;
-        return { nombre: `${p === "META" ? "Meta Ads" : "TikTok"} ${anio}`, ...s, cpa: cpa(s) };
+        return { nombre: p === "META" ? "Meta Ads" : "TikTok", ...s, cpa: cpa(s) };
       });
-  }, [filas, anio]);
+  }, [delRango]);
 
   // OJO: esta tabla NO sale de `filas` como el resto del tablero.
   //
@@ -210,13 +242,6 @@ export default function CampanasAno({
   // —con granularidad de día, no de mes—. Los filtros de plataforma, centro y
   // producto se le aplican igual que a lo demás.
   const porProducto = useMemo(() => {
-    const delRango = (datos?.filasRango ?? []).filter((f) => {
-      if (plataforma && f.plataforma !== plataforma) return false;
-      if (centro && cuentaDe.get(f.cuentaId)?.centro !== centro) return false;
-      if (producto && f.productoId !== producto) return false;
-      return true;
-    });
-
     const m = new Map<string, Suma>();
     for (const f of delRango) {
       const k = f.productoId ?? "__sin__";
@@ -243,7 +268,7 @@ export default function CampanasAno({
             ? b.conversiones - a.conversiones
             : b.gasto - a.gasto,
       );
-  }, [datos, plataforma, centro, producto, cuentaDe, productoDe, ordenProducto]);
+  }, [delRango, productoDe, ordenProducto]);
 
   if (error) return <p className="rounded border border-critical bg-critical-bg px-4 py-3 text-sm text-critical">{error}</p>;
   if (!datos) return <p className="py-8 text-center text-sm text-muted">Cargando las campañas del año…</p>;
@@ -327,6 +352,9 @@ export default function CampanasAno({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
         <Caja titulo="KPI's">
+          {/* Qué período están contando. Sin esto, un número grande sin fecha
+              se lee como el total de todo, que es justo lo que pasaba. */}
+          <p className="-mt-1 mb-2.5 text-[11px] text-muted">{periodo}</p>
           <div className="grid grid-cols-2 gap-3">
             <Kpi label="Gasto total" valor={usd0(total.gasto)} />
             <Kpi label="CPA real (costo por conv.)" valor={usd2(cpa(total))} />
@@ -359,6 +387,7 @@ export default function CampanasAno({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
         <Caja titulo="Meta contra TikTok">
+          <p className="-mt-1 mb-2.5 text-[11px] text-muted">{periodo}</p>
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={porPlataforma} margin={{ top: 18, right: 8, left: -8, bottom: 0 }}>

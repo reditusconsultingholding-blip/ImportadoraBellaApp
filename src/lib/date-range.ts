@@ -6,12 +6,14 @@ export type RangeId =
   | "ayer"
   | "semana"
   | "mes"
+  | "mesPasado"
   | "7d"
   | "30d"
   | "3m"
   | "6m"
   | "9m"
   | "12m"
+  | "maximo"
   | "personalizado";
 
 // Los que se ofrecen en el selector.
@@ -28,12 +30,19 @@ export const RANGES: { id: RangeId; label: string }[] = [
   // lunes, no desde el martes pasado.
   { id: "semana", label: "Esta semana" },
   { id: "mes", label: "Este mes" },
+  // "Mes pasado" es el mes calendario cerrado, de su día 1 a su último día. No
+  // es lo mismo que "últimos 30 días": al cerrar un mes se compara contra el
+  // anterior completo, no contra una ventana que arrastra días de los dos.
+  { id: "mesPasado", label: "Mes pasado" },
   { id: "7d", label: "Últimos 7 días" },
   { id: "30d", label: "Últimos 30 días" },
   { id: "3m", label: "Últimos 3 meses" },
   { id: "6m", label: "Últimos 6 meses" },
   { id: "9m", label: "Últimos 9 meses" },
   { id: "12m", label: "Últimos 12 meses" },
+  // Todo lo que haya. Es con lo que abre Estadísticas CEO: ahí la pregunta es
+  // cómo viene el negocio entero, no cómo viene el mes.
+  { id: "maximo", label: "Máximo" },
   { id: "personalizado", label: "Entre dos fechas" },
 ];
 
@@ -133,6 +142,21 @@ export function resolveRange(
     case "mes": {
       const f = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
       return make(f, today, "Este mes", "mes");
+    }
+    case "mesPasado": {
+      // Del día 1 del mes anterior a su último día. `day 0` del mes actual es
+      // el último del anterior, así que no hay que saber cuántos días tiene.
+      const inicio = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+      const fin = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
+      return make(inicio, fin, "Mes pasado", "mesPasado");
+    }
+    case "maximo": {
+      // Un piso muy anterior a cualquier dato que exista. No se calcula la
+      // fecha real del primer registro porque eso obligaría a una consulta
+      // antes de poder resolver el rango, y el resultado sería el mismo:
+      // todo lo que haya.
+      const inicio = new Date(Date.UTC(2020, 0, 1));
+      return make(inicio, today, "Máximo", "maximo");
     }
     case "7d": {
       const f = new Date(today);

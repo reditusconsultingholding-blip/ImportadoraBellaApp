@@ -26,7 +26,14 @@ export default async function PanelCeoPage({
   if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
   const params = await searchParams;
-  const range = resolveRange(params.rango ?? "30d", params.desde, params.hasta);
+  // Esta pantalla abre en MÁXIMO, no en 30 días como el resto.
+  //
+  // Fabricio: "debe haber en la parte superior un botón de mes pasado y de
+  // máximo, este debe salir por default cuando se entre a esta pestaña". Tiene
+  // sentido: acá la pregunta es cómo viene el negocio entero —el gasto del
+  // año, Meta contra TikTok, el CPA a lo largo del tiempo—, y abrir en los
+  // últimos 30 días mostraba un recorte de eso como si fuera el total.
+  const range = resolveRange(params.rango ?? "maximo", params.desde, params.hasta);
 
   // El permiso de nómina se lee de la base, no del rol: hay dueños que no lo
   // tienen.

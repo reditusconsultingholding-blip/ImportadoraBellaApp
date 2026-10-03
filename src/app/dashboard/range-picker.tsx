@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { RANGES, type RangeId } from "@/lib/date-range";
 import { BarraDeCarga, Girando, useNavegar } from "./navegar";
 
@@ -41,6 +42,36 @@ export default function RangePicker({
     navegar(`${basePath}?platform=${platform}&rango=${rango}`, rango);
   }
 
+  // DÓNDE SE DIBUJA LA CAJA DE "ENTRE DOS FECHAS".
+  //
+  // Iba `absolute` dentro del encabezado. El encabezado tiene una animación de
+  // entrada que mueve un `transform`, y un transform convierte a ese elemento
+  // en el marco de referencia de todo lo posicionado que tenga adentro, además
+  // de abrirle un contexto de apilado propio. Ya rompió una vez el pop-up de
+  // capacitación en esta misma app: quedaba recortado dentro del encabezado.
+  //
+  // Fabricio: "no permite ir a colocar entre fechas xq esta tapado". Así que la
+  // caja se dibuja en el <body>, en coordenadas de pantalla, fuera de cualquier
+  // encabezado, tarjeta o contexto de apilado que pueda taparla.
+  const botonRef = useRef<HTMLButtonElement>(null);
+  const [caja, setCaja] = useState<{ top: number; right: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const medir = () => {
+      const b = botonRef.current?.getBoundingClientRect();
+      if (!b) return;
+      setCaja({ top: b.bottom + 8, right: Math.max(8, window.innerWidth - b.right) });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    window.addEventListener("scroll", medir, true);
+    return () => {
+      window.removeEventListener("resize", medir);
+      window.removeEventListener("scroll", medir, true);
+    };
+  }, [open]);
+
   function applyCustom() {
     setOpen(false);
     navegar(
@@ -62,6 +93,7 @@ export default function RangePicker({
           return (
             <button
               key={r.id}
+              ref={r.id === "personalizado" ? botonRef : undefined}
               onClick={() => go(r.id)}
               disabled={pendiente}
               aria-busy={cargando}
@@ -98,8 +130,23 @@ export default function RangePicker({
         <p className="mt-1.5 text-xs text-white/60">Mostrando {label}</p>
       )}
 
-      {open && (
-        <div className="absolute right-0 z-20 mt-2 w-[min(20rem,90vw)] rounded border border-border bg-surface p-3 shadow-[var(--shadow-pop)]">
+      {open &&
+        caja &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {/* Un velo invisible: apretar fuera cierra. Sin esto hay que
+                acertarle a "Cancelar", que estando tapado era justamente lo
+                que no se podía. */}
+            <div
+              className="fixed inset-0 z-[60]"
+              aria-hidden
+              onClick={() => setOpen(false)}
+            />
+            <div
+              className="fixed z-[61] w-[min(22rem,calc(100vw-1rem))] rounded border border-border bg-surface p-3 shadow-[var(--shadow-pop)]"
+              style={{ top: caja.top, right: caja.right }}
+            >
           <p className="mb-2 text-xs text-muted">
             Elige dos fechas, o la misma dos veces para ver un solo día.
           </p>
@@ -143,8 +190,10 @@ export default function RangePicker({
               Cancelar
             </button>
           </div>
-        </div>
-      )}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
