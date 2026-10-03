@@ -199,6 +199,29 @@ export default function CampanasAno({
     [delRango],
   );
 
+  /**
+   * El total de la tabla por mes. Suma SUS PROPIAS FILAS.
+   *
+   * Tiene que ser distinto de `total` (que ahora es del rango) porque son dos
+   * preguntas distintas en la misma pantalla: arriba, "cómo viene el período
+   * elegido"; en esta tabla, "cuánto llevamos en el año, mes por mes".
+   *
+   * Se separó tarde y se notó feo: al pasar los KPI's al rango, esta fila se
+   * quedó usando el mismo número. Con "Hoy" puesto, la tabla listaba los diez
+   * meses del año y abajo decía Total 150 conversiones y 973,93 dólares —los
+   * de hoy— debajo de filas que suman ochenta y cinco mil. Una fila de totales
+   * que no suma lo que tiene encima no es un dato incompleto: es un dato que
+   * contradice a la tabla, y obliga a desconfiar de las dos cosas.
+   */
+  const totalDeLosMeses = useMemo(
+    () =>
+      filas.reduce(
+        (s, f) => ({ gasto: s.gasto + f.gasto, conversiones: s.conversiones + f.conversiones }),
+        { gasto: 0, conversiones: 0 },
+      ),
+    [filas],
+  );
+
   const porMes = useMemo(() => {
     const m = new Map<string, Suma>();
     for (const f of filas) {
@@ -523,9 +546,9 @@ export default function CampanasAno({
                 ))}
                 <tr className="border-t border-border font-semibold">
                   <td className="px-3 py-1.5">Total</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{num(total.conversiones)}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{usd2(total.gasto)}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{usd2(cpa(total))}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{num(totalDeLosMeses.conversiones)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{usd2(totalDeLosMeses.gasto)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{usd2(cpa(totalDeLosMeses))}</td>
                 </tr>
               </tbody>
             </table>
