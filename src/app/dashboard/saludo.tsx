@@ -41,9 +41,15 @@ const nadaQueEscuchar = () => () => {};
 export default function Saludo({ nombre }: { nombre: string }) {
   const franja = useSyncExternalStore(nadaQueEscuchar, franjaDelDia, () => null);
 
-  // El primer nombre alcanza. "Buenos días, Maria Jose Loor" suena a carta del
-  // banco; "Buenos días, Maria Jose" suena a alguien que te conoce.
-  const primerNombre = nombre.trim().split(/\s+/).slice(0, 2).join(" ");
+  // SOLO EL NOMBRE DE PILA. "Buenos días, Emilia Villegas" suena a carta del
+  // banco; "Buenos días, Emilia" suena a alguien que te conoce.
+  //
+  // La primera versión tomaba dos palabras, pensando en los nombres
+  // compuestos. Para la mayoría eso es nombre Y apellido, así que salía el
+  // nombre completo — justo lo que se quería evitar: en producción se leyó
+  // "Qué madrugón, Alank Vargas". Vale más quedarse corto con un nombre
+  // compuesto que tratar de usted a todo el equipo.
+  const primerNombre = nombre.trim().split(/\s+/)[0];
 
   if (!franja) return null;
 
