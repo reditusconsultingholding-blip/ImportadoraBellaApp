@@ -54,12 +54,37 @@ function traerReconocimiento(): ConstructorReconocimiento | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/**
+ * Dónde termina la última frase cerrada del texto.
+ *
+ * Sirve para hablar mientras la respuesta todavía se está escribiendo: se lee
+ * hasta acá y el resto espera al pedazo siguiente.
+ *
+ * El punto tiene que estar seguido de un espacio o del final. Sin esa condición,
+ * "el CPA es 7.40" se partiría en "el CPA es 7." y Jarvis diría "siete punto"
+ * y se callaría a mitad del número — justo con las cifras, que es lo que más
+ * importa que se entienda.
+ */
+function finDeFraseCerrada(texto: string): number {
+  const marcas = /[.!?…:;\n](?=\s|$)/g;
+  let fin = -1;
+  let m: RegExpExecArray | null;
+  while ((m = marcas.exec(texto)) !== null) fin = m.index + 1;
+  return fin;
+}
+
 export default function VoiceMode({
   onPregunta,
+  respuestaEnCurso,
   ultimaRespuesta,
   pensando,
 }: {
   onPregunta: (texto: string) => Promise<void>;
+  /**
+   * Lo que Jarvis está escribiendo en este momento, o null si no hay un turno
+   * abierto. Es lo que permite empezar a hablar antes de que termine de pensar.
+   */
+  respuestaEnCurso: string | null;
   ultimaRespuesta: string | null;
   pensando: boolean;
 }) {
@@ -130,8 +155,25 @@ export default function VoiceMode({
   }, []);
 
   const recRef = useRef<Reconocimiento | null>(null);
-  const yaLeidoRef = useRef<string | null>(null);
   const enLlamadaRef = useRef(false);
+
+  // Hablar mientras la respuesta se escribe.
+  //
+  // Antes se esperaba la respuesta COMPLETA y después se leía de una. En una
+  // llamada eso son veinte o treinta segundos de silencio con el micrófono
+  // cerrado: por teléfono nadie aguanta eso, uno cuelga pensando que se cortó.
+  //
+  // Ahora se lee por frases. Apenas hay una frase cerrada se manda a hablar, y
+  // mientras suena van llegando las siguientes. El navegador las encola solo
+  // —por eso NO se llama a cancel() entre frases, que fue el error de la primera
+  // versión: cancelaba la que estaba sonando y solo se oía la última—.
+  //
+  // `yaHablado` guarda el texto ya entregado al sintetizador. Comparando por
+  // prefijo se sabe si lo que llega continúa el mismo turno o es uno nuevo, sin
+  // necesidad de que nadie avise que el turno cambió.
+  const yaHabladoRef = useRef("");
+  const pendientesRef = useRef(0);
+  const turnoCerradoRef = useRef(false);
   // La escucha se reabre a sí misma cuando hay silencio o cuando Jarvis
   // termina de hablar. Se llama por referencia para no auto-referenciar el
   // callback.
@@ -146,6 +188,11 @@ export default function VoiceMode({
     }
     recRef.current = null;
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    // La cola de frases se olvida junto con la llamada: si no, al volver a
+    // entrar se reabriría el micrófono por una frase de la llamada anterior.
+    yaHabladoRef.current = "";
+    pendientesRef.current = 0;
+    turnoCerradoRef.current = false;
     setEscuchando(false);
     setLeyendo(false);
     setParcial("");
@@ -205,10 +252,10 @@ export default function VoiceMode({
   }, [onPregunta]);
 
 
-  const leerEnVozAlta = useCallback(
+  /** Manda una frase a la cola del navegador. No cancela lo que ya suena. */
+  const encolarFrase = useCallback(
     (texto: string) => {
       if (typeof window === "undefined" || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
 
       const frase = new SpeechSynthesisUtterance(texto);
       frase.lang = "es-EC";
@@ -223,15 +270,24 @@ export default function VoiceMode({
         disponibles.find((v) => v.lang.toLowerCase().startsWith("es"));
       if (elegida) frase.voice = elegida;
 
-      frase.onstart = () => setLeyendo(true);
-      frase.onend = () => {
-        setLeyendo(false);
-        // El turno vuelve a quien preguntó: es lo que hace que se sienta una
-        // conversación y no un intercambio de mensajes.
-        if (enLlamadaRef.current) setTimeout(() => escucharRef.current(), 250);
-      };
-      frase.onerror = () => setLeyendo(false);
+      const terminoUna = () => {
+        pendientesRef.current = Math.max(0, pendientesRef.current - 1);
+        if (pendientesRef.current > 0) return;
 
+        setLeyendo(false);
+        // El micrófono se reabre cuando se terminó de hablar TODO y el turno ya
+        // está cerrado. Reabrirlo entre frases haría que Jarvis se escuche a sí
+        // mismo y se conteste.
+        if (turnoCerradoRef.current && enLlamadaRef.current) {
+          setTimeout(() => escucharRef.current(), 250);
+        }
+      };
+
+      frase.onstart = () => setLeyendo(true);
+      frase.onend = terminoUna;
+      frase.onerror = terminoUna;
+
+      pendientesRef.current += 1;
       window.speechSynthesis.speak(frase);
     },
     [vozElegida, velocidad]
@@ -243,13 +299,52 @@ export default function VoiceMode({
     escucharRef.current = escuchar;
   }, [escuchar]);
 
-  // Lee cada respuesta nueva una sola vez.
+  // Va leyendo la respuesta a medida que se escribe.
   useEffect(() => {
-    if (!enLlamada || !ultimaRespuesta || pensando) return;
-    if (yaLeidoRef.current === ultimaRespuesta) return;
-    yaLeidoRef.current = ultimaRespuesta;
-    leerEnVozAlta(ultimaRespuesta);
-  }, [enLlamada, ultimaRespuesta, pensando, leerEnVozAlta]);
+    if (!enLlamada) {
+      yaHabladoRef.current = "";
+      return;
+    }
+
+    // Mientras el turno está abierto se lee lo que va llegando; cuando se
+    // cierra, `respuestaEnCurso` vuelve a null y el texto definitivo es
+    // `ultimaRespuesta`.
+    const cerrado = respuestaEnCurso === null;
+    const texto = respuestaEnCurso ?? ultimaRespuesta ?? "";
+
+    // Si lo que llega no continúa lo que ya se habló, es otro turno: se corta
+    // lo que esté sonando y se empieza de cero. También entra por acá el
+    // arranque de cada pregunta, donde el texto es la cadena vacía.
+    if (!texto.startsWith(yaHabladoRef.current)) {
+      yaHabladoRef.current = "";
+      pendientesRef.current = 0;
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    }
+
+    turnoCerradoRef.current = cerrado;
+
+    const nuevo = texto.slice(yaHabladoRef.current.length);
+    if (!nuevo) {
+      // El turno cerró y no sobró nada por decir: puede que la última frase ya
+      // se haya terminado de leer, así que el micrófono se reabre acá o no se
+      // reabre nunca.
+      if (cerrado && pendientesRef.current === 0 && texto) {
+        setTimeout(() => {
+          if (enLlamadaRef.current) escucharRef.current();
+        }, 250);
+      }
+      return;
+    }
+
+    // Abierto: solo frases cerradas. Cerrado: todo lo que quede, aunque no
+    // termine en punto.
+    const corte = cerrado ? nuevo.length : finDeFraseCerrada(nuevo);
+    if (corte <= 0) return;
+
+    yaHabladoRef.current = texto.slice(0, yaHabladoRef.current.length + corte);
+    const frase = nuevo.slice(0, corte).trim();
+    if (frase) encolarFrase(frase);
+  }, [enLlamada, respuestaEnCurso, ultimaRespuesta, encolarFrase]);
 
   async function entrarALlamada() {
     setError(null);

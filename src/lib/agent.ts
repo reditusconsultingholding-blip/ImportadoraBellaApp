@@ -8,7 +8,41 @@ import { comoTexto, principiosRelevantes } from "@/lib/conocimiento";
 import { resolveRange } from "@/lib/date-range";
 import { correrHerramienta, herramientasPara, sinCifras } from "@/lib/agent-tools";
 
-const MODEL = "claude-opus-5";
+/**
+ * El modelo, y por qué este.
+ *
+ * Corría en Opus 5 y el dueño escribió "demora demasiado en responder". Opus es
+ * el más capaz de la familia y también el más lento, y acá ese costo se paga
+ * multiplicado: Jarvis no hace UNA llamada, hace hasta seis seguidas —pregunta,
+ * consulta la base, vuelve a pensar— y cada una arrastra su propio razonamiento.
+ *
+ * Sonnet 5.5 es la misma generación con bastante más velocidad. Para lo que
+ * hace Jarvis —leer cifras de la base y razonar sobre ellas con la economía de
+ * contraentrega— alcanza de sobra; lo que no alcanzaba era la paciencia de
+ * quien abre el panel a las siete de la mañana.
+ */
+const MODEL = "claude-sonnet-5-5";
+
+/**
+ * Cuánto se le deja pensar, según lo que se le pregunte.
+ *
+ * El esfuerzo es la palanca de velocidad: más esfuerzo es más razonamiento
+ * antes de contestar, y más segundos de espera. Una sola configuración para
+ * todo obliga a elegir mal en la mitad de los casos —"¿cuánto vendimos ayer?"
+ * no necesita pensarse, y "¿cómo llego a 50 mil?" no se contesta sin pensar—.
+ *
+ * Así que se mira la pregunta. Las de dato salen rápido; las de criterio se
+ * ganan el tiempo extra. El usuario percibe la diferencia donde importa: en las
+ * preguntas que hace veinte veces al día.
+ */
+const PALABRAS_DE_CRITERIO =
+  /\b(escalar|escalo|estrategia|plan|planeo|recomien|qu[eé] hago|c[oó]mo (hago|llego|subo|bajo|mejoro)|por qu[eé]|conviene|deber[ií]a|analiz|compar|proyec|presupuesto|optimiz)/i;
+
+function esfuerzoPara(pregunta: string): "low" | "medium" {
+  // Una pregunta larga casi siempre trae contexto y pide un juicio, no un dato.
+  if (pregunta.length > 180) return "medium";
+  return PALABRAS_DE_CRITERIO.test(pregunta) ? "medium" : "low";
+}
 
 /**
  * Búsqueda en internet, resuelta por Anthropic en su servidor.
@@ -111,12 +145,78 @@ hacia atrás, no con consejos generales:
    presupuesto, una confirmación baja que se come el margen.
 Sé concreto: productos por nombre y números, no "optimiza tus campañas".`;
 
+const IMAGENES = `CUANDO TE MANDEN UNA IMAGEN
+Te van a adjuntar capturas: el administrador de anuncios, un panel de Shopify,
+un creativo, una conversación con un cliente, un reporte de la agencia de
+envíos. Míralas de verdad y trabaja sobre lo que ves.
+
+- Primero di QUÉ ESTÁS VIENDO, con los números que leés en la captura. Así quien
+  te la manda sabe si leíste bien antes de creerte la conclusión.
+- Después el juicio: qué está pasando ahí y qué harías.
+- Los números de la captura son de la captura. Si querés compararlos con los de
+  la empresa, consultá la base: una cifra que está en pantalla puede ser de otro
+  período, de otra cuenta o de compras atribuidas, y mezclarlas sin decirlo es
+  la forma más fácil de equivocarse.
+- Si la imagen está cortada, borrosa o no se entiende qué parte importa, decilo
+  y pedí qué falta. Mejor eso que inventar lo que no se ve.
+- Si lo que ves CONTRADICE lo que dijiste antes o lo que trae la base,
+  corregite en voz alta: "esto cambia lo que te dije, mirá por qué". Esa
+  corrección vale más que haber tenido razón.`;
+
+const PREGUNTAR_DE_VUELTA = `PREGUNTAR TAMBIÉN ES RESPONDER
+No eres un formulario: eres alguien con quien se piensa. Cuando la pregunta
+admite dos respuestas muy distintas según algo que no te dijeron, contesta con
+lo que tengas Y preguntá eso una sola cosa, al final, concreta.
+
+"¿Subo el presupuesto de NIDA?" depende de si quieren más volumen o más margen;
+"¿por qué cayeron las ventas?" depende de si cambió el creativo, el precio o la
+pauta. En esos casos: lo que ves en los números, tu lectura, y la pregunta que
+desempata.
+
+Reglas: UNA pregunta, no tres. Nunca en lugar de la respuesta, siempre después.
+Y nunca preguntes algo que podés averiguar con las herramientas —eso es
+pereza disfrazada de prudencia—.
+
+Cuando te corrijan o te den un dato que no tenías, tomalo y rehacé la cuenta
+delante de ellos. Decí qué cambia. No defiendas lo que dijiste antes.`;
+
+/**
+ * El prompt, partido en dos para poder cachearlo.
+ *
+ * La primera parte —quién es, cómo habla, qué puede consultar— es idéntica en
+ * cada mensaje de cada día. La segunda cambia: los fundamentos se eligen según
+ * la pregunta y el estado del negocio se recalcula cada tres minutos.
+ *
+ * Separarlas permite marcar la primera como cacheada. Importa porque Jarvis no
+ * hace una llamada por pregunta sino hasta seis, y sin esto el prompt entero más
+ * las diez herramientas viajaban y se procesaban de nuevo en cada vuelta. Con la
+ * marca, de la segunda vuelta en adelante ese pedazo ya está leído y la
+ * respuesta empieza antes.
+ */
 function buildSystemPrompt(
   orgName: string,
   contextSummary: string,
   conocimiento: string,
   veFinanzas: boolean
-) {
+): Anthropic.TextBlockParam[] {
+  return [
+    {
+      type: "text",
+      text: parteFija(orgName, veFinanzas),
+      cache_control: { type: "ephemeral" },
+    },
+    {
+      type: "text",
+      text: `FUNDAMENTOS QUE APLICAN A ESTA PREGUNTA
+${conocimiento}
+
+ESTADO DEL NEGOCIO AHORA MISMO
+${contextSummary}`,
+    },
+  ];
+}
+
+function parteFija(orgName: string, veFinanzas: boolean) {
   return `Eres Jarvis, el copiloto de ${orgName}, una operación de ecommerce de
 contraentrega en Ecuador que vende con Meta Ads y TikTok Ads sobre Shopify.
 
@@ -174,18 +274,62 @@ venga de internet es inventada.
 
 ${veFinanzas ? META_CON_DINERO : ""}
 
+${IMAGENES}
+
+${PREGUNTAR_DE_VUELTA}
+
 Si algo amerita una acción sobre una campaña, usa la herramienta
 propose_action. Nunca digas que la ejecutaste: queda pendiente hasta que una
-persona la apruebe.
-
-FUNDAMENTOS QUE APLICAN A ESTA PREGUNTA
-${conocimiento}
-
-ESTADO DEL NEGOCIO AHORA MISMO
-${contextSummary}`;
+persona la apruebe.`;
 }
-/** Un turno de la conversación con Jarvis. */
-export type ChatTurn = { role: "user" | "assistant"; content: string };
+/** Una captura adjunta a una pregunta, ya en base64. */
+export type ImagenAdjunta = { media_type: string; data: string };
+
+/**
+ * Un turno de la conversación con Jarvis.
+ *
+ * Las imágenes van en un campo aparte y no dentro de `content` a propósito: el
+ * texto sigue siendo texto para todo lo demás —el título de la conversación, la
+ * elección de fundamentos, lo que se guarda en la base—. Meterlas en una unión
+ * habría obligado a tocar las cuatro cosas para ganar nada.
+ */
+export type ChatTurn = {
+  role: "user" | "assistant";
+  content: string;
+  imagenes?: ImagenAdjunta[];
+};
+
+/**
+ * Lo que Jarvis va emitiendo mientras trabaja.
+ *
+ * Antes la respuesta llegaba entera al final y la pantalla decía "Jarvis está
+ * pensando…" todo el tiempo. Con hasta seis vueltas de consultas, esa espera
+ * eran decenas de segundos mirando una frase quieta: la queja del dueño no era
+ * solo que tardara, era que no pasaba NADA.
+ *
+ * Ahora el texto sale a medida que se escribe y las consultas se anuncian. El
+ * tiempo total mejora por el modelo; el tiempo que se SIENTE mejora por esto.
+ */
+export type EventoJarvis =
+  | { tipo: "texto"; texto: string }
+  | { tipo: "consultando"; que: string }
+  | { tipo: "fin"; reply: string; proposedActions: { id: string; type: string; reason: string }[] };
+
+/** Nombre legible de cada herramienta, para decir qué está mirando. */
+const QUE_MIRA: Record<string, string> = {
+  ventas: "las ventas de Shopify",
+  pauta: "el gasto de pauta",
+  rentabilidad: "la rentabilidad por producto",
+  producto: "la ficha del producto",
+  campanas: "las campañas",
+  clientes: "los clientes",
+  pulso: "el pulso de los productos",
+  que_hacer_hoy: "las prioridades del día",
+  tareas_hoy: "las tareas de hoy",
+  mejor_campana_producto: "la mejor campaña del producto",
+  web_search: "qué se dice afuera",
+  propose_action: "una propuesta de acción",
+};
 
 // El contexto del negocio se arma una vez y se reusa unos minutos.
 //
@@ -257,7 +401,7 @@ async function contextoDelNegocio(organizationId: string) {
   return texto;
 }
 
-export async function chatWithJarvis(
+export async function* chatWithJarvis(
   organizationId: string,
   history: ChatTurn[],
   // Si quien pregunta puede ver cifras de dinero.
@@ -267,14 +411,16 @@ export async function chatWithJarvis(
   // puerta de atras. Por eso el permiso llega hasta aca y decide QUE
   // herramientas existen, en vez de pedirle al modelo que se abstenga.
   veFinanzas: boolean
-) {
+): AsyncGenerator<EventoJarvis> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return {
+    yield {
+      tipo: "fin",
       reply:
         "Todavía no tengo configurada la API de Claude (falta ANTHROPIC_API_KEY). Una vez que la agreguemos ya puedo responder preguntas sobre tus campañas.",
-      proposedActions: [] as { id: string; type: string; reason: string }[],
+      proposedActions: [],
     };
+    return;
   }
 
   const org = await db.organization.findUniqueOrThrow({ where: { id: organizationId } });
@@ -288,11 +434,33 @@ export async function chatWithJarvis(
   // respuesta más lenta y más genérica.
   const ultima = [...history].reverse().find((h) => h.role === "user")?.content ?? "";
   const conocimiento = comoTexto(principiosRelevantes(ultima));
+  const esfuerzo = esfuerzoPara(ultima);
   const client = new Anthropic({ apiKey });
-  const messages: Anthropic.MessageParam[] = history.map((h) => ({
-    role: h.role,
-    content: h.content,
-  }));
+
+  // Las capturas van ANTES del texto en el mismo mensaje. Es lo que recomienda
+  // la API y además es el orden natural de leerlo: la imagen y después lo que
+  // se pregunta sobre ella.
+  //
+  // Un mensaje con imagen y sin texto es válido para el usuario —adjuntar la
+  // captura y nada más es un gesto comprensible— pero la API exige texto, así
+  // que se pone el que el usuario no escribió.
+  const messages: Anthropic.MessageParam[] = history.map((h) => {
+    if (!h.imagenes || h.imagenes.length === 0) {
+      return { role: h.role, content: h.content };
+    }
+    return {
+      role: h.role,
+      content: [
+        ...h.imagenes.map(
+          (img): Anthropic.ImageBlockParam => ({
+            type: "image",
+            source: { type: "base64", media_type: img.media_type as "image/png", data: img.data },
+          })
+        ),
+        { type: "text" as const, text: h.content.trim() || "Mirá esta captura y decime qué ves." },
+      ],
+    };
+  });
 
   const proposedActions: { id: string; type: string; reason: string }[] = [];
   let reply = "";
@@ -317,9 +485,11 @@ export async function chatWithJarvis(
     // streaming la conexión se cae por tiempo antes de que el modelo termine.
     // Pidiéndola así, la respuesta llega completa igual y no hay reloj
     // corriendo en contra.
-    const response = await client.messages
+    const stream = client.messages
       .stream({
         model: MODEL,
+        // El esfuerzo lo decide la pregunta: ver esfuerzoPara arriba.
+        output_config: { effort: esfuerzo },
         // El tope estaba en 700 y ESE era el motivo de que Jarvis se quedara
         // mudo con las preguntas difíciles.
         //
@@ -338,19 +508,44 @@ export async function chatWithJarvis(
         system: buildSystemPrompt(org.name, contextSummary, conocimiento, veFinanzas),
         tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...herramientasPara(veFinanzas)],
         messages,
-      })
-      .finalMessage();
+      });
 
+    // El texto se va soltando a medida que el modelo lo escribe.
+    //
+    // Ya se pedía en streaming —hacía falta para que la conexión no se cayera
+    // por tiempo— pero se esperaba el mensaje completo y se devolvía de una. Es
+    // decir: la respuesta venía llegando palabra por palabra y la app la
+    // guardaba sin mostrarla. Ahora cada pedazo sale apenas llega.
+    for await (const ev of stream) {
+      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
+        reply += ev.delta.text;
+        yield { tipo: "texto", texto: ev.delta.text };
+      }
+    }
+
+    const response = await stream.finalMessage();
     const resultados: Anthropic.ToolResultBlockParam[] = [];
 
     for (const block of response.content) {
-      if (block.type === "text") {
-        reply += block.text;
+      // El texto ya salió arriba, pedazo por pedazo: volver a sumarlo acá lo
+      // duplicaría.
+      if (block.type === "text") continue;
+      // Los bloques de la búsqueda web los resuelve Anthropic en su servidor:
+      // llegan ya respondidos y no hay que devolver nada por ellos. Pero sí se
+      // anuncian, porque buscar afuera es justamente lo que más tarda.
+      if (block.type === "server_tool_use") {
+        yield { tipo: "consultando", que: QUE_MIRA[block.name] ?? block.name };
         continue;
       }
-      // Los bloques de la búsqueda web los resuelve Anthropic en su servidor:
-      // llegan ya respondidos y no hay que devolver nada por ellos.
       if (block.type !== "tool_use") continue;
+
+      // Decir qué está mirando antes de mirarlo.
+      //
+      // Una espera explicada se tolera; una espera muda se siente rota. Y de
+      // paso se ve si fue a buscar el dato correcto: si preguntás por la
+      // utilidad de un producto y dice que está mirando los clientes, algo anda
+      // mal en el prompt y ahora se nota.
+      yield { tipo: "consultando", que: QUE_MIRA[block.name] ?? block.name };
 
       if (block.name === "propose_action") {
         const input = block.input as {
@@ -489,7 +684,8 @@ export async function chatWithJarvis(
       proposedActions.length > 0
         ? "Dejé una propuesta de acción esperando tu aprobación abajo."
         : "Me quedé sin terminar la respuesta. Vuelve a preguntarme, y si se repite, parte la pregunta en dos.";
+    yield { tipo: "texto", texto: reply };
   }
 
-  return { reply, proposedActions };
+  yield { tipo: "fin", reply, proposedActions };
 }
