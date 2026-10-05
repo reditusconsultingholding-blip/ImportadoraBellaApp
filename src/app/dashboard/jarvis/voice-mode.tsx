@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { finDeFraseCerrada } from "@/lib/frases";
 
 // Hablar con Jarvis como en una llamada.
 //
@@ -52,25 +53,6 @@ function traerReconocimiento(): ConstructorReconocimiento | null {
     webkitSpeechRecognition?: ConstructorReconocimiento;
   };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-/**
- * Dónde termina la última frase cerrada del texto.
- *
- * Sirve para hablar mientras la respuesta todavía se está escribiendo: se lee
- * hasta acá y el resto espera al pedazo siguiente.
- *
- * El punto tiene que estar seguido de un espacio o del final. Sin esa condición,
- * "el CPA es 7.40" se partiría en "el CPA es 7." y Jarvis diría "siete punto"
- * y se callaría a mitad del número — justo con las cifras, que es lo que más
- * importa que se entienda.
- */
-function finDeFraseCerrada(texto: string): number {
-  const marcas = /[.!?…:;\n](?=\s|$)/g;
-  let fin = -1;
-  let m: RegExpExecArray | null;
-  while ((m = marcas.exec(texto)) !== null) fin = m.index + 1;
-  return fin;
 }
 
 export default function VoiceMode({

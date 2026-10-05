@@ -6,44 +6,7 @@ import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
 import { frenarUsuario } from "@/lib/limite";
 import { mensajeSeguro } from "@/lib/respuesta";
-
-/**
- * Qué capturas se aceptan.
- *
- * La lista es cerrada porque el contenido lo manda el navegador y un navegador
- * puede mandar cualquier cosa: un PDF renombrado, un archivo de 40 MB, un tipo
- * que la API no entiende. Rechazarlo acá es un error claro en la pantalla; no
- * rechazarlo es un 400 de la API con un mensaje en inglés que nadie entiende.
- *
- * El tope son 4 MB por imagen en base64 (unos 3 MB de archivo real). El
- * navegador ya las reduce antes de mandarlas, así que esto es el cinturón por si
- * esa reducción falla, no el límite de trabajo.
- */
-const TIPOS_DE_IMAGEN = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
-const MAX_IMAGENES = 4;
-const MAX_BASE64 = 4 * 1024 * 1024;
-
-function revisarImagenes(history: ChatTurn[]): string | null {
-  for (const turno of history) {
-    if (!turno.imagenes) continue;
-    if (!Array.isArray(turno.imagenes)) return "Las imágenes llegaron mal.";
-    if (turno.imagenes.length > MAX_IMAGENES) {
-      return `Máximo ${MAX_IMAGENES} imágenes por mensaje.`;
-    }
-    for (const img of turno.imagenes) {
-      if (typeof img?.data !== "string" || typeof img?.media_type !== "string") {
-        return "Las imágenes llegaron mal.";
-      }
-      if (!TIPOS_DE_IMAGEN.has(img.media_type)) {
-        return "Solo puedo leer imágenes PNG, JPG, WEBP o GIF.";
-      }
-      if (img.data.length > MAX_BASE64) {
-        return "Esa imagen pesa demasiado. Recortala o bajale la calidad.";
-      }
-    }
-  }
-  return null;
-}
+import { revisarImagenes } from "@/lib/imagenes-chat";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
