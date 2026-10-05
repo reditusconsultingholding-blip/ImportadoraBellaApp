@@ -22,7 +22,14 @@ const ACTION_LABEL: Record<string, string> = {
 
 const MAX_IMAGENES = 4;
 
-export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
+export default function JarvisChat({
+  inicial,
+  modelo,
+}: {
+  inicial: Conversacion[];
+  /** Qué modelo contesta, para poder decirlo en la cabecera. */
+  modelo: string;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingActions, setPendingActions] = useState<ProposedAction[]>([]);
   const [resolvedActionIds, setResolvedActionIds] = useState<Set<string>>(new Set());
@@ -271,6 +278,42 @@ export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* La barra de estado del chat.
+
+            Dos cosas que faltaban. Una: qué está pasando —en línea, mirando la
+            base, escribiendo— en un lugar fijo, en vez de una frase que aparece
+            y desaparece al final del hilo.
+
+            Y dos: QUÉ MODELO CONTESTA. Fabricio preguntó por WhatsApp "¿y con
+            qué IA está conectado?" y la app no lo decía en ninguna parte: había
+            que abrir el código para saberlo. Es una pregunta legítima de alguien
+            que le va a creer lo que le diga. */}
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+          <span className="flex items-center gap-2 text-xs">
+            <span className="relative flex h-2 w-2">
+              {loading && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
+              )}
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${loading ? "bg-accent" : "bg-good"}`}
+              />
+            </span>
+            <span className="font-medium text-foreground">Jarvis</span>
+            <span className="text-muted">
+              {consultando
+                ? `mirando ${consultando}`
+                : loading
+                  ? enCurso
+                    ? "escribiendo"
+                    : "pensando"
+                  : "en línea"}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted">
+            {modelo}
+          </span>
+        </div>
+
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
           {messages.length === 0 && !enCurso && (
             <p className="text-sm text-muted">
@@ -279,12 +322,18 @@ export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
               captura —del administrador de anuncios, de Shopify— y preguntarle qué ve.
             </p>
           )}
-          {messages.map((m, i) => (
+          {messages.map((m, i) =>
+            m.role === "assistant" ? (
+              <div key={i} className="flex max-w-[85%] gap-2.5 self-start">
+                <MarcaJarvis />
+                <div className="min-w-0 whitespace-pre-wrap rounded bg-surface-2 px-4 py-2 text-sm">
+                  {m.content}
+                </div>
+              </div>
+            ) : (
             <div
               key={i}
-              className={`max-w-[80%] whitespace-pre-wrap rounded px-4 py-2 text-sm ${
-                m.role === "user" ? "self-end bg-accent text-white" : "self-start bg-surface-2"
-              }`}
+              className="max-w-[80%] self-end whitespace-pre-wrap rounded bg-accent px-4 py-2 text-sm text-white"
             >
               {m.vistas && m.vistas.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
@@ -301,14 +350,19 @@ export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
               )}
               {m.content}
             </div>
-          ))}
+            )
+          )}
 
-          {/* El turno en curso usa el mismo globo que los demás, para que no se
-              vea un salto cuando termina y pasa a ser un mensaje guardado. */}
+          {/* El turno en curso usa el mismo globo y la misma marca que los
+              demás, para que no se vea un salto cuando termina y pasa a ser un
+              mensaje guardado. */}
           {enCurso !== null && enCurso.length > 0 && (
-            <div className="max-w-[80%] self-start whitespace-pre-wrap rounded bg-surface-2 px-4 py-2 text-sm">
-              {enCurso}
-              <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent align-middle" />
+            <div className="flex max-w-[85%] gap-2.5 self-start">
+              <MarcaJarvis />
+              <div className="min-w-0 whitespace-pre-wrap rounded bg-surface-2 px-4 py-2 text-sm">
+                {enCurso}
+                <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent align-middle" />
+              </div>
             </div>
           )}
 
@@ -340,16 +394,14 @@ export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
               </div>
             ))}
 
-          {/* Mientras no hay texto todavía se dice qué está haciendo. Una espera
-              explicada se tolera; una espera muda se siente rota. */}
-          {loading && (
+          {/* Mientras no hay NADA escrito todavía, el hilo también lo dice: la
+              barra de arriba se lee cuando uno la busca, y acá es donde están
+              los ojos después de apretar Enviar. Cuando ya sale texto no se
+              repite — el texto es la prueba de que está trabajando. */}
+          {loading && !enCurso && (
             <p className="flex items-center gap-2 self-start text-sm text-muted">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              {consultando
-                ? `Mirando ${consultando}…`
-                : enCurso
-                  ? "Escribiendo…"
-                  : "Jarvis está pensando…"}
+              {consultando ? `Mirando ${consultando}…` : "Jarvis está pensando…"}
             </p>
           )}
           {error && <p className="self-start text-sm text-critical">{error}</p>}
@@ -454,5 +506,39 @@ export default function JarvisChat({ inicial }: { inicial: Conversacion[] }) {
         </form>
       </div>
     </div>
+  );
+}
+
+/**
+ * La marca de Jarvis al lado de cada respuesta.
+ *
+ * Un globo gris anónimo no se distingue de un campo de formulario: el hilo se
+ * leía como una planilla con dos colores. La marca es un nodo con tres
+ * conexiones, que es literalmente lo que Jarvis hace —juntar datos de varios
+ * lados para contestar una cosa—.
+ *
+ * Dibujada acá y no traída como imagen: son doscientos bytes de SVG, no pide un
+ * pedido más al servidor, y toma el color del tema sola.
+ */
+function MarcaJarvis() {
+  return (
+    <span
+      aria-hidden
+      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-accent/30 bg-accent/10"
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="h-3.5 w-3.5 text-accent-strong"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      >
+        <circle cx="8" cy="8" r="2.1" fill="currentColor" stroke="none" />
+        <circle cx="3" cy="3.5" r="1.3" />
+        <circle cx="13" cy="4.5" r="1.3" />
+        <circle cx="4.5" cy="13" r="1.3" />
+        <path d="M6.4 6.6 4 4.4M9.8 6.9 11.9 5.6M7.1 9.9 5.4 11.8" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }

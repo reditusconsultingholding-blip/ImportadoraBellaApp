@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { canUseJarvis } from "@/lib/permissions";
 import { listarConversaciones } from "@/lib/jarvis-chats";
+import { nombreDelModelo } from "@/lib/agent";
 import JarvisChat from "./jarvis-chat";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
@@ -24,6 +25,7 @@ export default async function JarvisPage() {
         descripcion="Preguntale por el rendimiento de tus campañas. Consulta la base de la empresa para responder, y cualquier acción que proponga queda esperando tu aprobación — nunca se ejecuta sola."
       />
       <JarvisChat
+        modelo={nombreDelModelo()}
         inicial={conversaciones.map((c) => ({
           id: c.id,
           titulo: c.titulo,

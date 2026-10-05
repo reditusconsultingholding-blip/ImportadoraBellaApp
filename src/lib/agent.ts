@@ -24,6 +24,24 @@ import { correrHerramienta, herramientasPara, sinCifras } from "@/lib/agent-tool
 const MODEL = "claude-sonnet-5-5";
 
 /**
+ * El nombre del modelo como se le muestra a la gente.
+ *
+ * Existe porque Fabricio preguntó por WhatsApp "¿y con qué IA está conectado?".
+ * Una pregunta razonable que nadie podía contestar mirando la app: había que
+ * abrir el código. Ahora está en la cabecera del chat.
+ *
+ * Se deriva de MODEL en vez de escribirse al lado para que no puedan separarse:
+ * un cartel que dice un modelo y una app que usa otro es peor que no tener
+ * cartel, porque se le cree.
+ */
+export function nombreDelModelo() {
+  const [marca, familia, ...version] = MODEL.split("-");
+  const mayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  // "claude-sonnet-5-5" → "Claude Sonnet 5.5"; "claude-opus-5" → "Claude Opus 5".
+  return `${mayuscula(marca)} ${mayuscula(familia)} ${version.join(".")}`.trim();
+}
+
+/**
  * Cuánto se le deja pensar, según lo que se le pregunte.
  *
  * El esfuerzo es la palanca de velocidad: más esfuerzo es más razonamiento
