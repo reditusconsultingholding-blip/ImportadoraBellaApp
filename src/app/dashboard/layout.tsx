@@ -13,6 +13,7 @@ import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
 import AvisoVersion from "./aviso-version";
 import SelectorTema from "./selector-tema";
+import Saludo from "./saludo";
 import { versionDeLaApp } from "@/lib/version-app";
 import LogoutButton from "./logout-button";
 import LiveIndicator from "./live-indicator";
@@ -142,7 +143,11 @@ export default async function DashboardLayout({
           {/* Mismo ancho y mismo centrado que <main>, si no los iconos quedan
               pegados al borde del monitor y el contenido en otro lado: en una
               pantalla de 1920 estaban a 470 píxeles de distancia. */}
-          <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-end gap-3 px-4 md:px-8">
+          <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-between gap-3 px-4 md:px-8">
+            {/* El saludo ocupa el hueco de la izquierda, que estaba vacio
+                con todo lo demas apilado contra el borde derecho. */}
+            <Saludo nombre={session.name} />
+            <div className="flex items-center gap-3">
             {/* El recorrido va en el encabezado y no en el menú lateral porque
                 es lo único que se puede necesitar estando en cualquier
                 pantalla: desde acá se abre sin perder dónde estabas, y en el
@@ -167,6 +172,7 @@ export default async function DashboardLayout({
             <ContadorDatos />
             <LiveIndicator />
             <NotificationsBell />
+            </div>
           </div>
         </header>
         <LiveRefresher />

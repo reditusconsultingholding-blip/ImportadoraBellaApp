@@ -257,6 +257,156 @@ tbody tr:hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+/* ======================================================================
+   CAPA DE ACABADO
+   ======================================================================
+
+   El lenguaje visual "de herramienta" ya existía en esta app, pero en un
+   solo lugar: el deslizador de la calculadora —riel con degradé, luz propia,
+   halo que crece al tocarlo—. El resto de la pantalla no lo hablaba. Esto
+   extiende ESE lenguaje al resto en vez de inventar otro, que es lo que hace
+   que una interfaz se sienta diseñada y no decorada.
+
+   Todo lo de acá es acabado, no estructura: ni una pantalla cambia de sitio,
+   ni una tabla cambia de ancho. Si algo molesta, se borra este bloque y la
+   app vuelve a ser exactamente la de antes.
+   ====================================================================== */
+
+/* --- El fondo deja de ser un color plano ------------------------------
+   Dos capas que no se "ven", se sienten: una trama de puntos muy fina que le
+   da material a la superficie, y dos resplandores del verde de marca en las
+   esquinas superiores. Un gris liso de borde a borde es lo que hace que un
+   panel denso se lea como una planilla; con esto se lee como un instrumento.
+
+   Van en ::before del body y con pointer-events: none, así no interceptan
+   un solo clic. */
+body {
+  position: relative;
+  isolation: isolate;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(
+      60rem 36rem at 12% -8%,
+      color-mix(in srgb, var(--brand-green) 7%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      48rem 30rem at 100% 0%,
+      color-mix(in srgb, var(--accent) 5%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--foreground) 7%, transparent) 1px, transparent 0);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+}
+
+/* --- Tarjetas con cuerpo ----------------------------------------------
+   Antes: borde y una sombra de 1px. Ahora llevan una línea de luz en el
+   borde superior —el reflejo que tiene cualquier objeto físico iluminado
+   desde arriba— y se levantan un pelo al pasar el mouse. Es el detalle que
+   separa "un rectángulo blanco" de "una pieza". */
+.bg-surface.border {
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    border-color 180ms ease;
+
+  /* LA LÍNEA DE LUZ SE DIBUJA COMO FONDO, no con un ::after posicionado.
+     //
+     // La primera versión usaba `position: relative` + `::after` absoluto, que
+     // es lo natural para esto. Pero poner `relative` en TODAS las tarjetas de
+     // la app cambia el marco de referencia de cualquier desplegable absoluto
+     // que viva adentro: un menú anclado a la pantalla pasaría a anclarse a su
+     // tarjeta, y aparecería en otro lugar. Sería un cambio de posicionamiento
+     // disfrazado de cambio estético, en decenas de pantallas a la vez.
+     //
+     // Como fondo no toca el posicionamiento de nada. Es el mismo reflejo
+     // superior y no puede romper un solo menú. */
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 30%, transparent),
+    transparent
+  );
+  background-repeat: no-repeat;
+  background-size: 80% 1px;
+  background-position: top center;
+}
+
+.bg-surface.border:hover {
+  box-shadow: var(--shadow-pop);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  transform: translateY(-1px);
+}
+
+/* --- La fila que estás leyendo se marca de verdad ----------------------
+   Ya se pintaba el fondo al pasar el mouse. Se le agrega una barra de acento
+   a la izquierda: en Rentabilidad o Control, con nueve columnas de números,
+   el fondo solo no alcanza para no perder el renglón a mitad de camino. */
+/* Sin `position: relative`: la barra de la izquierda es una sombra interior,
+   no un elemento, así que no hace falta cambiarle el marco a cada fila. */
+tbody tr {
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+tbody tr:hover {
+  background-color: var(--surface-2);
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+
+/* --- El encabezado de cada pantalla, con trama -------------------------
+   La franja verde oscura ya respiraba con un resplandor. Se le suma una
+   retícula finísima, como la de un instrumento de medición. A 2% de opacidad
+   no se ve: se percibe que la superficie tiene textura. */
+.encabezado-entrada::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(70% 120% at 20% 0%, #000 10%, transparent 75%);
+  -webkit-mask-image: radial-gradient(70% 120% at 20% 0%, #000 10%, transparent 75%);
+}
+
+/* --- Los números grandes, con peso ------------------------------------
+   Las cifras de los KPI llevan números de ancho fijo y un apretado leve. En
+   un tablero, los números SON el contenido: merecen el mismo cuidado
+   tipográfico que un titular. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.012em;
+}
+
+/* --- Las píldoras de período ------------------------------------------
+   La elegida deja de ser "la que tiene fondo" y pasa a tener luz propia, con
+   el mismo halo del deslizador de la calculadora. Es el control que más se
+   toca en toda la app. */
+.bg-brand-green\/25 {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--good-claro) 35%, transparent),
+    0 0 16px -4px color-mix(in srgb, var(--good-claro) 70%, transparent);
+}
+
+/* --- Nada de esto se mueve si pidieron menos movimiento ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .bg-surface.border,
+  .bg-surface.border:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
 /* Barras de scroll discretas dentro de las tablas anchas. */
 * {
   scrollbar-width: thin;
