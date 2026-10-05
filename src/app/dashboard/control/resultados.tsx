@@ -388,36 +388,54 @@ function Avisos({ control }: { control: ControlPeriodo }) {
  * Una sola serie y sin ejes cargados: sirve para ver de un vistazo si el mes
  * vino parejo o tuvo un bache, no para leer valores —para eso está la tabla—.
  * Pasar por encima de una barra muestra el día.
+ *
+ * ESTABA DIBUJADO COMO UN SVG ESTIRADO Y SE VEÍA ROTO CON POCOS DÍAS.
+ *
+ * Era un `viewBox="0 0 100 24"` con `preserveAspectRatio="none"`: el ancho se
+ * repartía entre los días en unidades del viewBox y el navegador estiraba todo
+ * hasta llenar la caja. Con treinta días pasaba desapercibido, pero el 5 de
+ * octubre el filtro "Este mes" traía CUATRO días y cada barra se estiraba unas
+ * doce veces a lo ancho contra menos de tres a lo alto: cuatro ladrillos rosados
+ * del mismo tamaño aparente. Las diferencias reales —529, 409 y 577 pedidos—
+ * quedaban aplastadas justo en el gráfico que existe para mostrarlas.
+ *
+ * Ahora son barras de HTML. Cada día se queda con su franja del ancho, y la
+ * barra adentro va centrada y no pasa de 34 píxeles: con muchos días se juntan
+ * como antes, con pocos quedan angostas y separadas, y la altura es un
+ * porcentaje de verdad en los dos casos.
  */
+const ANCHO_MAXIMO_BARRA = 34;
+
 function Tendencia({ puntos }: { puntos: ControlPeriodo["porDia"] }) {
   const max = Math.max(...puntos.map((p) => p.pedidos), 1);
-  const ancho = 100 / puntos.length;
   return (
     <div className="rounded-xl border border-border bg-surface px-4 pb-3 pt-3.5">
       <div className="mb-2 flex items-baseline justify-between">
         <p className="text-[11px] font-medium text-muted">Pedidos por día</p>
         <p className="text-[11px] text-muted">máx. {entero(max)}</p>
       </div>
-      <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-16 w-full" role="img" aria-label="Pedidos por día">
-        {puntos.map((p, i) => {
-          const h = (p.pedidos / max) * 22;
-          return (
-            <rect
-              key={p.fecha}
-              x={i * ancho + ancho * 0.15}
-              y={24 - h}
-              width={ancho * 0.7}
-              height={Math.max(h, 0.4)}
-              rx={0.4}
-              className={p.utilidad >= 0 ? "fill-accent/70" : "fill-critical/60"}
-            >
-              <title>
-                {diaCorto(p.fecha)}: {entero(p.pedidos)} pedidos · {dinero(p.gasto)} de gasto · utilidad {dinero(p.utilidad)}
-              </title>
-            </rect>
-          );
-        })}
-      </svg>
+      <div className="flex h-16 items-end gap-1" role="img" aria-label="Pedidos por día">
+        {puntos.map((p) => (
+          // La franja completa lleva el título: así el día se muestra pasando
+          // por encima de su columna y no solo de la barra, que en un día flojo
+          // es una línea de dos píxeles imposible de apuntar.
+          <div
+            key={p.fecha}
+            className="flex h-full flex-1 items-end justify-center"
+            title={`${diaCorto(p.fecha)}: ${entero(p.pedidos)} pedidos · ${dinero(p.gasto)} de gasto · utilidad ${dinero(p.utilidad)}`}
+          >
+            <div
+              className={`w-full rounded-sm ${p.utilidad >= 0 ? "bg-accent/70" : "bg-critical/60"}`}
+              style={{
+                maxWidth: ANCHO_MAXIMO_BARRA,
+                // Mínimo visible: un día con cero pedidos tiene que dejar una
+                // marca, o el gráfico miente diciendo que ese día no existe.
+                height: `${Math.max((p.pedidos / max) * 100, 2)}%`,
+              }}
+            />
+          </div>
+        ))}
+      </div>
       <div className="mt-1 flex justify-between text-[10px] text-muted">
         <span>{diaCorto(puntos[0].fecha)}</span>
         <span>{diaCorto(puntos[puntos.length - 1].fecha)}</span>
