@@ -59,11 +59,47 @@ export async function syncWindsorConnector(
   datePreset = "last_7dT"
 ) {
   const rows = await fetchWindsorRows(connector, datePreset);
+  const platform = PLATFORM[connector];
+
   if (rows.length === 0) {
+    // CERO FILAS NO ES "NADA NUEVO". ES UNA ALARMA.
+    //
+    // Antes esto devolvía éxito y se terminaba la función. El programador marca
+    // una fuente como OK cuando la llamada no lanza, así que una cuenta que
+    // dejó de alimentar por completo se veía idéntica a una tranquila: el panel
+    // decía "sincronizado hace 0 minutos, sin error".
+    //
+    // Pasó de verdad. TikTok dejó de traer datos el 4 de octubre a las 7 de la
+    // mañana y nadie se enteró hasta que el dueño miró el panel al día
+    // siguiente: 111 ventas en la tienda y TikTok en cero. Durante día y medio
+    // el CPA general se calculó dividiendo TODAS las ventas por el gasto de
+    // Meta solo, así que salía bastante más bajo que el real. Un número
+    // optimista y silencioso es peor que un error a la vista.
+    //
+    // LA SEÑAL ES LA LISTA DE CUENTAS, NO LA ANTIGÜEDAD DEL ÚLTIMO DATO.
+    //
+    // La primera versión de esta alarma esperaba 72 horas sin datos antes de
+    // avisar, y el dueño lo notó en 24. Pero hay una señal mucho más limpia:
+    // un conector sano devuelve SUS CUENTAS aunque no haya gasto nuevo —el de
+    // Meta devolvió once cuentas y setenta y tres campañas con cero
+    // instantáneas nuevas—. Cero filas de punta a punta significa que Windsor
+    // ni siquiera sabe qué cuentas tiene.
+    //
+    // Se compara contra las cuentas que YA guardamos: si alguna vez esta
+    // plataforma trajo cuentas y hoy no trae ni una fila, está rota. Una cuenta
+    // nueva que todavía no conectó nada no dispara nada, porque no hay con qué
+    // comparar.
+    const conectadas = await db.adAccount.count({ where: { organizationId, platform } });
+    if (conectadas > 0) {
+      throw new Error(
+        `Windsor no devolvió ninguna fila para ${connector}, ni siquiera la lista de cuentas, ` +
+          `y esta organización tiene ${conectadas} conectada${conectadas === 1 ? "" : "s"}. ` +
+          `Revisá esa conexión en Windsor.`,
+      );
+    }
+
     return { accounts: 0, campaigns: 0, snapshots: 0, cambiados: 0 };
   }
-
-  const platform = PLATFORM[connector];
   const products = await db.product.findMany({
     where: { organizationId },
     select: { id: true, code: true, name: true, codigosAnteriores: true },
