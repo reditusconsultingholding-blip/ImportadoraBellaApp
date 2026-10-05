@@ -45,6 +45,28 @@ export async function sincronizarAnuncios(organizationId: string, connector: Win
     });
     const { filas, campos } = await fetchWindsorAdRows(connector, hayHistoria ? "last_7dT" : "last_30dT");
 
+    // EL MISMO SILENCIO QUE EN LA SINCRONIZACIÓN DE CAMPAÑAS, EN OTRA PUERTA.
+    //
+    // La alarma por cero filas se puso en windsor-sync.ts cuando TikTok dejó de
+    // traer datos sin avisar. Pero ESTA función es otra puerta a la misma API y
+    // había quedado como estaba: con cero filas guardaba okAt y "0 días" como
+    // detalle, sin una sola marca de error.
+    //
+    // Se vio en la base. El 4 de octubre a las 7:10 TikTok se cortó; la
+    // sincronización de campañas ya lo grita, y la de anuncios seguía diciendo
+    // "1535 anuncios (0 nuevos), 0 días" como si todo estuviera bien. Un
+    // arreglo que tapa una de dos puertas no es un arreglo.
+    //
+    // Mismo criterio que allá: si esta plataforma YA TIENE anuncios cargados y
+    // hoy no vuelve ni una fila, está rota. Sin historia no se dispara, porque
+    // una cuenta recién conectada no tiene con qué compararse.
+    if (filas.length === 0 && hayHistoria) {
+      throw new Error(
+        `Windsor no devolvió ninguna fila de anuncios para ${connector}, y esta ` +
+          `organización ya tenía anuncios cargados. Revisá esa conexión en Windsor.`,
+      );
+    }
+
     // Las campañas ya existen (las crea la sincronización de campañas): acá
     // solo se cuelgan de ellas. Un anuncio de una campaña que todavía no
     // llegó se saltea y entra en la vuelta siguiente.

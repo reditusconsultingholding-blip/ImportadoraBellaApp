@@ -26,6 +26,8 @@ import IndicadoresRapidos from "./indicadores-rapidos";
 import { testeosDelPeriodo } from "@/lib/testeos";
 import { origenPorVenta } from "@/lib/origen-pedidos";
 import SeccionPlegable from "./seccion-plegable";
+import AvisoPlataformaCallada from "./aviso-plataforma-callada";
+import { plataformasCalladas } from "@/lib/plataformas-calladas";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -78,7 +80,7 @@ export default async function DashboardPage({
   // filtro y volverlo a dejar como estaba. Cuando el período YA es hoy no se
   // pide: sería la misma consulta dos veces.
   const rangoHoy = range.id === "hoy" ? null : resolveRange("hoy");
-  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos, origen] =
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos, origen, calladas] =
     await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
@@ -104,6 +106,10 @@ export default async function DashboardPage({
     verCifras && range.to.getTime() - range.from.getTime() <= 31 * 86400_000
       ? origenPorVenta(session.organizationId, range)
       : null,
+    // Si alguna plataforma de pauta dejó de cargar. Va en el mismo Promise.all
+    // porque el aviso tiene que estar dibujado en el primer pintado: uno que
+    // aparece dos segundos después llega tarde, ya se leyó el CPA.
+    plataformasCalladas(session.organizationId),
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -141,6 +147,11 @@ export default async function DashboardPage({
           />
         }
       />
+
+      {/* Antes que cualquier cifra. Si falta el gasto de una plataforma, el CPA
+          y la utilidad de abajo salen más bajos que los reales, y se leen con la
+          misma confianza que cualquier otro día. */}
+      <AvisoPlataformaCallada avisos={calladas} verCifras={verCifras} />
 
       {/* Lo que se mira primero, sin bajar: ventas, ritmo, CPA y a qué hora
           compran. Va pegado al encabezado a propósito. */}
