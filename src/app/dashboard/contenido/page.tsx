@@ -14,6 +14,7 @@ import { productosPautadosRecientes } from "@/lib/pautados";
 import { resolveRange, toInputValue } from "@/lib/date-range";
 import { piezasSinClasificar } from "@/lib/piezas-sin-clasificar";
 import RangoContenido from "./rango-contenido";
+import Conflictos, { type Conflicto } from "./conflictos";
 
 const VISTAS = [
   "calendario",
@@ -22,6 +23,7 @@ const VISTAS = [
   "lotes",
   "campanas",
   "rendimiento",
+  "conflictos",
 ] as const;
 type Vista = (typeof VISTAS)[number];
 function esVista(v: string | undefined): v is Vista {
@@ -42,6 +44,9 @@ const TABS: { id: Vista; label: string }[] = [
   { id: "campanas", label: "Gestión de campañas" },
   // Solo dirección: se filtra al dibujar las pestañas.
   { id: "rendimiento", label: "Rendimiento" },
+  // Lo mismo, y además lleva contador: si hay algo que decidir tiene que verse
+  // sin entrar. Una pestaña que solo se nota una vez adentro no avisa nada.
+  { id: "conflictos", label: "Conflictos" },
 ];
 
 export default async function ContenidoPage({
@@ -161,6 +166,45 @@ export default async function ContenidoPage({
     );
   }
 
+  // Los choques pendientes entre Notion y Jarvis. Solo los pide dirección, que
+  // es la única que puede resolverlos.
+  const conflictos: Conflicto[] = !canManage
+    ? []
+    : await db.conflictoResponsable
+        .findMany({
+          where: { organizationId: session.organizationId, estado: "pendiente" },
+          select: {
+            id: true,
+            tipo: true,
+            nombreEnNotion: true,
+            createdAt: true,
+            user: { select: { name: true } },
+            product: {
+              select: {
+                name: true,
+                // Quién figura HOY del lado de Notion, para que la tarjeta
+                // pueda contar los dos lados sin mandar a nadie a otra pestaña.
+                responsables: {
+                  where: { origen: "notion" },
+                  select: { user: { select: { name: true } } },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+        .then((filas) =>
+          filas.map((f) => ({
+            id: f.id,
+            tipo: f.tipo as Conflicto["tipo"],
+            producto: f.product.name,
+            persona: f.user?.name ?? null,
+            nombreEnNotion: f.nombreEnNotion,
+            segunNotion: f.product.responsables.map((r) => r.user.name),
+            desde: f.createdAt.toISOString(),
+          })),
+        );
+
   return (
     <div className="flex flex-col gap-6">
       <EncabezadoSeccion
@@ -181,7 +225,12 @@ export default async function ContenidoPage({
 
       <div className="flex flex-col gap-3 border-b border-border pb-4">
         <div className="flex flex-wrap gap-1.5">
-        {TABS.filter((t) => t.id !== "rendimiento" || canManage).map((t) => {
+        {TABS.filter((t) => (t.id !== "rendimiento" && t.id !== "conflictos") || canManage)
+          // Sin nada que decidir, la pestaña no se dibuja: una pestaña vacía
+          // permanente enseña a no mirarla, y entonces tampoco se mira el día
+          // que sí tiene algo.
+          .filter((t) => t.id !== "conflictos" || conflictos.length > 0 || vista === "conflictos")
+          .map((t) => {
           const activo = vista === t.id;
           return (
             <Link
@@ -196,6 +245,11 @@ export default async function ContenidoPage({
               }`}
             >
               {t.label}
+              {t.id === "conflictos" && conflictos.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-critical px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {conflictos.length}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -227,6 +281,11 @@ export default async function ContenidoPage({
         <LotesCruzados canManage={canManage} products={products} desde={desde} hasta={hasta} />
       ) : vista === "campanas" ? (
         <GestionCampanas products={products} desde={desde} hasta={hasta} />
+      ) : vista === "conflictos" ? (
+        <Conflictos
+          inicial={conflictos}
+          asignables={users.filter((u) => u.role === "EDITOR" || u.role === "DIRECTOR")}
+        />
       ) : (
         <PanelRendimiento desde={desde} hasta={hasta} />
       )}

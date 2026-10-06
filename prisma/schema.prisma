@@ -97,6 +97,7 @@ model Organization {
   calcSettings       CalcSetting[]
   acciones           ProductAction[]
   syncStates         SyncState[]
+  conflictosResponsable ConflictoResponsable[]
   weeklyReports      WeeklyReport[]
   productAssets      ProductAsset[]
   referencias        Referencia[]
@@ -333,6 +334,8 @@ model User {
 
   requestedActions        PendingAction[]
   productosACargo         ResponsableProducto[]
+  conflictosSobreMi       ConflictoResponsable[] @relation("ConflictoSobre")
+  conflictosQueResolvi    ConflictoResponsable[] @relation("ConflictoDecidido")
   accionesJarvisPedidas   PendingAction[]      @relation("PendingActionPedida")
   accionesJarvisResueltas PendingAction[]      @relation("PendingActionResuelta")
   assignedRequirements    Requirement[]        @relation("RequirementOwner")
@@ -403,6 +406,7 @@ model Product {
   // deje de decir algo.
   angulosPropios String[] @default([])
   responsables   ResponsableProducto[]
+  conflictosDeResponsable ConflictoResponsable[]
   name           String
   cpaTarget      Float // umbral: por debajo = verde, por encima = rojo
   unitCost       Float? // costo del producto, si se carga a mano
@@ -1859,4 +1863,49 @@ model AdCreativoDia {
 
   @@unique([adId, capturedAt])
   @@index([capturedAt])
+}
+
+// El choque entre lo que dice Notion y lo que dice Jarvis sobre quién lleva un
+// producto.
+//
+// Antes la sincronización elegía sola —y elegía Notion— sin que nadie se
+// enterara. Así se perdió el acceso de la integrante nueva tres veces: Emilia la
+// asignaba, la pasada siguiente la borraba, y el único síntoma era que la
+// persona dejaba de poder editar. Ahora la app no decide: anota el choque, le
+// avisa a dirección y espera.
+//
+// Mientras nadie decide, NO SE TOCA NADA. Es la opción segura: dejar a alguien
+// con un acceso de más se ve y se corrige; quitárselo sin avisar es lo que
+// venía pasando y nadie lo veía.
+model ConflictoResponsable {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // "sobra_en_jarvis": alguien puesto a mano en Jarvis que Notion no trae.
+  //                    Se decide dejarlo o quitarlo.
+  // "sin_cruzar":      Notion nombra a alguien que no es usuario de Jarvis
+  //                    ("ANITA" cuando en Jarvis está como "Ana"). Se decide a
+  //                    quién corresponde, o se ignora.
+  tipo           String
+  userId         String?
+  user           User?        @relation("ConflictoSobre", fields: [userId], references: [id], onDelete: Cascade)
+  nombreEnNotion String?
+
+  estado         String       @default("pendiente")
+  decision       String?
+  decididoPorId  String?
+  decididoPor    User?        @relation("ConflictoDecidido", fields: [decididoPorId], references: [id])
+  decididoEn     DateTime?
+
+  // Huella del choque, para no preguntar lo mismo cada diez minutos: si ya
+  // está, se toca vistoEn y nada más. Un choque distinto es otra clave.
+  clave          String       @unique
+  createdAt      DateTime     @default(now())
+  vistoEn        DateTime     @default(now())
+
+  @@index([organizationId, estado])
+  @@index([productId])
 }

@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
 import { buscarBasesConTitulo, queryDatabase, type NotionPropertyValue } from "@/lib/integrations/notion";
 import { comparar, normalizarNombre } from "@/lib/enlace-shopify";
+import {
+  claveDe,
+  decisionesVigentes,
+  registrarChoques,
+  type ChoqueDetectado,
+} from "@/lib/conflictos-responsables";
 
 // Quién lleva cada producto, leído de la base PRODUCTOS ORDEN de Notion.
 //
@@ -41,6 +47,8 @@ export type ResultadoResponsables = {
   productosSinCruzar: string[];
   /** Personas de Notion que no son usuarios de Jarvis. */
   personasSinCruzar: string[];
+  /** Choques nuevos que quedaron esperando una decisión de dirección. */
+  choquesNuevos: number;
 };
 
 export async function sincronizarResponsables(
@@ -112,6 +120,8 @@ export async function sincronizarResponsables(
   const porProducto = new Map<string, Set<string>>();
   const productosSinCruzar = new Set<string>();
   const personasSinCruzar = new Set<string>();
+  // Los choques, para preguntarle a dirección en vez de decidir solos.
+  const choques: ChoqueDetectado[] = [];
 
   for (const f of filas) {
     const estado = texto(f.properties["Estado"]).toUpperCase();
@@ -129,7 +139,13 @@ export async function sincronizarResponsables(
     for (const persona of propietarios.split(",").map((x) => x.trim()).filter(Boolean)) {
       const u = usuarioDe(persona);
       if (u) set.add(u.id);
-      else personasSinCruzar.add(persona);
+      else {
+        personasSinCruzar.add(persona);
+        // Un nombre de Notion que no es nadie en Jarvis. Esto arrancó todo: en
+        // la planilla decía "ANITA" y en Jarvis la persona está como "Ana", así
+        // que el producto se quedaba sin responsable y nadie entendía por qué.
+        choques.push({ tipo: "sin_cruzar", productId: producto.id, nombreEnNotion: persona });
+      }
     }
     porProducto.set(producto.id, set);
   }
@@ -158,11 +174,49 @@ export async function sincronizarResponsables(
   // mano, el skipDuplicates de abajo deja la fila manual: la decisión de la
   // persona pesa más que la planilla.
   const ids = [...porProducto.keys()];
+
+  // LO QUE HAY A MANO Y NOTION NO TRAE: eso es un choque, no una orden.
+  //
+  // Antes esto se resolvía borrando, en silencio. Ahora se mira quién quedó
+  // puesto a mano en un producto que Notion nombra y que Notion no le reconoce,
+  // y se anota para que dirección decida. La fila NO se toca hasta que haya
+  // decisión: dejar a alguien con un acceso de más se ve y se corrige, quitarlo
+  // sin avisar es lo que nadie veía.
+  const aMano = await db.responsableProducto.findMany({
+    where: { productId: { in: ids }, origen: null },
+    select: { productId: true, userId: true },
+  });
+
+  const decisiones = await decisionesVigentes(organizationId);
+  const aQuitar: { productId: string; userId: string }[] = [];
+
+  for (const fila of aMano) {
+    if (porProducto.get(fila.productId)?.has(fila.userId)) continue; // Notion también lo trae.
+    const choque: ChoqueDetectado = {
+      tipo: "sobra_en_jarvis",
+      productId: fila.productId,
+      userId: fila.userId,
+    };
+    // Si dirección ya contestó por este mismo choque, se aplica y no se vuelve
+    // a preguntar. Lo que no tiene respuesta todavía queda como está.
+    const decidido = decisiones.get(claveDe(choque));
+    if (decidido === "quitar") aQuitar.push(fila);
+    else if (!decidido) choques.push(choque);
+  }
+
   let asignaciones = 0;
   await db.$transaction(async (tx) => {
     await tx.responsableProducto.deleteMany({
       where: { productId: { in: ids }, origen: "notion" },
     });
+
+    // Las bajas que dirección aprobó, una por una: son pocas y cada una es una
+    // decisión tomada a mano, no un barrido.
+    for (const q of aQuitar) {
+      await tx.responsableProducto.deleteMany({
+        where: { productId: q.productId, userId: q.userId, origen: null },
+      });
+    }
     const data = ids.flatMap((productId) =>
       [...porProducto.get(productId)!].map((userId) => ({ productId, userId, origen: "notion" })),
     );
@@ -170,10 +224,15 @@ export async function sincronizarResponsables(
     if (data.length) await tx.responsableProducto.createMany({ data, skipDuplicates: true });
   });
 
+  // Se anotan DESPUÉS de escribir: si la transacción falla, no queda una
+  // notificación hablando de un choque que nunca llegó a existir.
+  const { nuevos } = await registrarChoques(organizationId, choques);
+
   return {
     productos: ids.length,
     asignaciones,
     productosSinCruzar: [...productosSinCruzar].sort(),
     personasSinCruzar: [...personasSinCruzar].sort(),
+    choquesNuevos: nuevos,
   };
 }
