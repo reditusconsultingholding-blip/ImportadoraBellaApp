@@ -16,8 +16,8 @@ import { comparar, normalizarNombre } from "@/lib/enlace-shopify";
 // es de las dos.
 //
 // Los responsables que vienen de acá se marcan con origen "notion" y se
-// reescriben en cada pasada. Los que dirección asignó a mano en Jarvis, en
-// productos que no figuran en Notion, no se tocan.
+// reescriben en cada pasada. Los que dirección asignó a mano en Jarvis no se
+// tocan, figure o no el producto en Notion.
 
 const TITULO = "PRODUCTOS ORDEN";
 
@@ -134,12 +134,35 @@ export async function sincronizarResponsables(
     porProducto.set(producto.id, set);
   }
 
-  // Se reescriben solo los productos que figuran en Notion. Los que dirección
-  // asignó a mano en Jarvis, para productos que Notion no nombra, quedan.
+  // SE REESCRIBE LO QUE VINO DE NOTION, NO TODO.
+  //
+  // Esto borraba TODOS los responsables de cada producto que figura en Notion,
+  // incluidos los que dirección había asignado a mano. El comentario de antes
+  // decía que los manuales quedaban, y era verdad a medias: quedaban los de
+  // productos que Notion NO nombra. Si el producto estaba en Notion, la
+  // asignación hecha en Jarvis duraba hasta la pasada siguiente.
+  //
+  // Emilia lo reportó así: "yo le asigno a Anita y, a pesar de que ya está como
+  // responsable, no puede editar; se saca automáticamente, después de un par de
+  // minutos se saca la etiqueta". No era un problema de permisos — el permiso
+  // se calcula leyendo esta misma tabla, así que al desaparecer la fila
+  // desaparece el acceso. Eran los dos síntomas del mismo borrado.
+  //
+  // Pasa con la gente nueva, que es justo cuando más molesta: Ana todavía no
+  // está en PRODUCTOS ORDEN, así que Notion nunca la trae, y cada pasada la
+  // borraba de los productos que sí nombra. De sus dos asignaciones sobrevivió
+  // una sola, la del único producto que Notion no conoce.
+  //
+  // Con el filtro por origen, Notion sigue mandando sobre lo suyo y lo que
+  // dirección pone a mano se queda. Si Notion trae a alguien que ya estaba a
+  // mano, el skipDuplicates de abajo deja la fila manual: la decisión de la
+  // persona pesa más que la planilla.
   const ids = [...porProducto.keys()];
   let asignaciones = 0;
   await db.$transaction(async (tx) => {
-    await tx.responsableProducto.deleteMany({ where: { productId: { in: ids } } });
+    await tx.responsableProducto.deleteMany({
+      where: { productId: { in: ids }, origen: "notion" },
+    });
     const data = ids.flatMap((productId) =>
       [...porProducto.get(productId)!].map((userId) => ({ productId, userId, origen: "notion" })),
     );

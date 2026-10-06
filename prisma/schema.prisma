@@ -1777,8 +1777,16 @@ model ResponsableProducto {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // "notion" cuando viene de la base PRODUCTOS ORDEN, que es donde el equipo
   // ya lleva quién tiene cada producto; null si lo asignó dirección en Jarvis.
-  // Los de Notion se reescriben en cada sincronización: cambiarlos acá sería
-  // un cambio que desaparece en diez minutos.
+  //
+  // ESTE CAMPO DECIDE QUÉ BORRA LA SINCRONIZACIÓN. Cada pasada reescribe las
+  // filas con origen "notion" y deja intactas las de origen null. Antes las
+  // borraba todas, así que una asignación hecha a mano en un producto que
+  // Notion nombra duraba hasta la pasada siguiente —un par de minutos— y la
+  // persona recién sumada al equipo se quedaba sin acceso.
+  //
+  // Lo que sigue siendo cierto: QUITAR en Jarvis a alguien que Notion trae no
+  // dura, porque la pasada siguiente lo vuelve a crear. Esa baja se hace en
+  // PRODUCTOS ORDEN.
   origen    String?
   createdAt DateTime @default(now())
 
