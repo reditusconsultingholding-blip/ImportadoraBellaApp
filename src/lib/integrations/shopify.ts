@@ -357,6 +357,14 @@ export async function fetchRecentOrders(
         provincia: node.shippingAddress?.province?.trim() || null,
         ciudad: node.shippingAddress?.city?.trim() || null,
         channel: node.app?.name || "Tienda online",
+        // OJO CON EL NOMBRE: esto NO son las ventas brutas.
+        //
+        // `currentSubtotalPriceSet` es el subtotal CON LOS DESCUENTOS YA
+        // RESTADOS. El campo se llama `grossSales` por herencia, y el nombre
+        // hizo su trabajo: el desglose del panel lo mostraba como "Ventas
+        // brutas" y volvía a restarle los descuentos, inventando un número que
+        // no existe en Shopify. Las brutas de verdad son esto MÁS `discounts`
+        // (ver sales.ts, donde está la comparación contra el panel de Shopify).
         grossSales: amount(node.currentSubtotalPriceSet),
         discounts: amount(node.currentTotalDiscountsSet),
         shipping: amount(node.totalShippingPriceSet),

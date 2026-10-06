@@ -203,11 +203,34 @@ async function getSalesOverviewSinMemoria(
     ventasDesde: masVieja?.occurredAt.toISOString() ?? null,
     totalSalesChangePct: pctChange(netSales, netSalesYesterday),
     salesSeries: seriesFor("netSales"),
+    // EL DESGLOSE RESTABA LOS DESCUENTOS DOS VECES.
+    //
+    // `grossSales` se llama así pero NO son las ventas brutas: viene de
+    // `currentSubtotalPriceSet` de Shopify, que es el subtotal CON LOS
+    // DESCUENTOS YA RESTADOS. El desglose lo mostraba como "Ventas brutas" y
+    // después calculaba las netas restándoselos otra vez.
+    //
+    // Para el 5 de octubre, comparado contra el propio panel de Shopify:
+    //
+    //                      Shopify        Jarvis (antes)
+    //   Ventas brutas      14.648,62      14.062,24   ← era el total, mal rotulado
+    //   Descuentos           -586,38        -586,38
+    //   Ventas netas       14.062,24      13.475,86   ← 586,38 de menos, inventado
+    //
+    // Ese 13.475,86 no existe en ningún lado, y la diferencia reaparecía todos
+    // los días porque siempre hay descuentos. Es lo que reportó el dueño:
+    // "difiere las ventas de ayer, y así todos los días".
+    //
+    // Las brutas se reconstruyen sumando de vuelta los descuentos, que es la
+    // definición de Shopify: brutas - descuentos = netas. El total de arriba
+    // (`totalSales`) siempre estuvo bien y por eso el error pasó desapercibido:
+    // solo mentía el desglose, que es justo donde se va a mirar cuando un
+    // número no cuadra.
     breakdown: [
-      { label: "Ventas brutas", value: grossSales, changePct: null },
+      { label: "Ventas brutas", value: grossSales + discounts, changePct: null },
       { label: "Descuentos", value: -discounts, changePct: null },
       { label: "Reversiones de ventas", value: 0, changePct: null },
-      { label: "Ventas netas", value: grossSales - discounts, changePct: null },
+      { label: "Ventas netas", value: grossSales, changePct: null },
       { label: "Cargos de envío", value: shipping, changePct: null },
       { label: "Cargos por devolución", value: 0, changePct: null },
       { label: "Impuestos", value: taxes, changePct: null },
