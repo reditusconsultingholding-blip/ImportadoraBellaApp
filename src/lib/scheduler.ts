@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { rellenarClientes } from "@/lib/relleno-clientes";
+import { avisarPagosDelDia } from "@/lib/avisar-pagos";
 import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
@@ -319,6 +320,16 @@ export async function sincronizarTodo(conRapido = true) {
     // El relleno de datos de cliente en las órdenes viejas. Avanza un pedazo
     // por vuelta y se acuerda de dónde quedó; cuando termina deja de correr
     // solo.
+    // Los cobros de las apps que se pagan todos los meses. Va en la vuelta
+    // lenta: el calendario se mira una vez al día, no cada dos minutos, y cada
+    // aviso se marca con su período así que pasar de más no repite nada.
+    try {
+      const r = await avisarPagosDelDia(org.id);
+      if (r) resumen.pagos = r;
+    } catch (err) {
+      resumen.pagos = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
     try {
       const r = await rellenarClientes(org.id);
       if (r) resumen.relleno = r;

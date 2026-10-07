@@ -98,6 +98,7 @@ model Organization {
   acciones           ProductAction[]
   syncStates         SyncState[]
   conflictosResponsable ConflictoResponsable[]
+  pagosRecurrentes      PagoRecurrente[]
   weeklyReports      WeeklyReport[]
   productAssets      ProductAsset[]
   referencias        Referencia[]
@@ -1908,4 +1909,37 @@ model ConflictoResponsable {
 
   @@index([organizationId, estado])
   @@index([productId])
+}
+
+// Las apps que se pagan todos los meses, con su día de cobro.
+//
+// Fabricio: "importante tener presente las fechas (…) no sé si puede crear una
+// alerta o recordatorio en la plataforma, que salga". Hasta ahora eso vivía en
+// la cabeza de alguien, y una app que se corta por falta de pago se nota cuando
+// ya se cortó.
+model PagoRecurrente {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  nombre         String
+  monto          Float?
+  moneda         String       @default("USD")
+
+  // Día del mes en que cobran. El 31 en un mes de 30 cae el último día: se
+  // resuelve al calcular y no al guardar, porque el mismo registro vale para
+  // todos los meses del año.
+  diaDelMes       Int
+  avisarDiasAntes Int          @default(3)
+  activo          Boolean      @default(true)
+  notas           String?
+
+  // El período ya avisado, como "2026-10". Sin esto el aviso saldría en cada
+  // vuelta del reloj —decenas por día— y dejarían de mirarlos.
+  avisoPrevioEn  String?
+  avisoDiaEn     String?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, activo])
 }

@@ -245,6 +245,11 @@ export default function SidebarNav({
               // pedido de dirección quedó la de precios, con lo mejor de la
               // otra adentro (septiembre de 2026).
               { href: "/dashboard/calculadora", label: "Calculadora de precios", icon: "calculadora" },
+              // Las apps que se cobran solas todos los meses. Va en Números y
+              // no en Configuraciones porque es plata que sale, y porque una
+              // pantalla de ajustes no se mira: esta tiene que estar donde ya
+              // se entra a ver cuánto se gastó.
+              { href: "/dashboard/pagos", label: "Pagos y suscripciones", icon: "calculadora" },
             ]
           : []),
         ...(showReportes
