@@ -46,6 +46,7 @@ const NOMBRE_MES = [
 export default function Economia({
   anio,
   mes,
+  meses,
   productos,
   pautados,
   variables,
@@ -54,6 +55,8 @@ export default function Economia({
 }: {
   anio: number;
   mes: number;
+  /** Los últimos catorce meses, para poder moverse. */
+  meses: { anio: number; mes: number; texto: string }[];
   productos: ProductoOpcion[];
   /** Los que tuvieron gasto ese mes. Es el filtro por defecto de la tabla. */
   pautados: string[];
@@ -190,6 +193,44 @@ export default function Economia({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* QUÉ MES SE ESTÁ MIRANDO, Y POR QUÉ ACÁ NO HAY "ENTRE DOS FECHAS".
+          //
+          // Esta pantalla no tenía NINGÚN control de período: tomaba el mes de
+          // la URL y, como nadie lo ponía, siempre mostraba el actual. Emilia
+          // preguntó "¿por qué acá no me aparece entre dos fechas?" — no le
+          // faltaba el rango libre, le faltaba poder cambiar de mes.
+          //
+          // Y el rango libre no corresponde: lo que se carga acá —efectividad,
+          // producción, flete, devoluciones— es UNA fila por producto y por
+          // mes, no algo que ocurra cada día y se pueda sumar entre dos fechas.
+          // "Del 3 al 17" mostraría lo mismo que octubre entero, así que
+          // ofrecerlo sería mentir. La aclaración va al lado del selector
+          // porque la pregunta se hace mirando esto. */}
+      <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-surface px-4 py-3">
+        <label className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.07em] text-muted">Mes</span>
+          <select
+            value={`${anio}-${mes}`}
+            onChange={(e) => {
+              const [a, m] = e.target.value.split("-");
+              router.push(`/dashboard/control?vista=economia&anio=${a}&mes=${m}`);
+            }}
+            className="rounded border border-border bg-transparent px-2 py-1 text-sm outline-none focus:border-accent"
+          >
+            {meses.map((m) => (
+              <option key={`${m.anio}-${m.mes}`} value={`${m.anio}-${m.mes}`}>
+                {m.texto}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-[11px] text-muted">
+          Esta pantalla va por mes y no entre dos fechas: la efectividad, la producción, el flete y
+          las devoluciones se cargan una vez al mes por producto, así que un rango de días mostraría
+          lo mismo que el mes entero.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-end gap-4 rounded border border-border bg-surface p-4">
         <label className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-[0.07em] text-muted">

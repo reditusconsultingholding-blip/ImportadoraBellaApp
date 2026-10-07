@@ -79,6 +79,18 @@ export default async function ControlPage({
     orderBy: { name: "asc" },
   });
 
+  // Los catorce últimos meses. Los usan Resultados y Economía, así que se
+  // arman una sola vez.
+  const meses = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
+    return {
+      id: `mes-${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`,
+      anio: d.getUTCFullYear(),
+      mes: d.getUTCMonth() + 1,
+      texto: `${NOMBRE_MES[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+    };
+  });
+
   let cuerpo: React.ReactNode = null;
 
   if (vista === "resultados") {
@@ -87,14 +99,6 @@ export default async function ControlPage({
       hasta: periodo.hasta,
       hora,
       productIds,
-    });
-    // Los meses que se ofrecen en el selector: los catorce últimos.
-    const meses = Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
-      return {
-        id: `mes-${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`,
-        texto: `${NOMBRE_MES[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
-      };
     });
     cuerpo = (
       <Resultados
@@ -110,8 +114,20 @@ export default async function ControlPage({
       />
     );
   } else if (vista === "economia") {
-    const anio = Number(p.anio) || hoy.getUTCFullYear();
-    const mes = Number(p.mes) || hoy.getUTCMonth() + 1;
+    // EL MES NO SE PIERDE AL CAMBIAR DE PESTAÑA.
+    //
+    // Antes esta vista solo miraba `anio`/`mes` de la URL, y como ninguna
+    // pantalla los ponía, siempre caía en el mes actual. Alguien que venía
+    // mirando "mes pasado" en Resultados pasaba a Economía y veía octubre sin
+    // que nada se lo dijera. Emilia lo reportó como "¿por qué acá no me
+    // aparece entre dos fechas?": no le faltaba el rango, le faltaba poder
+    // cambiar el mes.
+    //
+    // Ahora, si no se pidió un mes explícito, se toma el del período que se
+    // venía mirando —el del día final, que es el que manda en "mes pasado" o
+    // "este mes"—.
+    const anio = Number(p.anio) || periodo.hasta.getUTCFullYear();
+    const mes = Number(p.mes) || periodo.hasta.getUTCMonth() + 1;
     const [variables, gastoAdm, conGasto] = await Promise.all([
       db.variableProducto.findMany({
         where: { organizationId: session.organizationId, anio, mes },
@@ -136,6 +152,7 @@ export default async function ControlPage({
       <Economia
         anio={anio}
         mes={mes}
+        meses={meses}
         productos={productos}
         pautados={conGasto}
         variables={variables}
@@ -182,7 +199,7 @@ export default async function ControlPage({
 
   const conservar = (v: Vista) => {
     const q = new URLSearchParams({ vista: v });
-    for (const k of ["periodo", "desde", "hasta"] as const) if (p[k]) q.set(k, p[k]!);
+    for (const k of ["periodo", "desde", "hasta", "anio", "mes"] as const) if (p[k]) q.set(k, p[k]!);
     return `/dashboard/control?${q.toString()}`;
   };
 
