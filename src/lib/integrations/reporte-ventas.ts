@@ -188,20 +188,31 @@ export type PedidoContado = {
   otros: number;
 };
 
+const limpiar = (h: string) =>
+  h
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase()
+    .trim();
+
+/**
+ * Dónde está la columna del producto, o -1.
+ *
+ * Se aceptan varios nombres porque el encabezado lo escribe una persona a mano,
+ * una vez por mes.
+ */
+export function indiceDeProducto(encabezado: string[]): number {
+  const nombres = ["PRODUCTO", "PRODUCTOS", "ARTICULO", "ITEM", "DESCRIPCION"];
+  return encabezado.findIndex((h) => nombres.includes(limpiar(h)));
+}
+
 /** Dónde están FECHA, PRODUCTO, CANTIDAD y ESTADO en esta pestaña. */
 function columnas(encabezado: string[]) {
   const buscar = (...nombres: string[]) =>
-    encabezado.findIndex((h) => {
-      const limpio = h
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toUpperCase()
-        .trim();
-      return nombres.includes(limpio);
-    });
+    encabezado.findIndex((h) => nombres.includes(limpiar(h)));
   return {
     fecha: buscar("FECHA"),
-    producto: buscar("PRODUCTO"),
+    producto: indiceDeProducto(encabezado),
     cantidad: buscar("CANTIDAD"),
     // Las pestañas viejas llaman ESTADO a la columna "CONFIRMADO". Es la
     // misma: el estado del pedido.
@@ -209,13 +220,50 @@ function columnas(encabezado: string[]) {
   };
 }
 
-/** Agrupa las filas de una pestaña por día y por nombre de producto. */
-export function contarPestana(csv: string): PedidoContado[] {
+/**
+ * El resultado de leer una pestaña.
+ *
+ * Antes esto devolvía un arreglo a secas y el que llamaba hacía `continue` con
+ * los vacíos. Esa es exactamente la forma en que la planilla de octubre dejó de
+ * entrar durante seis días sin que nadie se enterara: alguien escribió "TOD"
+ * encima del encabezado "PRODUCTO", la pestaña pasó a devolver cero filas, y
+ * cero filas se leía igual que "no cambió nada". Ahora un fallo se distingue de
+ * un mes vacío y dice qué pasó.
+ */
+export type LecturaPestana =
+  | { ok: true; filas: PedidoContado[] }
+  | { ok: false; motivo: string };
+
+/**
+ * Agrupa las filas de una pestaña por día y por nombre de producto.
+ *
+ * `respaldoProducto` es la posición donde las OTRAS pestañas del libro tienen
+ * el producto. Sirve cuando a una le rompen el encabezado: el libro tiene la
+ * misma forma mes a mes, así que la columna sigue estando donde siempre aunque
+ * ya no se llame como se llamaba. Entra el dato igual, y el que llama avisa
+ * igual —el encabezado hay que arreglarlo en la planilla—.
+ */
+export function contarPestana(csv: string, respaldoProducto?: number): LecturaPestana {
   const filas = filasDeCsv(csv);
-  if (filas.length < 2) return [];
+  // Una pestaña recién creada, sin pedidos todavía, no es un error.
+  if (filas.length < 2) return { ok: true, filas: [] };
 
   const col = columnas(filas[0]);
-  if (col.fecha < 0 || col.producto < 0) return [];
+  if (col.fecha < 0) {
+    return { ok: false, motivo: "no tiene columna FECHA" };
+  }
+  if (col.producto < 0) {
+    if (respaldoProducto === undefined || respaldoProducto >= filas[0].length) {
+      return {
+        ok: false,
+        motivo: `no tiene columna PRODUCTO (el encabezado dice: ${filas[0]
+          .slice(0, 8)
+          .map((h) => `«${h}»`)
+          .join(", ")}…)`,
+      };
+    }
+    col.producto = respaldoProducto;
+  }
 
   const acumulado = new Map<string, PedidoContado>();
 
@@ -259,7 +307,7 @@ export function contarPestana(csv: string): PedidoContado[] {
     acumulado.set(clave, fila2);
   }
 
-  return [...acumulado.values()];
+  return { ok: true, filas: [...acumulado.values()] };
 }
 
 /* ------------------------------ La escritura ------------------------------ */
@@ -281,6 +329,13 @@ export type ResultadoSync = {
   desdeElDia: string | null;
   /** Pestañas que se saltaron porque no cambió nada desde la última vuelta. */
   sinCambios: string[];
+  /**
+   * Pestañas que NO se pudieron leer, con el motivo.
+   *
+   * Van separadas de `error` porque no tumban la corrida: las demás entran
+   * igual. Pero sí marcan la fuente en rojo, que es lo que faltaba.
+   */
+  rotas: string[];
   error?: string;
 };
 
@@ -308,6 +363,7 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
       dias: 0,
       filas: 0,
       sinCambios: [],
+      rotas: [],
       desdeElDia: null,
       error: "No se encontró ninguna pestaña de mes.",
     };
@@ -318,12 +374,60 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
     dias: 0,
     filas: 0,
     sinCambios: [],
+    rotas: [],
     desdeElDia: null,
   };
 
+  // DE DÓNDE SALE LA COLUMNA DEL PRODUCTO CUANDO A UNA PESTAÑA LE ROMPEN EL
+  // ENCABEZADO.
+  //
+  // El libro tiene la misma forma mes a mes: una pestaña por mes, las mismas
+  // columnas en el mismo orden. Si a la de octubre le escriben "TOD" encima de
+  // "PRODUCTO" —pasó, el 6 de octubre—, la columna sigue estando donde siempre.
+  // Se baja todo primero, se mira dónde la tienen las pestañas que sí la
+  // nombran, y esa posición sirve de respaldo para las que no.
+  //
+  // El dato entra igual, y la pestaña se reporta rota de todos modos: el
+  // encabezado hay que arreglarlo en la planilla, no taparlo acá.
+  const csvs = new Map<string, string>();
   for (const pestana of meses) {
-    const csv = await csvDePestana(hojaId, pestana.gid);
-    const contadas = contarPestana(csv);
+    csvs.set(pestana.gid, await csvDePestana(hojaId, pestana.gid));
+  }
+
+  let respaldoProducto: number | undefined;
+  for (const pestana of meses) {
+    const filas = filasDeCsv(csvs.get(pestana.gid) ?? "");
+    if (filas.length < 1) continue;
+    const i = indiceDeProducto(filas[0]);
+    if (i >= 0) {
+      respaldoProducto = i;
+      break;
+    }
+  }
+
+  for (const pestana of meses) {
+    const csv = csvs.get(pestana.gid) ?? "";
+    const lectura = contarPestana(csv, respaldoProducto);
+
+    if (!lectura.ok) {
+      // ANTES ESTO ERA UN `continue` MUDO. Una pestaña que no se puede leer
+      // se veía igual que un mes sin novedades, y el panel decía "revisada
+      // hace 1 hora, sin error" mientras le faltaban seis días de pedidos.
+      resultado.rotas.push(`${pestana.nombre}: ${lectura.motivo}`);
+      continue;
+    }
+
+    // Si hizo falta el respaldo, el encabezado está mal aunque el dato haya
+    // entrado. Se dice, porque si no nadie lo corrige nunca.
+    const encabezado = filasDeCsv(csv)[0] ?? [];
+    if (encabezado.length > 0 && indiceDeProducto(encabezado) < 0) {
+      const comoSeLlama = encabezado[respaldoProducto ?? -1];
+      resultado.rotas.push(
+        `${pestana.nombre}: la columna del producto se llama «${comoSeLlama}» y debería llamarse PRODUCTO (se leyó igual, por posición)`,
+      );
+    }
+
+    const contadas = lectura.filas;
     if (contadas.length === 0) continue;
 
     // Los días que esta pestaña cubre. Solo esos se reescriben.

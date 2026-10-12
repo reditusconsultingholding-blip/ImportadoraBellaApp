@@ -151,13 +151,33 @@ async function anotarFrescura(organizationId: string, conector: WindsorConnector
 }
 
 /** Deja constancia de cuánto tardó una vuelta, para poder medirlo. */
-async function anotarVuelta(organizationId: string, fuente: string, inicio: number, detalle: string) {
+/**
+ * Deja anotado cómo le fue a una fuente.
+ *
+ * `error` existe para el caso a medias: la vuelta terminó, parte del trabajo
+ * entró, y aun así hay algo que mirar. Sin eso la única forma de marcar una
+ * fuente en rojo era que lanzara, así que un problema parcial —media planilla
+ * que no se puede leer— quedaba en verde. Es como el control publicitario se
+ * pasó seis días sin los pedidos de octubre diciendo "revisada hace 1 hora".
+ */
+async function anotarVuelta(
+  organizationId: string,
+  fuente: string,
+  inicio: number,
+  detalle: string,
+  error?: string | null,
+) {
   const s = ((Date.now() - inicio) / 1000).toFixed(1);
+  const comun = {
+    detalle: `${s}s · ${detalle}`.slice(0, 500),
+    error: error ? error.slice(0, 500) : null,
+    ...(error ? { errorAt: new Date() } : { okAt: new Date() }),
+  };
   await db.syncState
     .upsert({
       where: { organizationId_fuente: { organizationId, fuente } },
-      create: { organizationId, fuente, okAt: new Date(), detalle: `${s}s · ${detalle}`.slice(0, 500) },
-      update: { okAt: new Date(), detalle: `${s}s · ${detalle}`.slice(0, 500), error: null },
+      create: { organizationId, fuente, okAt: new Date(), ...comun },
+      update: comun,
     })
     .catch(() => {});
 }
@@ -503,7 +523,15 @@ export async function sincronizarTodo(conRapido = true) {
             " · descuadre de " + d.pedidos + " pedidos en " + d.dias +
             " días, rehechos " + c.dias;
         }
-        await anotarVuelta(org.id, "reporte-ventas", Date.now(), resumen.reporte);
+        // Una pestaña que no se puede leer marca la fuente en rojo aunque las
+        // demás hayan entrado: es media planilla faltando, no un detalle.
+        await anotarVuelta(
+          org.id,
+          "reporte-ventas",
+          Date.now(),
+          resumen.reporte,
+          r.rotas.length > 0 ? "No se pudo leer: " + r.rotas.join(" | ") : null,
+        );
       }
     } catch (err) {
       resumen.reporte = "error: " + (err instanceof Error ? err.message : String(err));
