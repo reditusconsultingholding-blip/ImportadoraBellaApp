@@ -64,10 +64,10 @@
   },
   "rentabilidad": {
     "archivo": "rentabilidad.mp3",
-    "huella": "9adfee55",
+    "huella": "2e33327c",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-09-30T13:06:08.368Z"
+    "generado": "2026-10-13T21:52:23.312Z"
   },
   "clientes": {
     "archivo": "clientes.mp3",
@@ -127,10 +127,10 @@
   },
   "jarvis": {
     "archivo": "jarvis.mp3",
-    "huella": "3baef1a1",
+    "huella": "a5e03f30",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-09-30T13:07:30.644Z"
+    "generado": "2026-10-13T21:52:39.210Z"
   },
   "conexiones": {
     "archivo": "conexiones.mp3",
@@ -162,17 +162,17 @@
   },
   "cierre": {
     "archivo": "cierre.mp3",
-    "huella": "c2cc57a3",
+    "huella": "39f850f8",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-09-30T13:08:23.526Z"
+    "generado": "2026-10-13T21:52:49.604Z"
   },
   "control": {
     "archivo": "control.mp3",
-    "huella": "e0e3cba1",
+    "huella": "3eff82e2",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-10-01T21:03:00.773Z"
+    "generado": "2026-10-13T21:52:11.807Z"
   },
   "sin-nomenclatura": {
     "archivo": "sin-nomenclatura.mp3",
@@ -180,5 +180,19 @@
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
     "generado": "2026-10-01T21:03:10.302Z"
+  },
+  "novedades": {
+    "archivo": "novedades.mp3",
+    "huella": "43f9d6af",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-10-13T21:51:31.039Z"
+  },
+  "novedades-economia": {
+    "archivo": "novedades-economia.mp3",
+    "huella": "94ca01c0",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-10-13T21:51:49.586Z"
   }
 }
