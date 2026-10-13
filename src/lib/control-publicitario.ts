@@ -89,6 +89,54 @@ export type Economia = {
 };
 
 /**
+ * La fila del mes encima de lo que ya se sabía, campo por campo.
+ *
+ * UNA FILA A MEDIO LLENAR NO BORRA LO QUE SÍ SE SABE. El 13 de octubre, 16 de
+ * las 33 filas del mes tenían ÚNICAMENTE el costo de producción: precio en cero
+ * y efectividad en cero. No son datos, es una fila que alguien abrió para
+ * anotar el costo y dejó a medias. Pero como el mes mandaba entero, esos ceros
+ * pisaban el precio de la Calculadora y el Control calculaba ingresos = 0 para
+ * esos 16 productos: utilidad igual a menos todo el gasto de pauta. De ahí
+ * salía "en todo estamos perdiendo", y de ahí el "me aparece mal la
+ * información" de Emilia DESPUÉS de que la Calculadora ya estaba conectada: la
+ * Calculadora sí tenía el precio, la fila a medias no lo dejaba llegar.
+ *
+ * Un precio en cero no es un precio y una efectividad en cero no es una
+ * efectividad: ahí sigue mandando lo de abajo.
+ *
+ * Producción y flete se dejan pasar aunque vengan en cero, a propósito: un
+ * flete cero es creíble (envío bonificado) y un costo cero infla la utilidad en
+ * vez de hundirla, que es un error distinto y menos urgente. Tocar menos de lo
+ * necesario también es una decisión.
+ */
+export function mezclarConElMes(
+  previo: Economia | undefined,
+  f: {
+    efectividad: number;
+    produccion: number;
+    flete: number;
+    precioProm: number;
+    cpaMin: number | null;
+    devoluciones: number | null;
+  },
+): Economia {
+  const completa = f.precioProm !== 0 && f.efectividad !== 0;
+  return {
+    efectividad: f.efectividad !== 0 ? f.efectividad : (previo?.efectividad ?? 0),
+    produccion: f.produccion,
+    flete: f.flete,
+    precioProm: f.precioProm !== 0 ? f.precioProm : (previo?.precioProm ?? 0),
+    cpaMin: f.cpaMin ?? previo?.cpaMin ?? null,
+    devoluciones: f.devoluciones ?? previo?.devoluciones ?? null,
+    // El origen dice de dónde sale lo que FALTABA, no de dónde sale la fila: si
+    // hubo que ir a buscar el precio a la Calculadora, la pantalla tiene que
+    // decir "Calculadora" para que se entienda con qué está calculando.
+    delMes: completa,
+    origen: completa ? "mes" : (previo?.origen ?? "ficha"),
+  };
+}
+
+/**
  * La economía de cada producto para un mes.
  *
  * Si no hay fila cargada para ese mes se cae a la ficha del producto, que es
@@ -162,18 +210,27 @@ export async function economiaDelMes(
     salida.set(productId, { ...c, delMes: false, origen: "calculadora" });
   }
 
-  for (const f of filas) {
-    salida.set(f.productId, {
-      efectividad: f.efectividad,
-      produccion: f.produccion,
-      flete: f.flete,
-      precioProm: f.precioProm,
-      cpaMin: f.cpaMin,
-      devoluciones: f.devoluciones,
-      delMes: true,
-      origen: "mes",
-    });
-  }
+  // UNA FILA DEL MES A MEDIO LLENAR NO BORRA LO QUE SI SE SABE.
+  //
+  // El 13 de octubre, 16 de las 33 filas del mes tenian UNICAMENTE el costo de
+  // produccion: precio en cero y efectividad en cero. No son datos, es una fila
+  // que alguien abrio para anotar el costo y dejo a medias. Pero como el mes
+  // mandaba entero, esos ceros pisaban el precio de la Calculadora y el Control
+  // calculaba ingresos = 0 para esos 16 productos: utilidad igual a menos todo
+  // el gasto de pauta. De ahi salia "en todo estamos perdiendo", y de ahi el
+  // "me aparece mal la informacion" de Emilia despues de que la Calculadora ya
+  // estaba conectada: la Calculadora SI tenia el precio, la fila a medias no la
+  // dejaba llegar.
+  //
+  // Ahora el mes gana CAMPO POR CAMPO, solo donde hay algo cargado. Un precio
+  // en cero no es un precio y una efectividad en cero no es una efectividad:
+  // ahi sigue mandando la Calculadora.
+  //
+  // Produccion y flete se dejan pasar aunque vengan en cero, a proposito: un
+  // flete cero es creible (envio bonificado) y un costo cero infla la utilidad
+  // en vez de hundirla, que es un error distinto y menos urgente. Tocar menos
+  // de lo necesario tambien es una decision.
+  for (const f of filas) salida.set(f.productId, mezclarConElMes(salida.get(f.productId), f));
 
   return salida;
 }

@@ -355,7 +355,15 @@ export default function Economia({
           <tbody>
             {visibles.map((p) => {
               const v = filas.get(p.id);
-              const usada = v ? undefined : usadas.get(p.id);
+              // `usada` NO se descarta cuando hay fila del mes.
+              //
+              // Una fila a medio llenar -- solo el costo de produccion, precio
+              // y efectividad en cero-- deja que el Control vaya a buscar lo
+              // que falta a la Calculadora. Si aqui se ignorara por el solo
+              // hecho de tener fila, la pantalla mostraria "0" en negro donde
+              // el Control esta usando 32,99: el mismo desencuentro que
+              // estamos cerrando, otra vez.
+              const usada = usadas.get(p.id);
               return (
                 <tr key={p.id} className="border-b border-border last:border-b-0">
                   <td className="px-2.5 py-1">
@@ -388,14 +396,22 @@ export default function Economia({
                         : "porcentaje" in c && c.porcentaje
                           ? String(Math.round(n * 1000) / 10)
                           : String(Math.round(n * 100) / 100);
-                    const mostrado = comoTexto(crudo);
+                    // En negro va lo cargado SOLO si es lo que el Control usa.
+                    // Donde no coincide --el cero de una fila a medias contra
+                    // el precio real de la Calculadora-- la celda queda vacia y
+                    // el numero de verdad aparece en gris. Un "0" en negro
+                    // sobre un producto que se vende a 32,99 es exactamente la
+                    // informacion mal que se reporto.
+                    const delControl = usada ? (usada[c.clave] as number | null) : null;
+                    const coincide = !usada || delControl === crudo;
+                    const mostrado = v && coincide ? comoTexto(crudo) : "";
                     // El número en gris es lo que el Control usa HOY para este
                     // producto. Va como placeholder y no como valor: si fuera
                     // valor se leería como cargado a mano y, peor, el `onBlur`
                     // lo guardaría de verdad al primer clic —congelando en el
                     // mes una cifra que debería seguir viniendo de la
                     // Calculadora cada vez que el equipo la ajusta—.
-                    const enUso = usada ? comoTexto(usada[c.clave] as number | null) : "";
+                    const enUso = usada && !coincide ? comoTexto(delControl) : "";
                     return (
                       <td key={c.clave} className="px-1 py-1">
                         <input
