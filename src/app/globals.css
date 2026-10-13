@@ -475,6 +475,27 @@ tbody tr:hover {
   }
 }
 
+/* El aro que se expande alrededor del logo mientras carga.
+
+   Sale del borde de la pieza y se va apagando hacia afuera. Es lo que separa
+   "esto está trabajando" de "esto se colgó": el giro solo dice que hay una
+   animación corriendo, el pulso dice que algo sale hacia afuera. Dos segundos y
+   pico por ciclo, lo bastante lento para que no compita con el giro. */
+@keyframes pulso-carga {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
 /* La entrada del encabezado: sube cuatro píxeles y aparece. Una sola vez. */
 @keyframes entrar {
   from {
@@ -500,6 +521,7 @@ tbody tr:hover {
 @media (prefers-reduced-motion: reduce) {
   .animate-\[correr_1\.1s_ease-in-out_infinite\],
   .animate-\[latir_1\.4s_ease-in-out_infinite\],
+  .animate-\[pulso-carga_2\.2s_ease-out_infinite\],
   .encabezado-resplandor,
   .encabezado-entrada {
     animation: none;
