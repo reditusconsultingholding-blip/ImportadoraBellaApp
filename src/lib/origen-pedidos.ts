@@ -320,7 +320,12 @@ async function origenPorVentaSinMemoria(organizationId: string, range: Range): P
         };
         x.ventas += 1;
         x.suma += cpaMax;
-        if (!eco?.delMes) x.deFicha = true;
+        // Solo la ficha se marca en naranja. Antes se marcaba todo lo que no
+        // fuera del mes, y desde que la Calculadora manda eso incluia
+        // productos con precios ajustados esta misma manana: un aviso de dato
+        // viejo sobre el dato mas fresco que existe. Mismo falso positivo que
+        // se saco del control publicitario.
+        if ((eco?.origen ?? "ficha") === "ficha") x.deFicha = true;
         objetivoDe.set(o.productId, x);
       } else {
         ventasSinObjetivo += 1;
