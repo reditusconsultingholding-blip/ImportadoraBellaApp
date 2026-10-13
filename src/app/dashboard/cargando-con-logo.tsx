@@ -61,9 +61,13 @@ export default function CargandoConLogo({
         <span className="absolute inset-0 animate-spin rounded-full border-4 border-accent border-t-transparent" />
         {/* La B de Bella, la misma de la pestaña del navegador. Que sea la
             marca y no un engranaje genérico es lo que hace que la espera se
-            sienta parte de la herramienta. */}
+            sienta parte de la herramienta.
+            //
+            // Es redonda, así que va sin `rounded`: recortar en redondo algo
+            // que ya es un círculo le come los bordes. Y por eso mismo queda
+            // concéntrica con los aros que giran alrededor. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icon.svg" alt="" aria-hidden className="h-11 w-11 rounded-xl" />
+        <img src="/iconos/marca-b.png" alt="" aria-hidden className="h-12 w-12" />
       </span>
 
       <p className="relative mt-6 text-[15px] font-semibold text-foreground">{titulo}</p>
