@@ -74,6 +74,50 @@ export const PASOS: PasoCapacitacion[] = [
     roles: CON_PIPELINE,
   },
   {
+    // QUÉ CAMBIÓ, ANTES QUE CÓMO FUNCIONA.
+    //
+    // Este paso va segundo a propósito: la mayoría del equipo ya hizo el
+    // recorrido y lo que necesita no es que le expliquen el panel otra vez,
+    // sino saber qué se movió desde la última vez que entró. Si lo nuevo
+    // quedara repartido dentro de los pasos de siempre, habría que escuchar
+    // los veintiséis para encontrarlo.
+    //
+    // Cuando estos cambios dejen de ser noticia, este paso se borra. No es
+    // documentación: es un aviso con fecha.
+    id: "novedades",
+    ruta: "/dashboard",
+    seccion: "Novedades",
+    titulo: "Qué cambió esta semana",
+    texto:
+      "Se arreglaron tres cosas que el equipo venía reportando y se sumó una que faltaba. Te las contamos acá para que no las descubras de casualidad.",
+    puntos: [
+      "«Entre dos fechas» ya aparece siempre. Antes, en pantallas angostas, los últimos botones del selector quedaban fuera del borde, y mientras una sección terminaba de cargar el botón no respondía: se veía como si hubiera desaparecido.",
+      "Ninguna sección se queda en blanco mientras carga. Ahora todas muestran el logo girando y te dicen qué está haciendo: cruzar los pedidos con el gasto, traer catorce meses de campañas.",
+      "Si algo de esto no se entiende, podés preguntárselo a Jarvis por escrito o por voz desde «Preguntarle a Jarvis». Está para eso.",
+    ],
+    roles: CON_PIPELINE,
+  },
+  {
+    // La parte que solo le sirve a quien mira plata. Va aparte y no como un
+    // punto más del anterior porque un editor no puede abrir ninguna de estas
+    // pantallas, y explicarle algo que no va a poder ver es ruido.
+    id: "novedades-economia",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/control?vista=economia",
+    seccion: "Novedades",
+    titulo: "De dónde salen ahora los números de la utilidad",
+    texto:
+      "El archivo que pasa administración venía a medias desde agosto: la mitad de las filas tenía solo el costo de producción, con el precio en cero. Esos ceros se usaban como si fueran datos, así que productos que se venden a treinta y tres dólares se calculaban a cero y aparecían perdiendo toda la pauta. De ahí salía el «en todo estamos perdiendo» que no cuadraba con la realidad.",
+    puntos: [
+      "En el mes que está corriendo manda la Calculadora de precios, que es lo que el equipo mantiene al día. No hay que esperar a que llegue el archivo.",
+      "Cuando el mes cierra, manda lo cargado en «Economía por producto». Un mes cerrado no se vuelve a calcular con los precios de hoy: lo que se reportó de abril sigue siendo lo de abril.",
+      "En la tabla, los números en gris son los que el Control está usando aunque no estén cargados ahí, y la etiqueta de cada fila dice de dónde salen: verde «Calculadora», naranja «Ficha vieja».",
+      "Naranja quiere decir que ese producto no está en la Calculadora ni tiene fila del mes, y se está calculando con números que pueden ser de hace meses. Son los que hay que cargar.",
+      "«Rentabilidad por producto» usa exactamente la misma economía. Antes leía solo la ficha y por eso las dos pantallas podían decir cosas distintas del mismo producto.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
     id: "sin-rol",
     ruta: "/dashboard",
     seccion: "Tu cuenta",
@@ -208,7 +252,7 @@ export const PASOS: PasoCapacitacion[] = [
       "La planilla se relee sola cada hora. «Traer la planilla ahora» la fuerza cuando acaban de cargar pedidos y no querés esperar.",
       "Los avisos de arriba son trabajo pendiente, no decoración: pedidos sin producto enlazado no suman a la rentabilidad de nadie, y sin gasto administrativo cargado la utilidad sale más alta que la real.",
       "En cada fila, debajo del CPA, están el objetivo y el de equilibrio: verde si está debajo del objetivo, ámbar si lo pasó pero todavía deja plata, rojo si pasó el equilibrio y cada venta cuesta más de lo que deja.",
-      "«Economía por producto» es donde se cargan precio, costo, flete y efectividad de cada mes. De ahí sale todo lo demás: sin eso, la utilidad es una estimación.",
+      "«Economía por producto» es precio, costo, flete y efectividad de cada producto. En el mes que corre esos números los pone la Calculadora de precios sola; lo que cargues ahí manda recién cuando el mes cierra. La fila te dice de dónde sale cada número.",
       "«Enlazar pedidos» resuelve los pedidos cuyo nombre no coincide con ningún producto. «Testeos» separa lo que se está probando para que no ensucie los números de lo que ya funciona.",
       "El selector de cierre (8h, 11h, 16h) es para comparar contra el corte que usa el equipo, no para cambiar los datos.",
     ],
@@ -243,6 +287,7 @@ export const PASOS: PasoCapacitacion[] = [
       "Cada fila se abre y muestra el desarme completo: ingreso menos mercadería, menos flete, menos pauta.",
       "El filtro «Pierden plata» te deja la lista corta de lo que hay que arreglar o apagar esta semana.",
       "La utilidad se calcula sobre las compras que se atribuyen Meta y TikTok, no sobre las órdenes de Shopify. La pantalla te avisa cuánto se están inflando, para que compares productos entre sí y no lo tomes como plata contada.",
+      "El precio, el costo y la efectividad son los mismos que usa el Control publicitario: salen de la Calculadora o del mes cargado, según corresponda. Abriendo una fila te dice cuál de los dos fue.",
     ],
     roles: CON_NUMEROS,
   },
@@ -369,12 +414,13 @@ export const PASOS: PasoCapacitacion[] = [
     seccion: "Preguntarle a Jarvis",
     titulo: "Preguntar en palabras, sin armar un reporte",
     texto:
-      "Jarvis consulta los datos de la empresa y responde sobre campañas, productos y rentabilidad. Sirve para lo que no vale la pena ir a buscar a mano: qué producto necesita revisión urgente, cuánta utilidad dejó tal producto este mes.",
+      "Jarvis consulta los datos de la empresa y responde sobre campañas, productos y rentabilidad. Sirve para lo que no vale la pena ir a buscar a mano: qué producto necesita revisión urgente, cuánta utilidad dejó tal producto este mes. Y también para las dudas sobre la herramienta: si no entendés de dónde sale un número o por qué una pantalla dice lo que dice, preguntáselo acá antes que a nadie.",
     puntos: [
       "Las conversaciones quedan guardadas en la lista de la izquierda, así que puedes volver a lo que preguntaste.",
       "Si propone pausar, reanudar o escalar una campaña, no lo ejecuta: te deja una tarjeta para aprobar o rechazar.",
       "Esa tarjeta vive mientras no recargues la página. Si vas a decidir sobre una propuesta, hazlo en el momento.",
-      "El modo de voz usa el micrófono del navegador; en Firefox no funciona y queda el chat escrito.",
+      "Podés escribirle o hablarle: el botón de voz abre el micrófono y le contestás como en una llamada. En Firefox el micrófono no funciona y queda el chat escrito.",
+      "También le podés mandar una imagen —una captura de la pantalla que no entendés, un creativo, una tabla— y preguntarle sobre eso.",
     ],
     roles: CON_PIPELINE,
   },
@@ -446,6 +492,12 @@ export const PASOS: PasoCapacitacion[] = [
     puntos: [
       "El botón «Capacitación» del encabezado te trae este recorrido de vuelta cuando se te olvide algo.",
       "Si lo cierras por la mitad no se pierde: retomas en el paso donde ibas.",
+      // El pedido textual de Sebastián: que al terminar sepan que no quedan
+      // solos con la duda. Va en el cierre y no en un paso aparte porque es
+      // justo el momento en que alguien se queda con preguntas: acaba de ver
+      // veintiséis pantallas de corrido.
+      "¿Te quedó una duda? Preguntásela a Jarvis en «Preguntarle a Jarvis», por escrito o por voz. Está disponible siempre y responde sobre los datos de la empresa y sobre cómo usar el panel.",
+      "Si es algo que Jarvis no puede resolver —un permiso, una conexión caída, algo que haya que arreglar— habla con quien administra el panel.",
     ],
     roles: CON_PIPELINE,
   },
