@@ -356,9 +356,9 @@ function Avisos({ control }: { control: ControlPeriodo }) {
   }
   if (avisos.productosSinEconomia > 0) {
     lista.push({
-      texto: `${avisos.productosSinEconomia} productos se calculan con la ficha y no con la economía del mes.`,
-      href: "/dashboard/control?vista=economia",
-      accion: "Revisar",
+      texto: `${avisos.productosSinEconomia} productos se calculan con la ficha del producto: no están en la Calculadora de precios ni tienen fila cargada en el mes.`,
+      href: "/dashboard/calculadora",
+      accion: "Cargarlos",
     });
   }
   if (avisos.pedidosTesteo > 0) {
