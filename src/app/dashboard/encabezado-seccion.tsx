@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import IconoDeRuta from "./icono-de-ruta";
 
 /**
  * La cabecera de una pantalla del panel.
@@ -72,7 +73,16 @@ export function EncabezadoSeccion({
           las acciones no entran al lado, bajan enteras a la línea siguiente en
           vez de estrujar el texto. */}
       <div className="relative flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-5 py-5 md:px-7 md:py-6">
-        <div className="min-w-[15rem] flex-1">
+        <div className="flex min-w-[15rem] flex-1 items-start gap-3.5">
+          {/* La pieza de la seccion, a la izquierda del titulo.
+              //
+              // Sale de la direccion y no de una propiedad: el encabezado lo
+              // usan veintiuna pantallas, y pasarselo a cada una son veintiun
+              // lugares donde olvidarse al agregar una seccion. La tabla vive
+              // en un solo archivo. */}
+          <IconoDeRuta tono="oscuro" tamano={34} className="mt-0.5" />
+
+          <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-green">
             {eyebrow}
           </p>
@@ -89,6 +99,7 @@ export function EncabezadoSeccion({
               {descripcion}
             </p>
           ) : null}
+          </div>
         </div>
 
         {/* Sin `shrink-0`: era lo que empujaba los rangos fuera de la pantalla.

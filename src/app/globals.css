@@ -508,6 +508,69 @@ tbody tr:hover {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Los iconos de seccion.                                               */
+/*                                                                      */
+/* Pedido de Sebastian: "ponle los efectos que le metimos al pararnos   */
+/* sobre los elementos y el pulso, que se vea elite".                   */
+/*                                                                      */
+/* La regla de los tres: al pasar el cursor la pieza crece un 8 % y se  */
+/* levanta un pixel, con una sombra que se abre debajo. Ocho por ciento */
+/* es poco a proposito -- a 20 px son menos de dos pixeles-- y es       */
+/* justamente lo que hace que se sienta un objeto y no una animacion:   */
+/* si el salto se nota mientras alguien recorre el menu, esta mal       */
+/* calibrado. Al apretar se hunde, que es lo que da la sensacion de que */
+/* se pulso algo fisico.                                                */
+/* ------------------------------------------------------------------ */
+.icono-seccion {
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.18s ease-out;
+}
+.icono-pieza {
+  display: block;
+  transition: filter 0.18s ease-out;
+}
+a:hover > .icono-seccion,
+button:hover > .icono-seccion,
+.icono-seccion:hover {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.28);
+}
+a:hover > .icono-seccion .icono-pieza,
+button:hover > .icono-seccion .icono-pieza,
+.icono-seccion:hover .icono-pieza {
+  /* Un punto de brillo y saturacion, no un resplandor: el objeto blanco
+     ya es lo mas claro de la pieza y cualquier glow lo quema. */
+  filter: brightness(1.07) saturate(1.06);
+}
+a:active > .icono-seccion,
+button:active > .icono-seccion {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* El aro que late en la seccion donde estas parado. Es el mismo de la
+   pantalla de carga, mas lento y mas tenue: ahi avisa que algo esta
+   trabajando, aca solo dice "estas aca". */
+.icono-pulso {
+  animation: pulso-icono 2.8s ease-out infinite;
+}
+@keyframes pulso-icono {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.4;
+  }
+  65% {
+    transform: scale(1.16);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.16);
+    opacity: 0;
+  }
+}
+
 .encabezado-resplandor {
   animation: respirar 14s ease-in-out infinite;
 }
@@ -522,9 +585,22 @@ tbody tr:hover {
   .animate-\[correr_1\.1s_ease-in-out_infinite\],
   .animate-\[latir_1\.4s_ease-in-out_infinite\],
   .animate-\[pulso-carga_2\.2s_ease-out_infinite\],
+  .icono-pulso,
   .encabezado-resplandor,
   .encabezado-entrada {
     animation: none;
+  }
+  /* Quien pidio menos movimiento conserva el realce --sirve para saber que
+     el cursor esta encima-- pero sin el desplazamiento. */
+  .icono-seccion {
+    transition: box-shadow 0.18s ease-out;
+  }
+  a:hover > .icono-seccion,
+  button:hover > .icono-seccion,
+  .icono-seccion:hover,
+  a:active > .icono-seccion,
+  button:active > .icono-seccion {
+    transform: none;
   }
 }
 
