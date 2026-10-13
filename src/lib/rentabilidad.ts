@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { calcular, economiaDe } from "@/lib/economia";
+import { calcular, economiaDe, type Economia } from "@/lib/economia";
+import { diaEcuador, economiaDelMes, type Economia as EconomiaDelControl } from "@/lib/control-publicitario";
 import { ventasRealesPorProducto } from "@/lib/enlace-shopify";
 import { resumenSinProducto } from "@/lib/sin-nomenclatura";
 import type { Range } from "@/lib/date-range";
@@ -168,11 +169,98 @@ async function gastoDelPeriodoAnterior(organizationId: string, range: Range) {
   return porProducto;
 }
 
+const NOMBRE_MES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/**
+ * La economía con la que se calcula un producto, y de dónde salió.
+ *
+ * ESTA PANTALLA LEÍA SOLO LA FICHA. La ficha es un solo juego de números para
+ * toda la historia y se carga a mano, así que en la práctica estaba vieja o
+ * vacía: de los 49 productos con movimiento en los últimos doce meses, 64 del
+ * catálogo aparecían como "sin economía cargada". Mientras tanto el Control
+ * publicitario ya calculaba esos mismos productos con la Calculadora de
+ * precios, que el equipo mantiene al día. Dos pantallas de la misma app
+ * respondiendo distinto a la misma pregunta.
+ *
+ * Ahora las dos salen de `economiaDelMes`, que apila ficha → Calculadora →
+ * archivo del mes con la regla que decidió el dueño: en el mes que corre manda
+ * la Calculadora, en los cerrados manda el archivo.
+ *
+ * QUÉ MES SE USA, Y POR QUÉ UNO SOLO. Esta pantalla muestra UN total por
+ * producto para todo el período elegido, que puede cruzar catorce meses. Se usa
+ * la economía del mes en que TERMINA el rango. No es exacto para un rango
+ * largo —los costos de abril no eran los de hoy— pero es estrictamente mejor
+ * que lo que había, que era un único juego de números sin fecha ninguna.
+ * Prorratear mes a mes exigiría desagregar por mes las ventas y el gasto, que
+ * hoy llegan sumados de una sola consulta.
+ */
+function economiaParaLaFila(
+  p: {
+    salePrice: number | null;
+    unitCost: number | null;
+    efectividad: number | null;
+    devoluciones: number | null;
+    flete: number | null;
+    gastoAdmPorPedido: number | null;
+    economiaDe: string | null;
+  },
+  e: EconomiaDelControl | undefined,
+  mesTexto: string,
+): { economia: Economia | null; efectividadConocida: boolean; fuente: string | null } {
+  // Sin precio no hay economía, venga de donde venga. `economiaDelMes` siembra
+  // todos los productos con su ficha, así que un precio en cero acá significa
+  // que no hay precio en ninguna de las tres capas.
+  if (!e || e.precioProm <= 0) {
+    const ficha = economiaDe(p);
+    return {
+      economia: ficha,
+      efectividadConocida: p.efectividad != null,
+      fuente: ficha ? (p.economiaDe ?? "Economía de la ficha del producto") : null,
+    };
+  }
+
+  const fuente =
+    e.origen === "calculadora"
+      ? `Economía de la Calculadora de precios, al ${mesTexto}`
+      : e.origen === "mes"
+        ? `Economía cargada por administración para ${mesTexto}`
+        : (p.economiaDe ?? "Economía de la ficha del producto");
+
+  return {
+    economia: {
+      precio: e.precioProm,
+      costo: e.produccion,
+      flete: e.flete,
+      // Una efectividad en cero no es una efectividad: es que nadie la cargó.
+      // Se cae a la ficha y, si tampoco está, al supuesto optimista de siempre
+      // —todo se entrega—, que es lo que deja la fila marcada como provisional.
+      efectividad: e.efectividad > 0 ? e.efectividad : (p.efectividad ?? 1),
+      devoluciones: e.devoluciones ?? p.devoluciones ?? 0,
+      // El gasto administrativo por pedido no viaja en la economía del control
+      // —allá se reparte por día contra los pedidos reales— así que acá sigue
+      // saliendo de la ficha.
+      gastoAdm: p.gastoAdmPorPedido ?? 0,
+    },
+    efectividadConocida: e.efectividad > 0 || p.efectividad != null,
+    fuente,
+  };
+}
+
 async function getRentabilidadSinMemoria(
   organizationId: string,
   range: Range
 ): Promise<Rentabilidad> {
-  const [productos, ventas, reales, sueltas, antes] = await Promise.all([
+  // El mes en que TERMINA el período elegido: es el que manda para toda la
+  // tabla. El porqué está en `economiaParaLaFila`.
+  const finDelRango = diaEcuador(range.toInstant);
+  const anioEco = finDelRango.getUTCFullYear();
+  const mesEco = finDelRango.getUTCMonth() + 1;
+  const mesTexto = `${NOMBRE_MES[mesEco - 1]} de ${anioEco}`;
+
+  const [productos, ventas, reales, sueltas, antes, efectiva] = await Promise.all([
     db.product.findMany({
       where: { organizationId, archived: false },
       select: {
@@ -218,6 +306,10 @@ async function getRentabilidadSinMemoria(
     // largo: con "Hoy" arriba, esto es ayer. Va por producto para poder decir
     // si el costo por venta de cada uno viene subiendo o bajando.
     gastoDelPeriodoAnterior(organizationId, range),
+    // La MISMA economía que usa el Control publicitario. Dos cuentas parecidas
+    // en dos archivos es la forma más silenciosa de que un día dejen de
+    // coincidir, y de eso venimos.
+    economiaDelMes(organizationId, anioEco, mesEco),
   ]);
 
   const filas: FilaRentabilidad[] = [];
@@ -247,9 +339,10 @@ async function getRentabilidadSinMemoria(
     const cpa = comprasAtribuidas > 0 ? gastoPauta / comprasAtribuidas : null;
     const previo = antes.get(p.id);
     const cpaAnterior = previo && previo.compras > 0 ? previo.gasto / previo.compras : null;
-    const economia = economiaDe(p);
+    const elegida = economiaParaLaFila(p, efectiva.get(p.id), mesTexto);
+    const economia = elegida.economia;
 
-    if (!economia || p.efectividad == null) {
+    if (!economia || !elegida.efectividadConocida) {
       filas.push({
         productId: p.id,
         code: p.code,
@@ -342,9 +435,12 @@ async function getRentabilidadSinMemoria(
       cpaAnterior,
       enMarcha,
       tieneEconomia: true,
-      economiaDe: p.economiaDe,
-      efectividad: p.efectividad,
-      devoluciones: p.devoluciones,
+      economiaDe: elegida.fuente,
+      // Los que se muestran en la fila abierta son los que se USARON, no los de
+      // la ficha: si el texto dice "70% se confirma" y el cálculo usó otro, la
+      // explicación de abajo no explica el número de arriba.
+      efectividad: economia.efectividad,
+      devoluciones: economia.devoluciones,
       entregados,
       ingreso,
       costoMercaderia,
