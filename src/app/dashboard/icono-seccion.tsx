@@ -39,8 +39,10 @@ export function IconoSeccion({
   activo?: boolean;
   className?: string;
 }) {
-  // El chip crece un poco más que la pieza para que se vea el marco.
-  const marco = tono === "oscuro" ? Math.round(tamano * 1.34) : tamano;
+  // El chip crece un poco más que la pieza para que se vea el marco, pero poco:
+  // con más aire la pieza queda chica adentro y a tamaño de menú se lee "un
+  // cuadrito" en vez del objeto. El marco devuelve la silueta, no enmarca.
+  const marco = tono === "oscuro" ? Math.round(tamano * 1.26) : tamano;
   const estilo: CSSProperties = { width: marco, height: marco };
 
   return (

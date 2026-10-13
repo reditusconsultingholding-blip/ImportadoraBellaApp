@@ -285,7 +285,7 @@ export default function SidebarNav({
                         active ? "opacity-100" : "opacity-0"
                       }`}
                     />
-                    <IconoSeccion nombre={link.icon} tono="oscuro" tamano={17} activo={active} />
+                    <IconoSeccion nombre={link.icon} tono="oscuro" tamano={20} activo={active} />
                     <span className="truncate">{link.label}</span>
                     {cargando && <Girando className="ml-auto shrink-0 text-brand-green" />}
                   </Link>
