@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { economiaDeLaCalculadora } from "@/lib/economia-calculadora";
 import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
@@ -83,6 +84,8 @@ export type Economia = {
   devoluciones: number | null;
   /** Si salió de una fila del mes o del respaldo de la ficha del producto. */
   delMes: boolean;
+  /** De dónde salieron los números: para que la pantalla lo pueda decir. */
+  origen: "mes" | "calculadora" | "ficha";
 };
 
 /**
@@ -99,7 +102,7 @@ export async function economiaDelMes(
   anio: number,
   mes: number,
 ): Promise<Map<string, Economia>> {
-  const [filas, productos] = await Promise.all([
+  const [filas, productos, deLaCalculadora] = await Promise.all([
     db.variableProducto.findMany({
       where: { organizationId, anio, mes },
       select: {
@@ -124,10 +127,24 @@ export async function economiaDelMes(
         cpaTarget: true,
       },
     }),
+    // LA CALCULADORA, QUE ES LO QUE EL EQUIPO MANTIENE AL DÍA.
+    //
+    // Pedido de Emilia: "que la información desde calculadora me jale para
+    // saber la rentabilidad del control publicitario (…) que sea automático".
+    // El archivo que pasa administración llega tarde —el 13 de octubre iba
+    // hasta septiembre— y mientras tanto octubre se calculaba con la ficha del
+    // producto, que tiene costos de hace meses. De ahí salía el "en todo
+    // estamos perdiendo y eso no es así".
+    economiaDeLaCalculadora(organizationId),
   ]);
 
   const salida = new Map<string, Economia>();
 
+  // TRES CAPAS, DE LA MÁS FLOJA A LA QUE MANDA:
+  //   ficha  → un solo juego de números para toda la historia; el respaldo.
+  //   calculadora → lo que el equipo ajusta día a día.
+  //   mes    → lo que cargó administración para ESE mes; es el dato oficial y
+  //            por eso sigue ganando cuando existe.
   for (const p of productos) {
     salida.set(p.id, {
       efectividad: p.efectividad ?? 0,
@@ -137,7 +154,12 @@ export async function economiaDelMes(
       cpaMin: p.cpaTarget,
       devoluciones: p.devoluciones,
       delMes: false,
+      origen: "ficha",
     });
+  }
+
+  for (const [productId, c] of deLaCalculadora) {
+    salida.set(productId, { ...c, delMes: false, origen: "calculadora" });
   }
 
   for (const f of filas) {
@@ -149,6 +171,7 @@ export async function economiaDelMes(
       cpaMin: f.cpaMin,
       devoluciones: f.devoluciones,
       delMes: true,
+      origen: "mes",
     });
   }
 
