@@ -26,7 +26,17 @@ import { normalizarNombre } from "@/lib/enlace-shopify";
 // pocos nombres distintos (cientos, no miles), se resuelven acá y se le pasan
 // a la consulta ya clasificados.
 
-export type ClaseNombre = "producto" | "testeo" | "ignorar" | "sin";
+/**
+ * En qué queda cada nombre que llega de la planilla.
+ *
+ * "upsell" lo pidió Emilia: "en vez de tener así como que no es producto (…)
+ * añadir otra casilla donde me aparezca upsell, porque esto de aquí es pulsera
+ * de cobre, esto aquí es upsell". Son los agregados que viajan con otro pedido
+ * —un segundo producto al confirmar— y no son un producto del catálogo que
+ * alguien se olvidó de enlazar. Marcarlos como "no es producto" los dejaba
+ * mezclados con lo que de verdad falta enlazar.
+ */
+export type ClaseNombre = "producto" | "testeo" | "ignorar" | "upsell" | "sin";
 
 // Los nombres distintos de TODA la historia salen de recorrer más de 130.000
 // renglones: 1,7 s, y se pedía en cada vuelta del reloj. Se guardan una hora
@@ -111,7 +121,9 @@ export async function clasificarNombres(organizationId: string) {
         ? "testeo"
         : motivo === "ignorar"
           ? "ignorar"
-          : "sin";
+          : motivo === "upsell"
+            ? "upsell"
+            : "sin";
     salida.push({ nombre, clase, productId });
   }
   return salida;
@@ -125,6 +137,13 @@ export type PedidosDelDia = {
   sinAsignar: number;
   /** Pedidos de TESTEO: existen, pero no se cuentan. */
   testeo: number;
+  /**
+   * Agregados que viajan con otro pedido y no son un producto del catálogo.
+   *
+   * Van aparte de `sinAsignar` a propósito: no falta enlazarlos, ya se decidió
+   * qué son. Mezclados, el aviso de "faltan enlazar" nunca bajaba.
+   */
+  upsell: number;
 };
 
 /**
@@ -193,12 +212,18 @@ export async function pedidosRealesPorDia(
       Date.UTC(f.fecha.getUTCFullYear(), f.fecha.getUTCMonth(), f.fecha.getUTCDate()),
     );
     const clave = fecha.toISOString();
-    const d = porDia.get(clave) ?? { fecha, porProducto: new Map(), sinAsignar: 0, testeo: 0 };
+    const d = porDia.get(clave) ?? { fecha, porProducto: new Map(), sinAsignar: 0, testeo: 0, upsell: 0 };
     const n = Number(f.pedidos) || 0;
     if (f.clase === "producto" && f.productId) {
       d.porProducto.set(f.productId, (d.porProducto.get(f.productId) ?? 0) + n);
     } else if (f.clase === "testeo") {
       d.testeo += n;
+    } else if (f.clase === "upsell") {
+      // Los upsells se cuentan aparte: son ventas de verdad, pero no de un
+      // producto del catálogo. Sumarlos a "sin asignar" los hacía aparecer para
+      // siempre en el aviso de "faltan enlazar", y no falta nada: ya se
+      // decidió qué son.
+      d.upsell += n;
     } else {
       d.sinAsignar += n;
     }
@@ -213,11 +238,13 @@ export async function coberturaDeEnlaces(organizationId: string, desde: Date, ha
   let asignados = 0;
   let sinAsignar = 0;
   let testeo = 0;
+  let upsell = 0;
   for (const d of dias) {
     for (const n of d.porProducto.values()) asignados += n;
     sinAsignar += d.sinAsignar;
     testeo += d.testeo;
+    upsell += d.upsell;
   }
   const total = asignados + sinAsignar;
-  return { asignados, sinAsignar, testeo, total, proporcion: total > 0 ? asignados / total : 1 };
+  return { asignados, sinAsignar, testeo, upsell, total, proporcion: total > 0 ? asignados / total : 1 };
 }

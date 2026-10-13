@@ -95,6 +95,9 @@ export async function pedidosParaElControl(
       porProducto: new Map<string, number>(),
       sinAsignar: 0,
       testeo: 0,
+      // La planilla del equipo no distingue upsells: los marca quien enlaza,
+      // desde la pantalla. Acá arranca en cero y lo llena esa clasificación.
+      upsell: 0,
       fuente: "reporte" as const,
     };
 

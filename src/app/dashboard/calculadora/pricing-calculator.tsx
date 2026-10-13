@@ -163,6 +163,10 @@ function computeOperation(i: OperationInput) {
     breakevenCpa,
     objetivoCpa,
     confEquilibrio,
+    // Lo que deja cada pedido confirmado antes de pagar la pauta: es el "CPA
+    // máx." de la tabla de Economía por producto, y el servidor hace esta misma
+    // cuenta para alimentar el Control (ver economia-calculadora.ts).
+    porConfirmado,
     deliveriesPerDay,
     dailyProfit,
     adInvestment,
@@ -1022,6 +1026,50 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
         </div>
       </div>
 
+      {/* --- Lo que de acá se lleva el Control publicitario ------------------ */}
+      {selectedProduct && (
+        <div className="rounded border border-accent/40 bg-good-bg/30 p-5">
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">Esto es lo que usa el Control publicitario</h2>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-accent-strong">
+              {selectedProduct}
+            </span>
+          </div>
+          {/* Las mismas seis columnas, con los mismos nombres que la tabla de
+              «Economía por producto».
+
+              Esos números había que cargarlos a mano con el archivo que pasa
+              administración, que llega tarde —en octubre todavía iba por
+              septiembre— y mientras tanto el control calculaba con la ficha
+              vieja del producto. De ahí salía el "en todo estamos perdiendo y
+              eso no es así".
+
+              Se repiten acá, con esos nombres y no con los de la calculadora,
+              para que la correspondencia se vea sin explicarla: lo que se
+              teclea arriba es lo que va a salir allá. */}
+          <p className="mb-4 text-xs text-muted">
+            Sale de lo que cargaste arriba, al momento. Ya no hace falta el archivo del mes: si
+            administración carga ese mes, ese dato manda; mientras no esté, manda esto.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Columna etiqueta="Efectividad (%)" valor={`${(conf * 100).toFixed(0)}%`} />
+            <Columna etiqueta="Producción ($)" valor={money(num(productCost))} />
+            <Columna etiqueta="Flete ($)" valor={money(num(shippingCost))} />
+            <Columna etiqueta="Precio prom. ($)" valor={money(aov)} />
+            <Columna
+              etiqueta="CPA máx. ($)"
+              valor={analysis.current.porConfirmado > 0 ? money(analysis.current.porConfirmado) : "—"}
+              nota={
+                analysis.current.porConfirmado > 0
+                  ? "lo más que se puede pagar por pedido confirmado"
+                  : "con este precio pierde con cualquier pauta"
+              }
+            />
+            <Columna etiqueta="Devoluciones (%)" valor={`${(dev * 100).toFixed(0)}%`} />
+          </div>
+        </div>
+      )}
+
       {/* --- Análisis de la operación con el precio elegido ----------------- */}
       <div className="flex flex-col gap-5 rounded border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1270,6 +1318,22 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Una de las seis cifras que el Control publicitario toma de acá.
+ *
+ * Se dibujan todas iguales aunque una tenga nota y otra no: alturas distintas
+ * en la misma fila se leen como si midieran cosas distintas.
+ */
+function Columna({ etiqueta, valor, nota }: { etiqueta: string; valor: string; nota?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
+      <p className="text-[10px] uppercase tracking-[0.06em] text-muted">{etiqueta}</p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">{valor}</p>
+      {nota && <p className="mt-0.5 text-[10px] leading-tight text-muted">{nota}</p>}
     </div>
   );
 }

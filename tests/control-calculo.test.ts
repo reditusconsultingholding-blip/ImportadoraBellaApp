@@ -63,7 +63,7 @@ test("filas del día: el gasto sin producto no desaparece, va a su fila", () => 
       { productId: null, pedidos: 2, gasto: 40 },
       { productId: null, pedidos: 1, gasto: 10 },
     ],
-    { fecha, porProducto: new Map([["A", 8], ["B", 3]]), sinAsignar: 5, testeo: 2 },
+    { fecha, porProducto: new Map([["A", 8], ["B", 3]]), sinAsignar: 5, testeo: 2, upsell: 0 },
   );
   assert.equal(sinAsignar.gasto, 50);
   assert.equal(sinAsignar.pedidosPlataforma, 3);

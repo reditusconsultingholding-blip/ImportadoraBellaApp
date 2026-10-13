@@ -50,7 +50,7 @@ export default function Enlazar({
   const totalPedidos = pendientes.reduce((a, p) => a + p.pedidos, 0);
   const resueltos = pendientes.filter((p) => hechos[p.nombre]).reduce((a, p) => a + p.pedidos, 0);
 
-  async function resolver(nombre: string, accion: { productId: string; etiqueta: string } | { motivo: "ignorar" | "testeo" }) {
+  async function resolver(nombre: string, accion: { productId: string; etiqueta: string } | { motivo: "ignorar" | "testeo" | "upsell" }) {
     setOcupado(nombre);
     setError(null);
     try {
@@ -77,7 +77,9 @@ export default function Enlazar({
             ? accion.etiqueta
             : accion.motivo === "testeo"
               ? "testeo"
-              : "no es producto",
+              : accion.motivo === "upsell"
+                ? "upsell"
+                : "no es producto",
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -144,7 +146,7 @@ function FilaNombre({
   productos: Producto[];
   hecho: string | undefined;
   ocupado: boolean;
-  onResolver: (a: { productId: string; etiqueta: string } | { motivo: "ignorar" | "testeo" }) => void;
+  onResolver: (a: { productId: string; etiqueta: string } | { motivo: "ignorar" | "testeo" | "upsell" }) => void;
 }) {
   const [buscando, setBuscando] = useState(false);
   const [texto, setTexto] = useState("");
@@ -210,6 +212,19 @@ function FilaNombre({
             className="rounded-lg px-2.5 py-1.5 text-xs text-muted transition hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
           >
             Testeo
+          </button>
+          {/* Upsell va ANTES de "No es producto": es la opción que más se usa
+              de las dos, y la pidió Emilia justamente porque los agregados
+              terminaban marcados como "no es producto" y quedaban mezclados con
+              lo que de verdad falta enlazar. */}
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => onResolver({ motivo: "upsell" })}
+            title="Un agregado que viaja con otro pedido, no un producto del catálogo"
+            className="rounded-lg px-2.5 py-1.5 text-xs text-muted transition hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
+          >
+            Es upsell
           </button>
           <button
             type="button"

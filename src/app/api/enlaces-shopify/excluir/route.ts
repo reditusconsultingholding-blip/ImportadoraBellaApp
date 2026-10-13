@@ -13,7 +13,7 @@ import { programarRecalculo } from "@/lib/control-relleno";
 // ventas no entran en los pedidos del mes. Las dos cosas cambian el número de
 // pedidos, así que piden el mismo permiso que enlazar.
 
-const MOTIVOS = new Set(["ignorar", "testeo"]);
+const MOTIVOS = new Set(["ignorar", "testeo", "upsell"]);
 
 async function autorizar() {
   const session = await getSession();

@@ -95,8 +95,28 @@
  * El interruptor manda sobre el sistema: si alguien eligió claro, el modo
  * oscuro del sistema no se lo pisa. Por eso el `:root[data-tema="claro"]`
  * aparece DESPUÉS y vuelve a poner los valores claros. */
+/* EL NAVEGADOR TIENE QUE SABER EN QUÉ TEMA ESTAMOS.
+   //
+   // Sin `color-scheme`, Chrome dibuja los controles que pinta ÉL —el ícono del
+   // calendario de un <input type="date">, el panel que se abre al tocarlo, las
+   // barras de desplazamiento— según el tema del SISTEMA, no según el de la app.
+   //
+   // Emilia lo reportó así: "en la parte en la que está claro, en el tema de las
+   // fechas, no aparecen (…) cuando sea oscuro sí aparece". Su Windows está en
+   // oscuro y la app en claro: Chrome le pintaba el ícono del calendario en
+   // blanco sobre el fondo blanco de la app. Invisible. Y no se podía reproducir
+   // desde una máquina con el sistema en claro, que es por qué nadie lo
+   // encontró antes.
+   //
+   // Declararlo ata esos controles al tema elegido en la app. */
+:root,
+:root[data-tema="claro"] {
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
+  color-scheme: dark;
   --background: #0f1113;
       --surface: #1a1d1f;
       --surface-2: #232629;
@@ -128,6 +148,7 @@
 }
 
 :root[data-tema="oscuro"] {
+  color-scheme: dark;
   --background: #0f1113;
       --surface: #1a1d1f;
       --surface-2: #232629;
