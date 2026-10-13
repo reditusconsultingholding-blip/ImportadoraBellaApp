@@ -91,7 +91,22 @@ export function EncabezadoSeccion({
           ) : null}
         </div>
 
-        {acciones ? <div className="flex shrink-0 flex-wrap gap-2">{acciones}</div> : null}
+        {/* Sin `shrink-0`: era lo que empujaba los rangos fuera de la pantalla.
+
+            Con `shrink-0` este bloque se queda con el ancho natural de su
+            contenido y no cede nunca. Los botones de periodo en una sola linea
+            miden 1.278 px; en una ventana de 958 los ultimos --"Maximo" y
+            "Entre dos fechas"-- caian mas alla del borde derecho, invisibles. Y
+            el `flex-wrap` de aqui no servia de nada: nunca llegaba a faltarle
+            espacio, porque el contenedor jamas se angostaba.
+
+            Emilia lo reporto dos veces ("no aparece entre dos fechas, o sea
+            como que aparece movido"). En una pantalla ancha entra y el problema
+            no se ve, que es por lo que sobrevivio tanto.
+
+            `min-w-0` es la otra mitad: sin eso un hijo flex no baja de su ancho
+            de contenido aunque se le permita encoger. */}
+        {acciones ? <div className="flex min-w-0 flex-wrap gap-2">{acciones}</div> : null}
       </div>
     </header>
   );

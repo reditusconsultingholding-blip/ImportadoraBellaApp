@@ -514,7 +514,22 @@ function TablaProductos({
                 <span className="block max-w-[260px] truncate font-medium">{f.producto}</span>
                 <span className="text-[10px] text-muted">
                   {f.codigo}
-                  {!f.economiaDelMes && <span className="ml-1.5 text-warning">· economía estimada</span>}
+                  {/* Solo se avisa en naranja lo que de verdad hay que
+                      avisar. "Economia estimada" sobre una fila calculada con
+                      la Calculadora de precios era un falso positivo: ese
+                      numero es el mas fresco que existe en la casa, no una
+                      estimacion. El naranja queda para la ficha, que es la
+                      que puede tener costos de hace meses. */}
+                  {f.origenEconomia === "calculadora" && (
+                    <span className="ml-1.5" title="Sin fila cargada en Economía por producto para este mes: se calcula con los números de la Calculadora de precios.">
+                      · de calculadora
+                    </span>
+                  )}
+                  {f.origenEconomia === "ficha" && (
+                    <span className="ml-1.5 text-warning" title="Sin datos del mes ni en la Calculadora: se calcula con la ficha del producto, que tiene un solo juego de números para toda la historia.">
+                      · economía estimada
+                    </span>
+                  )}
                 </span>
               </td>
               <td className={`${TD} ${NUM}`}>{entero(f.pedidos)}</td>

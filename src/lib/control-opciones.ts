@@ -59,6 +59,23 @@ export type FilaControl = {
 
   /** Si la economía usada es la del mes o el respaldo de la ficha. */
   economiaDelMes: boolean;
+  /**
+   * De dónde salió la economía con la que está calculada esta fila.
+   *
+   * `economiaDelMes` no alcanza para decirlo: es un booleano, y desde que la
+   * Calculadora entró en juego hay TRES fuentes, no dos. Con el booleano
+   * solo, un producto con precios ajustados esta mañana en la calculadora se
+   * mostraba igual que uno calculado con una ficha de hace meses —ambos
+   * "estimada"— y el aviso los contaba juntos como "productos sin economía".
+   * Era un número alarmante que no correspondía: sí tenían economía, y
+   * fresca.
+   *
+   *   "mes"         la cargó administración para ese mes; el dato oficial.
+   *   "calculadora" lo que el equipo mantiene al día. Es dato bueno.
+   *   "ficha"       un solo juego de números para toda la historia. Es el que
+   *                 hay que avisar.
+   */
+  origenEconomia: "mes" | "calculadora" | "ficha";
 };
 
 /** Lo mismo, sumado sobre todo el período elegido. */

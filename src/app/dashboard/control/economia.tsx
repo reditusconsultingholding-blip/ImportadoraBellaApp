@@ -27,6 +27,18 @@ type Variable = {
   devoluciones: number | null;
 };
 
+/**
+ * La economía que el Control está usando para un producto que NO tiene fila
+ * cargada en el mes.
+ *
+ * No es un valor guardado: es lo que sale de la Calculadora o, en último caso,
+ * de la ficha del producto. Se muestra en gris dentro de la celda vacía porque
+ * la pregunta que trae a alguien a esta pantalla es "¿con qué número está
+ * calculando el Control?", y una celda en blanco contestaba "con ninguno", que
+ * es falso.
+ */
+type Efectiva = Variable & { origen: "calculadora" | "ficha" };
+
 const CAMPOS = [
   { clave: "efectividad", titulo: "Efectividad", sufijo: "%", porcentaje: true },
   { clave: "produccion", titulo: "Producción", sufijo: "$" },
@@ -50,6 +62,7 @@ export default function Economia({
   productos,
   pautados,
   variables,
+  efectiva,
   gastoAdm,
   enlaceAdm,
 }: {
@@ -61,6 +74,8 @@ export default function Economia({
   /** Los que tuvieron gasto ese mes. Es el filtro por defecto de la tabla. */
   pautados: string[];
   variables: Variable[];
+  /** Lo que usa el Control donde no hay fila del mes. Solo para mostrar. */
+  efectiva: Efectiva[];
   gastoAdm: number | null;
   enlaceAdm: string | null;
 }) {
@@ -71,6 +86,7 @@ export default function Economia({
   // traer el mes anterior, la tabla seguía mostrando el mes vacío hasta que
   // alguien recargaba la página entera.
   const base = useMemo(() => new Map(variables.map((v) => [v.productId, v])), [variables]);
+  const usadas = useMemo(() => new Map(efectiva.map((e) => [e.productId, e])), [efectiva]);
   const [editado, setEditado] = useState<Map<string, Variable>>(new Map());
   const filas = useMemo(() => new Map([...base, ...editado]), [base, editado]);
   const [adm, setAdm] = useState(gastoAdm === null ? "" : String(gastoAdm));
@@ -184,7 +200,7 @@ export default function Economia({
   const conPauta = useMemo(() => new Set(pautados), [pautados]);
   const visibles =
     filtro === "cargados"
-      ? productos.filter((p) => filas.has(p.id))
+      ? productos.filter((p) => filas.has(p.id) || usadas.has(p.id))
       : filtro === "pautados"
         ? productos.filter((p) => conPauta.has(p.id) || filas.has(p.id))
         : productos;
@@ -291,7 +307,7 @@ export default function Economia({
             {(
               [
                 ["pautados", `Pautados este mes (${productos.filter((p) => conPauta.has(p.id) || filas.has(p.id)).length})`],
-                ["cargados", `Con datos (${filas.size})`],
+                ["cargados", `Con datos (${new Set([...filas.keys(), ...usadas.keys()]).size})`],
                 ["todos", `Todos (${productos.length})`],
               ] as const
             ).map(([id, texto]) => (
@@ -339,20 +355,47 @@ export default function Economia({
           <tbody>
             {visibles.map((p) => {
               const v = filas.get(p.id);
+              const usada = v ? undefined : usadas.get(p.id);
               return (
                 <tr key={p.id} className="border-b border-border last:border-b-0">
                   <td className="px-2.5 py-1">
                     <span className="block max-w-[260px] truncate">{p.name}</span>
-                    <span className="text-[10px] text-muted">{p.code}</span>
+                    <span className="flex items-center gap-1.5 text-[10px] text-muted">
+                      {p.code}
+                      {usada && (
+                        <span
+                          className={`rounded-full px-1.5 py-px text-[9px] font-medium uppercase tracking-wide ${
+                            usada.origen === "calculadora"
+                              ? "bg-good-bg text-accent-strong"
+                              : "bg-pending-bg text-warning"
+                          }`}
+                          title={
+                            usada.origen === "calculadora"
+                              ? "Sin fila cargada en este mes: el Control está usando los números de la Calculadora de precios, que es lo que el equipo mantiene al día."
+                              : "Sin fila cargada en este mes y sin datos en la Calculadora: el Control está usando la ficha del producto, que tiene un solo juego de números para toda la historia."
+                          }
+                        >
+                          {usada.origen === "calculadora" ? "Calculadora" : "Ficha vieja"}
+                        </span>
+                      )}
+                    </span>
                   </td>
                   {CAMPOS.map((c) => {
                     const crudo = v ? (v[c.clave] as number | null) : null;
-                    const mostrado =
-                      crudo === null || crudo === undefined
+                    const comoTexto = (n: number | null | undefined) =>
+                      n === null || n === undefined
                         ? ""
                         : "porcentaje" in c && c.porcentaje
-                          ? String(Math.round(crudo * 1000) / 10)
-                          : String(crudo);
+                          ? String(Math.round(n * 1000) / 10)
+                          : String(Math.round(n * 100) / 100);
+                    const mostrado = comoTexto(crudo);
+                    // El número en gris es lo que el Control usa HOY para este
+                    // producto. Va como placeholder y no como valor: si fuera
+                    // valor se leería como cargado a mano y, peor, el `onBlur`
+                    // lo guardaría de verdad al primer clic —congelando en el
+                    // mes una cifra que debería seguir viniendo de la
+                    // Calculadora cada vez que el equipo la ajusta—.
+                    const enUso = usada ? comoTexto(usada[c.clave] as number | null) : "";
                     return (
                       <td key={c.clave} className="px-1 py-1">
                         <input
@@ -364,7 +407,7 @@ export default function Economia({
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.currentTarget.blur();
                           }}
-                          placeholder="—"
+                          placeholder={enUso || "—"}
                           className={`${campo} ${guardando === `${p.id}:${c.clave}` ? "opacity-50" : ""}`}
                           aria-label={`${c.titulo} de ${p.name}`}
                         />
@@ -380,8 +423,23 @@ export default function Economia({
 
       <p className="text-[11px] leading-relaxed text-muted">
         Se guarda solo al salir de cada celda. Los porcentajes se escriben como número entero: 58
-        para 58%. Un producto sin fila cargada en este mes se calcula con los números de su ficha,
-        que son los mismos para toda la historia — el control lo avisa cuando pasa.
+        para 58%.
+      </p>
+      {/* DE DÓNDE SALE CADA NÚMERO, DICHO EN LA PANTALLA.
+          //
+          // Hay tres fuentes y antes ninguna estaba a la vista: la tabla
+          // mostraba celdas vacías y el pie afirmaba que lo no cargado salía de
+          // la ficha, que dejó de ser cierto cuando la Calculadora pasó a
+          // mandar. Quien venía a comparar con el Control no tenía forma de
+          // saber qué estaba mirando. */}
+      <p className="text-[11px] leading-relaxed text-muted">
+        <strong className="font-medium text-foreground">Los números en gris</strong> son los que el
+        Control publicitario está usando en este momento, aunque no estén cargados acá: salen de la{" "}
+        <strong className="font-medium text-foreground">Calculadora de precios</strong>, que es lo
+        que el equipo mantiene al día. Si un producto tampoco está en la calculadora se usa su{" "}
+        <strong className="font-medium text-foreground">ficha</strong> —un solo juego de números
+        para toda la historia— y la fila lo avisa en naranja. Lo que escribas acá gana sobre las
+        dos, solo para este mes.
       </p>
     </div>
   );

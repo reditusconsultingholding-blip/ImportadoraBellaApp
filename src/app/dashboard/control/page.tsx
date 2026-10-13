@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { db } from "@/lib/db";
-import { controlDelPeriodo, diaEcuador, ETIQUETA_HORA } from "@/lib/control-publicitario";
+import { controlDelPeriodo, diaEcuador, economiaDelMes, ETIQUETA_HORA } from "@/lib/control-publicitario";
 import { nombresResueltos, nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 import OrigenPedidos from "./origen-pedidos";
@@ -128,7 +128,7 @@ export default async function ControlPage({
     // "este mes"—.
     const anio = Number(p.anio) || periodo.hasta.getUTCFullYear();
     const mes = Number(p.mes) || periodo.hasta.getUTCMonth() + 1;
-    const [variables, gastoAdm, conGasto] = await Promise.all([
+    const [variables, efectiva, gastoAdm, conGasto] = await Promise.all([
       db.variableProducto.findMany({
         where: { organizationId: session.organizationId, anio, mes },
         select: {
@@ -141,6 +141,21 @@ export default async function ControlPage({
           devoluciones: true,
         },
       }),
+      // LO QUE EL CONTROL ESTA USANDO DE VERDAD, no solo lo cargado a mano.
+      //
+      // Esta pantalla mostraba unicamente las filas de VariableProducto: una
+      // celda vacia por cada producto sin cargar. Pero desde que la economia
+      // se toma de la Calculadora, el Control SI tiene numeros para esos
+      // productos -- los calcula y los usa-- y aqui no se veian. Emilia abria
+      // Economia por producto para revisar las cifras del Control, encontraba
+      // la tabla igual de vacia que antes y reportaba "me aparece lo que
+      // estaba, me aparece mal la informacion aun": la pantalla no mentia en
+      // lo que decia, mentia en lo que callaba.
+      //
+      // Es la MISMA funcion que alimenta Resultados, a proposito: dos cuentas
+      // parecidas en dos archivos es la forma mas silenciosa de que un dia
+      // dejen de coincidir, que es justo el reclamo que estamos cerrando.
+      economiaDelMes(session.organizationId, anio, mes),
       db.gastoAdmMes.findUnique({
         where: { organizationId_anio_mes: { organizationId: session.organizationId, anio, mes } },
         select: { valor: true, enlace: true },
@@ -156,6 +171,22 @@ export default async function ControlPage({
         productos={productos}
         pautados={conGasto}
         variables={variables}
+        efectiva={[...efectiva].flatMap(([productId, e]) =>
+          e.origen === "mes"
+            ? []
+            : [
+                {
+                  productId,
+                  origen: e.origen,
+                  efectividad: e.efectividad,
+                  produccion: e.produccion,
+                  flete: e.flete,
+                  precioProm: e.precioProm,
+                  cpaMin: e.cpaMin,
+                  devoluciones: e.devoluciones,
+                },
+              ],
+        )}
         gastoAdm={gastoAdm?.valor ?? null}
         enlaceAdm={gastoAdm?.enlace ?? null}
       />

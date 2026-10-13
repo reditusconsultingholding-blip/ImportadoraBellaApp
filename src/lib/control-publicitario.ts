@@ -370,6 +370,7 @@ async function controlDelPeriodoSinMemoria(
       gastosAdm: gastosAdmFila,
       utilidad: utilidad(ingresos, c.gasto, gastosOperativos, gastosAdmFila),
       economiaDelMes: Boolean(e?.delMes),
+      origenEconomia: e?.origen ?? "ficha",
     };
   });
 
@@ -399,6 +400,7 @@ async function controlDelPeriodoSinMemoria(
       gastosAdm: gastosAdmFila,
       utilidad: utilidad(0, s.gasto, 0, gastosAdmFila),
       economiaDelMes: true,
+      origenEconomia: "mes",
     };
   });
 
@@ -426,6 +428,7 @@ async function controlDelPeriodoSinMemoria(
         margen: 0,
         dias: 0,
         economiaDelMes: true,
+        origenEconomia: "mes" as "mes" | "calculadora" | "ficha",
         _efectividadPonderada: 0,
       };
       a.pedidos += f.pedidos;
@@ -439,6 +442,9 @@ async function controlDelPeriodoSinMemoria(
       a._efectividadPonderada += f.efectividad * f.pedidos;
       if (f.pedidos > 0 || f.gasto > 0) a.dias += 1;
       if (!f.economiaDelMes) a.economiaDelMes = false;
+      if (f.origenEconomia === "ficha") a.origenEconomia = "ficha";
+      else if (f.origenEconomia === "calculadora" && a.origenEconomia === "mes")
+        a.origenEconomia = "calculadora";
       porClave.set(clave, a);
     }
     return [...porClave.values()].map(({ _efectividadPonderada, ...a }) => ({
@@ -473,7 +479,13 @@ async function controlDelPeriodoSinMemoria(
     ),
     avisos: {
       mesesSinGastoAdm: [...mesesSinGastoAdm].sort(),
-      productosSinEconomia: productos.filter((p) => !p.economiaDelMes && p.pedidos > 0).length,
+      // Antes contaba todo lo que no fuera del mes, y desde que la
+      // Calculadora manda eso incluia productos con precios ajustados esta
+      // misma manana: el aviso decia "17 productos sin economia del mes"
+      // sobre productos que tenian economia fresca. Ahora cuenta solo los que
+      // siguen calculandose con la ficha, que son los que hay que cargar.
+      productosSinEconomia: productos.filter((p) => p.origenEconomia === "ficha" && p.pedidos > 0)
+        .length,
       pedidosSinAsignar: sin?.pedidos ?? 0,
       pedidosTesteo: testeo,
     },
