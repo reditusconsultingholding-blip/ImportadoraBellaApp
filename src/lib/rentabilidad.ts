@@ -410,7 +410,23 @@ async function getRentabilidadSinMemoria(
             const entregadas = venta.unidades * cuentas.entregados;
             const ingresoReal = entregadas * precioReal;
             const mercaderiaReal = entregadas * economia.costo;
-            const fleteReal = venta.unidades * economia.efectividad * economia.flete;
+            // EL FLETE SE PAGA POR PAQUETE, NO POR UNIDAD.
+            //
+            // Acá iba sobre las unidades, y en esta tienda casi todo se vende
+            // en packs: un pedido de tres gotas son tres unidades y UN flete,
+            // pero se cobraban tres. Con las fichas vacías el error no se veía
+            // --sin flete cargado, cualquier multiplicador da cero-- y apareció
+            // en cuanto la economía pasó a salir de la Calculadora, que sí lo
+            // tiene: Gotas de drenaje mostraba 47.580 dólares de flete sobre
+            // 12.971 de pauta y la pantalla entera daba 58.712 de pérdida en un
+            // mes que cerró en ganancia.
+            //
+            // `ordenes` puede contar de más cuando un mismo pedido trae dos
+            // nombres del mismo producto --el suelto y el pack--, así que
+            // sobreestima un poco; multiplicar por unidades sobreestimaba por
+            // el número de unidades por pedido, que acá ronda tres.
+            const paquetes = venta.ordenes > 0 ? venta.ordenes : venta.unidades;
+            const fleteReal = paquetes * economia.efectividad * economia.flete;
             const utilidadReal = ingresoReal - mercaderiaReal - fleteReal - gastoPauta;
             return {
               unidades: venta.unidades,
