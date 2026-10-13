@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { economiaDeLaCalculadora } from "@/lib/economia-calculadora";
+import { economiaDeLaCalculadora, type EconomiaCalculada } from "@/lib/economia-calculadora";
 import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
@@ -137,6 +137,48 @@ export function mezclarConElMes(
 }
 
 /**
+ * ¿Es este el mes que está corriendo, en hora de Ecuador?
+ *
+ * Separa los meses CERRADOS del mes VIVO, y de eso depende quién manda.
+ */
+export function esElMesEnCurso(anio: number, mes: number, ahora = new Date()) {
+  const hoy = diaEcuador(ahora);
+  return hoy.getUTCFullYear() === anio && hoy.getUTCMonth() + 1 === mes;
+}
+
+/**
+ * La Calculadora encima de lo que ya se sabía, campo por campo.
+ *
+ * Solo se usa en el mes en curso, y ahí gana sobre el archivo de
+ * administración. Decisión del dueño, sobre el pedido de Emilia: "que de
+ * calculadora mismo parta pues todo (…) para no tener esos inconvenientes".
+ *
+ * POR QUÉ SOLO EN EL MES VIVO. La Calculadora es UN juego de números, sin
+ * historia: lo que dice hoy es lo que dirá sobre abril. Si mandara en los meses
+ * cerrados, el cierre de abril se recalcularía con los costos de hoy cada vez
+ * que alguien ajusta un precio, y dejaría de ser reproducible. En el mes que
+ * corre el problema no existe —los costos de hoy SON los de este mes— y en
+ * cambio se gana lo que importa: el mes vivo deja de depender de que llegue un
+ * archivo que viene a medias desde agosto.
+ *
+ * Campo por campo, igual que `mezclarConElMes` y por el mismo motivo: la
+ * Calculadora puede no tener la tasa de confirmación cargada, y un cero suyo no
+ * tiene por qué borrar una efectividad que administración sí cargó.
+ */
+export function mezclarConLaCalculadora(previo: Economia | undefined, c: EconomiaCalculada): Economia {
+  return {
+    efectividad: c.efectividad !== 0 ? c.efectividad : (previo?.efectividad ?? 0),
+    produccion: c.produccion,
+    flete: c.flete,
+    precioProm: c.precioProm,
+    cpaMin: c.cpaMin ?? previo?.cpaMin ?? null,
+    devoluciones: c.devoluciones ?? previo?.devoluciones ?? null,
+    delMes: false,
+    origen: "calculadora",
+  };
+}
+
+/**
  * La economía de cada producto para un mes.
  *
  * Si no hay fila cargada para ese mes se cae a la ficha del producto, que es
@@ -187,12 +229,13 @@ export async function economiaDelMes(
   ]);
 
   const salida = new Map<string, Economia>();
+  // En el mes que corre manda la Calculadora; en los meses cerrados, el
+  // archivo de administración. El porqué está en `mezclarConLaCalculadora`.
+  const enCurso = esElMesEnCurso(anio, mes);
 
-  // TRES CAPAS, DE LA MÁS FLOJA A LA QUE MANDA:
-  //   ficha  → un solo juego de números para toda la historia; el respaldo.
-  //   calculadora → lo que el equipo ajusta día a día.
-  //   mes    → lo que cargó administración para ESE mes; es el dato oficial y
-  //            por eso sigue ganando cuando existe.
+  // TRES CAPAS. La más floja es siempre la ficha —un solo juego de números para
+  // toda la historia, el respaldo—; arriba se apilan el archivo del mes y la
+  // Calculadora, y cuál de las dos queda encima depende de si el mes está vivo.
   for (const p of productos) {
     salida.set(p.id, {
       efectividad: p.efectividad ?? 0,
@@ -206,13 +249,26 @@ export async function economiaDelMes(
     });
   }
 
-  for (const [productId, c] of deLaCalculadora) {
-    salida.set(productId, { ...c, delMes: false, origen: "calculadora" });
-  }
-
   // Campo por campo y no la fila entera: una fila a medio llenar no borra lo
   // que sí se sabe. El porqué, y lo que costó, está en `mezclarConElMes`.
-  for (const f of filas) salida.set(f.productId, mezclarConElMes(salida.get(f.productId), f));
+  const ponerElMes = () => {
+    for (const f of filas) salida.set(f.productId, mezclarConElMes(salida.get(f.productId), f));
+  };
+  const ponerLaCalculadora = () => {
+    for (const [productId, c] of deLaCalculadora) {
+      salida.set(productId, mezclarConLaCalculadora(salida.get(productId), c));
+    }
+  };
+
+  // El orden es el único cambio entre un mes vivo y uno cerrado: lo último que
+  // se aplica es lo que manda.
+  if (enCurso) {
+    ponerElMes();
+    ponerLaCalculadora();
+  } else {
+    ponerLaCalculadora();
+    ponerElMes();
+  }
 
   return salida;
 }

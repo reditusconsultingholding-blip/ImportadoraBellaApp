@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { db } from "@/lib/db";
-import { controlDelPeriodo, diaEcuador, economiaDelMes, ETIQUETA_HORA } from "@/lib/control-publicitario";
+import { controlDelPeriodo, diaEcuador, economiaDelMes, esElMesEnCurso, ETIQUETA_HORA } from "@/lib/control-publicitario";
 import { nombresResueltos, nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 import OrigenPedidos from "./origen-pedidos";
@@ -167,6 +167,7 @@ export default async function ControlPage({
       <Economia
         anio={anio}
         mes={mes}
+        enCurso={esElMesEnCurso(anio, mes)}
         meses={meses}
         productos={productos}
         pautados={conGasto}

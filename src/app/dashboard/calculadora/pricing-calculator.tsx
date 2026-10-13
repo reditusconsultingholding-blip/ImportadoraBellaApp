@@ -1048,8 +1048,9 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               para que la correspondencia se vea sin explicarla: lo que se
               teclea arriba es lo que va a salir allá. */}
           <p className="mb-4 text-xs text-muted">
-            Sale de lo que cargaste arriba, al momento. Ya no hace falta el archivo del mes: si
-            administración carga ese mes, ese dato manda; mientras no esté, manda esto.
+            Sale de lo que cargaste arriba, al momento. En el mes que está corriendo esto es lo que
+            manda, aunque administración ya haya cargado su archivo. Cuando el mes cierra, pasa a
+            mandar el archivo y estos números quedan de respaldo.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Columna etiqueta="Efectividad (%)" valor={`${(conf * 100).toFixed(0)}%`} />

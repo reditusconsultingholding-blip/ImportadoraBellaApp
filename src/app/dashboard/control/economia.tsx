@@ -58,6 +58,7 @@ const NOMBRE_MES = [
 export default function Economia({
   anio,
   mes,
+  enCurso,
   meses,
   productos,
   pautados,
@@ -68,6 +69,8 @@ export default function Economia({
 }: {
   anio: number;
   mes: number;
+  /** Si el mes que se está mirando es el que está corriendo. */
+  enCurso: boolean;
   /** Los últimos catorce meses, para poder moverse. */
   meses: { anio: number; mes: number; texto: string }[];
   productos: ProductoOpcion[];
@@ -454,8 +457,29 @@ export default function Economia({
         <strong className="font-medium text-foreground">Calculadora de precios</strong>, que es lo
         que el equipo mantiene al día. Si un producto tampoco está en la calculadora se usa su{" "}
         <strong className="font-medium text-foreground">ficha</strong> —un solo juego de números
-        para toda la historia— y la fila lo avisa en naranja. Lo que escribas acá gana sobre las
-        dos, solo para este mes.
+        para toda la historia— y la fila lo avisa en naranja.
+      </p>
+      {/* QUIÉN LE GANA A QUIÉN, QUE CAMBIA SEGÚN EL MES.
+          //
+          // En el mes vivo manda la Calculadora; cuando el mes cierra, manda lo
+          // que esté cargado acá. Sin decirlo, alguien carga una fila este mes,
+          // ve que el Control no se mueve y concluye que la pantalla no
+          // funciona. Es la misma clase de silencio que nos trajo hasta acá. */}
+      <p className="text-[11px] leading-relaxed text-muted">
+        {enCurso ? (
+          <>
+            <strong className="font-medium text-foreground">Este mes todavía está corriendo</strong>
+            , así que manda la Calculadora de precios: es lo que el equipo mantiene al día y no
+            depende de que llegue el archivo de administración. Lo que cargues acá queda guardado y
+            pasa a mandar cuando el mes cierre.
+          </>
+        ) : (
+          <>
+            <strong className="font-medium text-foreground">Este mes ya cerró</strong>, así que manda
+            lo que esté cargado acá —el archivo de administración— y la Calculadora solo rellena
+            lo que falte. Un mes cerrado no se recalcula con los precios de hoy.
+          </>
+        )}
       </p>
     </div>
   );

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cpaMaximo } from "@/lib/economia-calculadora";
-import { mezclarConElMes } from "@/lib/control-publicitario";
+import { esElMesEnCurso, mezclarConElMes, mezclarConLaCalculadora } from "@/lib/control-publicitario";
 
 test("CPA máximo: la misma cuenta que muestra la calculadora", () => {
   // (precio − producto − adm) × (1 − devoluciones) − flete
@@ -113,4 +113,43 @@ test("sin nada debajo, una fila a medias no inventa un precio", () => {
   });
   assert.equal(r.precioProm, 0);
   assert.equal(r.origen, "ficha", "y queda marcado como lo más flojo que hay");
+});
+
+// ---------------------------------------------------------------------------
+// Quién manda: la Calculadora en el mes vivo, el archivo en los cerrados.
+
+test("el mes en curso se reconoce en hora de Ecuador, no en UTC", () => {
+  // 1 de noviembre, 02:00 UTC = 31 de octubre, 21:00 en Ecuador. Para el
+  // equipo todavía es octubre, y el control tiene que pensar lo mismo: si no,
+  // durante cinco horas cada fin de mes el mes vivo cambiaría de dueño.
+  const limite = new Date("2026-11-01T02:00:00Z");
+  assert.equal(esElMesEnCurso(2026, 10, limite), true);
+  assert.equal(esElMesEnCurso(2026, 11, limite), false);
+
+  const yaNoviembre = new Date("2026-11-01T06:00:00Z");
+  assert.equal(esElMesEnCurso(2026, 11, yaNoviembre), true);
+  assert.equal(esElMesEnCurso(2026, 10, yaNoviembre), false);
+});
+
+test("la calculadora pisa al archivo, pero no borra lo que ella no sabe", () => {
+  // Sin tasa de confirmación cargada, la calculadora devuelve efectividad 0.
+  // Ese cero no tiene por qué tumbar el 58% que administración sí cargó.
+  const r = mezclarConLaCalculadora(
+    {
+      efectividad: 0.58,
+      produccion: 9,
+      flete: 5.61,
+      precioProm: 29.99,
+      cpaMin: 8,
+      devoluciones: 0.1,
+      delMes: true,
+      origen: "mes",
+    },
+    { efectividad: 0, produccion: 8.25, flete: 6.24, precioProm: 32.99, cpaMin: null, devoluciones: null },
+  );
+  assert.equal(r.precioProm, 32.99, "el precio de la calculadora manda");
+  assert.equal(r.produccion, 8.25);
+  assert.equal(r.efectividad, 0.58, "pero la efectividad del archivo se conserva");
+  assert.equal(r.devoluciones, 0.1, "y las devoluciones también");
+  assert.equal(r.origen, "calculadora");
 });
