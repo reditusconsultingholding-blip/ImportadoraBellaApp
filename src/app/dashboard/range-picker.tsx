@@ -121,7 +121,7 @@ export default function RangePicker({
                 on || cargando
                   ? "border-brand-green bg-brand-green/25 text-white"
                   : "border-white/20 text-white/70 hover:border-white/45 hover:bg-white/10 hover:text-white"
-              } ${bloqueado ? "border-white/10 text-white/45" : ""}`}
+              } ${bloqueado && !cargando ? "border-white/10 text-white/45" : ""}`}
             >
               {cargando && <Girando />}
               {r.label}
