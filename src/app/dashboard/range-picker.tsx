@@ -90,12 +90,26 @@ export default function RangePicker({
           // Solo se marca el que se apretó. Marcar los ocho pondría en duda
           // todo el selector cuando lo que se pidió fue un período.
           const cargando = destino === r.id;
+          // "Entre dos fechas" NO se bloquea mientras carga.
+          //
+          // Los demás sí: apretar dos períodos seguidos deja la pantalla
+          // mostrando uno y la URL diciendo el otro. Pero este botón no
+          // navega, abre una caja. Bloquearlo significaba que entre que
+          // alguien pedía un período y la pantalla terminaba de cargar
+          // —segundos en Rentabilidad, con catorce meses de datos— apretarlo
+          // no hacía absolutamente nada.
+          //
+          // Emilia: "en la parte de entre dos fechas no me aparece, o sea como
+          // que se desaparecen las pestañitas". No se desaparecían: estaban
+          // apagadas y sordas, que desde el otro lado de la pantalla es lo
+          // mismo.
+          const bloqueado = pendiente && r.id !== "personalizado";
           return (
             <button
               key={r.id}
               ref={r.id === "personalizado" ? botonRef : undefined}
               onClick={() => go(r.id)}
-              disabled={pendiente}
+              disabled={bloqueado}
               aria-busy={cargando}
               // Pintado para el encabezado verde oscuro, que es el único
               // lugar donde vive este selector (las cinco pantallas que lo
@@ -107,7 +121,7 @@ export default function RangePicker({
                 on || cargando
                   ? "border-brand-green bg-brand-green/25 text-white"
                   : "border-white/20 text-white/70 hover:border-white/45 hover:bg-white/10 hover:text-white"
-              } ${pendiente && !cargando ? "opacity-50" : ""}`}
+              } ${bloqueado ? "border-white/10 text-white/45" : ""}`}
             >
               {cargando && <Girando />}
               {r.label}
