@@ -66,16 +66,30 @@ export async function sincronizarResponsables(
     }),
     db.user.findMany({
       where: { organizationId, role: { in: ["OWNER", "DIRECTOR", "EDITOR"] } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, apodos: true },
     }),
   ]);
 
   // Una persona de Notion ("MARIA JOSÉ") es un usuario de Jarvis ("Maria Jose")
   // cuando su nombre empieza igual. Se exige que haya uno solo.
+  //
+  // LOS APODOS TAMBIÉN CUENTAN, y esto faltaba acá.
+  //
+  // En la planilla no se escribe el nombre del sistema: se escribe como se le
+  // dice a la persona. "MAJO" por María José, "ANITA" por Ana. La app ya tiene
+  // dónde anotarlo —`User.apodos`, que se creó justamente por los 171 días a
+  // nombre de MAJO— y el importador de tareas de Notion sí lo mira; este, que
+  // es el otro lugar donde se cruzan nombres de Notion, no lo miraba.
+  //
+  // El resultado: los productos que Emilia puso a nombre de "ANITA" no
+  // correspondían a nadie, se quedaban sin responsable, y Ana veía tres
+  // productos en vez de cinco. Un apodo cargado en Usuarios arregla eso solo y
+  // sin tocar la planilla.
   const usuarioDe = (nombre: string) => {
     const n = normalizarNombre(nombre);
     if (!n) return null;
     const candidatos = usuarios.filter((u) => {
+      if (u.apodos.some((a) => normalizarNombre(a) === n)) return true;
       const k = normalizarNombre(u.name);
       return k === n || k.startsWith(n + " ");
     });
