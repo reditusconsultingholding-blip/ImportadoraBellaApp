@@ -406,26 +406,41 @@ async function getRentabilidadSinMemoria(
       venta == null || venta.unidades <= 0
         ? null
         : (() => {
+            // LA ECONOMÍA ESTÁ POR PEDIDO, NO POR UNIDAD.
+            //
+            // Es la cuenta que hace la Calculadora en pantalla, y la que el
+            // equipo tiene en la cabeza: Gotas de drenaje es «32,99 el precio,
+            // 8,25 el producto, 6,24 el flete», y esos 32,99 son lo que paga un
+            // cliente por su pedido —un pack de tres— no por un frasco. La
+            // prueba está en el CPA máximo que muestra la misma pantalla:
+            // (32,99 − 8,25 − 4) × 0,82 − 6,24 = 10,77, una cuenta por pedido.
+            //
+            // Acá el costo y el flete iban sobre UNIDADES. En esta tienda se
+            // venden 3,17 unidades por pedido (medido sobre los últimos treinta
+            // días), así que ambos costos venían inflados más de tres veces.
+            // Con las fichas vacías no se notaba —sin costo cargado, cualquier
+            // multiplicador da cero— y saltó en cuanto la economía pasó a salir
+            // de la Calculadora, que sí los tiene: Gotas mostraba 51.570 de
+            // mercadería y 47.580 de flete contra 12.971 de pauta, y la
+            // pantalla entera daba 58.712 de pérdida en un mes que cerró en
+            // ganancia.
+            //
+            // El INGRESO sí es correcto sobre unidades, y por eso no se toca:
+            // sale de lo que la tienda facturó de verdad, repartido por lo que
+            // llega a cobrarse. `facturado / unidades × unidades entregadas` es
+            // lo mismo que `facturado × entregados`.
+            //
+            // `ordenes` puede contar de más cuando un mismo pedido trae dos
+            // nombres del mismo producto —el suelto y el pack—, así que
+            // sobreestima un poco. Es un error de otro orden que multiplicar
+            // por tres.
             const precioReal = venta.facturado / venta.unidades;
             const entregadas = venta.unidades * cuentas.entregados;
             const ingresoReal = entregadas * precioReal;
-            const mercaderiaReal = entregadas * economia.costo;
-            // EL FLETE SE PAGA POR PAQUETE, NO POR UNIDAD.
-            //
-            // Acá iba sobre las unidades, y en esta tienda casi todo se vende
-            // en packs: un pedido de tres gotas son tres unidades y UN flete,
-            // pero se cobraban tres. Con las fichas vacías el error no se veía
-            // --sin flete cargado, cualquier multiplicador da cero-- y apareció
-            // en cuanto la economía pasó a salir de la Calculadora, que sí lo
-            // tiene: Gotas de drenaje mostraba 47.580 dólares de flete sobre
-            // 12.971 de pauta y la pantalla entera daba 58.712 de pérdida en un
-            // mes que cerró en ganancia.
-            //
-            // `ordenes` puede contar de más cuando un mismo pedido trae dos
-            // nombres del mismo producto --el suelto y el pack--, así que
-            // sobreestima un poco; multiplicar por unidades sobreestimaba por
-            // el número de unidades por pedido, que acá ronda tres.
             const paquetes = venta.ordenes > 0 ? venta.ordenes : venta.unidades;
+            const mercaderiaReal = paquetes * cuentas.entregados * economia.costo;
+            // El flete se paga sobre todo lo DESPACHADO —lo que se confirmó, se
+            // devuelva o no—, así que va por efectividad y no por entregados.
             const fleteReal = paquetes * economia.efectividad * economia.flete;
             const utilidadReal = ingresoReal - mercaderiaReal - fleteReal - gastoPauta;
             return {
