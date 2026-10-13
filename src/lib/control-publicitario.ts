@@ -210,26 +210,8 @@ export async function economiaDelMes(
     salida.set(productId, { ...c, delMes: false, origen: "calculadora" });
   }
 
-  // UNA FILA DEL MES A MEDIO LLENAR NO BORRA LO QUE SI SE SABE.
-  //
-  // El 13 de octubre, 16 de las 33 filas del mes tenian UNICAMENTE el costo de
-  // produccion: precio en cero y efectividad en cero. No son datos, es una fila
-  // que alguien abrio para anotar el costo y dejo a medias. Pero como el mes
-  // mandaba entero, esos ceros pisaban el precio de la Calculadora y el Control
-  // calculaba ingresos = 0 para esos 16 productos: utilidad igual a menos todo
-  // el gasto de pauta. De ahi salia "en todo estamos perdiendo", y de ahi el
-  // "me aparece mal la informacion" de Emilia despues de que la Calculadora ya
-  // estaba conectada: la Calculadora SI tenia el precio, la fila a medias no la
-  // dejaba llegar.
-  //
-  // Ahora el mes gana CAMPO POR CAMPO, solo donde hay algo cargado. Un precio
-  // en cero no es un precio y una efectividad en cero no es una efectividad:
-  // ahi sigue mandando la Calculadora.
-  //
-  // Produccion y flete se dejan pasar aunque vengan en cero, a proposito: un
-  // flete cero es creible (envio bonificado) y un costo cero infla la utilidad
-  // en vez de hundirla, que es un error distinto y menos urgente. Tocar menos
-  // de lo necesario tambien es una decision.
+  // Campo por campo y no la fila entera: una fila a medio llenar no borra lo
+  // que sí se sabe. El porqué, y lo que costó, está en `mezclarConElMes`.
   for (const f of filas) salida.set(f.productId, mezclarConElMes(salida.get(f.productId), f));
 
   return salida;
