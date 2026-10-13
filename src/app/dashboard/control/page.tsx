@@ -172,7 +172,17 @@ export default async function ControlPage({
         pautados={conGasto}
         variables={variables}
         efectiva={[...efectiva].flatMap(([productId, e]) =>
-          e.origen === "mes"
+          // Lo del mes queda fuera: ya viaja en `variables` y se muestra como
+          // valor cargado, no como numero en gris.
+          //
+          // Y una ficha en ceros tampoco entra. `economiaDelMes` siembra TODOS
+          // los productos del catalogo con su ficha, y el catalogo tiene
+          // cientos que no se pautan hace meses y nunca tuvieron precio ni
+          // costo cargado. Mostrarlos con "0" en gris y la etiqueta naranja
+          // llenaria la tabla de avisos sobre productos que a nadie le
+          // importan, y el reclamo que estamos cerrando es justamente que la
+          // pantalla mostraba cosas que no corresponden.
+          e.origen === "mes" || (e.origen === "ficha" && e.precioProm === 0 && e.produccion === 0)
             ? []
             : [
                 {
