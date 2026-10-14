@@ -141,12 +141,32 @@ export default function ContadorDatos() {
                       {alDia ? faltan(faltaMs!) : "ahora"}
                     </p>
                   </div>
-                  {/* El riel del intervalo: lleno es "ya toca". */}
-                  <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/10">
+                  {/* EL RIEL DEL INTERVALO: LLENO ES "YA TOCA".
+                      //
+                      // El primer intento usaba blanco al 10 % de fondo y el
+                      // verde de marca de relleno. Sobre este navy los dos
+                      // tienen casi el mismo brillo, así que el riel se leía
+                      // como una línea continua de punta a punta: con el 10 %
+                      // recorrido se veía igual que con el 90 %. Lo vi
+                      // mirándolo de cerca, no midiéndolo — el porcentaje
+                      // estaba bien desde el principio.
+                      //
+                      // Ahora el fondo es verde muy apagado y el relleno es el
+                      // verde claro que la app ya usa sobre fondos oscuros, con
+                      // un cabezal brillante en la punta: el ojo va al cabezal
+                      // y sabe en qué parte del intervalo está sin leer nada. */}
+                  <div className="relative mt-1.5 h-[3px] overflow-hidden rounded-full bg-brand-green/15">
                     <div
-                      className="h-full rounded-full bg-brand-green transition-[width] duration-500"
-                      style={{ width: `${avance}%` }}
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{ width: `${avance}%`, backgroundColor: "var(--good-claro)" }}
                     />
+                    {avance > 2 && avance < 99 && (
+                      <span
+                        aria-hidden
+                        className="absolute top-1/2 h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full shadow-[0_0_6px_var(--good-claro)]"
+                        style={{ left: `${avance}%`, backgroundColor: "var(--good-claro)" }}
+                      />
+                    )}
                   </div>
                   <p className="mt-1.5 font-mono text-[10.5px] text-white/55">
                     {d.datosDe
