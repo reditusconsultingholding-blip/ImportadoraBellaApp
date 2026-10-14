@@ -33,6 +33,22 @@ const TEXTO = {
   noche: "Buenas noches",
 } as const;
 
+/**
+ * El saludo que corresponde a la hora del navegador.
+ *
+ * Lo usa también el arranque del día, que hasta ahora decía «Buenos días»
+ * fijo: a las nueve de la noche el encabezado saludaba «Buenas noches, Alank»
+ * y el pop-up, dos centímetros más abajo, «Buenos días, Alank». Dos saludos
+ * distintos en la misma pantalla delatan que uno de los dos no está mirando el
+ * reloj, y el que no lo miraba era el bonito.
+ *
+ * Vive acá porque acá está la tabla. Dos tablas de franjas horarias serían dos
+ * lugares donde cambiar «Qué madrugón» el día que alguien se canse de él.
+ */
+export function saludoDeAhora(): string {
+  return TEXTO[franjaDelDia() ?? "manana"];
+}
+
 /* La hora no cambia por sí sola dentro de una sesión de trabajo: no hace falta
    suscribirse a nada. Lo que sí hace falta es que servidor y navegador den
    respuestas distintas sin que React se queje de la diferencia. */

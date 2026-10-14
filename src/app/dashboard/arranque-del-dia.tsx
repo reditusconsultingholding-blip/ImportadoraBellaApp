@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { claveDelDia, fraseDelDia } from "@/lib/frases-del-dia";
+import { saludoDeAhora } from "./saludo";
 
 /**
  * El arranque del día: una frase, «¿Estás listo?» y la cuenta de 5 a 1.
@@ -122,7 +123,7 @@ export default function ArranqueDelDia({ nombre }: { nombre: string }) {
       {!contando ? (
         <div className="arranque-entra relative w-full max-w-xl text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-green">
-            Buenos días, {soloNombre}
+            {saludoDeAhora()}, {soloNombre}
           </p>
           <p className="mt-5 text-[26px] font-semibold leading-snug text-white md:text-[32px]">
             {frase.texto}
