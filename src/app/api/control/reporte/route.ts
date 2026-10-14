@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { coberturaDelReporte } from "@/lib/pedidos-del-control";
 import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
+import { anotarVuelta } from "@/lib/scheduler";
 import { rellenarCierres } from "@/lib/control-relleno";
 
 // De dónde salen los pedidos del control, y el botón para traer la planilla
@@ -61,6 +62,7 @@ export async function POST() {
     return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
   }
 
+  const inicio = Date.now();
   try {
     const r = await sincronizarReporteVentas(session.organizationId);
     if (r.error) return NextResponse.json({ error: r.error }, { status: 502 });
@@ -78,6 +80,25 @@ export async function POST() {
       });
       detalle += ` Cierres rehechos: ${c.dias}.`;
     }
+
+    // LO QUE EL BOTÓN NO CONTABA.
+    //
+    // Esta ruta hace el mismo trabajo que el reloj pero no decía nada de lo
+    // que encontró: una pestaña ilegible —seis días de pedidos faltando— salía
+    // por acá como «Sin cambios desde la última vez», y el estado de la fuente
+    // quedaba como estaba. Alguien podía arreglar el encabezado en la hoja,
+    // apretar el botón, ver que decía que todo bien, y la fuente seguía en
+    // rojo hasta que el reloj pasara por su cuenta horas después.
+    if (r.avisos.length > 0) detalle += ` Para revisar: ${r.avisos.join(" | ")}`;
+    if (r.rotas.length > 0) detalle += ` NO se pudo leer: ${r.rotas.join(" | ")}`;
+    await anotarVuelta(
+      session.organizationId,
+      "reporte-ventas",
+      inicio,
+      detalle,
+      r.rotas.length > 0 ? "No se pudo leer: " + r.rotas.join(" | ") : null,
+    );
+
     return NextResponse.json({ ok: true, detalle });
   } catch (err) {
     return NextResponse.json(

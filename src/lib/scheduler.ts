@@ -180,7 +180,15 @@ export function erroresDelResumen(partes: Record<string, string>): string | null
   return malas.length > 0 ? malas.join(" | ") : null;
 }
 
-async function anotarVuelta(
+/**
+ * Deja escrito cómo le fue a una fuente.
+ *
+ * Se exporta porque no solo la usa el reloj: el botón «Traer la planilla
+ * ahora» hace exactamente el mismo trabajo y hasta ahora no tocaba el estado.
+ * Quien apretaba el botón arreglaba la planilla y la fuente seguía en rojo
+ * hasta que el reloj pasara por su cuenta, horas después.
+ */
+export async function anotarVuelta(
   organizationId: string,
   fuente: string,
   inicio: number,
