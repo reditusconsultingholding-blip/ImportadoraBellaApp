@@ -583,7 +583,13 @@ button:active > .icono-seccion {
 /* sigue ocupando 240 px y la barra no se angosta.                       */
 /* ------------------------------------------------------------------ */
 .barra-con-transicion {
-  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Las cuatro, no solo `width`: el ancho usado sale de `flex-basis` --este
+     <aside> es un item flex-- y animar solo `width` dejaba el salto seco. */
+  transition:
+    flex-basis 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    min-width 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .barra-lateral[data-plegada] .solo-abierta {
   display: none;
