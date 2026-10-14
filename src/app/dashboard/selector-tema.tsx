@@ -85,7 +85,7 @@ export default function SelectorTema() {
     <div
       role="group"
       aria-label="Tema de la pantalla"
-      className="hidden items-center gap-0.5 rounded-full border border-border p-0.5 sm:flex"
+      className="hidden items-center gap-0.5 rounded-full border border-border bg-surface p-0.5 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:flex"
     >
       {OPCIONES.map((o) => {
         const activo = tema === o.id;
@@ -96,8 +96,10 @@ export default function SelectorTema() {
             onClick={() => elegir(o.id)}
             aria-pressed={activo}
             title={o.titulo}
-            className={`rounded-full px-2 py-[3px] text-[11px] font-medium transition ${
-              activo ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+            className={`rounded-full px-2.5 py-[4px] text-[11px] font-medium transition ${
+              activo
+                ? "bg-good-bg text-accent-strong shadow-[inset_0_0_0_1px_var(--accent)]"
+                : "text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             {o.etiqueta}

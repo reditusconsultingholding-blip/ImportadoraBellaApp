@@ -442,7 +442,7 @@ export default function CapacitacionTour({
         onClick={abrir}
         aria-haspopup="dialog"
         title="Volver a ver la capacitación"
-        className="flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-surface-2 hover:text-foreground"
+        className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition hover:border-accent hover:bg-good-bg hover:text-accent-strong"
       >
         <svg
           viewBox="0 0 20 20"

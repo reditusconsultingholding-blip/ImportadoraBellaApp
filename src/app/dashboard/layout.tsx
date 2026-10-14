@@ -21,6 +21,8 @@ import ContadorDatos from "./contador-datos";
 import LiveRefresher from "./live-refresher";
 import RegistroBusquedas from "./registro-busquedas";
 import SidebarNav from "./sidebar-nav";
+import BarraLateral from "./barra-lateral";
+import ArranqueDelDia from "./arranque-del-dia";
 import NotificationsBell from "./notifications-bell";
 import MobileNav from "./mobile-nav";
 import AvisoLlamada from "./chat/aviso-llamada";
@@ -75,10 +77,20 @@ export default async function DashboardLayout({
   // vea igual antes y después de entrar.
   const brand = (
     <>
-      <p className="text-[19px] font-semibold leading-tight tracking-tight text-white">
-        Importadora Bella
-      </p>
-      <p className="mt-0.5 text-[11px] leading-none text-white/45">by Reditus Developers</p>
+      {/* Plegada queda solo la pieza de la marca: una barra de 68 px sin nada
+          arriba se lee como una columna de iconos sueltos, no como una app. */}
+      <span className="hidden justify-center [.barra-lateral[data-plegada]_&]:flex">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/iconos/marca-b.png" alt="Importadora Bella" width={32} height={32} />
+      </span>
+      <span className="solo-abierta block">
+        <span className="block text-[19px] font-semibold leading-tight tracking-tight text-white">
+          Importadora Bella
+        </span>
+        <span className="mt-0.5 block text-[11px] leading-none text-white/45">
+          by Reditus Developers
+        </span>
+      </span>
     </>
   );
 
@@ -97,7 +109,7 @@ export default async function DashboardLayout({
   );
 
   const account = (
-    <div className="mt-auto border-t border-white/10 px-3 py-3">
+    <div className="bloque-cuenta mt-auto border-t border-white/10 px-3 py-3">
       <div className="flex items-center gap-2.5 rounded px-2 py-1.5">
         {me?.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -107,13 +119,15 @@ export default async function DashboardLayout({
             {initials(session.name)}
           </span>
         )}
-        <span className="min-w-0 flex-1">
+        <span className="solo-abierta min-w-0 flex-1">
           <span className="block truncate text-[13px] font-medium text-white">{session.name}</span>
           <span className="block truncate text-[11px] text-white/45">
             {org?.name ?? "Importadora Bella"}
           </span>
         </span>
-        <LogoutButton />
+        <span className="solo-abierta">
+          <LogoutButton />
+        </span>
       </div>
     </div>
   );
@@ -122,11 +136,11 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-background md:flex">
       {/* Escritorio: barra lateral fija. En el teléfono se oculta y su lugar lo
           toma el cajón de MobileNav. */}
-      <aside className="hidden w-60 shrink-0 bg-brand-navy md:sticky md:top-0 md:flex md:h-screen md:flex-col">
-        <div className="px-5 pt-5 pb-4">{brand}</div>
+      <BarraLateral>
+        <div className="bloque-marca px-5 pt-5 pb-4">{brand}</div>
         {nav}
         {account}
-      </aside>
+      </BarraLateral>
 
       <MobileNav brand={brand}>
         {nav}
@@ -137,6 +151,10 @@ export default async function DashboardLayout({
         {/* Van arriba de todo y en el layout porque tienen que verse desde
             cualquier pantalla: una llamada en curso o un anuncio nuevo no
             sirven de nada si solo aparecen dentro del chat. */}
+        {/* La frase del día y la cuenta de 5 a 1, una vez por jornada. Va en
+            el layout y no en el panel porque el equipo no siempre entra por
+            ahí: quien abre un enlace directo al chat también empieza su día. */}
+        <ArranqueDelDia nombre={session.name} />
         <AvisoLlamada />
         <AnunciosGlobales />
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur-sm">

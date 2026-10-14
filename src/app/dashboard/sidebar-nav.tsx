@@ -231,7 +231,7 @@ export default function SidebarNav({
                 type="button"
                 onClick={() => alternar(group.title as string)}
                 aria-expanded={!plegado}
-                className="flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-white/40 transition hover:bg-white/[0.06] hover:text-white/70"
+                className="solo-abierta flex w-full items-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-white/40 transition hover:bg-white/[0.06] hover:text-white/70"
               >
                 <svg
                   width="9"
@@ -272,7 +272,8 @@ export default function SidebarNav({
                       e.preventDefault();
                       navegar(link.href, link.href);
                     }}
-                    className={`group relative flex items-center gap-2.5 rounded px-3 py-2 text-[13px] font-medium transition ${
+                    title={link.label}
+                    className={`fila-menu group relative flex items-center gap-2.5 rounded px-3 py-2 text-[13px] font-medium transition ${
                       active
                         ? "bg-white/12 text-white"
                         : "text-white/65 hover:bg-white/[0.07] hover:text-white"
@@ -286,8 +287,10 @@ export default function SidebarNav({
                       }`}
                     />
                     <IconoSeccion nombre={link.icon} tono="oscuro" tamano={20} activo={active} />
-                    <span className="truncate">{link.label}</span>
-                    {cargando && <Girando className="ml-auto shrink-0 text-brand-green" />}
+                    <span className="solo-abierta truncate">{link.label}</span>
+                    {cargando && (
+                      <Girando className="solo-abierta ml-auto shrink-0 text-brand-green" />
+                    )}
                   </Link>
                 );
               })}

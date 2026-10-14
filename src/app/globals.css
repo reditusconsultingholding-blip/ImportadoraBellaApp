@@ -571,6 +571,142 @@ button:active > .icono-seccion {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* La barra lateral plegada.                                            */
+/*                                                                      */
+/* Lo que se esconde lleva la clase `solo-abierta` y se decide con un    */
+/* atributo en el <aside>. La alternativa era pasarle un booleano al     */
+/* menu, a la marca y al bloque de la cuenta, y volver clientes a los    */
+/* tres componentes para esconder tres textos.                          */
+/*                                                                      */
+/* `display: none` y no opacidad: un texto invisible pero presente       */
+/* sigue ocupando 240 px y la barra no se angosta.                       */
+/* ------------------------------------------------------------------ */
+.barra-con-transicion {
+  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.barra-lateral[data-plegada] .solo-abierta {
+  display: none;
+}
+/* Centrado y sin sangria: plegada, la pieza es el unico contenido del
+   renglon y tiene que quedar en el eje de la barra, no pegada al borde. */
+.barra-lateral[data-plegada] .fila-menu {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.barra-lateral[data-plegada] .bloque-marca,
+.barra-lateral[data-plegada] .bloque-cuenta {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  text-align: center;
+}
+.barra-lateral[data-plegada] .bloque-cuenta > div {
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* El arranque del dia: la frase y la cuenta de 5 a 1.                  */
+/*                                                                      */
+/* Lo que hace que se lea como Tron y no como un reloj es que el numero */
+/* no aparece, LLEGA: entra grande y desenfocado, se asienta, y se va    */
+/* encogiendo mientras se apaga. Un numero que solo cambia de digito es */
+/* un contador; uno que viaja es una cuenta regresiva.                   */
+/* ------------------------------------------------------------------ */
+@keyframes arranque-velo {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes arranque-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes arranque-numero {
+  0% {
+    opacity: 0;
+    transform: scale(1.75);
+    filter: blur(14px);
+    text-shadow: 0 0 60px rgb(0 164 124 / 0.9);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+    text-shadow:
+      0 0 14px rgb(0 164 124 / 0.95),
+      0 0 46px rgb(0 164 124 / 0.65),
+      0 0 110px rgb(0 164 124 / 0.35);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.84);
+    filter: blur(3px);
+  }
+}
+@keyframes arranque-halo {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+.arranque-velo {
+  animation: arranque-velo 0.3s ease-out both;
+}
+.arranque-entra {
+  animation: arranque-entra 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.arranque-numero {
+  animation: arranque-numero 0.76s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.arranque-halo {
+  animation: arranque-halo 0.76s ease-out both;
+}
+.arranque-boton {
+  box-shadow:
+    0 0 0 0 rgb(0 164 124 / 0.55),
+    0 6px 20px rgb(0 0 0 / 0.3);
+  animation: arranque-latido 2.4s ease-out infinite;
+}
+@keyframes arranque-latido {
+  0% {
+    box-shadow:
+      0 0 0 0 rgb(0 164 124 / 0.5),
+      0 6px 20px rgb(0 0 0 / 0.3);
+  }
+  70% {
+    box-shadow:
+      0 0 0 16px rgb(0 164 124 / 0),
+      0 6px 20px rgb(0 0 0 / 0.3);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(0 164 124 / 0),
+      0 6px 20px rgb(0 0 0 / 0.3);
+  }
+}
+
 .encabezado-resplandor {
   animation: respirar 14s ease-in-out infinite;
 }
@@ -588,6 +724,20 @@ button:active > .icono-seccion {
   .icono-pulso,
   .encabezado-resplandor,
   .encabezado-entrada {
+    animation: none;
+  }
+  .barra-con-transicion {
+    transition: none;
+  }
+  /* El arranque del dia conserva el cambio de numero --sin eso no hay cuenta
+     regresiva-- pero sin el viaje, el desenfoque ni el latido. */
+  .arranque-numero,
+  .arranque-halo,
+  .arranque-entra,
+  .arranque-velo {
+    animation: none;
+  }
+  .arranque-boton {
     animation: none;
   }
   /* Quien pidio menos movimiento conserva el realce --sirve para saber que
