@@ -63,8 +63,20 @@ function guardar(plegada: boolean) {
   for (const avisar of oyentes) avisar();
 }
 
+/**
+ * Si la barra está plegada. Lo necesita el menú, no solo la barra.
+ *
+ * Plegada, los títulos de grupo desaparecen —a 68 px no entra «PRODUCCIÓN»—,
+ * y con ellos el único botón que abre un grupo cerrado. Sin esto, plegar la
+ * barra con «Números» cerrado escondía siete secciones sin manera de llegar a
+ * ellas: la barra quedaba con cinco iconos y el resto desaparecido.
+ */
+export function useBarraPlegada() {
+  return useSyncExternalStore(suscribir, leer, leerEnElServidor);
+}
+
 export default function BarraLateral({ children }: { children: ReactNode }) {
-  const plegada = useSyncExternalStore(suscribir, leer, leerEnElServidor);
+  const plegada = useBarraPlegada();
 
   return (
     <aside

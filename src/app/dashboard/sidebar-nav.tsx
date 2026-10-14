@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarraDeCarga, Girando, useNavegar } from "./navegar";
 import { IconoSeccion } from "./icono-seccion";
+import { useBarraPlegada } from "./barra-lateral";
 
 // --- Qué grupos del menú están plegados -------------------------------------
 //
@@ -85,6 +86,9 @@ export default function SidebarNav({
 }) {
   const pathname = usePathname();
   const { navegar, pendiente, destino } = useNavegar();
+  // Con la barra angosta no hay títulos de grupo, y por lo tanto no hay botón
+  // para abrir uno cerrado: ahí se muestran todos.
+  const barraPlegada = useBarraPlegada();
 
   // Agrupado por lo que la persona está haciendo, no por orden de
   // construcción: mirar el negocio / producir contenido / administrar. Una
@@ -221,7 +225,7 @@ export default function SidebarNav({
       <BarraDeCarga activa={pendiente} />
 
       {groups.map((group, i) => {
-        const plegado = group.title ? plegados.includes(group.title) : false;
+        const plegado = group.title ? plegados.includes(group.title) && !barraPlegada : false;
         // El grupo sin título son Panel y Estadísticas CEO: no se pliegan
         // porque no son una familia, son la entrada.
         return (
