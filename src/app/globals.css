@@ -525,6 +525,48 @@ body::after {
   transform: translateY(-1px);
 }
 
+/* LUZ CENITAL EN LAS TARJETAS, SOLO EN OSCURO.
+   //
+   // En las pantallas densas —Rentabilidad, Control— las tarjetas ocupan casi
+   // todo el ancho y el fondo apenas asoma por los márgenes: por más textura
+   // que tenga, ahí no se ve. Lo que se ve es la superficie de la tarjeta, y
+   // en oscuro era un gris liso de borde a borde.
+   //
+   // Un velo de blanco al 3,5 % que se apaga a los 180 px le da el volumen de
+   // algo iluminado desde arriba, que es como se ve cualquier objeto real.
+   //
+   // En claro no va, y se probó: sobre una tarjeta blanca el mismo velo es
+   // invisible —no hay hacia dónde aclarar— y oscurecer el pie la ensucia. Ahí
+   // el volumen ya lo ponen la sombra y la línea de luz del borde superior.
+   // Una regla que no se nota es una regla que sobra. */
+:root[data-tema="oscuro"] .bg-surface.border {
+  background-image:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 30%, transparent), transparent),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 180px);
+  background-repeat: no-repeat, no-repeat;
+  background-size:
+    80% 1px,
+    100% 100%;
+  background-position:
+    top center,
+    top left;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .bg-surface.border {
+    background-image:
+      linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 30%, transparent), transparent),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 180px);
+    background-repeat: no-repeat, no-repeat;
+    background-size:
+      80% 1px,
+      100% 100%;
+    background-position:
+      top center,
+      top left;
+  }
+}
+
 /* --- La fila que estás leyendo se marca de verdad ----------------------
    Ya se pintaba el fondo al pasar el mouse. Se le agrega una barra de acento
    a la izquierda: en Rentabilidad o Control, con nueve columnas de números,
