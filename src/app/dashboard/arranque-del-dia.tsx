@@ -85,6 +85,22 @@ export default function ArranqueDelDia({ nombre }: { nombre: string }) {
     return () => clearTimeout(id);
   }, [abierto, contando, numero]);
 
+  // AVISARLE AL RESTO DE LA APP QUE HAY ALGO ENCIMA.
+  //
+  // Este pop-up tapa la pantalla entera. La firma del menú se descifra en poco
+  // más de un segundo y una sola vez al día: si lo hace debajo de este velo,
+  // nadie la ve y encima queda marcada como vista hasta mañana. Mientras está
+  // abierto, el documento lleva la marca; al cerrarse, avisa.
+  useEffect(() => {
+    if (!abierto) return;
+    const raiz = document.documentElement;
+    raiz.dataset.arranque = "1";
+    return () => {
+      delete raiz.dataset.arranque;
+      window.dispatchEvent(new Event("arranque-cerrado"));
+    };
+  }, [abierto]);
+
   useEffect(() => {
     if (!abierto) return;
     const alTeclado = (e: KeyboardEvent) => {
@@ -128,7 +144,14 @@ export default function ArranqueDelDia({ nombre }: { nombre: string }) {
           <p className="mt-5 text-[26px] font-semibold leading-snug text-white md:text-[32px]">
             {frase.texto}
           </p>
-          {frase.autor && <p className="mt-3 text-[13px] text-white/50">— {frase.autor}</p>}
+          {/* La obra va al lado del nombre, en gris: no es adorno, es lo que
+              permite comprobar la cita. Muchas frases que circulan firmadas
+              por Séneca o Aristóteles no son suyas; decir de dónde sale es la
+              diferencia entre citar y repetir. */}
+          <p className="mt-4 text-[13px] text-white/50">
+            — {frase.autor}
+            <span className="text-white/30"> · {frase.obra}</span>
+          </p>
           <div className="mt-9 flex items-center justify-center gap-4">
             <button
               type="button"

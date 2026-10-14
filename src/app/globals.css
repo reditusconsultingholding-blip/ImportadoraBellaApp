@@ -117,7 +117,22 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
   color-scheme: dark;
-  --background: #0f1113;
+  /* EL NEGRO DE LA APP TIENE EL VERDE DE LA MARCA ADENTRO.
+     //
+     // Era #0f1113, un gris neutro de laboratorio: correcto y de nadie. Este
+     // lleva una gota del verde de la barra lateral, así que el fondo, el menú
+     // y el encabezado se leen como la misma pieza en vez de como tres grises
+     // que coincidieron. Se nota al lado del anterior y no se nota solo, que
+     // es exactamente lo que tiene que hacer un fondo. */
+  --background: #0b0f0e;
+      /* MENOS GRANO QUE EN CLARO, NO MÁS. La intuición dice al revés —sobre
+         negro un 3 % de blanco es nada— y la primera versión fue a 0,42. En
+         pantalla el fondo quedó granulado a la vista, que no se lee como
+         textura sino como suciedad. Sobre oscuro el ruido claro contrasta
+         mucho más que el ruido oscuro sobre claro. */
+      --grano: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.2'/%3E%3C/svg%3E");
+      --retic-fuerza: 6%;
+      --trama-fuerza: 6%;
       --surface: #1a1d1f;
       --surface-2: #232629;
       --foreground: #e6e7e8;
@@ -149,7 +164,22 @@
 
 :root[data-tema="oscuro"] {
   color-scheme: dark;
-  --background: #0f1113;
+  /* EL NEGRO DE LA APP TIENE EL VERDE DE LA MARCA ADENTRO.
+     //
+     // Era #0f1113, un gris neutro de laboratorio: correcto y de nadie. Este
+     // lleva una gota del verde de la barra lateral, así que el fondo, el menú
+     // y el encabezado se leen como la misma pieza en vez de como tres grises
+     // que coincidieron. Se nota al lado del anterior y no se nota solo, que
+     // es exactamente lo que tiene que hacer un fondo. */
+  --background: #0b0f0e;
+      /* MENOS GRANO QUE EN CLARO, NO MÁS. La intuición dice al revés —sobre
+         negro un 3 % de blanco es nada— y la primera versión fue a 0,42. En
+         pantalla el fondo quedó granulado a la vista, que no se lee como
+         textura sino como suciedad. Sobre oscuro el ruido claro contrasta
+         mucho más que el ruido oscuro sobre claro. */
+      --grano: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.2'/%3E%3C/svg%3E");
+      --retic-fuerza: 6%;
+      --trama-fuerza: 6%;
       --surface: #1a1d1f;
       --surface-2: #232629;
       --foreground: #e6e7e8;
@@ -294,16 +324,84 @@ tbody tr:hover {
    ====================================================================== */
 
 /* --- El fondo deja de ser un color plano ------------------------------
-   Dos capas que no se "ven", se sienten: una trama de puntos muy fina que le
-   da material a la superficie, y dos resplandores del verde de marca en las
-   esquinas superiores. Un gris liso de borde a borde es lo que hace que un
-   panel denso se lea como una planilla; con esto se lee como un instrumento.
+   Sebastián: «el fondo blanco o negro que pudiese ser un poco más dinámico y
+   con texturas, que no se vea tan plano; que se vea tecnológico, no como una
+   app contable — sin tener que ponerse lento».
 
-   Van en ::before del body y con pointer-events: none, así no interceptan
-   un solo clic. */
+   Lo último es la condición que manda. Son DOS capas y nada más, las dos en
+   pseudo-elementos del body, las dos `fixed` y fuera del flujo, ninguna
+   interceptando un clic:
+
+     · El MATERIAL (::before), que no se mueve nunca: grano, retícula, trama de
+       puntos y los resplandores de marca. Se dibuja una vez y el navegador la
+       guarda rasterizada; pasar de un color liso a esto no cuesta un cuadro
+       por segundo.
+
+     · El ALIENTO (::after), que es lo único que se mueve: dos resplandores muy
+       grandes y muy tenues que suben y bajan de intensidad en medio minuto.
+       Anima SOLO `opacity` y `transform`, que es lo que la tarjeta de video
+       hace sin despeinarse; no toca ni una medida, así que no provoca un solo
+       recálculo de diseño. Medido en vivo después de montarlo.
+
+   POR QUÉ GRANO. Es lo que separa una superficie de un color. Una pantalla de
+   un solo tono plano se lee como papel —y un panel denso sobre papel se lee
+   como una planilla de contabilidad, que es justo de lo que Sebastián quiere
+   salir—. El grano va al 3,5 % en claro y al 5 % en oscuro: a esa fuerza no se
+   ve, se nota. Es un SVG de 300 bytes incrustado acá mismo: ni una petición. */
 body {
   position: relative;
   isolation: isolate;
+}
+
+:root {
+  /* RUIDO FRACTAL EN GRIS, en un azulejo de 160 px que se repite.
+     //
+     // `saturate 0` lo deja neutro: sin eso, feTurbulence genera ruido de
+     // COLOR y el fondo se tiñe de magenta y verde a contraluz.
+     //
+     // La fuerza se hornea en el `opacity` del rectángulo y no se regula desde
+     // CSS, porque una capa de `background-image` no admite opacidad propia.
+     // Por eso hay dos: el claro necesita menos grano que el oscuro para que
+     // se note lo mismo. */
+  --grano: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.26'/%3E%3C/svg%3E");
+  /* Cuánto se ven la retícula y la trama de puntos, como porcentaje del color
+     del texto. */
+  --retic-fuerza: 5%;
+  --trama-fuerza: 7%;
+}
+
+/* LA RETÍCULA VA ARRIBA Y SE DESVANECE, NO DE BORDE A BORDE.
+   //
+   // La primera versión la puso en todo el fondo. Se vio y era exactamente lo
+   // contrario de lo pedido: una cuadrícula pareja de lado a lado ES una hoja
+   // de cálculo, y Sebastián quiere salir de ahí, no acercarse. Arriba y
+   // apagándose hacia abajo dice otra cosa —el papel milimetrado de un
+   // instrumento— y a los cuatrocientos píxeles ya no está.
+   //
+   // Vive en `html` y no en `body` porque el body ya usa sus dos
+   // pseudo-elementos, y porque esta capa necesita máscara propia: una máscara
+   // en el ::before del body borraría también el grano y los resplandores. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 420px;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--foreground) var(--retic-fuerza), transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--foreground) var(--retic-fuerza), transparent) 1px,
+      transparent 1px
+    );
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
 }
 
 body::before {
@@ -313,18 +411,78 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-image:
+    /* 1. El grano, arriba de todo: lo que convierte el color en superficie. */
+    var(--grano),
+    /* 2. La trama de puntos fina que ya estaba. */
+      radial-gradient(
+        circle at 1px 1px,
+        color-mix(in srgb, var(--foreground) var(--trama-fuerza), transparent) 1px,
+        transparent 0
+      ),
+    /* 3. Los resplandores de marca, quietos. */
+      radial-gradient(
+        60rem 36rem at 12% -8%,
+        color-mix(in srgb, var(--brand-green) 8%, transparent),
+        transparent 70%
+      ),
+    radial-gradient(48rem 30rem at 100% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%),
+    /* 4. La viñeta: hunde apenas las esquinas y le da profundidad. */
+      radial-gradient(130% 90% at 50% 0%, transparent 55%, color-mix(in srgb, var(--foreground) 6%, transparent));
+  background-size:
+    160px 160px,
+    22px 22px,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+}
+
+/* EL ALIENTO: la única capa que se mueve en toda la app.
+   //
+   // Dos manchas de luz enormes y tenues, más grandes que la pantalla —de ahí
+   // el `inset: -20%`, para que al escalar no asome un borde—. Anima opacidad
+   // y transform y nada más, así que vive en su propia capa de la tarjeta de
+   // video y no obliga a recalcular una sola medida de la página. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
     radial-gradient(
-      60rem 36rem at 12% -8%,
-      color-mix(in srgb, var(--brand-green) 7%, transparent),
+      38rem 26rem at 22% 18%,
+      color-mix(in srgb, var(--brand-green) 10%, transparent),
       transparent 70%
     ),
-    radial-gradient(
-      48rem 30rem at 100% 0%,
-      color-mix(in srgb, var(--accent) 5%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--foreground) 7%, transparent) 1px, transparent 0);
-  background-size: 100% 100%, 100% 100%, 22px 22px;
+    radial-gradient(34rem 24rem at 80% 72%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%);
+  opacity: 0.55;
+  will-change: opacity, transform;
+  animation: respirar-fondo 34s ease-in-out infinite;
+}
+
+/* Sube y baja de intensidad y se corre poquísimo. Treinta y cuatro segundos
+   es a propósito: lo que se mueve rápido se nota, y lo que se nota en una
+   pantalla de trabajo termina molestando. Esto no se ve moverse — se siente
+   que la pantalla está viva cuando uno levanta la vista. */
+@keyframes respirar-fondo {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate3d(1.5%, -1%, 0) scale(1.06);
+  }
+}
+
+/* Quien pide menos movimiento se queda con el material, que es estático: la
+   textura no es la animación. */
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 /* --- Tarjetas con cuerpo ----------------------------------------------
