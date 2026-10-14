@@ -160,6 +160,26 @@ async function anotarFrescura(organizationId: string, conector: WindsorConnector
  * que no se puede leer— quedaba en verde. Es como el control publicitario se
  * pasó seis días sin los pedidos de octubre diciendo "revisada hace 1 hora".
  */
+/**
+ * Lo que de este resumen suena a que algo se rompió.
+ *
+ * Las partes de una vuelta escriben su resultado como texto —«41 campañas, 0
+ * días cambiados», «error: Falta la clave de Resend»— y hasta ahora ese texto
+ * iba al detalle y la vuelta se anotaba como buena igual. El tablero mostraba
+ * «ok» con un detalle que empezaba por «error:», y lo que mira el equipo es la
+ * columna de estado, no el detalle.
+ *
+ * No alcanza con que cada llamada se acuerde de pasar su error: son muchas, y
+ * la que se olvide va a mentir en silencio durante meses. Se mira el texto, que
+ * es lo único que todas tienen en común.
+ */
+export function erroresDelResumen(partes: Record<string, string>): string | null {
+  const malas = Object.entries(partes)
+    .filter(([, v]) => typeof v === "string" && /^error\b|^error:/i.test(v.trim()))
+    .map(([k, v]) => `${k}: ${v.replace(/^error:?\s*/i, "")}`);
+  return malas.length > 0 ? malas.join(" | ") : null;
+}
+
 async function anotarVuelta(
   organizationId: string,
   fuente: string,
@@ -259,7 +279,15 @@ export async function sincronizarRapido() {
         anotar("precalentado", `error: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    await anotarVuelta(org.id, "reloj-rapido", inicio, Object.entries(mio).map(([k, v]) => `${k}: ${v}`).join(" | "));
+    await anotarVuelta(
+      org.id,
+      "reloj-rapido",
+      inicio,
+      Object.entries(mio)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(" | "),
+      erroresDelResumen(mio),
+    );
   }
   return resumen;
 }
@@ -598,7 +626,26 @@ export async function sincronizarTodo(conRapido = true) {
     } catch (err) {
       resumen.precalentadoTodo = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
-    await anotarVuelta(org.id, "reloj-lento", inicioLento, "notion, anuncios, reportes, avisos y precalentado");
+    // EL DETALLE CUENTA LO QUE PASÓ, NO LO QUE IBA A HACER.
+    //
+    // Acá iba una frase fija —«notion, anuncios, reportes, avisos y
+    // precalentado»— que decía exactamente lo mismo un día perfecto que un día
+    // en que Notion no respondió. Esta es la vuelta que trae Notion, los
+    // anuncios y los reportes: si algo se cae ahí, no había forma de saberlo
+    // mirando el tablero.
+    const partesLentas: Record<string, string> = Object.fromEntries(
+      Object.entries(resumen).filter(([, v]) => typeof v === "string"),
+    ) as Record<string, string>;
+    await anotarVuelta(
+      org.id,
+      "reloj-lento",
+      inicioLento,
+      Object.entries(partesLentas)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(" | ")
+        .slice(0, 480) || "notion, anuncios, reportes, avisos y precalentado",
+      erroresDelResumen(partesLentas),
+    );
   }
 
   return resumen;
