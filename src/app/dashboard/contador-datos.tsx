@@ -76,42 +76,102 @@ export default function ContadorDatos() {
           : `Meta y TikTok: datos de las ${hora(new Date(datosDe!).toISOString())} · próxima en ${faltan(proxima - ahora)}`;
 
   return (
-    <div className="relative hidden md:block">
+    // SE ABRE AL PASAR EL CURSOR, NO SOLO AL APRETAR.
+    //
+    // Pedido de Sebastián: «esta notificación al pararse sobre este». Es
+    // información de consulta —de cuándo son los datos— no una acción: pedir
+    // un clic para leer algo que se mira de reojo es una fricción que hace que
+    // nadie lo mire. El clic se conserva para dejarla fija mientras se lee, y
+    // para el teclado, donde no hay cursor que parar.
+    <div
+      className="relative hidden md:block"
+      onMouseEnter={() => setAbierto(true)}
+      onMouseLeave={() => setAbierto(false)}
+    >
       <button
         type="button"
         onClick={() => setAbierto((a) => !a)}
-        className="rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted transition hover:border-border-strong hover:text-foreground"
+        onFocus={() => setAbierto(true)}
+        aria-expanded={abierto}
+        className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 font-mono text-[11px] text-muted shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition hover:border-accent hover:text-foreground"
         title="De cuándo son los datos de Meta y TikTok"
       >
+        {/* El punto que late: dice que el reloj está corriendo. Es la misma
+            señal que usa «En vivo» al lado, así que no es un código nuevo que
+            haya que aprender. */}
+        <span className="relative flex h-1.5 w-1.5 shrink-0">
+          <span className="icono-pulso absolute -inset-1 rounded-full border border-accent" />
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        </span>
         {texto}
       </button>
       {abierto && (
-        <div className="absolute right-0 z-50 mt-2 w-80 rounded border border-border bg-surface p-3 text-xs shadow-lg">
-          {datos.map((d) => (
-            <div key={d.conector} className="mb-2 last:mb-0">
-              <p className="font-semibold text-foreground">{d.nombre}</p>
-              <p className="text-muted">
-                {d.datosDe ? `Últimos datos nuevos: ${hora(d.datosDe)}` : "Todavía sin datos nuevos desde el último despliegue"}
-              </p>
-              <p className="text-muted">
-                {d.proxima
-                  ? new Date(d.proxima).getTime() > ahora
-                    ? `Próxima actualización en ${faltan(new Date(d.proxima).getTime() - ahora)} (${hora(d.proxima)})`
-                    : ahora - new Date(d.proxima).getTime() > d.intervaloMin * 60_000
-                      ? "Windsor sigue trayendo los mismos números: no hubo movimiento"
-                      : "Windsor ya debería traer datos nuevos: llegan en la próxima consulta"
-                  : "—"}
-              </p>
-              <p className="text-muted">
-                Windsor refresca cada {d.intervaloMin >= 60 ? `${d.intervaloMin / 60} h` : `${d.intervaloMin} min`}
-                {d.consultado ? ` · Jarvis preguntó a las ${hora(d.consultado)}` : ""}
-              </p>
-            </div>
-          ))}
-          <p className="mt-2 border-t border-border pt-2 text-[10px] text-muted">
-            Jarvis le pregunta a Windsor cada 2 minutos. Los números nuevos aparecen cuando Windsor los trae de Meta y
-            TikTok, según el intervalo de tu plan.
-          </p>
+        <div className="absolute right-0 z-50 mt-2 w-[22rem] overflow-hidden rounded-lg border border-white/10 bg-brand-navy text-xs shadow-[0_12px_32px_rgb(0_0_0/0.3)]">
+          {/* La rejilla del fondo, la misma del arranque del día. Esta tarjeta
+              habla de relojes y de intervalos: que se vea como un instrumento y
+              no como un globo de ayuda es parte de lo que dice. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-[0.18]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgb(0 164 124 / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(0 164 124 / 0.5) 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+              maskImage: "radial-gradient(80% 70% at 70% 0%, #000 0%, transparent 70%)",
+              WebkitMaskImage: "radial-gradient(80% 70% at 70% 0%, #000 0%, transparent 70%)",
+            }}
+          />
+          <div className="relative p-3.5">
+            {datos.map((d) => {
+              const proxima = d.proxima ? new Date(d.proxima).getTime() : null;
+              const faltaMs = proxima ? proxima - ahora : null;
+              // Cuánto del intervalo ya transcurrió. Es el dato que convierte
+              // «próxima en 33 minutos» en algo que se mira de un vistazo.
+              const total = d.intervaloMin * 60_000;
+              const avance =
+                faltaMs != null && faltaMs > 0
+                  ? Math.min(100, Math.max(0, ((total - faltaMs) / total) * 100))
+                  : 100;
+              const alDia = faltaMs != null && faltaMs > 0;
+              return (
+                <div key={d.conector} className="mb-3.5 last:mb-0">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-[12px] font-semibold text-white">{d.nombre}</p>
+                    <p className="font-mono text-[11px] text-brand-green">
+                      {alDia ? faltan(faltaMs!) : "ahora"}
+                    </p>
+                  </div>
+                  {/* El riel del intervalo: lleno es "ya toca". */}
+                  <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-brand-green transition-[width] duration-500"
+                      style={{ width: `${avance}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 font-mono text-[10.5px] text-white/55">
+                    {d.datosDe
+                      ? `últimos datos · ${hora(d.datosDe)}`
+                      : "todavía sin datos nuevos desde el último despliegue"}
+                  </p>
+                  <p className="font-mono text-[10.5px] text-white/40">
+                    cada {d.intervaloMin >= 60 ? `${d.intervaloMin / 60} h` : `${d.intervaloMin} min`}
+                    {d.consultado ? ` · consultado ${hora(d.consultado)}` : ""}
+                  </p>
+                  {!alDia && proxima && (
+                    <p className="mt-1 text-[10.5px] text-white/55">
+                      {ahora - proxima > total
+                        ? "Windsor sigue trayendo los mismos números: no hubo movimiento."
+                        : "Windsor ya debería traer datos nuevos: llegan en la próxima consulta."}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+            <p className="mt-3 border-t border-white/10 pt-2.5 text-[10px] leading-relaxed text-white/45">
+              Jarvis le pregunta a Windsor cada 2 minutos. Los números nuevos aparecen cuando Windsor los trae de
+              Meta y TikTok, según el intervalo de tu plan.
+            </p>
+          </div>
         </div>
       )}
     </div>
