@@ -115,3 +115,35 @@ test("la tira servida tiene una franja por pieza", async () => {
   const alto = (datos.readUIntLE(27, 3) & 0xffffff) + 1;
   assert.equal(alto, ancho * cuantas, `la tira mide ${ancho}x${alto} para ${cuantas} piezas`);
 });
+
+test("toda pieza que el menu o el encabezado piden esta en la tira", async () => {
+  // Un nombre que no esta en la tira no revienta: la seccion se queda con el
+  // cuadro verde y sin objeto blanco. Eso se ve, pero solo lo ve quien tenga
+  // permiso para entrar a esa seccion -- Nomina y Desempeno, por ejemplo, no
+  // le aparecen al dueno, asi que una pieza faltante ahi podria vivir meses.
+  // Por eso se compara por codigo: lo que PIDEN los dos consumidores -- el
+  // menu y el encabezado -- contra lo que la tira TIENE.
+  const fs = await import("node:fs/promises");
+
+  const componente = await fs.readFile("src/app/dashboard/icono-seccion.tsx", "utf8");
+  const bloque = componente.slice(componente.indexOf("const PIEZAS = ["));
+  const enLaTira = new Set(
+    [...bloque.slice(0, bloque.indexOf("]")).matchAll(/"([a-z-]+)"/g)].map((m) => m[1]),
+  );
+
+  const menu = await fs.readFile("src/app/dashboard/sidebar-nav.tsx", "utf8");
+  const pedidasPorElMenu = [...menu.matchAll(/icon:\s*"([a-z-]+)"/g)].map((m) => m[1]);
+
+  const rutas = await fs.readFile("src/app/dashboard/icono-de-ruta.tsx", "utf8");
+  const pedidasPorLaRuta = [...rutas.matchAll(/\["\/dashboard[^"]*",\s*"([a-z-]+)"\]/g)].map(
+    (m) => m[1],
+  );
+
+  assert.ok(pedidasPorElMenu.length >= 20, `el menu pide ${pedidasPorElMenu.length} piezas`);
+  assert.ok(pedidasPorLaRuta.length >= 20, `las rutas piden ${pedidasPorLaRuta.length} piezas`);
+
+  const faltan = [...new Set([...pedidasPorElMenu, ...pedidasPorLaRuta])].filter(
+    (n) => !enLaTira.has(n),
+  );
+  assert.deepEqual(faltan, [], `estas piezas se piden y no estan en la tira: ${faltan.join(", ")}`);
+});
