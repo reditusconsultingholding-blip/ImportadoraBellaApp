@@ -336,6 +336,20 @@ export type ResultadoSync = {
    * igual. Pero sí marcan la fuente en rojo, que es lo que faltaba.
    */
   rotas: string[];
+  /**
+   * Lo que está mal pero NO impidió leer el dato.
+   *
+   * Va aparte de `rotas` porque las dos cosas no se parecen en nada y hasta
+   * ahora iban juntas: una pestaña ilegible son seis días de pedidos
+   * faltando, y un encabezado mal escrito que igual se leyó por posición es
+   * una tarea pendiente. Las dos pintaban la fuente en rojo, así que el panel
+   * llevaba un día entero marcando «No se pudo leer» sobre una planilla que
+   * entraba completa —4.852 pedidos contra 4.852—.
+   *
+   * Un rojo permanente sobre algo que funciona es la forma más rápida de
+   * enseñarle al equipo a ignorar los rojos.
+   */
+  avisos: string[];
   error?: string;
 };
 
@@ -364,6 +378,7 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
       filas: 0,
       sinCambios: [],
       rotas: [],
+      avisos: [],
       desdeElDia: null,
       error: "No se encontró ninguna pestaña de mes.",
     };
@@ -375,6 +390,7 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
     filas: 0,
     sinCambios: [],
     rotas: [],
+    avisos: [],
     desdeElDia: null,
   };
 
@@ -422,8 +438,8 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
     const encabezado = filasDeCsv(csv)[0] ?? [];
     if (encabezado.length > 0 && indiceDeProducto(encabezado) < 0) {
       const comoSeLlama = encabezado[respaldoProducto ?? -1];
-      resultado.rotas.push(
-        `${pestana.nombre}: la columna del producto se llama «${comoSeLlama}» y debería llamarse PRODUCTO (se leyó igual, por posición)`,
+      resultado.avisos.push(
+        `${pestana.nombre}: la columna del producto se llama «${comoSeLlama}» y debería llamarse PRODUCTO (el dato entró igual, leído por posición)`,
       );
     }
 

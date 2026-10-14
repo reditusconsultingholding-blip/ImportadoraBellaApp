@@ -523,8 +523,16 @@ export async function sincronizarTodo(conRapido = true) {
             " · descuadre de " + d.pedidos + " pedidos en " + d.dias +
             " días, rehechos " + c.dias;
         }
+        // ROJO SOLO CUANDO FALTA EL DATO.
+        //
         // Una pestaña que no se puede leer marca la fuente en rojo aunque las
-        // demás hayan entrado: es media planilla faltando, no un detalle.
+        // demás hayan entrado: es media planilla faltando, no un detalle. Pero
+        // un encabezado mal escrito que igual se leyó por posición no es eso:
+        // el dato entró completo. Iba al mismo lugar y dejaba la fuente en
+        // rojo durante días sobre una planilla sana, que es como se le enseña
+        // al equipo a ignorar los rojos. Ahora va en el detalle, donde se lee
+        // sin gritar.
+        if (r.avisos.length > 0) resumen.reporte += " · revisar: " + r.avisos.join(" | ");
         await anotarVuelta(
           org.id,
           "reporte-ventas",
@@ -567,7 +575,17 @@ export async function sincronizarTodo(conRapido = true) {
           ? " · dominios: " + e.dominios.map((d) => d.nombre + " (" + d.estado + ")").join(", ")
           : "";
         resumen.correo = base + lista;
-        await anotarVuelta(org.id, "correo", Date.now(), resumen.correo);
+        // EL ESTADO TIENE QUE DECIR LO MISMO QUE EL DETALLE.
+        //
+        // Acá el error se escribía en el texto y la vuelta se anotaba como
+        // buena, así que el tablero mostraba «correo · ok» con un detalle que
+        // empezaba por «error: Falta la clave de Resend». Quien mira la lista
+        // de fuentes ve la columna de estado, no el detalle: durante semanas
+        // el correo figuró sano sin poder mandar un solo reporte.
+        //
+        // Sin dominio verificado NO es error: Resend entrega igual, solo que
+        // al dueño de la cuenta. Eso es una limitación conocida, no una caída.
+        await anotarVuelta(org.id, "correo", Date.now(), resumen.correo, e.error ?? null);
       }
     } catch (err) {
       resumen.correo = "error: " + (err instanceof Error ? err.message : String(err));
