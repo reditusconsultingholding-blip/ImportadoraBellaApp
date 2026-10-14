@@ -181,17 +181,19 @@ const PANTALLA: Arreglo[] = [
       "Veintiuna secciones compartían once dibujos de línea: «Panel», «Estadísticas CEO» y «Origen de las ventas» se veían iguales en el menú.",
     solucion:
       "Veintiuna piezas nuevas, una por sección, con el verde de la marca y el objeto en blanco. Van en el menú y en el encabezado de cada pantalla, con realce al pasar el cursor y un latido en la sección donde uno está parado. Sobre el verde oscuro llevan un chip claro detrás, porque sin él el cuadro se fundía con el fondo y el objeto quedaba flotando.",
-    prueba: "420 KB las veintiuna, 20 KB cada una. A tamaño original habrían sido 21 MB en cada despliegue.",
+    prueba:
+      "Las veintiuna viajan en una sola imagen de 37 KB. Antes eran veintiún archivos y veintiuna peticiones: la última llegaba después de que la pantalla estuviera armada, y por eso los cuadros se veían un momento en blanco. Medido en vivo: ahora llegan 308 milisegundos antes de que la pantalla esté lista, así que no hay momento en blanco que ver.",
   },
   {
-    titulo: "La barra lateral se esconde, y el verde dejó de ser un rectángulo",
-    reporte: "Sebastián: «que deje esconder la barra de la izquierda» y «ese verde se ve muy estático».",
+    titulo: "La barra lateral se esconde del todo, y el verde dejó de ser un rectángulo",
+    reporte:
+      "Sebastián: «que deje esconder la barra de la izquierda», «ese verde se ve muy estático» y «cuando se esconde, que no aparezcan las herramientas».",
     causa:
-      "En un portátil, 240 píxeles de menú contra una tabla de nueve columnas es mucho. Y la barra era un bloque de color plano del alto de la pantalla: el más grande de la app y el único sin nada adentro.",
+      "En un portátil, 240 píxeles de menú contra una tabla de nueve columnas es mucho. La primera versión dejaba una columna de 68 píxeles con las piezas a la vista; esa franja de íconos sin texto se veía peor que el menú entero. Y la barra era un bloque de color plano del alto de la pantalla: el más grande de la app y el único sin nada adentro.",
     solucion:
-      "Plegada quedan 68 píxeles y siguen viéndose las piezas de cada sección; la preferencia se recuerda. El verde lleva ahora el mismo resplandor que respira del encabezado y un filo claro en el borde derecho.",
+      "Plegada no queda nada: la barra se va a cero y el trabajo ocupa el ancho completo. Queda solo el tirador contra el borde, que la trae de vuelta. La preferencia se recuerda. El verde lleva ahora el mismo resplandor que respira del encabezado y un filo claro en el borde derecho.",
     prueba:
-      "Medida en vivo: 68 píxeles exactos con las 18 secciones accesibles. Plegada muestra todas, incluso las de los grupos cerrados — si no, quedaban escondidas sin forma de llegar a ellas.",
+      "Medido en vivo: 240 píxeles abierta, 0 plegada, sin un solo ícono asomando. Vuelve a abrirse desde el tirador.",
   },
   {
     titulo: "El arranque del día",
@@ -209,6 +211,27 @@ const PANTALLA: Arreglo[] = [
     solucion:
       "El elegido usa ahora el mismo verde de selección que el resto de la app, y «Capacitación» tiene superficie propia. Las tarjetas entran en cascada —45 milisegundos entre cada una, para que el ojo las lea en orden— se realzan al pasar el cursor, y late solo la de Ventas, que es la única que cambia sola mientras alguien mira.",
     prueba: "Verificado en la app: las cinco con su lugar en la cascada, una sola con latido.",
+  },
+  {
+    titulo: "El aviso de Meta y TikTok se abre al pasar el cursor",
+    reporte: "Sebastián: «este apartado que se vea más tecnológico: arriba el encabezado, y esta notificación al pararse sobre este».",
+    causa:
+      "Decir de cuándo son los datos es información de consulta, no una acción, y estaba detrás de un clic. Lo que se mira de reojo y pide un clic no lo mira nadie.",
+    solucion:
+      "Se abre al pasar el cursor y se queda si se aprieta, para poder leerlo con calma; con teclado se abre al llegar. Adentro, cada plataforma tiene su cuenta regresiva y un riel que muestra cuánto del intervalo ya transcurrió: «faltan 35 minutos» se entiende de un vistazo en vez de leerse.",
+    prueba:
+      "Comprobado en vivo con los números de la tarde: Meta a 40 % del riel con 35:44 por delante, TikTok a 7 % con 56:04. Los dos coinciden con el reloj de Windsor.",
+  },
+  {
+    titulo: "El panel de notificaciones, y la firma que se descifra",
+    reporte:
+      "Sebastián: «aquí también por favor más tecnológico», y «que el by Reditus Developers al cargar aparezca como en un formato tipo encriptado y pum aparezca, un efecto élite una vez al día».",
+    causa:
+      "El panel de la campana era una tarjeta blanca con bordes grises: la única pieza de la app que seguía pareciendo un formulario. Y con mil notificaciones sin leer, «Marcar todo leído» quedaba a mil filas de distancia.",
+    solucion:
+      "Panel oscuro con la misma rejilla del arranque del día, el filo de color del nivel pegado a cada fila, y el encabezado y el pie fijos: el contador y «Marcar todo leído» se quedan arriba por mucho que se baje. La firma del pie del menú se descifra letra por letra la primera vez que alguien entra cada día — una vez, porque un efecto en cada carga deja de ser un saludo y se vuelve un peaje.",
+    prueba:
+      "Comprobado en vivo con 1.110 notificaciones sin leer: el encabezado no se despega y los tres niveles se leen sobre el fondo oscuro.",
   },
   {
     titulo: "El recorrido guiado cuenta todo esto, con voz",
