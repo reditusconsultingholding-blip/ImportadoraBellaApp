@@ -81,21 +81,25 @@ export default function BarraLateral({ children }: { children: ReactNode }) {
   return (
     <aside
       data-plegada={plegada ? "1" : undefined}
-      /* EL ANCHO VA EN `style`, Y SOBRE `flexBasis`.
+      /* EL ANCHO VA EN `style` Y NO EN UNA CLASE.
 
-         Dos cosas, las dos medidas en la app en vivo y no deducidas.
+         `w-[68px]` llegaba al HTML pero no generaba ninguna regla: la busqué
+         en el CSS compilado y no está. La barra se quedaba con la clase puesta
+         y el ancho de siempre, que es el peor de los dos mundos — parece que
+         funciona hasta que uno mide.
 
-         Primera: `w-[68px]` llegaba al HTML pero no generaba ninguna regla
-         —la busqué en el CSS compilado y no existe—, así que la barra se
-         quedaba en 240 px con la clase puesta. Es el peor de los dos mundos:
-         parece que funciona hasta que uno mide.
+         Las cuatro propiedades y no solo `width` es cinturón y tirantes: este
+         `<aside>` es un ítem flex, y aunque `width` alcanza mientras
+         `flex-basis` sea `auto`, fijar las cuatro deja el ancho clavado sin
+         depender de eso.
 
-         Segunda, y la que de verdad costaba: este `<aside>` es un ítem flex
-         dentro del contenedor de la página, y ahí `width` no decide el ancho
-         usado. Puesto `style="width: 68px"` seguía midiendo 240; con
-         `flex-basis: 68px` pasó a 68 al instante. Se fijan las cuatro
-         propiedades juntas para que el ancho sea el mismo en cualquier
-         contexto, sea el elemento ítem flex o no. */
+         AVISO PARA QUIEN VENGA A MEDIR ESTO. Chrome congela las transiciones
+         CSS en las pestañas que están en segundo plano: quedan en `running`
+         con `currentTime: 0`, y lo que se lee es el ancho de PARTIDA, no el de
+         llegada. Midiendo desde fuera —automatización, una pestaña sin foco—
+         la barra parece no plegarse nunca. Para medirla de verdad hay que
+         terminar la transición a mano:
+         `aside.getAnimations().forEach((a) => a.finish())`. */
       style={{
         flexBasis: plegada ? "68px" : "15rem",
         width: plegada ? "68px" : "15rem",
