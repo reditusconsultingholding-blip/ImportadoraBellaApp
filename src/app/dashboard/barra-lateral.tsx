@@ -64,12 +64,11 @@ function guardar(plegada: boolean) {
 }
 
 /**
- * Si la barra está plegada. Lo necesita el menú, no solo la barra.
+ * Si la barra está escondida. Lo necesita el menú, no solo la barra.
  *
- * Plegada, los títulos de grupo desaparecen —a 68 px no entra «PRODUCCIÓN»—,
- * y con ellos el único botón que abre un grupo cerrado. Sin esto, plegar la
- * barra con «Números» cerrado escondía siete secciones sin manera de llegar a
- * ellas: la barra quedaba con cinco iconos y el resto desaparecido.
+ * Escondida no queda nada a la vista, así que los grupos cerrados tienen que
+ * volver a abrirse: si no, al mostrarla de nuevo aparecería con secciones
+ * escondidas que nadie cerró.
  */
 export function useBarraPlegada() {
   return useSyncExternalStore(suscribir, leer, leerEnElServidor);
@@ -79,14 +78,22 @@ export default function BarraLateral({ children }: { children: ReactNode }) {
   const plegada = useBarraPlegada();
 
   return (
+    <>
     <aside
+      id="barra-lateral"
       data-plegada={plegada ? "1" : undefined}
-      /* EL ANCHO VA EN `style` Y NO EN UNA CLASE.
+      /* ESCONDIDA ES ESCONDIDA: ANCHO CERO, NO UNA COLUMNA DE ICONOS.
 
-         `w-[68px]` llegaba al HTML pero no generaba ninguna regla: la busqué
-         en el CSS compilado y no está. La barra se quedaba con la clase puesta
-         y el ancho de siempre, que es el peor de los dos mundos — parece que
-         funciona hasta que uno mide.
+         La primera versión dejaba 68 píxeles con las piezas de cada sección a
+         la vista. Sebastián: «que no aparezcan las herramientas, por que se ve
+         feo». Tenía razón: una tira de iconos sueltos contra el borde no es un
+         menú compacto, es un menú cortado. O está, o no está.
+
+         EL ANCHO VA EN `style` Y NO EN UNA CLASE. `w-[68px]` llegaba al HTML
+         pero no generaba ninguna regla: la busqué en el CSS compilado y no
+         estaba. La barra se quedaba con la clase puesta y el ancho de siempre,
+         que es el peor de los dos mundos — parece que funciona hasta que uno
+         mide.
 
          Las cuatro propiedades y no solo `width` es cinturón y tirantes: este
          `<aside>` es un ítem flex, y aunque `width` alcanza mientras
@@ -97,16 +104,20 @@ export default function BarraLateral({ children }: { children: ReactNode }) {
          CSS en las pestañas que están en segundo plano: quedan en `running`
          con `currentTime: 0`, y lo que se lee es el ancho de PARTIDA, no el de
          llegada. Midiendo desde fuera —automatización, una pestaña sin foco—
-         la barra parece no plegarse nunca. Para medirla de verdad hay que
+         la barra parece no esconderse nunca. Para medirla de verdad hay que
          terminar la transición a mano:
          `aside.getAnimations().forEach((a) => a.finish())`. */
       style={{
-        flexBasis: plegada ? "68px" : "15rem",
-        width: plegada ? "68px" : "15rem",
-        minWidth: plegada ? "68px" : "15rem",
-        maxWidth: plegada ? "68px" : "15rem",
+        flexBasis: plegada ? "0px" : "15rem",
+        width: plegada ? "0px" : "15rem",
+        minWidth: plegada ? "0px" : "15rem",
+        maxWidth: plegada ? "0px" : "15rem",
       }}
-      className="barra-lateral barra-con-transicion relative hidden shrink-0 bg-brand-navy md:sticky md:top-0 md:flex md:h-screen md:flex-col"
+      /* `overflow-hidden` recorta lo de adentro mientras se va: sin eso, los
+         240 píxeles de menú se desbordan sobre la tabla durante la transición y
+         se ve como si la pantalla se rompiera por un cuarto de segundo. */
+      className="barra-lateral barra-con-transicion relative hidden shrink-0 overflow-hidden bg-brand-navy md:sticky md:top-0 md:flex md:h-screen md:flex-col"
+      aria-hidden={plegada}
     >
       {/* El resplandor va en su propio contenedor recortado y detrás de todo:
           el menú se desplaza solo, y una luz que se desplazara con él se leería
@@ -133,33 +144,55 @@ export default function BarraLateral({ children }: { children: ReactNode }) {
         <span className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-brand-green/45 to-transparent" />
       </span>
 
-      <button
-        type="button"
-        onClick={() => guardar(!plegada)}
-        aria-expanded={!plegada}
-        title={plegada ? "Mostrar el menú" : "Esconder el menú"}
-        aria-label={plegada ? "Mostrar el menú" : "Esconder el menú"}
-        /* Pegado al borde derecho y a la altura de la vista, no al final de la
-           lista: plegada o abierta, el botón está siempre en el mismo lugar. */
-        className="absolute -right-3 top-[72px] z-20 grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-brand-navy text-white/70 shadow-[0_1px_4px_rgb(0_0_0/0.35)] transition hover:border-brand-green hover:text-white"
-      >
-        <svg
-          viewBox="0 0 16 16"
-          width="11"
-          height="11"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-          className={`transition-transform duration-200 ${plegada ? "rotate-180" : ""}`}
-        >
-          <path d="M10 3 5 8l5 5" />
-        </svg>
-      </button>
-
-      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      {/* El contenido conserva su ancho mientras la barra se cierra: si se
+          encogiera con ella, el menú se reacomodaría en el camino y la salida
+          se vería como un derrumbe en vez de un deslizamiento. */}
+      <div className="relative flex min-h-0 w-60 flex-1 flex-col">{children}</div>
     </aside>
+    <TiradorBarra plegada={plegada} />
+    </>
+  );
+}
+
+/**
+ * El tirador que esconde y trae la barra.
+ *
+ * VIVE FUERA DEL `<aside>`, Y TIENE QUE SER ASÍ. La barra recorta lo que se
+ * sale de ella para que el menú no se desborde sobre la tabla mientras se va;
+ * un botón que asoma por el borde derecho se recortaría con todo lo demás, y
+ * escondida —ancho cero— no quedaría nada que apretar para traerla de vuelta.
+ *
+ * Por eso va `fixed`, a la altura de la vista y no al final de una lista que
+ * cambia de largo: abierta o escondida, está siempre en el mismo lugar de la
+ * pantalla. Cuando la barra está, se apoya sobre su borde; cuando no, queda
+ * pegado al canto izquierdo, que es donde la mano lo va a buscar.
+ */
+function TiradorBarra({ plegada }: { plegada: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={() => guardar(!plegada)}
+      aria-expanded={!plegada}
+      aria-controls="barra-lateral"
+      title={plegada ? "Mostrar el menú" : "Esconder el menú"}
+      aria-label={plegada ? "Mostrar el menú" : "Esconder el menú"}
+      style={{ left: plegada ? 10 : 228 }}
+      className="barra-con-transicion fixed top-[72px] z-30 hidden h-7 w-7 place-items-center rounded-full border border-white/15 bg-brand-navy text-white/75 shadow-[0_2px_6px_rgb(0_0_0/0.4)] transition hover:border-brand-green hover:text-white md:grid"
+    >
+      <svg
+        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        className={`transition-transform duration-200 ${plegada ? "rotate-180" : ""}`}
+      >
+        <path d="M10 3 5 8l5 5" />
+      </svg>
+    </button>
   );
 }

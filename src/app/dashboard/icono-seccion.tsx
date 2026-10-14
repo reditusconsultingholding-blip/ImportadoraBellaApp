@@ -39,17 +39,25 @@ export function IconoSeccion({
   activo?: boolean;
   className?: string;
 }) {
-  // El chip crece un poco más que la pieza para que se vea el marco, pero poco:
-  // con más aire la pieza queda chica adentro y a tamaño de menú se lee "un
-  // cuadrito" en vez del objeto. El marco devuelve la silueta, no enmarca.
-  const marco = tono === "oscuro" ? Math.round(tamano * 1.26) : tamano;
+  // UN FILO DE BLANCO, NO UN MARCO.
+  //
+  // Empezó en 1,34 y bajó a 1,26; sigue siendo demasiado. Con 2,5 píxeles de
+  // blanco por lado, el chip se lee como un cuadro con algo adentro en vez de
+  // como la pieza misma, y el aire se nota más en las esquinas que en los
+  // lados —dos redondeados concéntricos de radios distintos— así que parece
+  // descentrado aunque esté centrado al píxel. Sebastián: "el emoji debe
+  // quedar en toda la mitad del cuadro blanco, no como en un lado".
+  //
+  // 1,14 deja un filo de un píxel y medio: alcanza para devolverle la silueta
+  // que el fondo verde se come, que es para lo único que está.
+  const marco = tono === "oscuro" ? Math.round(tamano * 1.14) : tamano;
   const estilo: CSSProperties = { width: marco, height: marco };
 
   return (
     <span
       className={`icono-seccion relative inline-flex shrink-0 items-center justify-center ${
         tono === "oscuro"
-          ? "rounded-[30%] bg-white/92 shadow-[0_1px_2px_rgb(0_0_0/0.25)]"
+          ? "rounded-[28%] bg-white/92 shadow-[0_1px_2px_rgb(0_0_0/0.25)]"
           : ""
       } ${activo ? "icono-activo" : ""} ${className}`}
       style={estilo}
@@ -63,15 +71,30 @@ export function IconoSeccion({
           className="icono-pulso pointer-events-none absolute -inset-1 rounded-[30%] border border-brand-green"
         />
       )}
+      {/* EL BLANCO DE LA PRIMERA CARGA.
+          //
+          // Sebastián: "los iconos se quedan en blanco y después aparecen". El
+          // chip se pinta con el HTML y la pieza llega después, así que por un
+          // momento el menú es una columna de cuadritos vacíos.
+          //
+          // Dos cosas lo arreglan, y ninguna es un truco: las piezas pasaron de
+          // 128 a 80 píxeles --se muestran a 20 y a 34, así que 80 alcanza aun
+          // en pantallas de densidad doble-- y el conjunto bajó de 438 KB a
+          // 219. Y se le dice al navegador que no las deje para el final:
+          // `fetchPriority` alta y decodificación inmediata, porque son lo
+          // primero que se ve y pesan diez kilobytes. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/iconos/${nombre}.png`}
         alt=""
         aria-hidden
         draggable={false}
+        loading="eager"
+        decoding="sync"
+        fetchPriority="high"
         width={tamano}
         height={tamano}
-        className="icono-pieza select-none rounded-[26%]"
+        className="icono-pieza select-none rounded-[28%]"
         style={{ width: tamano, height: tamano }}
       />
     </span>
