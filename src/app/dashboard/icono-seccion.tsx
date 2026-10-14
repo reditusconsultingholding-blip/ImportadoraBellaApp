@@ -87,6 +87,28 @@ export function IconoSeccion({
           // final:
           // `fetchPriority` alta y decodificación inmediata, porque son lo
           // primero que se ve y pesan diez kilobytes. */}
+      {/* EL CUADRO VERDE DEBAJO DE LA PIEZA.
+          //
+          // Reducir el peso ayudó --de 438 KB a 47, y la espera de 880 ms a
+          // 600-- pero no borra el síntoma: lo que molesta no es que la pieza
+          // tarde, es que mientras tanto se ve BLANCO. Son diecinueve
+          // peticiones, y por rápidas que sean hay un momento con los chips
+          // vacíos.
+          //
+          // Esto pinta debajo el mismo degradado verde que tienen las piezas,
+          // del mismo tamaño y con el mismo radio. Mientras la imagen viaja se
+          // ve un cuadrito verde --que es como se ve una pieza sin su objeto--
+          // y cuando llega, la tapa. El salto deja de existir aunque la espera
+          // siga ahí: no hay nada que esperar que se note. */}
+      <span
+        aria-hidden
+        className="absolute rounded-[28%]"
+        style={{
+          width: tamano,
+          height: tamano,
+          background: "linear-gradient(135deg, #00b98b 0%, #00a47c 55%, #00674f 100%)",
+        }}
+      />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/iconos/${nombre}.webp`}
@@ -98,7 +120,7 @@ export function IconoSeccion({
         fetchPriority="high"
         width={tamano}
         height={tamano}
-        className="icono-pieza select-none rounded-[28%]"
+        className="icono-pieza relative select-none rounded-[28%]"
         style={{ width: tamano, height: tamano }}
       />
     </span>
