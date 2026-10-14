@@ -61,7 +61,14 @@ export default function FirmaDescifrada({ texto }: { texto: string }) {
     let id = 0;
     limpiezas.push(() => clearTimeout(id));
 
+    // Con `?firma=1` se vuelve a ver sin esperar a mañana, igual que el
+    // arranque del día con `?arranque=1`. Un efecto que ocurre una vez por
+    // jornada es imposible de revisar sin una puerta así: no se puede pedirle
+    // a nadie que confíe en que mañana va a estar.
+    const forzado = new URLSearchParams(window.location.search).get("firma") === "1";
+
     const yaSeVioHoy = () => {
+      if (forzado) return false;
       try {
         return window.localStorage.getItem(CLAVE) === claveDelDia();
       } catch {
@@ -107,24 +114,55 @@ export default function FirmaDescifrada({ texto }: { texto: string }) {
       id = window.setTimeout(pintar, PASO_MS);
     };
 
+    /**
+     * Si esta copia de la firma se está viendo de verdad.
+     *
+     * Dos preguntas, y las dos hacen falta. El ancho descarta la copia del
+     * cajón del teléfono, que mide cero en escritorio. El ancestro con
+     * `data-plegada` descarta la barra escondida, y no alcanza con el ancho
+     * para eso: al cargar con la barra plegada, el servidor la pinta abierta y
+     * el navegador la cierra con una transición, así que durante ese cuarto de
+     * segundo mide 240 píxeles y después cero. Mirar solo el ancho justo ahí
+     * daría «visible» para algo que está yéndose.
+     */
+    const seEstaViendo = () => {
+      const el = caja.current;
+      if (!el) return false;
+      if (el.closest("[data-plegada]")) return false;
+      return el.getBoundingClientRect().width > 0;
+    };
+
     /** Cuando el elemento ocupe lugar en la pantalla. */
     const alEstarVisible = () => {
       const el = caja.current;
       if (!el) return;
-      if (el.getBoundingClientRect().width > 0) {
+      if (seEstaViendo()) {
         animar();
         return;
       }
-      // Ancho cero: la barra está plegada o esta copia es la del teléfono.
-      // Se queda esperando sin costo; si nunca se abre, nunca anima, que es
-      // exactamente lo que corresponde.
-      const vigia = new IntersectionObserver((entradas) => {
-        if (!entradas.some((e) => e.isIntersecting)) return;
+
+      // Todavía no. Se espera sin costo a que cambie algo: que el elemento
+      // entre en pantalla, o que alguien traiga de vuelta la barra. Si no pasa
+      // ninguna de las dos, nunca anima — que es exactamente lo que
+      // corresponde para algo que nadie va a ver.
+      const reintentar = () => {
+        if (!seEstaViendo()) return;
         vigia.disconnect();
+        atento.disconnect();
         animar();
-      });
+      };
+      const vigia = new IntersectionObserver(reintentar);
       vigia.observe(el);
-      limpiezas.push(() => vigia.disconnect());
+      const atento = new MutationObserver(reintentar);
+      atento.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["data-plegada"],
+        subtree: true,
+      });
+      limpiezas.push(() => {
+        vigia.disconnect();
+        atento.disconnect();
+      });
     };
 
     // Si el arranque del día está encima, primero se espera a que se cierre.
