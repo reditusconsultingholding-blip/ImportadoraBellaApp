@@ -764,11 +764,21 @@ button:active > .icono-seccion {
   border-color: var(--accent);
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.07);
 }
-/* El latido va en un hijo y no en la tarjeta: la tarjeta ya usa su
-   `box-shadow` para el realce del cursor, y dos animaciones peleando por la
-   misma propiedad se pisan. */
+/* La tarjeta viva lleva LAS DOS animaciones, no solo el latido.
+   //
+   // `.tarjeta-viva` venia despues de `.tarjeta-panel` y declaraba `animation`
+   // a secas, asi que pisaba la entrada: la de Ventas --justo la primera, la
+   // que abre la cascada-- aparecia de golpe mientras las otras cuatro
+   // entraban escalonadas. Se veia como un error de carga, no como un efecto.
+   //
+   // Van las dos en la misma declaracion, cada una con su retraso: la entrada
+   // respeta su lugar en la cascada y el latido arranca despues, cuando la
+   // tarjeta ya se asento. */
 .tarjeta-viva {
-  animation: tarjeta-late 3.2s ease-out infinite;
+  animation:
+    tarjeta-entra 0.42s cubic-bezier(0.22, 1, 0.36, 1) both,
+    tarjeta-late 3.2s ease-out infinite;
+  animation-delay: calc(var(--orden, 0) * 45ms), 700ms;
 }
 
 .encabezado-resplandor {
