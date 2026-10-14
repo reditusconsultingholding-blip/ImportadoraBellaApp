@@ -81,9 +81,16 @@ export default function BarraLateral({ children }: { children: ReactNode }) {
   return (
     <aside
       data-plegada={plegada ? "1" : undefined}
-      className={`barra-lateral barra-con-transicion relative hidden shrink-0 bg-brand-navy md:sticky md:top-0 md:flex md:h-screen md:flex-col ${
-        plegada ? "w-[68px]" : "w-60"
-      }`}
+      /* EL ANCHO VA EN `style`, NO EN UNA CLASE.
+
+         `w-[68px]` llegaba al HTML pero no generaba ninguna regla: la barra se
+         quedaba en 240 px con la clase puesta, que es el peor de los dos
+         mundos —parece que funciona hasta que uno mide—. Un ancho que depende
+         del estado no gana nada con ser una clase: acá es explícito, se lee de
+         una, y no depende de que el generador encuentre la cadena dentro de un
+         ternario. */
+      style={{ width: plegada ? "68px" : "15rem" }}
+      className="barra-lateral barra-con-transicion relative hidden shrink-0 bg-brand-navy md:sticky md:top-0 md:flex md:h-screen md:flex-col"
     >
       {/* El resplandor va en su propio contenedor recortado y detrás de todo:
           el menú se desplaza solo, y una luz que se desplazara con él se leería
