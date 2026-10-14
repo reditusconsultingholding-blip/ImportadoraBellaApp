@@ -67,7 +67,7 @@ export default function CargandoConLogo({
             // que ya es un círculo le come los bordes. Y por eso mismo queda
             // concéntrica con los aros que giran alrededor. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/iconos/marca-b.png" alt="" aria-hidden className="h-12 w-12" />
+        <img src="/iconos/marca-b.webp" alt="" aria-hidden className="h-12 w-12" />
       </span>
 
       <p className="relative mt-6 text-[15px] font-semibold text-foreground">{titulo}</p>

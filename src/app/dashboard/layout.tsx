@@ -82,7 +82,7 @@ export default async function DashboardLayout({
           arriba se lee como una columna de iconos sueltos, no como una app. */}
       <span className="hidden justify-center [.barra-lateral[data-plegada]_&]:flex">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/iconos/marca-b.png" alt="Importadora Bella" width={32} height={32} />
+        <img src="/iconos/marca-b.webp" alt="Importadora Bella" width={32} height={32} />
       </span>
       <span className="solo-abierta block">
         <span className="block text-[19px] font-semibold leading-tight tracking-tight text-white">

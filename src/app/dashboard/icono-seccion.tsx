@@ -79,13 +79,17 @@ export function IconoSeccion({
           //
           // Dos cosas lo arreglan, y ninguna es un truco: las piezas pasaron de
           // 128 a 80 píxeles --se muestran a 20 y a 34, así que 80 alcanza aun
-          // en pantallas de densidad doble-- y el conjunto bajó de 438 KB a
-          // 219. Y se le dice al navegador que no las deje para el final:
+          // en pantallas de densidad doble-- y de PNG a WebP, que con
+          // transparencia pesa cuatro veces menos: el conjunto bajó de 438 KB a
+          // 47. Con PNG la última pieza seguía llegando 880 ms después de que
+          // la pantalla estuviera lista, porque son diecinueve peticiones
+          // compitiendo. Y se le dice al navegador que no las deje para el
+          // final:
           // `fetchPriority` alta y decodificación inmediata, porque son lo
           // primero que se ve y pesan diez kilobytes. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/iconos/${nombre}.png`}
+        src={`/iconos/${nombre}.webp`}
         alt=""
         aria-hidden
         draggable={false}
