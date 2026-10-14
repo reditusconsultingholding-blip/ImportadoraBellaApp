@@ -231,7 +231,19 @@ function columnas(encabezado: string[]) {
  * un mes vacío y dice qué pasó.
  */
 export type LecturaPestana =
-  | { ok: true; filas: PedidoContado[] }
+  | {
+      ok: true;
+      filas: PedidoContado[];
+      /**
+       * La cantidad más grande que se descartó por absurda, si hubo alguna.
+       *
+       * Se devuelve en vez de tragarse para que el aviso diga qué número
+       * apareció: «593993729291» se reconoce de una como un teléfono y lleva
+       * derecho a la columna corrida. Un «se descartó una cantidad rara» sin
+       * el número no sirve para arreglar nada.
+       */
+      cantidadRara?: number;
+    }
   | { ok: false; motivo: string };
 
 /**
@@ -265,7 +277,29 @@ export function contarPestana(csv: string, respaldoProducto?: number): LecturaPe
     col.producto = respaldoProducto;
   }
 
-  const acumulado = new Map<string, PedidoContado>();
+  /**
+ * Lo más que puede traer una fila en la columna de cantidad.
+ *
+ * ESTO TUMBÓ EL REPORTE DOS DÍAS. La sincronización venía fallando con
+ * «value "593993729291" is out of range for type integer», que es un teléfono
+ * de Ecuador —+593 99 372 9291— entrando por la columna de unidades. Pasa
+ * cuando a una pestaña le tocan los encabezados: el mapeo se corre y la
+ * cantidad termina leyendo la columna de al lado.
+ *
+ * La excepción venía de Postgres, al final de todo, con un número y ninguna
+ * pista de qué fila ni qué columna. Y como reventaba toda la escritura, no
+ * entraba NI UNA fila: la planilla entera se perdía por un teléfono.
+ *
+ * Mil unidades en un solo pedido ya es absurdo para esta tienda —se venden
+ * packs de tres— así que cualquier cosa por encima es basura de columna
+ * corrida, no una venta. Se cuenta el pedido igual, con cero unidades: los
+ * pedidos son lo que usa el control, las unidades son para mirar.
+ */
+const TOPE_UNIDADES = 1000;
+
+const acumulado = new Map<string, PedidoContado>();
+/** Lo más grande que se descartó, para poder decir qué se encontró. */
+let cantidadRara = 0;
 
   for (const fila of filas.slice(1)) {
     const fecha = fechaDelReporte(fila[col.fecha] ?? "");
@@ -291,7 +325,9 @@ export function contarPestana(csv: string, respaldoProducto?: number): LecturaPe
 
     fila2.pedidos += 1;
     const cantidad = Number((fila[col.cantidad] ?? "").replace(",", "."));
-    fila2.unidades += Number.isFinite(cantidad) && cantidad > 0 ? Math.round(cantidad) : 0;
+    const sirve = Number.isFinite(cantidad) && cantidad > 0;
+    if (sirve && cantidad > TOPE_UNIDADES) cantidadRara = Math.max(cantidadRara, cantidad);
+    fila2.unidades += sirve && cantidad <= TOPE_UNIDADES ? Math.round(cantidad) : 0;
 
     const estado = (fila[col.estado] ?? "")
       .normalize("NFD")
@@ -307,7 +343,11 @@ export function contarPestana(csv: string, respaldoProducto?: number): LecturaPe
     acumulado.set(clave, fila2);
   }
 
-  return { ok: true, filas: [...acumulado.values()] };
+  return {
+    ok: true,
+    filas: [...acumulado.values()],
+    ...(cantidadRara > 0 ? { cantidadRara } : {}),
+  };
 }
 
 /* ------------------------------ La escritura ------------------------------ */
@@ -435,6 +475,12 @@ export async function sincronizarReporteVentas(organizationId: string): Promise<
 
     // Si hizo falta el respaldo, el encabezado está mal aunque el dato haya
     // entrado. Se dice, porque si no nadie lo corrige nunca.
+    if (lectura.cantidadRara) {
+      resultado.avisos.push(
+        `${pestana.nombre}: la columna de cantidad trae ${lectura.cantidadRara} en alguna fila —parece un teléfono o un documento, no unidades—. Los pedidos se contaron igual; las unidades de esas filas quedaron en cero.`,
+      );
+    }
+
     const encabezado = filasDeCsv(csv)[0] ?? [];
     if (encabezado.length > 0 && indiceDeProducto(encabezado) < 0) {
       const comoSeLlama = encabezado[respaldoProducto ?? -1];

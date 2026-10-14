@@ -117,3 +117,40 @@ test("indiceDeProducto acepta los nombres que escribe una persona", () => {
   assert.equal(indiceDeProducto(["FECHA", "TOD"]), -1);
   assert.equal(indiceDeProducto(["FECHA", "VALOR"]), -1);
 });
+
+// ---------------------------------------------------------------------------
+// El teléfono que entró por la columna de cantidad y tumbó dos días de reporte.
+
+test("una cantidad absurda no rompe la escritura: el pedido cuenta, las unidades no", () => {
+  // 593993729291 es un teléfono de Ecuador. Entró por la columna de unidades
+  // cuando el encabezado de la pestaña se corrió, y Postgres rechazó TODA la
+  // escritura: «value out of range for type integer». No entraba ni una fila
+  // de la planilla por culpa de un número de celular.
+  const csv = [
+    "FECHA,PRODUCTO,CANTIDAD,ESTADO",
+    "01/10/2026,GOTAS DE DRENAJE,3,CONFIRMADO",
+    "01/10/2026,GOTAS DE DRENAJE,593993729291,CONFIRMADO",
+    "01/10/2026,GOTAS DE DRENAJE,2,CONFIRMADO",
+  ].join("\n");
+
+  const r = contarPestana(csv);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.filas.length, 1);
+  // Los tres pedidos se cuentan: el control trabaja con pedidos, no unidades.
+  assert.equal(r.filas[0].pedidos, 3);
+  // Las unidades suman solo las creíbles: 3 + 2. El teléfono no entra.
+  assert.equal(r.filas[0].unidades, 5);
+  // Y el número aparece para poder rastrear la columna corrida.
+  assert.equal(r.cantidadRara, 593993729291);
+});
+
+test("una cantidad normal grande sigue entrando", () => {
+  // El tope no puede comerse una venta mayorista de verdad.
+  const csv = ["FECHA,PRODUCTO,CANTIDAD,ESTADO", "01/10/2026,KIT,900,CONFIRMADO"].join("\n");
+  const r = contarPestana(csv);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.filas[0].unidades, 900);
+  assert.equal(r.cantidadRara, undefined);
+});
