@@ -66,3 +66,52 @@ test("la palabra error dentro de una frase no cuenta", () => {
   assert.equal(erroresDelResumen({ notion: "316 actividades, sin errores" }), null);
   assert.equal(erroresDelResumen({ cierres: "248 filas, 0 errores" }), null);
 });
+
+// ---------------------------------------------------------------------------
+// La tira de iconos: dos listas que tienen que decir lo mismo.
+
+test("el orden de la tira es el mismo en el componente y en el script", async () => {
+  // Las veintiuna piezas viven en una sola imagen y cada seccion muestra la
+  // porcion que le toca segun su posicion en el arreglo. El mismo orden esta
+  // escrito en dos archivos: el componente que las pinta y el script que arma
+  // la imagen. Si se separan, cada seccion muestra el icono de OTRA y no falla
+  // nada -- no hay excepcion, no hay 404, solo iconos cambiados que alguien
+  // tiene que notar a ojo.
+  const fs = await import("node:fs/promises");
+  const lista = async (ruta: string) => {
+    const texto = await fs.readFile(ruta, "utf8");
+    const bloque = texto.slice(texto.indexOf("const PIEZAS = ["));
+    const cierre = bloque.indexOf("]");
+    return [...bloque.slice(0, cierre).matchAll(/"([a-z-]+)"/g)].map((m) => m[1]);
+  };
+
+  const enElComponente = await lista("src/app/dashboard/icono-seccion.tsx");
+  const enElScript = await lista("scripts/armar-tira-iconos.ts");
+
+  assert.ok(enElComponente.length >= 20, `se leyeron ${enElComponente.length} piezas`);
+  assert.deepEqual(
+    enElComponente,
+    enElScript,
+    "el orden de PIEZAS se separo entre el componente y el script: cada seccion mostraria el icono de otra",
+  );
+});
+
+test("la tira servida tiene una franja por pieza", async () => {
+  const fs = await import("node:fs/promises");
+  const texto = await fs.readFile("src/app/dashboard/icono-seccion.tsx", "utf8");
+  const bloque = texto.slice(texto.indexOf("const PIEZAS = ["));
+  const cuantas = [...bloque.slice(0, bloque.indexOf("]")).matchAll(/"([a-z-]+)"/g)].length;
+
+  // La imagen es una columna de cuadrados: su alto tiene que ser exactamente
+  // el ancho por la cantidad de piezas. Si no, las porciones salen corridas y
+  // cada icono muestra media pieza.
+  const datos = await fs.readFile("public/iconos/piezas.webp");
+  // Cabecera WebP/VP8L: el tamano vive en los bytes 26 en adelante del bloque
+  // VP8X, o se puede leer del VP8 simple. Se usa el chunk VP8X, que es el que
+  // escribe sharp para imagenes con alfa.
+  const esVP8X = datos.toString("ascii", 12, 16) === "VP8X";
+  assert.ok(esVP8X, "la tira deberia tener alfa (chunk VP8X)");
+  const ancho = (datos.readUIntLE(24, 3) & 0xffffff) + 1;
+  const alto = (datos.readUIntLE(27, 3) & 0xffffff) + 1;
+  assert.equal(alto, ancho * cuantas, `la tira mide ${ancho}x${alto} para ${cuantas} piezas`);
+});
