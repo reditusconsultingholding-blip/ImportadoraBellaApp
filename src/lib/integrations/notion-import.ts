@@ -351,6 +351,16 @@ export type ReporteImport = {
     /** Tareas que ya no existen en Notion y se quitaron. */
     borradas: number;
     /**
+     * Cuántas se iban a quitar y el freno no dejó.
+     *
+     * Sin este número el freno era mudo: si una lectura venía a medias y
+     * quedaban cuarenta tareas fantasma, `borradas` decía 0 —igual que un día
+     * en que no sobraba nada— y nadie se enteraba de que había algo para
+     * mirar. Un freno que no avisa de que freno es indistinguible de uno que
+     * nunca hizo falta.
+     */
+    frenadas: number;
+    /**
      * Qué pasó al buscar las páginas "act …", en una línea.
      *
      * La primera versión corrió en producción y leyó cero actividades sin
@@ -408,6 +418,7 @@ export async function importarNotion(
       basesConDia: 0,
       actividades: 0,
       borradas: 0,
+      frenadas: 0,
       actividadesDiag: "",
     },
     campanas: { manualCreadas: 0, manualActualizadas: 0, vinculadas: 0, sinMatch: 0 },
@@ -736,9 +747,25 @@ export async function importarNotion(
         select: { id: true, notionPageId: true },
       });
       const sobran = enVentana.filter((t) => !vistas.has(t.notionPageId!));
-      if (sobran.length > 0 && sobran.length <= enVentana.length / 3) {
+      // EL FRENO, Y SU EXCEPCIÓN.
+      //
+      // La regla es no borrar más de un tercio de la ventana: si de golpe
+      // sobra la mitad, lo que falló fue la lectura, no es que el equipo haya
+      // vaciado Notion.
+      //
+      // Pero el tercio solo tiene sentido sobre un montón. Con cuatro tareas
+      // en la ventana —una semana floja, un equipo chico— borrar una ya es el
+      // 25 % y borrar dos ya está frenado, así que esas dos se quedaban de
+      // fantasma para siempre: la ventana nunca crece lo suficiente como para
+      // que el tercio las deje pasar. Hasta tres se borran igual, que es un
+      // número que nadie borra por accidente y que no puede ser una lectura
+      // rota.
+      const tope = Math.max(3, Math.floor(enVentana.length / 3));
+      if (sobran.length > 0 && sobran.length <= tope) {
         await db.tareaDiaria.deleteMany({ where: { id: { in: sobran.map((t) => t.id) } } });
         reporte.tareas.borradas = sobran.length;
+      } else if (sobran.length > tope) {
+        reporte.tareas.frenadas = sobran.length;
       }
     }
 
@@ -880,6 +907,9 @@ export async function sincronizarNotion(organizationId: string) {
   try {
     const r = await importarNotion(organizationId, { dryRun: false });
     let detalle = `${r.tareas.creadas} nuevas, ${r.tareas.actualizadas} actualizadas, ${r.tareas.borradas} quitadas, ${r.tareas.basesLeidas} bases (${r.tareas.basesConDia} con fecha del calendario), ${r.tareas.actividades} actividades${r.tareas.actividadesDiag ? ` [${r.tareas.actividadesDiag}]` : ""}`;
+    if (r.tareas.frenadas > 0) {
+      detalle += ` · OJO: ${r.tareas.frenadas} tareas ya no están en Notion y NO se quitaron (serían demasiadas de golpe: puede ser una lectura a medias). Revisá la conexión antes de confiar en el tablero.`;
+    }
 
     // Y quién lleva cada producto, desde PRODUCTOS ORDEN. Va en la misma
     // pasada porque es la misma conexión y el mismo ritmo: lo que Emilia

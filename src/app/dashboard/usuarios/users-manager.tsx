@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PasswordInput from "@/components/password-input";
+import { claveSugerida } from "@/lib/clave-sugerida";
 import { useRouter } from "next/navigation";
 
 type UserRow = {
@@ -84,6 +85,16 @@ export default function UsersManager({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /**
+   * Los datos del último que se dio de alta, para poder pasárselos.
+   *
+   * Antes el formulario se cerraba y la contraseña se perdía: quien daba el
+   * alta tenía que acordarse de lo que acababa de escribir, o resetearla. Acá
+   * quedan a la vista hasta que se cierran a mano, con un botón que los copia
+   * listos para pegar en el chat.
+   */
+  const [recienCreado, setRecienCreado] = useState<{ email: string; clave: string } | null>(null);
+  const [copiado, setCopiado] = useState(false);
   const [role, setRole] = useState<string>("EDITOR");
   const [authCode, setAuthCode] = useState("");
 
@@ -129,6 +140,8 @@ export default function UsersManager({
       return;
     }
 
+    setRecienCreado({ email, clave: password });
+    setCopiado(false);
     setName("");
     setEmail("");
     setPassword("");
@@ -208,6 +221,59 @@ export default function UsersManager({
         <p className="text-sm text-good bg-good-bg border border-good/25 rounded px-3 py-2">
           {notice}
         </p>
+      )}
+
+      {/* LOS DATOS DE ACCESO DEL QUE ACABA DE ENTRAR.
+          //
+          // Antes el formulario se cerraba y la contraseña se perdía: quien
+          // daba el alta tenía que acordarse de lo que acababa de escribir para
+          // podérsela pasar, o resetearla al rato. Acá quedan hasta que se
+          // cierran a mano, y el botón los deja listos para pegar en el chat.
+          //
+          // No se guardan en ningún lado ni se vuelven a mostrar: viven en esta
+          // pantalla, en este momento. Al recargar ya no están, que es lo que
+          // corresponde con una contraseña. */}
+      {recienCreado && (
+        <div className="rounded border border-accent bg-good-bg px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-accent-strong">
+                Cuenta creada. Pásale estos datos para que entre.
+              </p>
+              <p className="mt-2 font-mono text-[13px] break-all text-foreground">
+                {recienCreado.email}
+              </p>
+              <p className="font-mono text-[13px] break-all text-foreground">
+                {recienCreado.clave}
+              </p>
+              <p className="mt-2 text-[11px] text-muted">
+                Esta contraseña no se vuelve a mostrar. Si se pierde, se cambia desde «Editar».
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const texto = `Entrá a Jarvis en https://jarvisecom.com\n\nCorreo: ${recienCreado.email}\nContraseña: ${recienCreado.clave}\n\nCambiala por una tuya desde Configuraciones.`;
+                  navigator.clipboard
+                    .writeText(texto)
+                    .then(() => setCopiado(true))
+                    .catch(() => setCopiado(false));
+                }}
+                className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-strong"
+              >
+                {copiado ? "Copiado" : "Copiar los datos"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecienCreado(null)}
+                className="text-xs text-muted transition hover:text-foreground"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="bg-surface border border-border rounded overflow-hidden">
@@ -425,7 +491,19 @@ export default function UsersManager({
               />
             </label>
             <label className="block">
-              <span className={labelClass}>Contraseña</span>
+              <span className="mb-1 flex items-baseline justify-between gap-2">
+                <span className={labelClass}>Contraseña</span>
+                {/* Inventar una clave con alguien esperando siempre termina en
+                    el nombre de la empresa y un número. Esto arma una que no se
+                    puede adivinar y que igual se puede dictar por teléfono. */}
+                <button
+                  type="button"
+                  onClick={() => setPassword(claveSugerida())}
+                  className="text-[11px] font-medium text-accent-strong underline-offset-2 hover:underline"
+                >
+                  Generar una segura
+                </button>
+              </span>
               <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}

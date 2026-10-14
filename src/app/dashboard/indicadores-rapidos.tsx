@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { RitmoVentas } from "@/lib/ritmo-ventas";
 
 // La tira de arriba del panel: lo que se mira primero, sin bajar.
@@ -30,15 +31,26 @@ function Dato({
   nota,
   acento,
   tono,
+  orden = 0,
+  viva,
 }: {
   etiqueta: string;
   valor: string;
   nota?: string;
   acento?: boolean;
   tono?: "bien" | "mal";
+  /** Su lugar en la cascada de entrada. */
+  orden?: number;
+  /** Si el número cambia solo mientras alguien mira. Enciende el latido. */
+  viva?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
+    <div
+      className={`tarjeta-panel relative min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 ${
+        viva ? "tarjeta-viva" : ""
+      }`}
+      style={{ "--orden": orden } as CSSProperties}
+    >
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{etiqueta}</p>
       <p
         className={`mt-0.5 truncate text-[19px] font-semibold tabular-nums ${
@@ -134,11 +146,14 @@ export default function IndicadoresRapidos({
                 : periodo
           }
           acento
+          orden={0}
+          viva
         />
         <Dato
           etiqueta="Ventas por hora"
           valor={ritmo.porHoraPromedio.toFixed(1)}
           nota="promedio del período"
+          orden={1}
         />
         {verCifras && (
           <Dato
@@ -152,6 +167,7 @@ export default function IndicadoresRapidos({
                 : "gasto ÷ todas las ventas"
             }
             tono={cpaObjetivo != null && cpa > 0 ? (cpa > cpaObjetivo ? "mal" : "bien") : undefined}
+            orden={2}
           />
         )}
         {verCifras && (
@@ -159,6 +175,7 @@ export default function IndicadoresRapidos({
             etiqueta="Meta"
             valor={money0(meta.spend)}
             nota={cpaMeta ? `CPA ${money2(cpaMeta)} · ${numero(meta.purchases)} compras` : "sin compras atribuidas"}
+            orden={3}
           />
         )}
         {verCifras && (
@@ -166,6 +183,7 @@ export default function IndicadoresRapidos({
             etiqueta="TikTok"
             valor={money0(tiktok.spend)}
             nota={cpaTiktok ? `CPA ${money2(cpaTiktok)} · ${numero(tiktok.purchases)} compras` : "sin compras atribuidas"}
+            orden={4}
           />
         )}
         {!verCifras && pico && <Dato etiqueta="Hora pico" valor={franja(pico.hora)} nota={`${numero(pico.ordenes)} ventas`} />}

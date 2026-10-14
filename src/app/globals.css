@@ -713,6 +713,64 @@ button:active > .icono-seccion {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Las tarjetas del panel.                                              */
+/*                                                                      */
+/* Tres cosas, en orden de cuanto se notan:                             */
+/*                                                                      */
+/* La CASCADA al entrar. Las cinco aparecen una tras otra, 45 ms entre  */
+/* cada una. No es adorno: el ojo sigue el orden en que entran y        */
+/* aprende a leerlas de izquierda a derecha --ventas, ritmo, CPA,       */
+/* Meta, TikTok-- en vez de encontrarse cinco numeros de golpe. Una     */
+/* sola vez, al cargar; no se repite al cambiar de periodo.             */
+/*                                                                      */
+/* El REALCE al pasar: se levanta un pixel y el borde toma el verde.    */
+/* Dice "esto es una pieza", no "esto es un recuadro pintado".          */
+/*                                                                      */
+/* El PULSO de la tarjeta viva. Solo la lleva la que cambia sola        */
+/* mientras alguien mira --las ventas de hoy, que entran cada dos       */
+/* minutos--. Es un halo verde que respira muy despacio por debajo del  */
+/* borde. Ponerselo a las cinco seria ruido; en una sola, informa.      */
+/* ------------------------------------------------------------------ */
+@keyframes tarjeta-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tarjeta-late {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(0 128 96 / 0.26);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgb(0 128 96 / 0);
+  }
+}
+.tarjeta-panel {
+  animation: tarjeta-entra 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--orden, 0) * 45ms);
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.18s ease-out,
+    border-color 0.18s ease-out;
+}
+.tarjeta-panel:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.07);
+}
+/* El latido va en un hijo y no en la tarjeta: la tarjeta ya usa su
+   `box-shadow` para el realce del cursor, y dos animaciones peleando por la
+   misma propiedad se pisan. */
+.tarjeta-viva {
+  animation: tarjeta-late 3.2s ease-out infinite;
+}
+
 .encabezado-resplandor {
   animation: respirar 14s ease-in-out infinite;
 }
@@ -728,9 +786,14 @@ button:active > .icono-seccion {
   .animate-\[latir_1\.4s_ease-in-out_infinite\],
   .animate-\[pulso-carga_2\.2s_ease-out_infinite\],
   .icono-pulso,
+  .tarjeta-panel,
+  .tarjeta-viva,
   .encabezado-resplandor,
   .encabezado-entrada {
     animation: none;
+  }
+  .tarjeta-panel:hover {
+    transform: none;
   }
   .barra-con-transicion {
     transition: none;

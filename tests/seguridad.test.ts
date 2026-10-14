@@ -1,6 +1,7 @@
 // Regresión de las defensas de la auditoría de seguridad.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { claveSugerida } from "@/lib/clave-sugerida";
 import { cifrar, descifrar, estaCifrado, necesitaRecifrar } from "@/lib/cifrado";
 import { normalizeShopDomain, ShopifyDominioInvalido } from "@/lib/integrations/shopify";
 import { urlSegura } from "@/lib/url-segura";
@@ -56,4 +57,44 @@ test("límite de frecuencia: corta después del máximo", () => {
 
 test("los errores no arrastran la api_key", () => {
   assert.equal(sinSecretos("GET /facebook?api_key=abc123&fields=x"), "GET /facebook?api_key=***&fields=x");
+});
+
+// ---------------------------------------------------------------------------
+// La contraseña que la app propone al dar de alta a alguien.
+
+test("la clave sugerida no repite ni usa caracteres que se confunden", () => {
+  const vistas = new Set<string>();
+  for (let i = 0; i < 200; i++) {
+    const c = claveSugerida();
+    // Cuatro grupos de seis, separados por guiones: se puede dictar.
+    assert.match(c, /^[A-Za-z0-9]{6}(-[A-Za-z0-9]{6}){3}$/, c);
+    // Nada de l, I, O, 0 ni 1: son los pares que se confunden al leerla de una
+    // pantalla o al dictarla por teléfono.
+    assert.ok(!/[lIO01]/.test(c), `tiene un carácter ambiguo: ${c}`);
+    assert.ok(!vistas.has(c), "se repitió una clave");
+    vistas.add(c);
+  }
+  assert.equal(vistas.size, 200);
+});
+
+test("la clave sugerida usa todo el alfabeto, no un rincón", () => {
+  // Con sesgo en el azar —el error clásico de `% tope` sobre un byte— las
+  // primeras letras del alfabeto salen más seguido. Sobre 400 claves de 24
+  // caracteres son casi 10.000 tiradas: si el reparto fuera parejo cada una de
+  // las 56 letras aparece unas 170 veces. Se exige que ninguna quede por
+  // debajo de la mitad de eso, que es holgado para el azar y estrecho para un
+  // sesgo real.
+  const cuenta = new Map<string, number>();
+  for (let i = 0; i < 400; i++) {
+    for (const ch of claveSugerida().replace(/-/g, "")) {
+      cuenta.set(ch, (cuenta.get(ch) ?? 0) + 1);
+    }
+  }
+  const total = [...cuenta.values()].reduce((a, b) => a + b, 0);
+  const esperado = total / cuenta.size;
+  for (const [ch, n] of cuenta) {
+    assert.ok(n > esperado / 2, `la letra ${ch} sale muy poco: ${n} contra ${Math.round(esperado)}`);
+  }
+  // Y que estén casi todas: 56 posibles, se aceptan 50 por el azar.
+  assert.ok(cuenta.size >= 50, `solo salieron ${cuenta.size} caracteres distintos`);
 });
