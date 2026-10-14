@@ -91,21 +91,52 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-surface border border-border rounded shadow-lg z-20 max-h-96 overflow-y-auto">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="absolute right-0 z-20 mt-2 max-h-96 w-[21rem] overflow-y-auto overflow-x-hidden rounded-lg border border-white/10 bg-brand-navy shadow-[0_12px_32px_rgb(0_0_0/0.35)]">
+          {/* La rejilla del fondo, la misma del contador de datos y del
+              arranque del día. Las tres son piezas que se abren sobre el
+              trabajo y cuentan el estado de algo: comparten lenguaje a
+              propósito, para que se reconozcan entre sí. */}
+          <span
+            aria-hidden
+            className="pointer-events-none sticky top-0 block h-0 opacity-[0.16]"
+          >
+            <span
+              className="absolute left-0 top-0 block h-40 w-full"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgb(0 164 124 / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(0 164 124 / 0.5) 1px, transparent 1px)",
+                backgroundSize: "26px 26px",
+                maskImage: "radial-gradient(90% 100% at 80% 0%, #000 0%, transparent 75%)",
+                WebkitMaskImage: "radial-gradient(90% 100% at 80% 0%, #000 0%, transparent 75%)",
+              }}
+            />
+          </span>
+
+          {/* El encabezado se queda arriba al desplazar: con mil notificaciones
+              sin leer, "Marcar todo leído" quedaba a mil filas de distancia. */}
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-brand-navy/95 px-4 py-3 backdrop-blur-sm">
             {/* El mismo número que muestra el centro de notificaciones: los dos
                 cuentan TODAS las sin leer, sin recorte por fecha. */}
-            <p className="font-mono text-xs uppercase tracking-wide text-muted">
-              {unreadCount > 0 ? `${unreadCount} sin leer` : "Notificaciones"}
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-white/70">
+              {unreadCount > 0 ? (
+                <>
+                  <span className="text-brand-green">{unreadCount}</span> sin leer
+                </>
+              ) : (
+                "Notificaciones"
+              )}
             </p>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-xs text-accent hover:underline">
+              <button
+                onClick={markAllRead}
+                className="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-white/70 transition hover:border-brand-green hover:text-white"
+              >
                 Marcar todo leído
               </button>
             )}
           </div>
           {items.length === 0 ? (
-            <p className="px-4 py-6 text-xs text-muted text-center">No hay notificaciones.</p>
+            <p className="px-4 py-6 text-center text-xs text-white/45">No hay notificaciones.</p>
           ) : (
             items.map((n) => {
               // Misma lectura de urgencia que el centro de notificaciones, y
@@ -116,18 +147,29 @@ export default function NotificationsBell() {
                 <button
                   key={n.id}
                   onClick={() => openNotification(n)}
-                  className={`w-full text-left px-4 py-3 border-b border-l-2 border-border last:border-b-0 hover:bg-surface-2 transition ${
-                    nivel.borde
-                  } ${n.read ? "" : "bg-accent/5"}`}
+                  className={`relative w-full border-b border-white/[0.07] px-4 py-3 text-left transition last:border-b-0 hover:bg-white/[0.05] ${
+                    n.read ? "" : "bg-white/[0.03]"
+                  }`}
                 >
-                  <p className="flex items-center gap-1.5 mb-1">
-                    <span className={`font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${nivel.chip}`}>
+                  {/* El filo de color del nivel. Va como elemento y no como
+                      `border-left`: así llega de borde a borde de la fila sin
+                      dejar la muesca que deja un borde contra el redondeado. */}
+                  <span
+                    aria-hidden
+                    className={`absolute inset-y-0 left-0 w-[3px] ${nivel.filoOscuro}`}
+                  />
+                  <p className="mb-1 flex items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ${nivel.chipOscuro}`}
+                    >
                       {nivel.label}
                     </span>
-                    <span className="font-mono text-[9px] uppercase tracking-wide text-muted">{etiquetaDe(n)}</span>
+                    <span className="font-mono text-[9px] uppercase tracking-wide text-white/35">
+                      {etiquetaDe(n)}
+                    </span>
                   </p>
-                  <span className="text-xs block">{n.message}</span>
-                  <span className="text-[10px] text-muted mt-1 font-mono block">
+                  <span className="block text-xs leading-relaxed text-white/85">{n.message}</span>
+                  <span className="mt-1 block font-mono text-[10px] text-white/35">
                     {new Date(n.createdAt).toLocaleString("es-EC", {
                       day: "2-digit",
                       month: "short",
@@ -142,7 +184,7 @@ export default function NotificationsBell() {
           <a
             href="/dashboard/notificaciones"
             onClick={() => setOpen(false)}
-            className="block text-center text-xs text-accent hover:underline px-4 py-3 border-t border-border"
+            className="sticky bottom-0 block border-t border-white/10 bg-brand-navy/95 px-4 py-3 text-center font-mono text-[11px] uppercase tracking-[0.1em] text-brand-green backdrop-blur-sm transition hover:text-white"
           >
             Ver el centro de notificaciones
           </a>

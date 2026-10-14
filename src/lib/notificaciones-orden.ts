@@ -127,6 +127,19 @@ export type Nivel = {
   ayuda: string;
   /** Color Y palabra: el color solo no se lee de un vistazo ni se imprime. */
   chip: string;
+  /**
+   * El mismo chip, para fondos oscuros.
+   *
+   * El panel de la campana pasó a fondo navy y los colores de arriba están
+   * pensados para tarjeta blanca: `bg-critical-bg` es un rosa muy claro que
+   * sobre el navy se lee como un parche, y `text-muted` directamente
+   * desaparece. Son los mismos tres niveles, con los tonos aclarados que la
+   * app ya define para fondo oscuro (ver globals.css: `--critical-claro`,
+   * `--warning-claro`).
+   */
+  chipOscuro: string;
+  /** El filo de color de la fila, en el panel oscuro. */
+  filoOscuro: string;
   borde: string;
   /** Para frases: "Nada urgente en los últimos 7 días". */
   neutro: string;
@@ -138,6 +151,8 @@ export const NIVELES: Nivel[] = [
     label: "Urgente",
     ayuda: "Se está yendo plata o alguien espera una respuesta",
     chip: "bg-critical-bg text-critical",
+    chipOscuro: "bg-[color:var(--critical-claro)]/15 text-[color:var(--critical-claro)]",
+    filoOscuro: "bg-[color:var(--critical-claro)]",
     borde: "border-l-critical",
     neutro: "urgente",
   },
@@ -146,6 +161,8 @@ export const NIVELES: Nivel[] = [
     label: "Importante",
     ayuda: "Cuesta plata, pero no en la próxima hora",
     chip: "bg-surface-2 text-warning",
+    chipOscuro: "bg-[color:var(--warning-claro)]/15 text-[color:var(--warning-claro)]",
+    filoOscuro: "bg-[color:var(--warning-claro)]",
     borde: "border-l-warning",
     neutro: "importante",
   },
@@ -154,6 +171,8 @@ export const NIVELES: Nivel[] = [
     label: "Informativo",
     ayuda: "Conviene saberlo, no cambia lo de hoy",
     chip: "bg-surface-2 text-muted",
+    chipOscuro: "bg-white/10 text-white/60",
+    filoOscuro: "bg-white/20",
     borde: "border-l-border",
     neutro: "informativo",
   },

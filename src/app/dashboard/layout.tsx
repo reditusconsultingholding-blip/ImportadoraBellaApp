@@ -23,6 +23,7 @@ import RegistroBusquedas from "./registro-busquedas";
 import SidebarNav from "./sidebar-nav";
 import BarraLateral from "./barra-lateral";
 import ArranqueDelDia from "./arranque-del-dia";
+import FirmaDescifrada from "./firma-descifrada";
 import NotificationsBell from "./notifications-bell";
 import MobileNav from "./mobile-nav";
 import AvisoLlamada from "./chat/aviso-llamada";
@@ -87,8 +88,8 @@ export default async function DashboardLayout({
         <span className="block text-[19px] font-semibold leading-tight tracking-tight text-white">
           Importadora Bella
         </span>
-        <span className="mt-0.5 block text-[11px] leading-none text-white/45">
-          by Reditus Developers
+        <span className="mt-0.5 block text-[11px] leading-none">
+          <FirmaDescifrada texto="by Reditus Developers" />
         </span>
       </span>
     </>
