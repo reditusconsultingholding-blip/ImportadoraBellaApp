@@ -22,6 +22,48 @@ import type { CSSProperties } from "react";
 
 export type TonoIcono = "oscuro" | "claro";
 
+/**
+ * El orden de las piezas dentro de la tira.
+ *
+ * Las veintiuna viven en una sola imagen —`piezas.webp`, 80 × 1680— y cada una
+ * se muestra corriendo el fondo hacia arriba: la número N va en `-N × tamaño`
+ * píxeles. El índice de este arreglo ES esa posición.
+ *
+ * POR QUÉ UNA SOLA IMAGEN. Veintiún archivos de dos kilobytes son veintiuna
+ * peticiones, y eso tiene un piso que no se baja comprimiendo: medido en vivo,
+ * la última llegaba seiscientos milisegundos después de que la pantalla
+ * estuviera lista. Una petición de 38 KB llega entera o no llega.
+ *
+ * ESTE ORDEN ESTÁ TAMBIÉN EN `scripts/armar-tira-iconos.cjs`, y los dos tienen
+ * que decir lo mismo: si se separan, cada sección muestra el ícono de otra sin
+ * que falle nada. Por eso el script imprime la lista al terminar. Las piezas
+ * nuevas se agregan AL FINAL —meter una al medio corre todas las de abajo— y
+ * después se vuelve a correr el script.
+ */
+const PIEZAS = [
+  "panel",
+  "ceo",
+  "contenido",
+  "productos",
+  "sin-nomenclatura",
+  "control",
+  "rentabilidad",
+  "clientes",
+  "origen",
+  "calculadora",
+  "pagos",
+  "reportes",
+  "logistica",
+  "nomina",
+  "chat",
+  "notificaciones",
+  "jarvis",
+  "conexiones",
+  "configuracion",
+  "usuarios",
+  "desempeno",
+] as const;
+
 export function IconoSeccion({
   nombre,
   tono = "oscuro",
@@ -29,7 +71,7 @@ export function IconoSeccion({
   activo = false,
   className = "",
 }: {
-  /** El archivo en /public/iconos, sin extensión. */
+  /** Cuál de las piezas de la tira. Ver `PIEZAS`. */
   nombre: string;
   /** Sobre qué fondo se va a ver. Decide si lleva chip claro detrás. */
   tono?: TonoIcono;
@@ -52,6 +94,7 @@ export function IconoSeccion({
   // que el fondo verde se come, que es para lo único que está.
   const marco = tono === "oscuro" ? Math.round(tamano * 1.14) : tamano;
   const estilo: CSSProperties = { width: marco, height: marco };
+  const indice = (PIEZAS as readonly string[]).indexOf(nombre);
 
   return (
     <span
@@ -71,57 +114,37 @@ export function IconoSeccion({
           className="icono-pulso pointer-events-none absolute -inset-1 rounded-[30%] border border-brand-green"
         />
       )}
-      {/* EL BLANCO DE LA PRIMERA CARGA.
+      {/* LA PIEZA ES UN FONDO, NO UNA IMAGEN SUELTA.
           //
-          // Sebastián: "los iconos se quedan en blanco y después aparecen". El
-          // chip se pinta con el HTML y la pieza llega después, así que por un
-          // momento el menú es una columna de cuadritos vacíos.
+          // Las veintiuna están en un solo archivo y acá se muestra la porción
+          // que toca, corriendo el fondo hacia arriba. Una petición en vez de
+          // veintiuna.
           //
-          // Dos cosas lo arreglan, y ninguna es un truco: las piezas pasaron de
-          // 128 a 80 píxeles --se muestran a 20 y a 34, así que 80 alcanza aun
-          // en pantallas de densidad doble-- y de PNG a WebP, que con
-          // transparencia pesa cuatro veces menos: el conjunto bajó de 438 KB a
-          // 47. Con PNG la última pieza seguía llegando 880 ms después de que
-          // la pantalla estuviera lista, porque son diecinueve peticiones
-          // compitiendo. Y se le dice al navegador que no las deje para el
-          // final:
-          // `fetchPriority` alta y decodificación inmediata, porque son lo
-          // primero que se ve y pesan diez kilobytes. */}
-      {/* EL CUADRO VERDE DEBAJO DE LA PIEZA.
+          // EL DEGRADADO VERDE VA DEBAJO, Y SIGUE HACIENDO FALTA. Aunque ahora
+          // sea una sola petición, sigue habiendo un momento sin ella: lo que
+          // molestaba no era que la pieza tardara sino que mientras tanto se
+          // viera BLANCO. Con el verde debajo se ve un cuadrito verde —que es
+          // como se ve una pieza sin su objeto— y cuando la tira llega, la
+          // tapa. El salto deja de existir aunque la espera siga ahí.
           //
-          // Reducir el peso ayudó --de 438 KB a 47, y la espera de 880 ms a
-          // 600-- pero no borra el síntoma: lo que molesta no es que la pieza
-          // tarde, es que mientras tanto se ve BLANCO. Son diecinueve
-          // peticiones, y por rápidas que sean hay un momento con los chips
-          // vacíos.
-          //
-          // Esto pinta debajo el mismo degradado verde que tienen las piezas,
-          // del mismo tamaño y con el mismo radio. Mientras la imagen viaja se
-          // ve un cuadrito verde --que es como se ve una pieza sin su objeto--
-          // y cuando llega, la tapa. El salto deja de existir aunque la espera
-          // siga ahí: no hay nada que esperar que se note. */}
+          // Un nombre que no esté en la tira no pinta ninguna porción: se
+          // queda en el cuadro verde, que es un degradado de la marca y no un
+          // hueco. Es lo que corresponde para algo que se agregó a medias. */}
       <span
         aria-hidden
-        className="absolute rounded-[28%]"
+        className="relative block rounded-[28%]"
         style={{
           width: tamano,
           height: tamano,
           background: "linear-gradient(135deg, #00b98b 0%, #00a47c 55%, #00674f 100%)",
+          backgroundImage:
+            indice >= 0
+              ? `url(/iconos/piezas.webp), linear-gradient(135deg, #00b98b 0%, #00a47c 55%, #00674f 100%)`
+              : undefined,
+          backgroundSize: indice >= 0 ? `${tamano}px ${tamano * PIEZAS.length}px, 100% 100%` : undefined,
+          backgroundPosition: indice >= 0 ? `0 ${-tamano * indice}px, 0 0` : undefined,
+          backgroundRepeat: "no-repeat",
         }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/iconos/${nombre}.webp`}
-        alt=""
-        aria-hidden
-        draggable={false}
-        loading="eager"
-        decoding="sync"
-        fetchPriority="high"
-        width={tamano}
-        height={tamano}
-        className="icono-pieza relative select-none rounded-[28%]"
-        style={{ width: tamano, height: tamano }}
       />
     </span>
   );
