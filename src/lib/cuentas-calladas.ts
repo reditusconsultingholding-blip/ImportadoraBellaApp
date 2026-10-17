@@ -131,8 +131,10 @@ export function avisoDeCuentasCalladas(estados: EstadoDeCuenta[], platform?: Pla
   const detalle = calladas
     .map((c) => `${c.nombre} (sin datos desde ${c.ultimoDia}, ${c.diasSinDatos} días)`)
     .join("; ");
+  const una = calladas.length === 1;
   return (
-    `${calladas.length} cuenta${calladas.length === 1 ? "" : "s"} dejó de entregar datos aunque venía gastando: ` +
-    `${detalle}. Windsor responde bien para las demás, así que hay que revisar esa conexión en Windsor.ai.`
+    `${calladas.length} cuenta${una ? "" : "s"} ${una ? "dejó" : "dejaron"} de entregar datos aunque ` +
+    `${una ? "venía" : "venían"} gastando: ${detalle}. Windsor responde bien para las demás, así que hay que ` +
+    `revisar esa conexión en Windsor.ai.`
   );
 }
