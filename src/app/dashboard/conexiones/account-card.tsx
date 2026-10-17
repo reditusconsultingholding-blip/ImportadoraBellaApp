@@ -8,6 +8,14 @@ const PLATFORM_LABEL: Record<string, string> = {
   TIKTOK: "TikTok",
 };
 
+/** «2026-10-16» como «16 oct». Se arma a mano: `new Date("2026-10-16")` lo lee
+    como medianoche UTC, y en Ecuador eso es el día anterior a las 7 de la tarde. */
+function fechaCorta(dia: string) {
+  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const [, mes, d] = dia.split("-");
+  return `${Number(d)} ${MESES[Number(mes) - 1] ?? mes}`;
+}
+
 const ID_LABEL: Record<string, string> = {
   META: "Ad Account ID (ej. act_1234567890)",
   TIKTOK: "Advertiser ID",
@@ -19,12 +27,20 @@ export default function AccountCard({
   name,
   externalId,
   connected,
+  ultimoDia,
+  diasSinDatos,
+  callada,
 }: {
   id: string;
   platform: string;
   name: string;
   externalId: string;
   connected: boolean;
+  /** El último día del que llegaron números (YYYY-MM-DD). */
+  ultimoDia: string | null;
+  diasSinDatos: number | null;
+  /** Venía gastando y dejó de entregar datos. */
+  callada: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!connected);
@@ -66,10 +82,15 @@ export default function AccountCard({
     const res = await fetch(`/api/accounts/${id}/sync`, { method: "POST" });
     const data = await res.json();
     setBusy(false);
+    // El servidor contesta si ESTA cuenta vino en la respuesta de Windsor, y
+    // ese es el dato que importa: «sincronizado» a secas, con una cuenta que
+    // Windsor dejó de entregar, es la respuesta que hace perder la tarde.
     setMessage(
-      res.ok
-        ? { type: "ok", text: "Sincronizado." }
-        : { type: "error", text: data.error ?? "Falló la sincronización." }
+      !res.ok
+        ? { type: "error", text: data.error ?? "Falló la sincronización." }
+        : data.vino === false
+          ? { type: "error", text: data.mensaje }
+          : { type: "ok", text: data.mensaje ?? "Sincronizado." }
     );
     router.refresh();
   }
@@ -95,14 +116,41 @@ export default function AccountCard({
           <p className="font-medium">{name}</p>
           <p className="text-xs text-muted">{PLATFORM_LABEL[platform] ?? platform}</p>
         </div>
+        {/* EL ESTADO ES CUANDO LLEGARON LOS ULTIMOS NUMEROS, NO SI ALGUIEN
+            LA DIO DE ALTA.
+            //
+            // «Conectada» solo quería decir que la cuenta existe en la lista.
+            // El 16 de octubre cuatro cuentas de Meta llevaban días sin
+            // entregar una sola fila —una de ellas la que más gastaba— y las
+            // doce mostraban el mismo cartel verde. Esta es la pantalla a la
+            // que uno viene a comprobar justamente eso. */}
         <span
-          className={`font-mono text-xs px-2 py-1 rounded ${
-            connected ? "bg-good-bg text-good" : "bg-pending-bg text-muted"
+          className={`font-mono text-xs px-2 py-1 rounded text-right ${
+            callada
+              ? "bg-critical-bg text-critical"
+              : ultimoDia
+                ? "bg-good-bg text-good"
+                : "bg-pending-bg text-muted"
           }`}
+          title={ultimoDia ? `Último día con números: ${ultimoDia}` : undefined}
         >
-          {connected ? "Conectada" : "Pendiente"}
+          {callada
+            ? `Sin datos hace ${diasSinDatos} días`
+            : ultimoDia
+              ? `Al día · ${fechaCorta(ultimoDia)}`
+              : connected
+                ? "Nunca trajo datos"
+                : "Pendiente"}
         </span>
       </div>
+
+      {callada && (
+        <p className="mt-3 text-xs leading-relaxed text-critical">
+          Venía gastando y dejó de entregar números. La cuenta sigue corriendo en la plataforma; lo que se
+          cortó es lo que Windsor nos manda. Hay que reconectarla en Windsor.ai —el panel la muestra
+          incompleta hasta que vuelva.
+        </p>
+      )}
 
       {connected && !open && (
         <div className="flex gap-2 mt-4">

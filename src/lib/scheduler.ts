@@ -6,6 +6,7 @@ import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
 import { hasWindsorKey, intervaloDeWindsor, type WindsorConnector } from "@/lib/integrations/windsor";
+import { avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/cuentas-calladas";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
@@ -264,11 +265,35 @@ export async function sincronizarRapido() {
             const r = await traerPauta(org.id, conector);
             if (r.cambiados > 0) cambio = true;
             await anotarFrescura(org.id, conector, r.cambiados > 0);
-            anotar(
-              conector,
-              `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`,
+            const hecho = `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
+
+            // UNA RESPUESTA VÁLIDA CON UNA CUENTA DE MENOS NO ES UNA
+            // RESPUESTA VÁLIDA.
+            //
+            // Windsor puede contestar perfecto y traer siete cuentas de diez.
+            // La llamada no falla, el conector queda en verde y el panel
+            // calcula con un tercio del gasto de Meta afuera. Pasó: CP1 Top
+            // Ventas, la cuenta que más gastaba —$437 el último día—, estuvo
+            // cuatro días sin entregar una sola fila y el tablero no dijo
+            // nada. Lo encontró Emilia mirando un producto que marcaba una
+            // compra cuando el administrador de anuncios marcaba veintidós.
+            //
+            // Por eso se revisa en cada vuelta, y una cuenta viva que se calló
+            // deja el conector en ROJO: esto no se arregla solo, alguien tiene
+            // que ir a Windsor a reconectarla. El texto empieza con «error:»
+            // porque es lo que mira `erroresDelResumen` para el correo y para
+            // el estado de los dos relojes.
+            const aviso = avisoDeCuentasCalladas(
+              await estadoDeLasCuentas(org.id),
+              conector === "facebook" ? "META" : "TIKTOK",
             );
-            await soltarCandado(org.id, conector, { ok: true, detalle: mio[conector] });
+            if (aviso) {
+              anotar(conector, `error: ${aviso} (${hecho})`);
+              await soltarCandado(org.id, conector, { ok: false, error: `${aviso} · ${hecho}` });
+            } else {
+              anotar(conector, hecho);
+              await soltarCandado(org.id, conector, { ok: true, detalle: hecho });
+            }
           } catch (err) {
             const mensaje = err instanceof Error ? err.message : String(err);
             anotar(conector, `error: ${mensaje}`);

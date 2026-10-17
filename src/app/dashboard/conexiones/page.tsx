@@ -10,6 +10,7 @@ import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import CorreoCard from "./correo-card";
 import { emailConfigured, estadoDelCorreo } from "@/lib/email";
+import { estadoDeLasCuentas } from "@/lib/cuentas-calladas";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
@@ -19,11 +20,15 @@ export default async function ConexionesPage() {
   // Esta pantalla guarda los tokens de produccion. Antes solo pedia sesion.
   if (!canManageConexiones(session.role)) redirect("/dashboard");
 
-  const [accounts, shopifyStore, dropiConnection, notionConnection, estadoCorreo] = await Promise.all([
+  const [accounts, estadoCuentas, shopifyStore, dropiConnection, notionConnection, estadoCorreo] = await Promise.all([
     db.adAccount.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
     }),
+    // Cuándo trajo números cada cuenta por última vez. Ver cuentas-calladas.ts:
+    // «Conectada» solo decía que alguien la dio de alta alguna vez, y cuatro
+    // cuentas llevaban días sin entregar una fila con ese mismo cartel verde.
+    estadoDeLasCuentas(session.organizationId),
     db.shopifyStore.findFirst({ where: { organizationId: session.organizationId } }),
     db.dropiConnection.findFirst({ where: { organizationId: session.organizationId } }),
     db.notionConnection.findUnique({ where: { organizationId: session.organizationId } }),
@@ -35,6 +40,7 @@ export default async function ConexionesPage() {
 
   const metaAccounts = accounts.filter((a) => a.platform === "META");
   const tiktokAccounts = accounts.filter((a) => a.platform === "TIKTOK");
+  const estadoPorCuenta = new Map(estadoCuentas.map((e) => [e.id, e]));
 
   return (
     <div className="flex flex-col gap-8 max-w-2xl">
@@ -58,6 +64,9 @@ export default async function ConexionesPage() {
               name={account.name}
               externalId={account.externalId}
               connected={Boolean(account.connectedAt)}
+              ultimoDia={estadoPorCuenta.get(account.id)?.ultimoDia ?? null}
+              diasSinDatos={estadoPorCuenta.get(account.id)?.diasSinDatos ?? null}
+              callada={estadoPorCuenta.get(account.id)?.callada ?? false}
             />
           ))}
           <AddAccountButton platform="META" />
@@ -72,6 +81,9 @@ export default async function ConexionesPage() {
               name={account.name}
               externalId={account.externalId}
               connected={Boolean(account.connectedAt)}
+              ultimoDia={estadoPorCuenta.get(account.id)?.ultimoDia ?? null}
+              diasSinDatos={estadoPorCuenta.get(account.id)?.diasSinDatos ?? null}
+              callada={estadoPorCuenta.get(account.id)?.callada ?? false}
             />
           ))}
           <AddAccountButton platform="TIKTOK" />

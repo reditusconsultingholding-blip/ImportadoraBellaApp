@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { erroresDelResumen } from "@/lib/scheduler";
+import { avisoDeCuentasCalladas, decidirCallada } from "@/lib/cuentas-calladas";
 import { periodoAnterior, periodoQueCierra } from "@/lib/progreso-quincenal";
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -146,4 +147,76 @@ test("toda pieza que el menu o el encabezado piden esta en la tira", async () =>
     (n) => !enLaTira.has(n),
   );
   assert.deepEqual(faltan, [], `estas piezas se piden y no estan en la tira: ${faltan.join(", ")}`);
+});
+
+// ---------------------------------------------------------------------------
+// Cuentas publicitarias que se callan: la alarma que faltaba.
+
+test("una cuenta que venia gastando y dejo de traer datos se marca", () => {
+  // El caso real: CP1 Top Ventas, la que mas gastaba de las doce, gasto $437
+  // el 12 de octubre y no entrego una sola fila mas. El 17 lleva 5 dias.
+  assert.equal(decidirCallada(5, 5), true);
+  // CP3 Top Ventas: ultimo dato y ultimo gasto el 13.
+  assert.equal(decidirCallada(4, 4), true);
+  // CP4 Bellav: dejo de traer el 11, pero su ultimo gasto fue el 7 -- sigue
+  // dentro de la ventana, asi que tambien cuenta.
+  assert.equal(decidirCallada(6, 10), true);
+});
+
+test("una cuenta apagada hace tiempo no es una alarma", () => {
+  // CP5 Bellav: sin datos hace 13 dias, sin gastar hace 19. Nadie la esta
+  // usando; avisar por ella dejaria el tablero rojo para siempre, y un rojo
+  // permanente es un rojo que se ignora.
+  assert.equal(decidirCallada(13, 19), false);
+  // CP3 Mundo Hogar: junio.
+  assert.equal(decidirCallada(136, 143), false);
+  // Cuentas de TikTok que traen filas todos los dias pero hace semanas que no
+  // gastan: traen datos, solo que en cero. No hay nada roto.
+  assert.equal(decidirCallada(1, 26), false);
+  // Una cuenta que nunca gasto no tiene con que comparar.
+  assert.equal(decidirCallada(6, null), false);
+});
+
+test("un dia de atraso no dispara la alarma", () => {
+  // A las doce y cinco de la noche el dia en curso recien empieza: el ultimo
+  // dato es el de ayer y esta todo bien. Si se comparara contra hoy, la
+  // alarma sonaria todas las madrugadas y en una semana nadie la miraria.
+  assert.equal(decidirCallada(1, 1), false);
+  assert.equal(decidirCallada(0, 0), false);
+  assert.equal(decidirCallada(2, 2), true);
+});
+
+test("el aviso nombra las cuentas, no dice solo que hay cuentas", () => {
+  const texto = avisoDeCuentasCalladas(
+    [
+      {
+        id: "a",
+        nombre: "CP1 - Top Ventas",
+        platform: "META",
+        ultimoDia: "2026-10-12",
+        ultimoDiaConGasto: "2026-10-12",
+        diasSinDatos: 5,
+        callada: true,
+      },
+      {
+        id: "b",
+        nombre: "CP2 - Bellav Corp",
+        platform: "META",
+        ultimoDia: "2026-10-16",
+        ultimoDiaConGasto: "2026-10-16",
+        diasSinDatos: 1,
+        callada: false,
+      },
+    ],
+    "META",
+  );
+  // Un "hay cuentas sin datos" obliga a abrir otra pantalla para saber
+  // cuales, y en la practica eso significa que nadie la abre.
+  assert.ok(texto?.includes("CP1 - Top Ventas"), texto ?? "no aviso");
+  assert.ok(!texto?.includes("CP2"), "no deberia nombrar a las sanas");
+  assert.ok(texto?.includes("Windsor"), "tiene que decir donde se arregla");
+});
+
+test("sin cuentas calladas no hay aviso", () => {
+  assert.equal(avisoDeCuentasCalladas([]), null);
 });

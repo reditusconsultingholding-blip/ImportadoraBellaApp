@@ -98,7 +98,7 @@ export async function syncWindsorConnector(
       );
     }
 
-    return { accounts: 0, campaigns: 0, snapshots: 0, cambiados: 0 };
+    return { accounts: 0, campaigns: 0, snapshots: 0, cambiados: 0, cuentas: [] as string[] };
   }
   const products = await db.product.findMany({
     where: { organizationId },
@@ -319,6 +319,11 @@ export async function syncWindsorConnector(
     campaigns: campaignIds.size,
     snapshots,
     cambiados,
+    // Qué cuentas vinieron en ESTA respuesta, por su id de la plataforma.
+    // Lo usa el botón «Sincronizar ahora» para poder contestar algo útil
+    // cuando una cuenta no aparece: la diferencia entre «no hay datos» y
+    // «Windsor contestó bien y esta cuenta no venía» es todo el diagnóstico.
+    cuentas: [...accountIds.keys()],
   };
 }
 
