@@ -10,7 +10,7 @@ import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import CorreoCard from "./correo-card";
 import { emailConfigured, estadoDelCorreo } from "@/lib/email";
-import { estadoDeLasCuentas } from "@/lib/cuentas-calladas";
+import { estadoDeLasCuentas } from "@/lib/salud-cuentas";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
@@ -25,7 +25,7 @@ export default async function ConexionesPage() {
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
     }),
-    // Cuándo trajo números cada cuenta por última vez. Ver cuentas-calladas.ts:
+    // Cuándo trajo números cada cuenta por última vez. Ver salud-cuentas.ts:
     // «Conectada» solo decía que alguien la dio de alta alguna vez, y cuatro
     // cuentas llevaban días sin entregar una fila con ese mismo cartel verde.
     estadoDeLasCuentas(session.organizationId),
@@ -67,6 +67,8 @@ export default async function ConexionesPage() {
               ultimoDia={estadoPorCuenta.get(account.id)?.ultimoDia ?? null}
               diasSinDatos={estadoPorCuenta.get(account.id)?.diasSinDatos ?? null}
               callada={estadoPorCuenta.get(account.id)?.callada ?? false}
+              ciega={estadoPorCuenta.get(account.id)?.ciega ?? false}
+              gasto7d={estadoPorCuenta.get(account.id)?.gasto7d ?? 0}
             />
           ))}
           <AddAccountButton platform="META" />
@@ -84,6 +86,8 @@ export default async function ConexionesPage() {
               ultimoDia={estadoPorCuenta.get(account.id)?.ultimoDia ?? null}
               diasSinDatos={estadoPorCuenta.get(account.id)?.diasSinDatos ?? null}
               callada={estadoPorCuenta.get(account.id)?.callada ?? false}
+              ciega={estadoPorCuenta.get(account.id)?.ciega ?? false}
+              gasto7d={estadoPorCuenta.get(account.id)?.gasto7d ?? 0}
             />
           ))}
           <AddAccountButton platform="TIKTOK" />

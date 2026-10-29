@@ -6,7 +6,7 @@ import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
 import { hasWindsorKey, intervaloDeWindsor, type WindsorConnector } from "@/lib/integrations/windsor";
-import { avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/cuentas-calladas";
+import { avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/salud-cuentas";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { erroresDelResumen } from "@/lib/scheduler";
-import { avisoDeCuentasCalladas, decidirCallada } from "@/lib/cuentas-calladas";
+import { avisoDeCuentasCalladas, decidirCallada, decidirCiega } from "@/lib/salud-cuentas";
 import { periodoAnterior, periodoQueCierra } from "@/lib/progreso-quincenal";
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -197,6 +197,9 @@ test("el aviso nombra las cuentas, no dice solo que hay cuentas", () => {
         ultimoDiaConGasto: "2026-10-12",
         diasSinDatos: 5,
         callada: true,
+        gasto7d: 0,
+        compras7d: 0,
+        ciega: false,
       },
       {
         id: "b",
@@ -206,6 +209,9 @@ test("el aviso nombra las cuentas, no dice solo que hay cuentas", () => {
         ultimoDiaConGasto: "2026-10-16",
         diasSinDatos: 1,
         callada: false,
+        gasto7d: 900,
+        compras7d: 120,
+        ciega: false,
       },
     ],
     "META",
@@ -219,4 +225,47 @@ test("el aviso nombra las cuentas, no dice solo que hay cuentas", () => {
 
 test("sin cuentas calladas no hay aviso", () => {
   assert.equal(avisoDeCuentasCalladas([]), null);
+});
+
+// La segunda falla: la cuenta entrega todo menos ventas.
+
+test("una cuenta que gasta y no registra ninguna compra se marca", () => {
+  // CP2 - Top Ventas, el caso real: $1.517 en siete dias, 31.025 clics y cero
+  // compras. Su gasto entra en el total de Meta y sus ventas no, asi que el
+  // CPA general de la tienda sale peor del que es.
+  assert.equal(decidirCiega(1517, 0, 0), true);
+  assert.equal(decidirCiega(217, 0, 1), true);
+});
+
+test("sin un piso de gasto la alarma seria ruido todos los dias", () => {
+  // Dos dolares de prueba sin ventas no son noticia.
+  assert.equal(decidirCiega(12, 0, 0), false);
+  assert.equal(decidirCiega(49.99, 0, 0), false);
+});
+
+test("una cuenta que vende no se marca, por poco que venda", () => {
+  assert.equal(decidirCiega(2722, 607, 0), false);
+  assert.equal(decidirCiega(1517, 1, 0), false);
+});
+
+test("si la cuenta esta callada el problema es la conexion, no la medicion", () => {
+  // No tiene sentido decir que "no registra compras" algo que hace cinco dias
+  // que no registra NADA: eso ya lo dice la otra alarma, y dos avisos para un
+  // mismo problema es como se consigue que no se lea ninguno.
+  assert.equal(decidirCiega(1517, 0, 5), false);
+  assert.equal(decidirCiega(1517, 0, null), false);
+});
+
+test("el aviso separa las dos fallas, que se arreglan en lugares distintos", () => {
+  const base = { ultimoDia: "2026-10-29", ultimoDiaConGasto: "2026-10-29", platform: "META" as const };
+  const texto = avisoDeCuentasCalladas([
+    { ...base, id: "a", nombre: "CP3 - Top Ventas", ultimoDia: "2026-10-21", diasSinDatos: 8,
+      callada: true, gasto7d: 0, compras7d: 0, ciega: false },
+    { ...base, id: "b", nombre: "CP2 - Top Ventas", diasSinDatos: 0,
+      callada: false, gasto7d: 1517, compras7d: 0, ciega: true },
+  ]);
+  assert.ok(texto?.includes("CP3 - Top Ventas"), texto ?? "no aviso");
+  assert.ok(texto?.includes("CP2 - Top Ventas"), texto ?? "no aviso");
+  assert.ok(texto?.includes("Windsor"), "la callada se arregla en Windsor");
+  assert.ok(texto?.includes("píxel"), "la ciega se arregla en la cuenta de Meta");
 });

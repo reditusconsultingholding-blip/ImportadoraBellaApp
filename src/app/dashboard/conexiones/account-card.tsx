@@ -30,6 +30,8 @@ export default function AccountCard({
   ultimoDia,
   diasSinDatos,
   callada,
+  ciega,
+  gasto7d,
 }: {
   id: string;
   platform: string;
@@ -41,6 +43,9 @@ export default function AccountCard({
   diasSinDatos: number | null;
   /** Venía gastando y dejó de entregar datos. */
   callada: boolean;
+  /** Gasta y no registra ninguna compra. */
+  ciega: boolean;
+  gasto7d: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!connected);
@@ -128,14 +133,18 @@ export default function AccountCard({
           className={`font-mono text-xs px-2 py-1 rounded text-right ${
             callada
               ? "bg-critical-bg text-critical"
-              : ultimoDia
-                ? "bg-good-bg text-good"
-                : "bg-pending-bg text-muted"
+              : ciega
+                ? "bg-pending-bg text-warning"
+                : ultimoDia
+                  ? "bg-good-bg text-good"
+                  : "bg-pending-bg text-muted"
           }`}
           title={ultimoDia ? `Último día con números: ${ultimoDia}` : undefined}
         >
           {callada
             ? `Sin datos hace ${diasSinDatos} días`
+            : ciega
+              ? "Sin compras registradas"
             : ultimoDia
               ? `Al día · ${fechaCorta(ultimoDia)}`
               : connected
@@ -149,6 +158,15 @@ export default function AccountCard({
           Venía gastando y dejó de entregar números. La cuenta sigue corriendo en la plataforma; lo que se
           cortó es lo que Windsor nos manda. Hay que reconectarla en Windsor.ai —el panel la muestra
           incompleta hasta que vuelva.
+        </p>
+      )}
+
+      {ciega && !callada && (
+        <p className="mt-3 text-xs leading-relaxed text-warning">
+          Gastó ${Math.round(gasto7d)} en los últimos siete días y no registró ni una compra. Su gasto entra en
+          el total y sus ventas no, así que el CPA general sale peor del que es. Si son campañas a WhatsApp, la
+          venta ocurre fuera de la web y el píxel no tiene cómo verla; si no, hay que revisar el píxel de esta
+          cuenta.
         </p>
       )}
 
