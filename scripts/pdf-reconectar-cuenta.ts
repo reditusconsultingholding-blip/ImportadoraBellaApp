@@ -49,9 +49,7 @@ type Paso = {
 };
 
 const CUENTAS = [
-  ["CP1 - Top Ventas", "1229985899113009", "12 de octubre", "$437 el último día - es la que más gasta"],
-  ["CP3 - Top Ventas", "1507602524109494", "13 de octubre", "gasta poco, pero gasta"],
-  ["CP4 - Bellav Corp", "1619282889822423", "11 de octubre", "gasta poco, pero gasta"],
+  ["CP3 - Top Ventas", "1507602524109494", "21 de octubre", "se reconectó y se volvió a caer a los tres días"],
 ];
 
 const PASOS: Paso[] = [
@@ -63,9 +61,9 @@ const PASOS: Paso[] = [
   {
     titulo: "Busca la cuenta en la pestaña de datos",
     cuerpo:
-      "En el panel de Windsor, abre la sección donde se ven los orígenes de datos (Data / Data sources) y filtra por el conector de Facebook Ads. Busca «CP1 - Top Ventas» o su número: 1229985899113009.",
+      "En el panel de Windsor, abre la sección donde se ven los orígenes de datos (Data / Data sources) y filtra por el conector de Facebook Ads. Busca «CP3 - Top Ventas» o su número: 1507602524109494.",
     seVeAsi:
-      "Si la cuenta NO aparece en la lista: se desconectó y hay que volver a conectarla (paso 3). Si aparece pero su último dato es del 12 de octubre, es lo mismo: el permiso se cayó aunque la cuenta siga figurando.",
+      "Si la cuenta NO aparece en la lista: se desconectó y hay que volver a conectarla (paso 3). Si aparece pero su último dato es del 21 de octubre, es lo mismo: el permiso se cayó aunque la cuenta siga figurando.",
   },
   {
     titulo: "Vuelve a conectar el conector de Facebook",
@@ -75,7 +73,7 @@ const PASOS: Paso[] = [
   {
     titulo: "Marca las cuentas, una por una",
     cuerpo:
-      "Después de iniciar sesión, Windsor muestra la lista de cuentas publicitarias a las que ese usuario tiene acceso. Marca las tres de la tabla de arriba, no solo la primera, y guarda. Este es el paso donde se pierde: la pantalla suele venir con unas pocas marcadas y es fácil dar por hecho que están todas.",
+      "Después de iniciar sesión, Windsor muestra la lista de cuentas publicitarias a las que ese usuario tiene acceso. Marca TODAS las cuentas que se usen, no solo la que viniste a arreglar, y guarda. Este es el paso donde se pierde: la pantalla suele venir con unas pocas marcadas y es fácil dar por hecho que están todas. De hecho ya pasó — el 17 se reconectaron tres y esta se volvió a caer a los tres días.",
     seVeAsi: "Al guardar, las tres tienen que quedar en la lista de cuentas conectadas.",
   },
   {
@@ -93,7 +91,7 @@ const PASOS: Paso[] = [
   {
     titulo: "Si después de todo esto sigue sin venir",
     cuerpo:
-      "Escríbele al soporte de Windsor con el nombre y el número de la cuenta (1229985899113009) y cuéntales que el conector de Facebook devuelve las demás cuentas pero no esa, desde el 13 de octubre. Nunca les mandes la clave de la API completa: con los últimos cuatro caracteres les alcanza.",
+      "Escríbele al soporte de Windsor con el nombre y el número de la cuenta (1507602524109494) y cuéntales que el conector de Facebook devuelve las demás cuentas pero no esa, desde el 21 de octubre. Nunca les mandes la clave de la API completa: con los últimos cuatro caracteres les alcanza.",
   },
 ];
 
@@ -169,22 +167,22 @@ function paso(n: number, p: Paso) {
 doc.fillColor(COLOR.marcaFuerte).fontSize(22).text("Volver a conectar una cuenta publicitaria", 48, 56, {
   width: ANCHO,
 });
-doc.fillColor(COLOR.suave).fontSize(11).text("Importadora Bella - Jarvis - 17 de octubre de 2026", 48, doc.y + 6);
+doc.fillColor(COLOR.suave).fontSize(11).text("Importadora Bella - Jarvis - 29 de octubre de 2026", 48, doc.y + 6);
 doc.moveDown(1.2);
 
 recuadro(
   "Qué pasó, en una línea",
-  "Tres cuentas publicitarias de Meta dejaron de entregarle datos a Windsor, que es de donde Jarvis los lee. " +
+  "Una cuenta publicitaria de Meta dejó de entregarle datos a Windsor, que es de donde Jarvis los lee. " +
     "Las campañas siguen corriendo y vendiendo con normalidad: lo que se cortó es lo que llega al panel. " +
-    "Por eso «GOTAS DE DRENAJE LINFATICO» mostraba una compra cuando el administrador de anuncios mostraba veintidós: " +
-    "las dos campañas que vendieron viven en una de esas cuentas.",
+    "La cuenta grande, CP1 - Top Ventas, ya se reconectó y volvió a entrar completa, incluidos los días que " +
+    "había perdido. Queda esta, que se reconectó el 17 y se volvió a caer el 21.",
   COLOR.ojoFondo,
   "#f3dcae",
 );
 
 /* ------------------------------ Las cuentas ------------------------------ */
 
-seccion("Las cuentas que hay que reconectar", "Las tres están gastando; ninguna entrega datos desde la fecha que figura.");
+seccion("La cuenta que hay que reconectar", "Estaba gastando; no entrega datos desde la fecha que figura.");
 
 const COLS = [48, 220, 330, 430];
 doc.fontSize(8.5).fillColor(COLOR.suave);
@@ -212,12 +210,25 @@ for (const [nombre, id, desde, peso] of CUENTAS) {
 doc.moveDown(0.8);
 
 recuadro(
-  "Dos cuentas más, pero estas no corren prisa",
-  "CP5 - Bellav Corp (1551582923215856) y CP3 - Mundo Hogar (2004087387076735) tampoco entregan datos, " +
-    "pero tampoco gastan desde hace semanas. Si ya no se usan, no hay nada que hacer; si se van a volver a usar, " +
-    "hay que reconectarlas antes de encender campañas o el gasto no va a aparecer en el panel.",
+  "Tres cuentas más, pero estas no corren prisa",
+  "CP4 - Bellav Corp (1619282889822423), CP5 - Bellav Corp (1551582923215856) y CP3 - Mundo Hogar " +
+    "(2004087387076735) tampoco entregan datos, pero tampoco gastan desde hace semanas. Si ya no se usan, no hay " +
+    "nada que hacer; si se van a volver a usar, hay que reconectarlas ANTES de encender campañas, o el gasto no " +
+    "va a aparecer en el panel.",
   "#f6f6f7",
   COLOR.borde,
+);
+
+recuadro(
+  "Y una cuenta distinta, que sí entrega datos: CP2 - Top Ventas",
+  "Esta no está desconectada, así que no hace falta tocar Windsor. El asunto es otro: gastó $1.517 en los " +
+    "últimos siete días, trajo 31.025 clics y no registró NI UNA compra. Sus campañas llevan «WP» en el nombre. " +
+    "Si son campañas a WhatsApp, está bien que sea así —la venta se cierra en el chat y el píxel no tiene cómo " +
+    "verla—, pero entonces su gasto no se puede comparar con el de las demás: entra en el total de Meta y sus " +
+    "ventas no, así que empeora el CPA general de la tienda. Si NO son de WhatsApp, hay que revisar el píxel de " +
+    "esa cuenta. Avísanos cuál de las dos es y lo dejamos contemplado en el panel.",
+  COLOR.ojoFondo,
+  "#f3dcae",
 );
 
 /* -------------------------------- Los pasos ------------------------------ */
