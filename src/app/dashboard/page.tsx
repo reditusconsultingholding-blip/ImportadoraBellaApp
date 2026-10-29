@@ -17,6 +17,7 @@ import RangePicker from "./range-picker";
 import PulsePanel from "./pulse-panel";
 import CatalogPicker from "./catalog-picker";
 import AttributionStrip from "./attribution-strip";
+import { diaEcuador } from "@/lib/control-publicitario";
 import AlertasPanel from "./alertas-panel";
 import TablaFilas from "./tabla-filas";
 import { EncabezadoSeccion, InsigniaEncabezado } from "./encabezado-seccion";
@@ -190,6 +191,7 @@ export default async function DashboardPage({
           tiktok={{ spend: tiktok.totalSpend, purchases: tiktok.totalPurchases, revenue: tiktok.totalRevenue }}
           periodo={range.label}
           desdeElPeriodo={isoDay(range.from)}
+          diaEnCurso={isoDay(range.to) >= isoDay(diaEcuador())}
           ventasDesde={sales.ventasDesde}
           sinProducto={sinProducto ?? { campanas: 0, conGasto: 0, gasto: 0, compras: 0 }}
         />

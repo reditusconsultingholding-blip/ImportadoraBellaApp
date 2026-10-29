@@ -21,6 +21,7 @@ export default function AttributionStrip({
   tiktok,
   periodo,
   desdeElPeriodo,
+  diaEnCurso,
   ventasDesde,
   sinProducto,
 }: {
@@ -31,6 +32,8 @@ export default function AttributionStrip({
   periodo: string;
   /** Cuándo arranca el período elegido. */
   desdeElPeriodo: string;
+  /** Si el período llega hasta el día de hoy, que todavía no cerró. */
+  diaEnCurso: boolean;
   /** La orden más vieja que hay guardada, si hay alguna. */
   ventasDesde: string | null;
   /** Campañas que no cuelgan de ningún producto, con su gasto del período. */
@@ -41,6 +44,24 @@ export default function AttributionStrip({
   // ventas a medias, y parecería un desastre cuando lo que falta es historia.
   const faltaHistoria =
     ventasDesde != null && new Date(desdeElPeriodo) < new Date(ventasDesde.slice(0, 10));
+
+  // EL DÍA EN CURSO NO SE PUEDE COMPARAR, Y ES CUANDO MÁS SE MIRA.
+  //
+  // Un pedido entra en la tienda en el momento; la compra tarda en aparecer
+  // del lado de Meta y TikTok —el píxel la manda, la plataforma la atribuye y
+  // Windsor la trae entre quince y sesenta minutos después—. Así que a media
+  // mañana la pauta SIEMPRE va por detrás, y el panel lo mostraba como si el
+  // píxel hubiera perdido esas ventas.
+  //
+  // Emilia lo reportó dos veces con el mismo número: «vamos a 126 ventas, los
+  // píxeles registran 101, hay una diferencia de 25 pedidos, el 20 %». Mirados
+  // los seis días cerrados anteriores, la diferencia final va de -16 % a +13 %
+  // y tres de esos días la pauta se atribuye MÁS ventas de las que entraron.
+  // El hueco de la mañana se cierra solo; decirlo es la diferencia entre un
+  // dato y un susto diario.
+  // El «hoy» lo decide el servidor y llega como prop: leer el reloj acá sería
+  // mirar el del navegador —que puede estar en otro huso— y además ensucia el
+  // dibujado con un dato que cambia solo.
 
   const gasto = meta.spend + tiktok.spend;
   const atribuidas = meta.purchases + tiktok.purchases;
@@ -140,6 +161,15 @@ export default function AttributionStrip({
           , pero este período empieza antes. El gasto de pauta sí está completo, así que la
           comparación de arriba subestima las ventas — no las mires como si faltaran ventas,
           falta historia.
+        </p>
+      )}
+
+      {diaEnCurso && atribuidas < ordenesReales && (
+        <p className="border-t border-border px-4 py-2.5 text-xs text-muted">
+          <span className="font-medium text-foreground">El día todavía no cierra.</span> Un pedido entra en la
+          tienda al instante; la compra tarda en aparecer del lado de Meta y TikTok —el píxel la manda, la
+          plataforma la atribuye y Windsor la trae hasta una hora después—. Por eso a media mañana la pauta va
+          siempre por detrás y la diferencia se achica sola durante el día. Para medir, compará días cerrados.
         </p>
       )}
 
