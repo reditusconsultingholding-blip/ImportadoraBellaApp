@@ -2,10 +2,37 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { erroresDelResumen } from "@/lib/scheduler";
-import { avisoDeCuentasCalladas, decidirCallada, decidirCiega } from "@/lib/salud-cuentas";
+import {
+  avisoDeCuentasCalladas,
+  decidirCallada,
+  decidirCiega,
+  type EstadoDeCuenta,
+} from "@/lib/salud-cuentas";
+import { pasosParaReconectar } from "@/lib/pasos-reconectar";
 import { periodoAnterior, periodoQueCierra } from "@/lib/progreso-quincenal";
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
+
+/** Una cuenta sana, para pisar solo lo que cada prueba quiere probar. */
+const cuenta = (parcial: Partial<EstadoDeCuenta>): EstadoDeCuenta => ({
+  id: "x",
+  nombre: "Cuenta",
+  platform: "META",
+  externalId: "1234567890",
+  ultimoDia: "2026-10-29",
+  ultimoDiaConGasto: "2026-10-29",
+  diasSinDatos: 0,
+  caida: false,
+  callada: false,
+  gasto7d: 0,
+  compras7d: 0,
+  ciega: false,
+  gastoDiarioPrevio: null,
+  anotada: false,
+  apagadaAdrede: false,
+  ventaFueraDeLaWeb: false,
+  ...parcial,
+});
 const iso = (x: Date) => x.toISOString().slice(0, 10);
 
 test("el 15 cierra la primera quincena", () => {
@@ -189,30 +216,17 @@ test("un dia de atraso no dispara la alarma", () => {
 test("el aviso nombra las cuentas, no dice solo que hay cuentas", () => {
   const texto = avisoDeCuentasCalladas(
     [
-      {
+      cuenta({
         id: "a",
         nombre: "CP1 - Top Ventas",
-        platform: "META",
         ultimoDia: "2026-10-12",
         ultimoDiaConGasto: "2026-10-12",
         diasSinDatos: 5,
+        caida: true,
         callada: true,
-        gasto7d: 0,
-        compras7d: 0,
-        ciega: false,
-      },
-      {
-        id: "b",
-        nombre: "CP2 - Bellav Corp",
-        platform: "META",
-        ultimoDia: "2026-10-16",
-        ultimoDiaConGasto: "2026-10-16",
-        diasSinDatos: 1,
-        callada: false,
-        gasto7d: 900,
-        compras7d: 120,
-        ciega: false,
-      },
+        gastoDiarioPrevio: 437,
+      }),
+      cuenta({ id: "b", nombre: "CP2 - Bellav Corp", diasSinDatos: 1, gasto7d: 900, compras7d: 120 }),
     ],
     "META",
   );
@@ -257,15 +271,102 @@ test("si la cuenta esta callada el problema es la conexion, no la medicion", () 
 });
 
 test("el aviso separa las dos fallas, que se arreglan en lugares distintos", () => {
-  const base = { ultimoDia: "2026-10-29", ultimoDiaConGasto: "2026-10-29", platform: "META" as const };
   const texto = avisoDeCuentasCalladas([
-    { ...base, id: "a", nombre: "CP3 - Top Ventas", ultimoDia: "2026-10-21", diasSinDatos: 8,
-      callada: true, gasto7d: 0, compras7d: 0, ciega: false },
-    { ...base, id: "b", nombre: "CP2 - Top Ventas", diasSinDatos: 0,
-      callada: false, gasto7d: 1517, compras7d: 0, ciega: true },
+    cuenta({ id: "a", nombre: "CP3 - Top Ventas", ultimoDia: "2026-10-21", diasSinDatos: 8,
+      caida: true, callada: true }),
+    cuenta({ id: "b", nombre: "CP2 - Top Ventas", gasto7d: 1517, ciega: true }),
   ]);
   assert.ok(texto?.includes("CP3 - Top Ventas"), texto ?? "no aviso");
   assert.ok(texto?.includes("CP2 - Top Ventas"), texto ?? "no aviso");
   assert.ok(texto?.includes("Windsor"), "la callada se arregla en Windsor");
   assert.ok(texto?.includes("píxel"), "la ciega se arregla en la cuenta de Meta");
+});
+
+// ---------------------------------------------------------------------------
+// La alarma no se cierra con el calendario. Era el agujero que quedaba: la
+// regla pide gasto en los ultimos diez dias para considerar viva a la cuenta,
+// y eso se cuenta desde hoy.
+
+test("una caida ya anotada sigue abierta aunque la ventana caduque", () => {
+  // CP3 - Top Ventas: ultimo dato el 21 de octubre, ultimo gasto el 19. El 29
+  // lleva 8 dias sin datos y 10 sin gastar, y la regla todavia la ve. El 30
+  // habrian sido 11 dias sin gastar y la alarma se apagaba SOLA, con la
+  // conexion igual de rota que el dia anterior.
+  assert.equal(decidirCallada(8, 10), true, "el 29 avisa");
+  assert.equal(decidirCallada(9, 11), false, "el 30, sin anotacion, dejaba de avisar");
+  // Con la caida anotada en la base, el calendario ya no la cierra.
+  assert.equal(decidirCallada(9, 11, true), true);
+  assert.equal(decidirCallada(60, 90, true), true);
+});
+
+test("lo que cierra la alarma son los datos que vuelven", () => {
+  // Reconectada: el ultimo dato es el de ayer y la anotacion se borra.
+  assert.equal(decidirCallada(1, 1, true), false);
+  assert.equal(decidirCallada(0, 0, true), false);
+});
+
+test("una cuenta que nunca trajo nada no se anota como caida", () => {
+  // Sin un solo dia de datos no hay nada que se haya cortado: es una cuenta
+  // recien dada de alta, y eso ya lo dice el cartel «Nunca trajo datos».
+  assert.equal(decidirCallada(null, null, true), false);
+  assert.equal(decidirCallada(null, 3, true), false);
+});
+
+test("el aviso dice cuanta plata por dia quedo afuera del tablero", () => {
+  // «La cuenta no entrega datos» se posterga; «faltan 437 dolares por dia del
+  // gasto que estas mirando» no. Es la misma informacion y no se lee igual.
+  const texto = avisoDeCuentasCalladas([
+    cuenta({
+      nombre: "CP1 - Top Ventas",
+      ultimoDia: "2026-10-12",
+      diasSinDatos: 5,
+      caida: true,
+      callada: true,
+      gastoDiarioPrevio: 437.4,
+    }),
+  ]);
+  assert.ok(texto?.includes("437"), texto ?? "no aviso");
+  assert.ok(texto?.includes("día"), texto ?? "no aviso");
+});
+
+test("sin gasto previo medido el aviso no inventa una cifra", () => {
+  const texto = avisoDeCuentasCalladas([
+    cuenta({ nombre: "CP9", ultimoDia: "2026-10-12", diasSinDatos: 5, caida: true, callada: true }),
+  ]);
+  assert.ok(texto?.includes("CP9"), texto ?? "no aviso");
+  assert.ok(!texto?.includes("$"), "no deberia haber cifra: no se midio");
+});
+
+// El paso a paso que la app dibuja en el aviso y que el PDF importa.
+
+test("los pasos nombran la cuenta que se cayo, no una cuenta de ejemplo", () => {
+  // Un instructivo generico obliga a traducirlo a la situacion de hoy, y ahi
+  // es donde se abandona. Estos pasos llevan el nombre, el numero y la fecha.
+  const pasos = pasosParaReconectar({
+    nombre: "CP3 - Top Ventas",
+    externalId: "1507602524109494",
+    ultimoDia: "21 de octubre",
+    conector: "Facebook Ads",
+  });
+  const todo = pasos.map((p) => `${p.titulo} ${p.cuerpo} ${p.seVeAsi ?? ""}`).join(" ");
+  assert.ok(todo.includes("CP3 - Top Ventas"));
+  assert.ok(todo.includes("1507602524109494"));
+  assert.ok(todo.includes("21 de octubre"));
+  assert.ok(todo.includes("Facebook Ads"));
+});
+
+test("cada paso dice como se ve que salio bien, al menos donde importa", () => {
+  // Un paso que no dice como se ve el exito termina en una pregunta, y
+  // entonces el instructivo no sirvio: hay que volver a preguntarle a alguien.
+  const pasos = pasosParaReconectar({
+    nombre: "CP3",
+    externalId: "1",
+    ultimoDia: "21 de octubre",
+    conector: "TikTok Ads",
+  });
+  // El de buscar la cuenta, el de marcarlas y el de comprobar en Jarvis.
+  assert.equal(pasos.filter((p) => p.seVeAsi).length, 3);
+  // Y el ultimo paso dice que hacer cuando nada funciono, que es lo que
+  // evita que el equipo se quede esperando.
+  assert.ok(pasos[pasos.length - 1].cuerpo.includes("soporte"));
 });

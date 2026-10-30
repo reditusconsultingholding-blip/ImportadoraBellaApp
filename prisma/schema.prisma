@@ -382,6 +382,17 @@ model AdAccount {
   connectedAt    DateTime?
   createdAt      DateTime     @default(now())
 
+  // La vigilancia de la cuenta. Ver salud-cuentas.ts: la alarma se abre sola,
+  // pero NO se cierra sola con el paso del tiempo —solo cuando vuelven los
+  // datos, o cuando alguien declara que la cuenta está apagada a propósito—.
+  // Sin esto, una cuenta caída dejaba de avisar al undécimo día y volvía a ser
+  // invisible sin que nadie hubiera hecho nada.
+  calladaDesde     DateTime? // el último día con datos, anotado al detectar la caída
+  apagadaAt        DateTime? // «está apagada a propósito»: calla el aviso de sin datos
+  apagadaPor       String?
+  ventaFueraWebAt  DateTime? // «vende por WhatsApp»: calla el aviso de sin compras
+  ventaFueraWebPor String?
+
   campaigns Campaign[]
 
   @@unique([organizationId, platform, externalId])

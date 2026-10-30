@@ -69,6 +69,9 @@ export default async function ConexionesPage() {
               callada={estadoPorCuenta.get(account.id)?.callada ?? false}
               ciega={estadoPorCuenta.get(account.id)?.ciega ?? false}
               gasto7d={estadoPorCuenta.get(account.id)?.gasto7d ?? 0}
+              caida={estadoPorCuenta.get(account.id)?.caida ?? false}
+              apagadaAdrede={estadoPorCuenta.get(account.id)?.apagadaAdrede ?? false}
+              ventaFueraDeLaWeb={estadoPorCuenta.get(account.id)?.ventaFueraDeLaWeb ?? false}
             />
           ))}
           <AddAccountButton platform="META" />
@@ -88,6 +91,9 @@ export default async function ConexionesPage() {
               callada={estadoPorCuenta.get(account.id)?.callada ?? false}
               ciega={estadoPorCuenta.get(account.id)?.ciega ?? false}
               gasto7d={estadoPorCuenta.get(account.id)?.gasto7d ?? 0}
+              caida={estadoPorCuenta.get(account.id)?.caida ?? false}
+              apagadaAdrede={estadoPorCuenta.get(account.id)?.apagadaAdrede ?? false}
+              ventaFueraDeLaWeb={estadoPorCuenta.get(account.id)?.ventaFueraDeLaWeb ?? false}
             />
           ))}
           <AddAccountButton platform="TIKTOK" />

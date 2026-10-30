@@ -32,6 +32,9 @@ export default function AccountCard({
   callada,
   ciega,
   gasto7d,
+  caida,
+  apagadaAdrede,
+  ventaFueraDeLaWeb,
 }: {
   id: string;
   platform: string;
@@ -46,6 +49,12 @@ export default function AccountCard({
   /** Gasta y no registra ninguna compra. */
   ciega: boolean;
   gasto7d: number;
+  /** Dejó de entregar datos, aunque alguien haya callado el aviso. */
+  caida: boolean;
+  /** Alguien declaró que está apagada a propósito. */
+  apagadaAdrede: boolean;
+  /** Alguien declaró que vende por WhatsApp. */
+  ventaFueraDeLaWeb: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!connected);
@@ -100,6 +109,26 @@ export default function AccountCard({
     router.refresh();
   }
 
+  // Deshacer el silencio. Tiene que estar a la vista: si callar un aviso no se
+  // puede revertir desde la misma pantalla, nadie se anima a callarlo y el
+  // tablero se queda en rojo para siempre, que es como se aprende a ignorarlo.
+  async function volverAVigilar() {
+    setBusy(true);
+    setMessage(null);
+    const res = await fetch(`/api/accounts/${id}/vigilancia`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "vigilar" }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMessage({ type: "error", text: data.error ?? "No se pudo guardar." });
+      return;
+    }
+    router.refresh();
+  }
+
   async function remove() {
     if (!confirm("¿Eliminar esta cuenta pendiente?")) return;
     setBusy(true);
@@ -135,9 +164,11 @@ export default function AccountCard({
               ? "bg-critical-bg text-critical"
               : ciega
                 ? "bg-pending-bg text-warning"
-                : ultimoDia
-                  ? "bg-good-bg text-good"
-                  : "bg-pending-bg text-muted"
+                : apagadaAdrede || ventaFueraDeLaWeb
+                  ? "bg-surface-2 text-muted"
+                  : ultimoDia
+                    ? "bg-good-bg text-good"
+                    : "bg-pending-bg text-muted"
           }`}
           title={ultimoDia ? `Último día con números: ${ultimoDia}` : undefined}
         >
@@ -145,11 +176,15 @@ export default function AccountCard({
             ? `Sin datos hace ${diasSinDatos} días`
             : ciega
               ? "Sin compras registradas"
-            : ultimoDia
-              ? `Al día · ${fechaCorta(ultimoDia)}`
-              : connected
-                ? "Nunca trajo datos"
-                : "Pendiente"}
+              : apagadaAdrede
+                ? "Apagada a propósito"
+                : ventaFueraDeLaWeb
+                  ? "Vende por WhatsApp"
+                  : ultimoDia
+                    ? `Al día · ${fechaCorta(ultimoDia)}`
+                    : connected
+                      ? "Nunca trajo datos"
+                      : "Pendiente"}
         </span>
       </div>
 
@@ -168,6 +203,27 @@ export default function AccountCard({
           venta ocurre fuera de la web y el píxel no tiene cómo verla; si no, hay que revisar el píxel de esta
           cuenta.
         </p>
+      )}
+
+      {/* Por qué esta cuenta no avisa. Dentro de un mes, la pregunta «¿y esta
+          por qué está en gris?» tiene que tener respuesta en la pantalla. */}
+      {(apagadaAdrede || ventaFueraDeLaWeb) && (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-xs leading-relaxed text-muted">
+            {apagadaAdrede
+              ? caida
+                ? "Alguien del equipo marcó esta cuenta como apagada a propósito, así que no entrega datos y no avisa. Si vuelve a entregarlos, la marca se levanta sola."
+                : "Está marcada como apagada a propósito. Hoy sí está entregando datos, así que la marca se va a levantar sola en la próxima vuelta del reloj."
+              : "Alguien del equipo marcó que esta cuenta vende por WhatsApp: la venta se cierra en el chat y el píxel no puede verla, así que no se espera que registre compras. Si registra una por la web, la marca se levanta sola."}
+          </p>
+          <button
+            onClick={volverAVigilar}
+            disabled={busy}
+            className="self-start text-xs text-accent hover:underline disabled:opacity-60"
+          >
+            {busy ? "Guardando…" : "Volver a vigilarla"}
+          </button>
+        </div>
       )}
 
       {connected && !open && (

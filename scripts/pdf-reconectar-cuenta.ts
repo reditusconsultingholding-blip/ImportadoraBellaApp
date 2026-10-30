@@ -26,6 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
+import { pasosParaReconectar, type PasoReconectar } from "@/lib/pasos-reconectar";
 
 const COLOR = {
   tinta: "#1a1a1a",
@@ -41,59 +42,20 @@ const COLOR = {
   maloFondo: "#fdecea",
 };
 
-type Paso = {
-  titulo: string;
-  cuerpo: string;
-  /** Cómo se ve que salió bien. Sin esto, el paso termina en una pregunta. */
-  seVeAsi?: string;
-};
-
 const CUENTAS = [
   ["CP3 - Top Ventas", "1507602524109494", "21 de octubre", "se reconectó y se volvió a caer a los tres días"],
 ];
 
-const PASOS: Paso[] = [
-  {
-    titulo: "Entra a windsor.ai con la cuenta de siempre",
-    cuerpo:
-      "Tiene que ser el mismo usuario con el que se conectaron las cuentas de Importadora Bella. Si hay dos usuarios de Windsor dando vueltas, las cuentas conectadas con uno no se ven desde el otro, y eso solo se parece a que la cuenta no existe.",
-  },
-  {
-    titulo: "Busca la cuenta en la pestaña de datos",
-    cuerpo:
-      "En el panel de Windsor, abre la sección donde se ven los orígenes de datos (Data / Data sources) y filtra por el conector de Facebook Ads. Busca «CP3 - Top Ventas» o su número: 1507602524109494.",
-    seVeAsi:
-      "Si la cuenta NO aparece en la lista: se desconectó y hay que volver a conectarla (paso 3). Si aparece pero su último dato es del 21 de octubre, es lo mismo: el permiso se cayó aunque la cuenta siga figurando.",
-  },
-  {
-    titulo: "Vuelve a conectar el conector de Facebook",
-    cuerpo:
-      "En el conector de Facebook Ads, usa la opción de reconectar o reautorizar. Te va a mandar a iniciar sesión en Facebook: tiene que ser el usuario que administra esas cuentas publicitarias. Cuando Facebook pida permisos, acepta TODOS los que muestre.",
-  },
-  {
-    titulo: "Marca las cuentas, una por una",
-    cuerpo:
-      "Después de iniciar sesión, Windsor muestra la lista de cuentas publicitarias a las que ese usuario tiene acceso. Marca TODAS las cuentas que se usen, no solo la que viniste a arreglar, y guarda. Este es el paso donde se pierde: la pantalla suele venir con unas pocas marcadas y es fácil dar por hecho que están todas. De hecho ya pasó — el 17 se reconectaron tres y esta se volvió a caer a los tres días.",
-    seVeAsi: "Al guardar, las tres tienen que quedar en la lista de cuentas conectadas.",
-  },
-  {
-    titulo: "Si una cuenta no aparece en esa lista, el problema está en Facebook",
-    cuerpo:
-      "Significa que el usuario con el que iniciaste sesión ya no tiene acceso a esa cuenta publicitaria. Entra al Business Manager de Meta > Configuración del negocio > Cuentas publicitarias, busca la cuenta y revisa que ese usuario siga asignado. Con rol de Administrador o de Anunciante alcanza; con el de solo Página, no.",
-  },
-  {
-    titulo: "Compruébalo en Jarvis, sin esperar a mañana",
-    cuerpo:
-      "Entra a jarvisecom.com > Conexiones y busca la tarjeta de la cuenta. Aprieta «Sincronizar ahora» y lee lo que contesta: ahora dice si Windsor devolvió esa cuenta o si contestó bien pero sin ella.",
-    seVeAsi:
-      "La tarjeta tiene que pasar de «Sin datos hace N días», en rojo, a «Al día» con la fecha de hoy. Los números de la cuenta aparecen en el panel en la siguiente vuelta, que es de un par de minutos.",
-  },
-  {
-    titulo: "Si después de todo esto sigue sin venir",
-    cuerpo:
-      "Escríbele al soporte de Windsor con el nombre y el número de la cuenta (1507602524109494) y cuéntales que el conector de Facebook devuelve las demás cuentas pero no esa, desde el 21 de octubre. Nunca les mandes la clave de la API completa: con los últimos cuatro caracteres les alcanza.",
-  },
-];
+// Los pasos NO se escriben acá. Son los mismos que la app dibuja en el aviso
+// del tablero, y vienen de src/lib/pasos-reconectar.ts: el instructivo y la
+// pantalla tienen que decir lo mismo, y cuando eran dos textos separados ya
+// empezaban a separarse. Si hay que mejorar un paso, se mejora allá.
+const PASOS: PasoReconectar[] = pasosParaReconectar({
+  nombre: CUENTAS[0][0],
+  externalId: CUENTAS[0][1],
+  ultimoDia: CUENTAS[0][2],
+  conector: "Facebook Ads",
+});
 
 const doc = new PDFDocument({ size: "A4", margin: 48, bufferPages: true });
 const salida = path.join(process.cwd(), "Jarvis_Reconectar_cuenta_Windsor.pdf");
@@ -130,7 +92,7 @@ function recuadro(titulo: string, texto: string, fondo: string, borde: string) {
 }
 
 /** Un paso, medido antes de dibujarse para que no quede partido entre páginas. */
-function paso(n: number, p: Paso) {
+function paso(n: number, p: PasoReconectar) {
   const anchoTexto = ANCHO - 34;
   const altoCuerpo = doc.fontSize(9.8).heightOfString(p.cuerpo, { width: anchoTexto });
   const altoSeVe = p.seVeAsi ? doc.fontSize(9).heightOfString(p.seVeAsi, { width: anchoTexto - 16 }) + 26 : 0;

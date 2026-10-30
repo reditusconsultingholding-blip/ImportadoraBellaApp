@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { filasVisibles, getOverview } from "@/lib/metrics";
 import { getSalesOverview } from "@/lib/sales";
-import { canAccessPipeline, canManagePipeline } from "@/lib/permissions";
+import { canAccessPipeline, canManageConexiones, canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { AVISO_SIN_CIFRAS } from "@/lib/finanzas-textos";
 import { resolveRange } from "@/lib/date-range";
@@ -29,6 +29,8 @@ import { origenPorVenta } from "@/lib/origen-pedidos";
 import SeccionPlegable from "./seccion-plegable";
 import AvisoPlataformaCallada from "./aviso-plataforma-callada";
 import { plataformasCalladas } from "@/lib/plataformas-calladas";
+import AvisoCuentasSinDatos from "./aviso-cuentas-sin-datos";
+import { estadoDeLasCuentas } from "@/lib/salud-cuentas";
 
 const money = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -81,7 +83,7 @@ export default async function DashboardPage({
   // filtro y volverlo a dejar como estaba. Cuando el período YA es hoy no se
   // pide: sería la misma consulta dos veces.
   const rangoHoy = range.id === "hoy" ? null : resolveRange("hoy");
-  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos, origen, calladas] =
+  const [overview, sales, meta, tiktok, ventas, sinProducto, ritmo, ritmoHoy, metaHoy, tiktokHoy, testeos, origen, calladas, saludCuentas] =
     await Promise.all([
     getOverview(session.organizationId, platform, range),
     verCifras ? getSalesOverview(session.organizationId, range) : null,
@@ -111,6 +113,12 @@ export default async function DashboardPage({
     // porque el aviso tiene que estar dibujado en el primer pintado: uno que
     // aparece dos segundos después llega tarde, ya se leyó el CPA.
     plataformasCalladas(session.organizationId),
+    // Y si alguna CUENTA de las veintiséis dejó de cargar, o gasta sin
+    // registrar ventas. No es lo mismo que lo de arriba: cuando una cuenta se
+    // cae sola, el conector responde bien —devuelve las otras once— y la
+    // plataforma no figura como caída. Así estuvo CP1 Top Ventas cuatro días en
+    // octubre, con un tercio del gasto de Meta afuera y todo en verde.
+    estadoDeLasCuentas(session.organizationId),
   ]);
 
   // Rendimiento que no es plata, para las tarjetas de quien no ve cifras.
@@ -153,6 +161,29 @@ export default async function DashboardPage({
           y la utilidad de abajo salen más bajos que los reales, y se leen con la
           misma confianza que cualquier otro día. */}
       <AvisoPlataformaCallada avisos={calladas} verCifras={verCifras} />
+
+      {/* Y lo mismo una cuenta a la vez, con los pasos para arreglarlo adentro.
+          Va en el tablero y no solo en Conexiones porque el problema no se
+          descubre entrando a Conexiones: se descubre leyendo un CPA que está
+          mejor de lo que es. */}
+      <AvisoCuentasSinDatos
+        cuentas={saludCuentas
+          .filter((c) => c.callada || c.ciega)
+          .map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            platform: c.platform,
+            externalId: c.externalId,
+            ultimoDia: c.ultimoDia,
+            diasSinDatos: c.diasSinDatos,
+            callada: c.callada,
+            ciega: c.ciega,
+            gasto7d: c.gasto7d,
+            gastoDiarioPrevio: c.gastoDiarioPrevio,
+          }))}
+        verCifras={verCifras}
+        puedeMarcar={canManageConexiones(session.role)}
+      />
 
       {/* Lo que se mira primero, sin bajar: ventas, ritmo, CPA y a qué hora
           compran. Va pegado al encabezado a propósito. */}

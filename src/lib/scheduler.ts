@@ -6,7 +6,7 @@ import { diaDelReportePendiente } from "@/lib/reporte-horario";
 import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
 import { hasWindsorKey, intervaloDeWindsor, type WindsorConnector } from "@/lib/integrations/windsor";
-import { avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/salud-cuentas";
+import { anotarSaludDeCuentas, avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/salud-cuentas";
 import { runAlertChecks } from "@/lib/alerts";
 import { generateAndStoreDailyReport } from "@/lib/daily-report";
 import { enviarReporteSemanal } from "@/lib/weekly-report";
@@ -283,8 +283,17 @@ export async function sincronizarRapido() {
             // que ir a Windsor a reconectarla. El texto empieza con «error:»
             // porque es lo que mira `erroresDelResumen` para el correo y para
             // el estado de los dos relojes.
+            //
+            // La caída queda ANOTADA, además de avisada. La regla pide que la
+            // cuenta haya gastado hace poco para considerarla viva, y eso se
+            // cuenta desde hoy: sin anotarla, una cuenta caída dejaba de avisar
+            // al undécimo día —no porque alguien la hubiera arreglado, sino
+            // porque el calendario avanzó— y volvía a ser invisible. Lo iba a
+            // hacer con CP3 Top Ventas el 30 de octubre.
+            const estados = await estadoDeLasCuentas(org.id);
+            await anotarSaludDeCuentas(estados);
             const aviso = avisoDeCuentasCalladas(
-              await estadoDeLasCuentas(org.id),
+              estados,
               conector === "facebook" ? "META" : "TIKTOK",
             );
             if (aviso) {
