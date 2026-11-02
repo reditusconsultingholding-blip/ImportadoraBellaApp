@@ -8,7 +8,6 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { serieDelPeriodo } from "@/lib/reporte-serie";
 import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import { getDirectory } from "@/lib/product-directory";
-import { getPatronesClientes } from "@/lib/clientes";
 import { controlDelPeriodo, diaEcuador } from "@/lib/control-publicitario";
 import { nombresSinEnlazar } from "@/lib/enlazar-pedidos";
 import { proponerEnlaces } from "@/lib/enlace-shopify";
@@ -31,6 +30,10 @@ import { origenPorVenta } from "@/lib/origen-pedidos";
 //
 // Va en serie y no todo en paralelo: son consultas pesadas y no tiene sentido
 // competir con las personas que están usando la app en ese momento.
+//
+// Clientes no entra: era la consulta que más datos bajaba de todas (unas 38.000
+// filas con nombre, teléfono y correo) y se abre poco. Se calcula al abrirla.
+// El ritmo de todo esto está en src/lib/precalentar-ritmo.ts.
 /**
  * @param soloLoPrimero Solo lo que se abre primero (el panel y el origen de las
  * ventas). Es lo que corre después de la vuelta rápida de cada dos minutos:
@@ -63,7 +66,6 @@ export async function precalentarPantallas(organizationId: string, soloLoPrimero
     ["reportes alertas", () => calcularAlertasDiarias(organizationId)],
     ["productos", () => getDirectory(organizationId, r30, true)],
     ["productos sin cifras", () => getDirectory(organizationId, r30, false)],
-    ["clientes", () => getPatronesClientes(organizationId, resolveRange("3m"))],
     ["sin nomenclatura", () => campanasSinProducto(organizationId, r30)],
     ["sin nomenclatura resumen", () => resumenSinProducto(organizationId, r30)],
     ["sin nomenclatura enlaces", () => proponerEnlaces(organizationId, r30)],

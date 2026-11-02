@@ -21,6 +21,7 @@ import { repasoDiarioDeCierres, rellenarCierres } from "@/lib/control-relleno";
 import { resincronizacionProfunda } from "@/lib/resync-profundo";
 import { recifrarPendientes } from "@/lib/cifrado-repaso";
 import { precalentarPantallas } from "@/lib/precalentar";
+import { PRECALENTAR_PANEL_CADA_MS, PRECALENTAR_TODO_CADA_MS, tocaPrecalentar } from "@/lib/precalentar-ritmo";
 import { limpiarActividadVieja } from "@/lib/actividad";
 import { estadoDelCorreo } from "@/lib/email";
 import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
@@ -35,6 +36,9 @@ const ultimoReporte = new Map<string, number>();
 /** Y cuándo se refrescaron los SKU de Dropi, que van al mismo ritmo. */
 const ultimoSku = new Map<string, number>();
 const REPORTE_CADA_MS = 60 * 60 * 1000;
+/** Cuándo se dejaron calculadas las pantallas por última vez. */
+const ultimoPrecalentadoPanel = new Map<string, number>();
+const ultimoPrecalentadoTodo = new Map<string, number>();
 
 // El reloj de la aplicación.
 //
@@ -314,7 +318,8 @@ export async function sincronizarRapido() {
 
     // Solo si entró algo nuevo: si no cambió nada, la memoria no se vació y
     // el panel sigue calculado.
-    if (cambio) {
+    if (cambio && tocaPrecalentar(ultimoPrecalentadoPanel.get(org.id), Date.now(), PRECALENTAR_PANEL_CADA_MS)) {
+      ultimoPrecalentadoPanel.set(org.id, Date.now());
       try {
         anotar("precalentado", await precalentarPantallas(org.id, true));
       } catch (err) {
@@ -663,10 +668,13 @@ export async function sincronizarTodo(conRapido = true) {
 
     // Lo último: dejar calculadas las pantallas con los datos recién traídos,
     // para que nadie espere el cálculo al abrirlas. Ver src/lib/precalentar.ts.
-    try {
-      resumen.precalentadoTodo = await precalentarPantallas(org.id);
-    } catch (err) {
-      resumen.precalentadoTodo = `error: ${err instanceof Error ? err.message : String(err)}`;
+    if (tocaPrecalentar(ultimoPrecalentadoTodo.get(org.id), Date.now(), PRECALENTAR_TODO_CADA_MS)) {
+      ultimoPrecalentadoTodo.set(org.id, Date.now());
+      try {
+        resumen.precalentadoTodo = await precalentarPantallas(org.id);
+      } catch (err) {
+        resumen.precalentadoTodo = `error: ${err instanceof Error ? err.message : String(err)}`;
+      }
     }
     // EL DETALLE CUENTA LO QUE PASÓ, NO LO QUE IBA A HACER.
     //
