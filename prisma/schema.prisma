@@ -441,6 +441,13 @@ model Product {
    */
   sku String?
 
+  // Las etiquetas que el equipo le pone al producto a mano: TESTEO, ACTIVO,
+  // APAGADO, PERMANENTE, REIMPORTAR, NO_REIMPORTAR, ORGANICO. Fabrizio las
+  // pidió el 10-nov para saber en cualquier pantalla qué es cada producto
+  // («este es testeo, este está activo, este está apagado»). Ver
+  // src/lib/etiquetas-producto.ts.
+  etiquetas String[] @default([])
+
   // La realidad operativa del producto, sin la cual "rentabilidad" es una
   // palabra vacia: en contraentrega no se cobra lo que se vende, se cobra lo
   // que se confirma Y no se devuelve. Sale de la planilla del equipo.

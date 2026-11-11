@@ -81,10 +81,18 @@ function CeldaCpa({
     ingresos: number;
     gastosOperativos: number;
     gastosAdm: number;
+    gasto?: number;
+    pedidosPlataforma?: number;
   };
   clase: string;
 }) {
   if (f.pedidos <= 0) return <td className={clase}>—</td>;
+
+  // El CPA que muestra el administrador de anuncios, al lado del real.
+  // Fabrizio (10-nov): «es importante tener las dos informaciones, costo
+  // según plataforma y costo por pedido real». El grande sigue siendo el real.
+  const cpaPlataforma =
+    f.gasto != null && f.pedidosPlataforma != null && f.pedidosPlataforma > 0 ? f.gasto / f.pedidosPlataforma : null;
 
   const equilibrio = cpaDeEquilibrio(f);
   const tono =
@@ -96,6 +104,7 @@ function CeldaCpa({
 
   const leyenda = [
     `${CPA_REAL} ${dinero2(f.cpa)}`,
+    cpaPlataforma != null ? `CPA de plataforma ${dinero2(cpaPlataforma)}` : null,
     f.cpaObjetivo != null ? `${CPA_OBJETIVO} ${dinero2(f.cpaObjetivo)}` : null,
     equilibrio != null
       ? `${CPA_EQUILIBRIO} ${dinero2(equilibrio)}`
@@ -113,6 +122,9 @@ function CeldaCpa({
           {f.cpaObjetivo != null && equilibrio != null && " · "}
           {equilibrio != null && <>equilibrio {dinero2(equilibrio)}</>}
         </span>
+      )}
+      {cpaPlataforma != null && (
+        <span className="block text-[10px] font-normal text-muted">plataforma {dinero2(cpaPlataforma)}</span>
       )}
     </td>
   );

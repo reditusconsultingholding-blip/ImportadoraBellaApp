@@ -1,3 +1,4 @@
+import { productosPautadosRecientes } from "@/lib/pautados";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -20,7 +21,7 @@ export default async function CalculadoraPage() {
   // pantallas que el dueño cerró a la dirección.
   if (!(await veLasCifras(session.userId))) redirect("/dashboard");
 
-  const [fichas, store] = await Promise.all([
+  const [fichas, store, activos] = await Promise.all([
     // La economía real de cada producto, que es lo que el equipo lleva en su
     // planilla. Antes esto salía de ProductProfitability, una tabla que nunca
     // llenó nadie: la calculadora arrancaba siempre con los valores por
@@ -28,6 +29,8 @@ export default async function CalculadoraPage() {
     db.product.findMany({
       where: { organizationId: session.organizationId, archived: false },
       select: {
+        id: true,
+        etiquetas: true,
         code: true,
         sku: true,
         name: true,
@@ -42,6 +45,8 @@ export default async function CalculadoraPage() {
     db.shopifyStore.findFirst({
       where: { organizationId: session.organizationId, connectedAt: { not: null } },
     }),
+    // Los que se pautaron en los últimos 15 días: «el producto activo».
+    productosPautadosRecientes(session.organizationId, 15).then((ids) => new Set(ids)),
   ]);
 
   // El catálogo de Shopify aporta precio y costo de los productos que todavía
@@ -77,6 +82,8 @@ export default async function CalculadoraPage() {
     byName.set(p.name.trim().toLowerCase(), {
       name: p.name,
       sku: p.sku,
+      activo: activos.has(p.id),
+      etiquetas: p.etiquetas,
       price: p.salePrice,
       unitCost: p.unitCost,
       cpa: p.cpaTarget > 0 ? p.cpaTarget : null,
@@ -86,7 +93,10 @@ export default async function CalculadoraPage() {
       devoluciones: p.devoluciones,
     });
   }
-  const products = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  // Los activos primero: son los que se cargan todos los días.
+  const products = Array.from(byName.values()).sort(
+    (a, b) => Number(Boolean(b.activo)) - Number(Boolean(a.activo)) || a.name.localeCompare(b.name, "es"),
+  );
 
   // Los que están perdiendo plata, con qué hacer.
   //

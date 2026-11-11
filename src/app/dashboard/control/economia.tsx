@@ -205,7 +205,12 @@ export default function Economia({
     filtro === "cargados"
       ? productos.filter((p) => filas.has(p.id) || usadas.has(p.id))
       : filtro === "pautados"
-        ? productos.filter((p) => conPauta.has(p.id) || filas.has(p.id))
+        ? // SOLO LOS DEL MES. Antes entraba también cualquier producto con fila
+          // cargada en el mes aunque no se hubiera pautado —p. ej. copiada del
+          // mes anterior—, y Emilia veía en octubre «uno que otro producto
+          // infiltrado» (llamada del 10-nov). Esos siguen en «Con datos». Lo que
+          // se está editando en este momento no se esconde a mitad de camino.
+          productos.filter((p) => conPauta.has(p.id) || editado.has(p.id))
         : productos;
   const campo =
     "w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-sm tabular-nums outline-none hover:border-border focus:border-accent focus:bg-surface";
@@ -309,7 +314,7 @@ export default function Economia({
           <span className="flex flex-wrap gap-1">
             {(
               [
-                ["pautados", `Pautados este mes (${productos.filter((p) => conPauta.has(p.id) || filas.has(p.id)).length})`],
+                ["pautados", `Pautados este mes (${productos.filter((p) => conPauta.has(p.id) || editado.has(p.id)).length})`],
                 ["cargados", `Con datos (${new Set([...filas.keys(), ...usadas.keys()]).size})`],
                 ["todos", `Todos (${productos.length})`],
               ] as const

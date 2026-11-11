@@ -1,5 +1,6 @@
 "use client";
 
+import { datosEtiqueta } from "@/lib/etiquetas-producto";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorProducto from "../buscador-producto";
 import CopiarId from "../copiar-id";
@@ -76,6 +77,14 @@ export type CalcProduct = {
    * poder copiarlo; el que manda sigue siendo el nombre.
    */
   sku?: string | null;
+  /**
+   * Se pautó en los últimos 15 días. Fabrizio (10-nov): «que salga cuál es el
+   * producto activo aquí en la calculadora para yo seleccionarlo», porque hay
+   * varios con nombres parecidos (gotas de drenaje linfático) y se confundía.
+   */
+  activo?: boolean;
+  /** Las etiquetas del producto (Testeo, Apagado…), ver etiquetas-producto.ts. */
+  etiquetas?: string[];
   price: number | null;
   unitCost: number | null;
   cpa: number | null;
@@ -374,7 +383,11 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
         });
       }
     }
-    return [...porNombre.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    // Los activos (pautados en los últimos 15 días) primero: son los que se
+    // cargan a diario, y así no se confunden con los parecidos de catálogo.
+    return [...porNombre.values()].sort(
+      (a, b) => Number(Boolean(b.activo)) - Number(Boolean(a.activo)) || a.name.localeCompare(b.name, "es"),
+    );
   }, [products, catalogo]);
 
   const revisadoA = catalogoAl
@@ -709,8 +722,18 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               opciones={lista.map((p) => ({
                 id: p.name,
                 nombre: p.name,
+                // El SKU se muestra delante del nombre, no solo se busca: entre
+                // dos «gotas de drenaje» es lo único que los distingue.
+                codigo: p.sku ?? undefined,
                 sku: p.sku,
-                detalle: p.unitCost != null ? `costo ${p.unitCost.toFixed(2)}` : undefined,
+                detalle:
+                  [
+                    p.activo ? "● activo" : null,
+                    ...(p.etiquetas ?? []).map((e) => datosEtiqueta(e)?.texto).filter(Boolean),
+                    p.unitCost != null ? `costo ${p.unitCost.toFixed(2)}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || undefined,
               }))}
               valor={selectedProduct}
               onElegir={loadFromProduct}

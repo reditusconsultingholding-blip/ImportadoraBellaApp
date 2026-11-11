@@ -16,6 +16,11 @@ import { testeosDelPeriodo } from "@/lib/testeos";
 import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import Testeos from "./testeos";
 import { productosPautadosDelMes } from "@/lib/pautados";
+import { shopifyVsAds } from "@/lib/shopify-vs-ads";
+import { riesgoDe, topDelMes } from "@/lib/shopify-vs-ads-calculo";
+import CuadreShopifyAds from "./cuadre";
+import RiesgoProductos, { type DatosRiesgo, type FilaRiesgo } from "./riesgo";
+import FiltroPeriodo from "./filtro-periodo";
 
 // El control de gastos publicitarios.
 //
@@ -29,7 +34,7 @@ import { productosPautadosDelMes } from "@/lib/pautados";
 // src/lib/control-publicitario.ts: los pedidos son los reales de la tienda, y
 // los gastos operativos usan producción más flete.
 
-const VISTAS = ["resultados", "economia", "enlazar", "testeos"] as const;
+const VISTAS = ["resultados", "cuadre", "riesgo", "economia", "enlazar", "testeos"] as const;
 type Vista = (typeof VISTAS)[number];
 const esVista = (v: string | undefined): v is Vista =>
   Boolean(v && (VISTAS as readonly string[]).includes(v));
@@ -69,7 +74,12 @@ export default async function ControlPage({
   const vista: Vista = esVista(p.vista) ? p.vista : "resultados";
 
   const hoy = diaEcuador();
-  const periodo = resolverPeriodo(p, hoy);
+  // «Hoy» solo existe en Shopify vs Ads, que se mira en vivo; el resto del
+  // control trabaja con días cerrados.
+  const periodo =
+    p.periodo === "hoy" && !p.desde && vista === "cuadre"
+      ? { id: "hoy", desde: hoy, hasta: hoy }
+      : resolverPeriodo(p.periodo === "hoy" ? { ...p, periodo: undefined } : p, hoy);
   const hora = Number(p.hora) || 23;
   const productIds = (p.productos ?? "").split(",").filter(Boolean);
 
@@ -202,6 +212,101 @@ export default async function ControlPage({
         enlaceAdm={gastoAdm?.enlace ?? null}
       />
     );
+  } else if (vista === "cuadre") {
+    const datos = await shopifyVsAds(session.organizationId, periodo.desde, periodo.hasta);
+    cuerpo = (
+      <>
+        <FiltroPeriodo
+          vista="cuadre"
+          periodo={periodo.id}
+          desde={isoDay(periodo.desde)}
+          hasta={isoDay(periodo.hasta)}
+          meses={meses}
+        />
+        <CuadreShopifyAds datos={datos} editable={canManagePipeline(session.role)} />
+      </>
+    );
+  } else if (vista === "riesgo") {
+    // La confirmación, el CPA y la utilidad son los del control (que toma la
+    // economía de la Calculadora); de Shopify vs Ads sale qué vendió sin pauta.
+    const [control, cuadre, catalogo] = await Promise.all([
+      controlDelPeriodo(session.organizationId, {
+        desde: periodo.desde,
+        hasta: periodo.hasta,
+        hora: 23,
+        productIds: [],
+      }),
+      shopifyVsAds(session.organizationId, periodo.desde, periodo.hasta),
+      db.product.findMany({
+        where: { organizationId: session.organizationId },
+        select: { id: true, sku: true, etiquetas: true },
+      }),
+    ]);
+    const info = new Map(catalogo.map((c) => [c.id, c]));
+    const filas: FilaRiesgo[] = control.productos
+      .filter((f) => f.productId && (f.pedidos > 0 || f.gasto > 0))
+      .map((f) => {
+        const c = info.get(f.productId!);
+        // Sin gasto no hay CPA: un «$0,00» lo mandaba a riesgo bajo.
+        const cpaReal = f.pedidos > 0 && f.gasto > 0 ? f.gasto / f.pedidos : null;
+        return {
+          productId: f.productId,
+          nombre: f.producto,
+          codigo: f.codigo,
+          sku: c?.sku ?? null,
+          etiquetas: c?.etiquetas ?? [],
+          pedidos: f.pedidos,
+          efectividad: f.efectividad,
+          cpaReal,
+          cpaObjetivo: f.cpaObjetivo,
+          gasto: f.gasto,
+          utilidad: f.utilidad,
+          riesgo: riesgoDe({ ...f, cpaReal }),
+        };
+      });
+    const tiene = (f: { etiquetas: string[] }, e: string) => f.etiquetas.includes(e);
+    // Sin confirmación cargada (efectividad 0) la utilidad sale negativa por
+    // falta de datos, no porque el producto pierda: esos van a su propia
+    // sección, para cargarlos en la Calculadora. Y los que no tuvieron pauta
+    // van en «Venden sin pauta»: sin gasto no hay riesgo publicitario que medir.
+    const sinConfirmacion = (f: FilaRiesgo) => f.pedidos > 0 && f.efectividad <= 0;
+    const enJuego = filas.filter(
+      (f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO") && f.gasto > 0 && !sinConfirmacion(f),
+    );
+    const conPauta = new Set(filas.filter((f) => f.gasto > 0).map((f) => f.productId));
+    const datos: DatosRiesgo = {
+      top: topDelMes(enJuego),
+      bajo: enJuego.filter((f) => f.riesgo === "bajo").sort((a, b) => b.utilidad - a.utilidad),
+      medio: enJuego.filter((f) => f.riesgo === "medio").sort((a, b) => b.utilidad - a.utilidad),
+      alto: enJuego.filter((f) => f.riesgo === "alto").sort((a, b) => a.utilidad - b.utilidad),
+      testeo: filas.filter((f) => tiene(f, "TESTEO")),
+      faltaCalculadora: filas
+        .filter((f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO") && f.gasto > 0 && sinConfirmacion(f))
+        .sort((a, b) => b.gasto - a.gasto),
+      apagados: filas.filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO")),
+      sinPauta: cuadre.productos
+        .filter(
+          (f) =>
+            f.productId &&
+            f.shopify > 0 &&
+            ((f.gasto === 0 && !conPauta.has(f.productId)) || f.etiquetas.includes("ORGANICO")),
+        )
+        .map((f) => ({ productId: f.productId, nombre: f.nombre, sku: f.sku, etiquetas: f.etiquetas, shopify: f.shopify }))
+        .sort((a, b) => b.shopify - a.shopify),
+    };
+    cuerpo = (
+      <>
+        <FiltroPeriodo
+          vista="riesgo"
+          periodo={periodo.id}
+          desde={isoDay(periodo.desde)}
+          hasta={isoDay(periodo.hasta)}
+          meses={meses}
+          conHoy={false}
+        />
+        <RiesgoProductos datos={datos} editable={canManagePipeline(session.role)} />
+      </>
+    );
   } else if (vista === "testeos") {
     // La ventana en instantes: los testeos se cuentan sobre órdenes, que sí
     // tienen hora (el día de Ecuador arranca a las 05:00 UTC).
@@ -247,6 +352,8 @@ export default async function ControlPage({
 
   const TABS: { id: Vista; label: string }[] = [
     { id: "resultados", label: "Resultados" },
+    { id: "cuadre", label: "Shopify vs Ads" },
+    { id: "riesgo", label: "Riesgo por producto" },
     { id: "economia", label: "Economía por producto" },
     { id: "enlazar", label: "Enlazar pedidos" },
     { id: "testeos", label: "Testeos" },
