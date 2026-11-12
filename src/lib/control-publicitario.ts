@@ -3,7 +3,8 @@ import { economiaDeLaCalculadora, type EconomiaCalculada } from "@/lib/economia-
 import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
-import { cpa, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
+import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
+import { cpa, cpaSobreShopify, economiaDeFila, repartoAdministrativo, sumarFilas, utilidad } from "@/lib/control-calculo";
 import { memorizar } from "@/lib/memoria";
 import type {
   Control,
@@ -374,7 +375,7 @@ async function controlDelPeriodoSinMemoria(
   const { desde, hasta, hora = 23 } = opciones;
   const filtro = opciones.productIds?.length ? opciones.productIds : undefined;
 
-  const [cortes, sinAsignar, gastosAdm, totalesDelDia, testeo] = await Promise.all([
+  const [cortes, sinAsignar, gastosAdm, totalesDelDia, testeo, deShopify] = await Promise.all([
     db.cortePublicitario.findMany({
       where: {
         organizationId,
@@ -415,7 +416,27 @@ async function controlDelPeriodoSinMemoria(
       new Date(desde.getTime() + 5 * 3600_000),
       new Date(hasta.getTime() + 29 * 3600_000),
     ).then((dias) => dias.reduce((a, d) => a + d.testeo, 0)),
+    // Los pedidos de Shopify, para el CPA con el que decide el equipo. Solo en
+    // el cierre del día: a las 8 o las 11 el día de Shopify todavía no
+    // corresponde al corte, y ahí se usa el de la planilla.
+    hora === 23
+      ? pedidosRealesPorDia(
+          organizationId,
+          new Date(desde.getTime() + 5 * 3600_000),
+          new Date(hasta.getTime() + 29 * 3600_000),
+        )
+      : Promise.resolve(null),
   ]);
+
+  // fecha|productId → pedidos de Shopify ("" = sin producto).
+  const shopifyDe = new Map<string, number>();
+  for (const d of deShopify ?? []) {
+    const f = iso(d.fecha);
+    for (const [pid, n] of d.porProducto) shopifyDe.set(`${f}|${pid}`, n);
+    if (d.sinAsignar) shopifyDe.set(`${f}|`, d.sinAsignar);
+  }
+  const shopify = (fecha: Date, productId: string | null, respaldo: number) =>
+    deShopify ? (shopifyDe.get(`${iso(fecha)}|${productId ?? ""}`) ?? 0) : respaldo;
 
   const admDe = new Map(gastosAdm.map((g) => [`${g.anio}-${g.mes}`, g.valor]));
   const pedidosDelDia = new Map(totalesDelDia.map((t) => [iso(t.fecha), Number(t.pedidos) || 0]));
@@ -454,7 +475,9 @@ async function controlDelPeriodoSinMemoria(
       codigo: c.product.code,
       pedidos,
       pedidosPlataforma: c.pedidos,
+      pedidosShopify: shopify(c.fecha, c.productId, pedidos),
       cpa: cpa(c.gasto, pedidos),
+      cpaShopify: cpaSobreShopify(c.gasto, shopify(c.fecha, c.productId, pedidos)),
       cpaObjetivo: c.product.cpaTarget > 0 ? c.product.cpaTarget : null,
       gasto: c.gasto,
       efectividad,
@@ -483,7 +506,9 @@ async function controlDelPeriodoSinMemoria(
       codigo: "",
       pedidos: s.pedidosReales,
       pedidosPlataforma: s.pedidosPlataforma,
+      pedidosShopify: shopify(s.fecha, null, s.pedidosReales),
       cpa: 0,
+      cpaShopify: null,
       // Sin producto no hay objetivo contra el que comparar.
       cpaObjetivo: null,
       gasto: s.gasto,
@@ -510,7 +535,9 @@ async function controlDelPeriodoSinMemoria(
         codigo: f.codigo,
         pedidos: 0,
         pedidosPlataforma: 0,
+        pedidosShopify: 0,
         cpa: 0,
+        cpaShopify: null as number | null,
         // El objetivo es del producto, no del día: se copia tal cual.
         cpaObjetivo: f.cpaObjetivo,
         gasto: 0,
@@ -528,6 +555,7 @@ async function controlDelPeriodoSinMemoria(
       };
       a.pedidos += f.pedidos;
       a.pedidosPlataforma += f.pedidosPlataforma;
+      a.pedidosShopify += f.pedidosShopify;
       a.gasto += f.gasto;
       a.pedidosEfectivos += f.pedidosEfectivos;
       a.gastosOperativos += f.gastosOperativos;
@@ -545,6 +573,7 @@ async function controlDelPeriodoSinMemoria(
     return [...porClave.values()].map(({ _efectividadPonderada, ...a }) => ({
       ...a,
       cpa: a.pedidos > 0 ? a.gasto / a.pedidos : 0,
+      cpaShopify: a.productId ? cpaSobreShopify(a.gasto, a.pedidosShopify) : null,
       margen: a.ingresos > 0 ? a.utilidad / a.ingresos : 0,
       efectividad: a.pedidos > 0 ? _efectividadPonderada / a.pedidos : 0,
     }));

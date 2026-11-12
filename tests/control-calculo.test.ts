@@ -102,3 +102,15 @@ test("CPA de equilibrio: lo que queda para pauta después de todos los costos", 
     null,
   );
 });
+
+test("el CPA sobre Shopify es gasto ÷ pedidos de la tienda (Arbutin octubre)", async () => {
+  const { cpaSobreShopify, sumarFilas } = await import("../src/lib/control-calculo");
+  // 7.339,10 de gasto: 1.379 pedidos en la planilla y 1.428 en Shopify.
+  assert.equal(cpaSobreShopify(7339.1, 1428)?.toFixed(2), "5.14");
+  assert.equal(cpaSobreShopify(100, 0), null);
+  const t = sumarFilas([
+    { pedidos: 1379, pedidosPlataforma: 1382, pedidosShopify: 1428, gasto: 7339.1, ingresos: 0, gastosOperativos: 0, gastosAdm: 0, utilidad: 0 },
+  ]);
+  assert.equal(t.cpa.toFixed(2), "5.32");
+  assert.equal(t.cpaShopify!.toFixed(2), "5.14");
+});

@@ -247,8 +247,9 @@ export default async function ControlPage({
       .filter((f) => f.productId && (f.pedidos > 0 || f.gasto > 0))
       .map((f) => {
         const c = info.get(f.productId!);
-        // Sin gasto no hay CPA: un «$0,00» lo mandaba a riesgo bajo.
-        const cpaReal = f.pedidos > 0 && f.gasto > 0 ? f.gasto / f.pedidos : null;
+        // El mismo CPA que Resultados y la Calculadora: gasto ÷ pedidos de
+        // Shopify. Sin gasto no hay CPA: un «$0,00» lo mandaba a riesgo bajo.
+        const cpaReal = f.gasto > 0 ? f.cpaShopify : null;
         return {
           productId: f.productId,
           nombre: f.producto,

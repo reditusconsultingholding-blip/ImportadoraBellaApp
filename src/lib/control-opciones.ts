@@ -44,7 +44,19 @@ export type FilaControl = {
 
   pedidos: number;
   pedidosPlataforma: number;
+  /**
+   * Pedidos que llegaron a Shopify ese día. `pedidos` sale de la planilla del
+   * equipo de ventas (incluye Funnelish); este es el de la tienda.
+   */
+  pedidosShopify: number;
   cpa: number;
+  /**
+   * Gasto ÷ pedidos de Shopify. Es el CPA con el que decide el equipo:
+   * Fabrizio y Emilia lo calculan así en su archivo y en la Calculadora (Arbutin
+   * octubre: $5,14 sobre Shopify contra $5,32 sobre la planilla). null sin
+   * pedidos en Shopify.
+   */
+  cpaShopify: number | null;
   /** El CPA objetivo del producto: la meta con colchón. null si no está asignada. */
   cpaObjetivo: number | null;
   gasto: number;
@@ -88,6 +100,8 @@ export type FilaPeriodo = Omit<FilaControl, "fecha" | "hora" | "precioProm"> & {
 export type Totales = {
   pedidos: number;
   pedidosPlataforma: number;
+  pedidosShopify: number;
+  cpaShopify: number | null;
   gasto: number;
   ingresos: number;
   gastosOperativos: number;

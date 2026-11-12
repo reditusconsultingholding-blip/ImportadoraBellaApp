@@ -83,10 +83,18 @@ function CeldaCpa({
     gastosAdm: number;
     gasto?: number;
     pedidosPlataforma?: number;
+    cpaShopify?: number | null;
   };
   clase: string;
 }) {
-  if (f.pedidos <= 0) return <td className={clase}>—</td>;
+  if (f.pedidos <= 0 && !f.cpaShopify) return <td className={clase}>—</td>;
+
+  // EL CPA GRANDE ES SOBRE SHOPIFY (gasto ÷ pedidos de la tienda), que es como
+  // lo calcula el equipo en su archivo y en la Calculadora. Fabrizio (10-nov):
+  // «me da el gasto dividido para el número que me traquea Shopify?». Antes era
+  // sobre la planilla de ventas y no coincidía: Arbutin octubre daba $5,32 acá
+  // y $5,14 en la Calculadora. El de la planilla queda debajo, chico.
+  const principal = f.cpaShopify ?? f.cpa;
 
   // El CPA que muestra el administrador de anuncios, al lado del real.
   // Fabrizio (10-nov): «es importante tener las dos informaciones, costo
@@ -96,14 +104,15 @@ function CeldaCpa({
 
   const equilibrio = cpaDeEquilibrio(f);
   const tono =
-    equilibrio != null && f.cpa > equilibrio
+    equilibrio != null && principal > equilibrio
       ? "text-critical"
-      : f.cpaObjetivo != null && f.cpa > f.cpaObjetivo
+      : f.cpaObjetivo != null && principal > f.cpaObjetivo
         ? "text-warning"
         : "text-good";
 
   const leyenda = [
-    `${CPA_REAL} ${dinero2(f.cpa)}`,
+    `${CPA_REAL} (sobre Shopify) ${dinero2(principal)}`,
+    f.cpaShopify != null && f.pedidos > 0 ? `sobre la planilla de ventas ${dinero2(f.cpa)}` : null,
     cpaPlataforma != null ? `CPA de plataforma ${dinero2(cpaPlataforma)}` : null,
     f.cpaObjetivo != null ? `${CPA_OBJETIVO} ${dinero2(f.cpaObjetivo)}` : null,
     equilibrio != null
@@ -115,7 +124,7 @@ function CeldaCpa({
 
   return (
     <td className={clase} title={leyenda}>
-      <span className={tono}>{dinero2(f.cpa)}</span>
+      <span className={tono}>{dinero2(principal)}</span>
       {(f.cpaObjetivo != null || equilibrio != null) && (
         <span className="block text-[10px] font-normal text-muted">
           {f.cpaObjetivo != null && <>objetivo {dinero2(f.cpaObjetivo)}</>}
@@ -123,8 +132,12 @@ function CeldaCpa({
           {equilibrio != null && <>equilibrio {dinero2(equilibrio)}</>}
         </span>
       )}
-      {cpaPlataforma != null && (
-        <span className="block text-[10px] font-normal text-muted">plataforma {dinero2(cpaPlataforma)}</span>
+      {(cpaPlataforma != null || (f.cpaShopify != null && f.pedidos > 0)) && (
+        <span className="block text-[10px] font-normal text-muted">
+          {cpaPlataforma != null && <>plataforma {dinero2(cpaPlataforma)}</>}
+          {cpaPlataforma != null && f.cpaShopify != null && f.pedidos > 0 && " · "}
+          {f.cpaShopify != null && f.pedidos > 0 && <>planilla {dinero2(f.cpa)}</>}
+        </span>
       )}
     </td>
   );
@@ -271,9 +284,17 @@ export default function Resultados({
 
       {/* ------------------------------ Números ----------------------------- */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Tarjeta titulo="Pedidos" valor={entero(totales.pedidos)} nota={`Plataformas dicen ${entero(totales.pedidosPlataforma)}`} />
+        <Tarjeta titulo="Pedidos" valor={entero(totales.pedidos)} nota={`de la planilla · Shopify ${entero(totales.pedidosShopify)} · plataformas ${entero(totales.pedidosPlataforma)}`} />
         <Tarjeta titulo="Gasto en pauta" valor={dinero(totales.gasto)} nota="Meta + TikTok, todo" />
-        <Tarjeta titulo="CPA" valor={totales.pedidos > 0 ? dinero2(totales.cpa) : "—"} nota="gasto ÷ pedidos reales" />
+        <Tarjeta
+          titulo="CPA"
+          valor={totales.cpaShopify != null ? dinero2(totales.cpaShopify) : totales.pedidos > 0 ? dinero2(totales.cpa) : "—"}
+          nota={
+            totales.cpaShopify != null
+              ? `gasto ÷ ${entero(totales.pedidosShopify)} pedidos de Shopify · planilla ${totales.pedidos > 0 ? dinero2(totales.cpa) : "—"}`
+              : "gasto ÷ pedidos de la planilla"
+          }
+        />
         <Tarjeta titulo="Ingresos" valor={dinero(totales.ingresos)} nota="precio × pedidos efectivos" />
         <Tarjeta
           titulo="Costos"
@@ -581,7 +602,9 @@ function TablaProductos({
           <tr className="font-semibold">
             <td className={TD}>Total</td>
             <td className={`${TD} ${NUM}`}>{entero(totales.pedidos)}</td>
-            <td className={`${TD} ${NUM}`}>{totales.pedidos > 0 ? dinero2(totales.cpa) : "—"}</td>
+            <td className={`${TD} ${NUM}`}>
+              {totales.cpaShopify != null ? dinero2(totales.cpaShopify) : totales.pedidos > 0 ? dinero2(totales.cpa) : "—"}
+            </td>
             <td className={`${TD} ${NUM}`}>{dinero(totales.gasto)}</td>
             <td className={`${TD} ${NUM}`} />
             <td className={`${TD} ${NUM}`}>{dinero(totales.ingresos)}</td>

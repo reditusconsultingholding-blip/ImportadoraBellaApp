@@ -84,6 +84,11 @@ export function cpaDeEquilibrio(f: {
   return (f.ingresos - f.gastosOperativos - f.gastosAdm) / f.pedidos;
 }
 
+/** Gasto ÷ pedidos de Shopify. Sin pedidos en Shopify no hay CPA: null. */
+export function cpaSobreShopify(gasto: number, pedidosShopify: number) {
+  return pedidosShopify > 0 ? gasto / pedidosShopify : null;
+}
+
 /** CPA sobre pedidos reales. Sin pedidos no hay CPA (0, no infinito). */
 export function cpa(gasto: number, pedidos: number) {
   return pedidos > 0 ? gasto / pedidos : 0;
@@ -92,6 +97,9 @@ export function cpa(gasto: number, pedidos: number) {
 export type SumaControl = {
   pedidos: number;
   pedidosPlataforma: number;
+  pedidosShopify: number;
+  /** Gasto ÷ pedidos de Shopify: el CPA con el que decide el equipo. */
+  cpaShopify: number | null;
   gasto: number;
   ingresos: number;
   gastosOperativos: number;
@@ -107,11 +115,15 @@ export type SumaControl = {
  * 3 pedidos que a uno de 300.
  */
 export function sumarFilas(
-  filas: Pick<SumaControl, "pedidos" | "pedidosPlataforma" | "gasto" | "ingresos" | "gastosOperativos" | "gastosAdm" | "utilidad">[],
+  filas: (Pick<SumaControl, "pedidos" | "pedidosPlataforma" | "gasto" | "ingresos" | "gastosOperativos" | "gastosAdm" | "utilidad"> & {
+    pedidosShopify?: number;
+  })[],
 ): SumaControl {
   const t: SumaControl = {
     pedidos: 0,
     pedidosPlataforma: 0,
+    pedidosShopify: 0,
+    cpaShopify: null,
     gasto: 0,
     ingresos: 0,
     gastosOperativos: 0,
@@ -123,6 +135,7 @@ export function sumarFilas(
   for (const f of filas) {
     t.pedidos += f.pedidos;
     t.pedidosPlataforma += f.pedidosPlataforma;
+    t.pedidosShopify += f.pedidosShopify ?? 0;
     t.gasto += f.gasto;
     t.ingresos += f.ingresos;
     t.gastosOperativos += f.gastosOperativos;
@@ -130,6 +143,7 @@ export function sumarFilas(
     t.utilidad += f.utilidad;
   }
   t.cpa = cpa(t.gasto, t.pedidos);
+  t.cpaShopify = cpaSobreShopify(t.gasto, t.pedidosShopify);
   t.margen = t.ingresos > 0 ? t.utilidad / t.ingresos : 0;
   return t;
 }
