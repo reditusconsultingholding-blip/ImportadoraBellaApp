@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorProducto from "../buscador-producto";
 import CopiarId from "../copiar-id";
 import { aNumero } from "@/lib/numero-escrito";
+import { agruparVariantes } from "@/lib/calculadora-variantes";
 import { CPA_EQUILIBRIO, CPA_OBJETIVO } from "@/lib/cpa-glosario";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
@@ -85,6 +86,8 @@ export type CalcProduct = {
   activo?: boolean;
   /** Las etiquetas del producto (Testeo, Apagado…), ver etiquetas-producto.ts. */
   etiquetas?: string[];
+  /** Las otras ofertas del mismo producto que no se listan aparte (calculadora-variantes.ts). */
+  variantes?: string[];
   price: number | null;
   unitCost: number | null;
   cpa: number | null;
@@ -383,9 +386,11 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
         });
       }
     }
+    // Las ofertas de un mismo producto («Combo 1/2/3 …», las copias con
+    // «Product Id») salen una sola vez: ver src/lib/calculadora-variantes.ts.
     // Los activos (pautados en los últimos 15 días) primero: son los que se
     // cargan a diario, y así no se confunden con los parecidos de catálogo.
-    return [...porNombre.values()].sort(
+    return agruparVariantes([...porNombre.values()]).sort(
       (a, b) => Number(Boolean(b.activo)) - Number(Boolean(a.activo)) || a.name.localeCompare(b.name, "es"),
     );
   }, [products, catalogo]);
@@ -729,6 +734,9 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
                 detalle:
                   [
                     p.activo ? "● activo" : null,
+                    p.variantes?.length
+                      ? `${p.variantes.length + 1} ofertas en Shopify`
+                      : null,
                     ...(p.etiquetas ?? []).map((e) => datosEtiqueta(e)?.texto).filter(Boolean),
                     p.unitCost != null ? `costo ${p.unitCost.toFixed(2)}` : null,
                   ]
