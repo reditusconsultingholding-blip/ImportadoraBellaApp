@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cpaMaximo } from "@/lib/economia-calculadora";
-import { esElMesEnCurso, mezclarConElMes, mezclarConLaCalculadora } from "@/lib/control-publicitario";
+import { esElMesEnCurso, gastoAdmDeFila, mezclarConElMes, mezclarConLaCalculadora } from "@/lib/control-publicitario";
 
 test("CPA máximo: la misma cuenta que muestra la calculadora", () => {
   // (precio − producto − adm) × (1 − devoluciones) − flete
@@ -152,4 +152,22 @@ test("la calculadora pisa al archivo, pero no borra lo que ella no sabe", () => 
   assert.equal(r.efectividad, 0.58, "pero la efectividad del archivo se conserva");
   assert.equal(r.devoluciones, 0.1, "y las devoluciones también");
   assert.equal(r.origen, "calculadora");
+  assert.equal(r.gastoOperativoPorPedido, null, "sin gasto operativo tecleado, no hay");
+});
+
+test("el gasto operativo de la Calculadora es por pedido efectivo (Fabrizio, 10-nov)", () => {
+  const e = mezclarConLaCalculadora(undefined, {
+    efectividad: 0.75,
+    produccion: 4,
+    flete: 3,
+    precioProm: 29.99,
+    cpaMin: null,
+    devoluciones: null,
+    gastoOperativo: 4,
+  });
+  assert.equal(e.gastoOperativoPorPedido, 4);
+  // 100 pedidos que confirman 75%: 75 efectivos × $4.
+  assert.equal(gastoAdmDeFila(e, 75, () => 999), 300);
+  // Sin Calculadora, el reparto del total mensual de siempre.
+  assert.equal(gastoAdmDeFila(undefined, 75, () => 123), 123);
 });

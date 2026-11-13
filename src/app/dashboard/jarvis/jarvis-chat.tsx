@@ -25,15 +25,18 @@ const MAX_IMAGENES = 4;
 export default function JarvisChat({
   inicial,
   modelo,
+  preguntaInicial = "",
 }: {
   inicial: Conversacion[];
   /** Qué modelo contesta, para poder decirlo en la cabecera. */
   modelo: string;
+  /** La duda que la burbuja de ayuda no supo responder: queda escrita, sin enviar. */
+  preguntaInicial?: string;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingActions, setPendingActions] = useState<ProposedAction[]>([]);
   const [resolvedActionIds, setResolvedActionIds] = useState<Set<string>>(new Set());
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(preguntaInicial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

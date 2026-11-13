@@ -11,6 +11,8 @@ import {
 } from "@/lib/permissions";
 import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
+import BurbujaAyuda from "./burbuja-ayuda";
+import { Suspense } from "react";
 import AvisoVersion from "./aviso-version";
 import SelectorTema from "./selector-tema";
 import Saludo from "./saludo";
@@ -211,6 +213,12 @@ export default async function DashboardLayout({
             // (EncabezadoSeccion los deja en max-w-2xl) y lo que ocupa el resto
             // son tablas y tarjetas, que agradecen el espacio. */}
         <main className="mx-auto w-full max-w-[1600px] px-4 py-6 md:px-8 md:py-8">{children}</main>
+        {/* La burbuja de ayuda, en todas las pantallas: la capacitación sale
+            sola una vez y las dudas que quedan se preguntan acá, con su video.
+            Suspense porque lee la pestaña (?vista=) de la dirección. */}
+        <Suspense fallback={null}>
+          <BurbujaAyuda pasos={pasosCapacitacion} puedeJarvis={canUseJarvis(session.role)} />
+        </Suspense>
       </div>
     </div>
   );

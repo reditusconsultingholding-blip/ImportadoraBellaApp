@@ -6,7 +6,13 @@ import { nombreDelModelo } from "@/lib/agent";
 import JarvisChat from "./jarvis-chat";
 import { EncabezadoSeccion } from "../encabezado-seccion";
 
-export default async function JarvisPage() {
+export default async function JarvisPage({
+  searchParams,
+}: {
+  /** ?pregunta= llega desde la burbuja de ayuda cuando no encontró la respuesta. */
+  searchParams: Promise<{ pregunta?: string }>;
+}) {
+  const { pregunta } = await searchParams;
   const session = await getSession();
   if (!session) redirect("/login");
   // Jarvis consulta la base entera: facturacion, utilidad, costos, clientes.
@@ -26,6 +32,7 @@ export default async function JarvisPage() {
       />
       <JarvisChat
         modelo={nombreDelModelo()}
+        preguntaInicial={typeof pregunta === "string" ? pregunta.slice(0, 500) : ""}
         inicial={conversaciones.map((c) => ({
           id: c.id,
           titulo: c.titulo,

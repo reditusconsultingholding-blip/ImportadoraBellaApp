@@ -86,18 +86,16 @@ function alMoverse(avisar: () => void) {
   };
 }
 
-/* Antes había un tope de tres aperturas y después había que pedirla desde el
- * botón. Se quitó el tope: la bienvenida acompaña hasta que la persona la
- * TERMINA, y desde ese momento no vuelve a salir sola.
+/* LA CAPACITACIÓN SALE SOLA UNA SOLA VEZ (Sebastian, 12-nov).
  *
- * El freno real es `yaVista`, y ahora SOLO se marca al llegar al final y
- * apretar "Terminar". Cerrar con la equis o con "seguir después" no la da por
- * vista: el recorrido retoma en el mismo paso la próxima vez que entre.
+ * Antes acompañaba en cada entrada hasta que la persona la terminaba. Ahora se
+ * abre sola la primera vez y, se termine o se cierre, queda marcada como
+ * vista: no vuelve a aparecer sola.
  *
- * Es a propósito. La capacitación explica cosas que, cuando no se ven, vuelven
- * como reportes de error: cómo se da de alta un producto, qué abre cada rango,
- * que la pieza que te asignan la podés llenar aunque el producto no sea tuyo.
- * Una salida en el primer paso la volvía opcional en los hechos. */
+ * Lo que no se entendió no se pierde: la burbuja de ayuda (abajo a la
+ * derecha, en todas las pantallas) responde las dudas de la pantalla en la
+ * que se está y muestra el video de cómo se hace, y el botón «Capacitación»
+ * sigue arriba para repetir el recorrido entero. */
 
 export default function CapacitacionTour({
   pasos,
@@ -231,6 +229,10 @@ export default function CapacitacionTour({
       const audio = audioRef.current ?? new Audio();
       audioRef.current = audio;
       audio.src = grabacion;
+      // A 1,25: la grabación a velocidad normal se hacía lenta (Sebastian,
+      // 12-nov). preservesPitch mantiene la voz sin que suene aguda.
+      audio.playbackRate = 1.25;
+      audio.preservesPitch = true;
       audio.onplay = () => {
         setHablando(true);
         setEsperandoGesto(false);
@@ -368,15 +370,21 @@ export default function CapacitacionTour({
     anotar(true);
   }
 
-  // Cerrar sin terminar NO la marca como vista: quien la interrumpe la retoma
-  // después y en la próxima entrada le vuelve a aparecer. Saltarla es una
-  // decisión distinta y tiene su propio botón.
+  // Cerrar también la da por vista: sale sola una vez y nada más. Lo que
+  // quedó sin ver se pregunta en la burbuja de ayuda o se repite con el botón.
   function cerrarPorAhora() {
     callar();
     audioRef.current?.pause();
     setHablando(false);
     setAbierto(false);
+    if (!yaVista) anotar(true);
   }
+  // Escape cierra igual que la equis. Va por referencia para no volver a
+  // montar el atrapa-foco en cada render.
+  const cerrarRef = useRef(cerrarPorAhora);
+  useEffect(() => {
+    cerrarRef.current = cerrarPorAhora;
+  });
 
   // Escape para salir, y Tab que no se escapa del globo. El foco atrapado no
   // es adorno: sin eso, tabular desde el globo se va a los links de la
@@ -401,7 +409,7 @@ export default function CapacitacionTour({
     const alTeclado = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        setAbierto(false);
+        cerrarRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -634,20 +642,8 @@ export default function CapacitacionTour({
                 )}
 
               <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
-                {/* NO SE PUEDE SALTAR. Solo se termina llegándole al final.
-                    //
-                    // Antes había un "saltarla y no volver a mostrarla" que la
-                    // marcaba como hecha en el primer paso. La capacitación es
-                    // obligatoria y explica cosas que después se reportan como
-                    // errores —cómo dar de alta un producto, qué abre cada
-                    // rango, que la pieza asignada se puede llenar—, así que
-                    // una salida en el paso uno la volvía opcional en los
-                    // hechos.
-                    //
-                    // Esto no es encerrar a nadie: "seguir después" cierra el
-                    // globo y el recorrido retoma en el mismo paso la próxima
-                    // vez que entre. Lo único que ya no se puede es darla por
-                    // vista sin haberla visto. */}
+                {/* Cerrar la da por vista (sale sola una vez). Lo que quede
+                    sin ver lo responde la burbuja de ayuda con su video. */}
                 {esUltimo ? (
                   <span className="text-xs text-muted">Último paso</span>
                 ) : (
@@ -656,7 +652,7 @@ export default function CapacitacionTour({
                     onClick={cerrarPorAhora}
                     className="text-left text-xs text-muted transition hover:text-foreground hover:underline"
                   >
-                    Seguir después
+                    Cerrar · dudas en la burbuja de ayuda
                   </button>
                 )}
                 <div className="flex shrink-0 items-center gap-2">

@@ -87,6 +87,12 @@ export type Economia = {
   delMes: boolean;
   /** De dónde salieron los números: para que la pantalla lo pueda decir. */
   origen: "mes" | "calculadora" | "ficha";
+  /**
+   * Gasto operativo por pedido de la Calculadora (solo en el mes en curso).
+   * Cuando está, el gasto administrativo de la fila es esto × pedidos
+   * efectivos, en vez del reparto del total mensual de administración.
+   */
+  gastoOperativoPorPedido?: number | null;
 };
 
 /**
@@ -176,7 +182,25 @@ export function mezclarConLaCalculadora(previo: Economia | undefined, c: Economi
     devoluciones: c.devoluciones ?? previo?.devoluciones ?? null,
     delMes: false,
     origen: "calculadora",
+    gastoOperativoPorPedido: c.gastoOperativo != null && c.gastoOperativo > 0 ? c.gastoOperativo : null,
   };
+}
+
+/**
+ * El gasto administrativo de una fila.
+ *
+ * Si la Calculadora tiene el gasto operativo por pedido de ese producto (mes
+ * en curso), es ese número por los pedidos efectivos: lo mismo que hace la
+ * Calculadora, así la utilidad de las dos pantallas coincide. Si no, el reparto
+ * del total mensual que pasa administración, como siempre.
+ */
+export function gastoAdmDeFila(
+  e: Pick<Economia, "gastoOperativoPorPedido"> | undefined,
+  pedidosEfectivos: number,
+  reparto: () => number,
+): number {
+  const porPedido = e?.gastoOperativoPorPedido;
+  return porPedido != null && porPedido > 0 ? porPedido * pedidosEfectivos : reparto();
 }
 
 /**
@@ -466,7 +490,7 @@ async function controlDelPeriodoSinMemoria(
     const e = economias.get(claveMes(c.fecha))?.get(c.productId);
     const pedidos = c.pedidosReales;
     const { efectividad, pedidosEfectivos, gastosOperativos, precioProm, ingresos } = economiaDeFila(pedidos, e);
-    const gastosAdmFila = repartoAdm(c.fecha, pedidos);
+    const gastosAdmFila = gastoAdmDeFila(e, pedidosEfectivos, () => repartoAdm(c.fecha, pedidos));
     return {
       fecha: iso(c.fecha),
       hora,

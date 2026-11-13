@@ -26,6 +26,13 @@ export type EconomiaCalculada = {
   precioProm: number;
   cpaMin: number | null;
   devoluciones: number | null;
+  /**
+   * El gasto operativo POR PEDIDO que se tecleó en la Calculadora, o null si
+   * no se cargó. Fabrizio, 10-nov: «podemos sacar el gasto operativo de la
+   * calculadora, porque ahí está incluido; está por pedido, allá se debería
+   * hacer la multiplicación». Opcional para no romper a quien arma una a mano.
+   */
+  gastoOperativo?: number | null;
 };
 
 /**
@@ -124,6 +131,7 @@ export async function economiaDeLaCalculadora(
         devoluciones,
       }),
       devoluciones,
+      gastoOperativo: numero(d.operatingCost) ?? null,
     });
   }
 

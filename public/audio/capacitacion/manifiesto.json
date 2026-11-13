@@ -85,10 +85,10 @@
   },
   "calculadora": {
     "archivo": "calculadora.mp3",
-    "huella": "432aa858",
+    "huella": "4db3db4f",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-09-30T13:06:37.349Z"
+    "generado": "2026-11-13T04:38:06.798Z"
   },
   "reportes": {
     "archivo": "reportes.mp3",
@@ -169,10 +169,10 @@
   },
   "control": {
     "archivo": "control.mp3",
-    "huella": "3eff82e2",
+    "huella": "822ad8ec",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-10-13T21:52:11.807Z"
+    "generado": "2026-11-13T04:37:43.638Z"
   },
   "sin-nomenclatura": {
     "archivo": "sin-nomenclatura.mp3",
@@ -194,5 +194,19 @@
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
     "generado": "2026-10-13T21:51:49.586Z"
+  },
+  "control-shopify-ads": {
+    "archivo": "control-shopify-ads.mp3",
+    "huella": "6fd82840",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-11-13T04:37:51.157Z"
+  },
+  "control-riesgo": {
+    "archivo": "control-riesgo.mp3",
+    "huella": "e0e2867c",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-11-13T04:37:58.068Z"
   }
 }

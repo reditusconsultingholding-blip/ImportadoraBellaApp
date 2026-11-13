@@ -251,10 +251,47 @@ export const PASOS: PasoCapacitacion[] = [
     puntos: [
       "La planilla se relee sola cada hora. «Traer la planilla ahora» la fuerza cuando acaban de cargar pedidos y no querés esperar.",
       "Los avisos de arriba son trabajo pendiente, no decoración: pedidos sin producto enlazado no suman a la rentabilidad de nadie, y sin gasto administrativo cargado la utilidad sale más alta que la real.",
-      "En cada fila, debajo del CPA, están el objetivo y el de equilibrio: verde si está debajo del objetivo, ámbar si lo pasó pero todavía deja plata, rojo si pasó el equilibrio y cada venta cuesta más de lo que deja.",
+      "El CPA grande es el gasto dividido entre los pedidos de Shopify, el mismo que da la Calculadora. Debajo, en chico, están el objetivo y el de equilibrio: verde si está debajo del objetivo, ámbar si lo pasó pero todavía deja plata, rojo si pasó el equilibrio y cada venta cuesta más de lo que deja.",
       "«Economía por producto» es precio, costo, flete y efectividad de cada producto. En el mes que corre esos números los pone la Calculadora de precios sola; lo que cargues ahí manda recién cuando el mes cierra. La fila te dice de dónde sale cada número.",
       "«Enlazar pedidos» resuelve los pedidos cuyo nombre no coincide con ningún producto. «Testeos» separa lo que se está probando para que no ensucie los números de lo que ya funciona.",
       "El selector de cierre (8h, 11h, 16h) es para comparar contra el corte que usa el equipo, no para cambiar los datos.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
+    // Pedido de Fabrizio y Emilia en la llamada del 10-nov: su archivo de
+    // «Shopify vs Ads», dentro de Jarvis y al día.
+    id: "control-shopify-ads",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/control?vista=cuadre",
+    seccion: "Control publicitario",
+    titulo: "Cuántos pedidos llegan de verdad contra los que dicen Meta y TikTok",
+    texto:
+      "Meta y TikTok se atribuyen más compras de las que llegan a Shopify, y con ese CPA optimista se escalan campañas que no lo merecen. Esta pestaña pone lado a lado, día por día y producto por producto, los pedidos de Shopify, los que reporta cada plataforma, la diferencia y el factor, para decidir con el CPA real y no con el de la plataforma.",
+    puntos: [
+      "El factor es plataforma dividido Shopify. Uno es que coinciden; uno coma tres es que la plataforma reporta un treinta por ciento de compras de más. Verde hasta un diez por ciento de diferencia, ámbar hasta veinticinco, rojo más allá: ahí hay que revisar el píxel.",
+      "CPA plataforma es lo que muestra el administrador de anuncios. CPA real es el gasto dividido entre los pedidos de Shopify, y debajo va el objetivo de la Calculadora.",
+      "Las columnas Equipo de ventas y Confirmación muestran lo que cargó el equipo comercial en su planilla, día por día.",
+      "En la tabla por producto, cada fila se abre para ver sus días. «Solo los que no cuadran» deja a la vista los que hay que revisar.",
+      "«Sin pauta» quiere decir que hubo pedidos en Shopify sin gasto ese día: recompras o ventas orgánicas, no un error.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
+    // El archivo de confirmación y CPA de Emilia, por secciones.
+    id: "control-riesgo",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/control?vista=riesgo",
+    seccion: "Control publicitario",
+    titulo: "Qué productos son de riesgo bajo, medio y alto",
+    texto:
+      "Es el archivo de Emilia hecho solo: el top diez del período por utilidad y cada producto ubicado según su confirmación y su CPA real. Riesgo bajo es confirmar setenta por ciento o más con el CPA dentro del objetivo, como las gotas de drenaje. Riesgo alto es confirmar poco y que el CPA no dé, o perder plata.",
+    puntos: [
+      "La confirmación y el CPA objetivo salen de la Calculadora de precios: si se actualizan allá, acá cambia solo.",
+      "Las etiquetas (Testeo, Activo, Apagado, Permanente, Nuevo, Reimportar, No reimportar, Orgánico) se ponen con el botón de etiquetas de cada producto y se ven en todo el panel.",
+      "Lo marcado como Testeo va a su propia sección y no ensucia las de riesgo. Lo marcado como Apagado se muestra aparte.",
+      "«Venden sin pauta» son los que tienen pedidos en Shopify sin ningún gasto en el período, más los marcados como Orgánico.",
+      "«Falta cargar en la Calculadora» son los que tienen pauta pero no tienen la confirmación cargada: sin eso no se puede saber su riesgo.",
     ],
     roles: CON_NUMEROS,
   },
@@ -332,6 +369,8 @@ export const PASOS: PasoCapacitacion[] = [
       "Eliges el producto (la lista sale de Shopify en vivo) y la pantalla te da el precio sugerido para el margen que quieres, y abajo la cuenta completa: de cada checkout que paga la pauta, cuántos se confirman, cuántos se devuelven y qué queda después del producto, el flete, el gasto operativo y la publicidad. Te devuelve la utilidad del día, el CPA de equilibrio, el CPA objetivo y el ROAS.",
     puntos: [
       "Lo que ajustas se guarda solo por producto y queda para todo el equipo; el botón «Guardar cambios» lo confirma y avisa si algo falló.",
+      "Se busca por nombre o por SKU de Shopify. Los productos con pauta en los últimos quince días salen primero, marcados como activos, con sus etiquetas al lado.",
+      "Todo sale de acá: la confirmación, el CPA objetivo y el costo que se ven en Control publicitario y en Riesgo por producto. Actualizar la Calculadora es actualizar el panel.",
       "La barra de equilibrio marca con qué tasa de confirmación se deja de ganar, con todo lo demás igual.",
       "Los escenarios muestran qué pasaría al subir la confirmación, bajar el CPA o escalar los checkouts.",
       "No modifica nada del negocio: es para probar antes de decidir.",
