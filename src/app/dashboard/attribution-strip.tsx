@@ -13,6 +13,10 @@ import Link from "next/link";
 import type { ResumenSinProducto } from "@/lib/sin-nomenclatura";
 import FrescuraVentas from "./frescura-ventas";
 import SeccionPlegable from "./seccion-plegable";
+import { estadoDelCuadre } from "@/lib/shopify-vs-ads-calculo";
+
+const TONO_DESVIO = { bien: "text-good", vigilar: "text-warning", mal: "text-critical" } as const;
+const BARRA_DESVIO = { bien: "bg-good", vigilar: "bg-warning", mal: "bg-critical" } as const;
 
 export default function AttributionStrip({
   ventasReales,
@@ -74,6 +78,13 @@ export default function AttributionStrip({
   // — las dos plataformas se cuelgan la misma venta.
   const exceso = ordenesReales > 0 ? atribuidas / ordenesReales : null;
 
+  // Plataformas − tienda, con el mismo factor y los mismos colores que la
+  // pestaña Shopify vs Ads: verde hasta ±10%, ámbar hasta ±25%, rojo más allá.
+  const diferencia = atribuidas - ordenesReales;
+  const factor = exceso ?? 0;
+  const desvio = ordenesReales > 0 ? diferencia / ordenesReales : 0;
+  const estado = estadoDelCuadre(ordenesReales, atribuidas) ?? "bien";
+
   const columnas = [
     {
       titulo: "Shopify · lo que se cobró",
@@ -120,6 +131,13 @@ export default function AttributionStrip({
           {money(ventasReales)} cobrados
           {pesoPauta != null && ` · la pauta se llevó el ${pesoPauta.toFixed(0)}%`} ·{" "}
           {atribuidas.toLocaleString("es-EC")} compras se atribuyen Meta y TikTok
+          {ordenesReales > 0 && diferencia !== 0 && (
+            <span className={TONO_DESVIO[estado]}>
+              {" "}
+              ({diferencia > 0 ? "+" : "−"}
+              {Math.abs(diferencia).toLocaleString("es-EC")} contra {ordenesReales.toLocaleString("es-EC")} pedidos reales)
+            </span>
+          )}
         </>
       }
     >
@@ -206,24 +224,40 @@ export default function AttributionStrip({
               total={ordenesReales}
               tono="bg-accent"
             />
+            {/* Lo que dicen las plataformas, TAL CUAL, aunque pase de 100%.
+                Antes esta columna se recortaba al número de pedidos reales
+                («374 · 100%») y la de al lado mostraba «0 · 0%» cuando Meta y
+                TikTok se atribuían 430: Fabrizio (14-nov) lo leyó como que la
+                pauta cuadraba perfecto, cuando reportaba 56 compras de más. */}
             <Tramo
-              etiqueta="Los registra el píxel de Meta o TikTok"
-              valor={Math.min(atribuidas, ordenesReales)}
+              etiqueta={`Reportan Meta + TikTok (Meta ${meta.purchases.toLocaleString("es-EC")} · TikTok ${tiktok.purchases.toLocaleString("es-EC")})`}
+              valor={atribuidas}
               total={ordenesReales}
               tono="bg-brand-green"
             />
             <Tramo
-              etiqueta="El píxel no los alcanzó a registrar"
-              valor={Math.max(0, ordenesReales - atribuidas)}
+              etiqueta={
+                diferencia > 0
+                  ? "Compras que las plataformas reportan de más"
+                  : diferencia < 0
+                    ? "Pedidos que el píxel no alcanzó a registrar"
+                    : "Diferencia: coinciden"
+              }
+              valor={diferencia}
               total={ordenesReales}
-              tono="bg-border-strong"
+              valorTexto={`${diferencia > 0 ? "+" : diferencia < 0 ? "−" : ""}${Math.abs(diferencia).toLocaleString("es-EC")}`}
+              pctTexto={`${diferencia > 0 ? "+" : diferencia < 0 ? "−" : ""}${Math.abs(Math.round(desvio * 100))}% · factor ${factor.toFixed(2).replace(".", ",")}`}
+              colorTexto={TONO_DESVIO[estado]}
+              tono={BARRA_DESVIO[estado]}
             />
           </div>
 
           <p className="mt-2.5 text-xs text-muted">
-            {atribuidas >= ordenesReales
-              ? `Meta y TikTok se atribuyen ${atribuidas.toLocaleString("es-EC")} compras contra ${ordenesReales.toLocaleString("es-EC")} pedidos reales: se solapan, las dos se cuelgan algunas de las mismas ventas. Para decidir, el número que manda es el de la tienda.`
-              : `Todas las ventas entran por los enlaces de la pauta; ${Math.max(0, ordenesReales - atribuidas).toLocaleString("es-EC")} no las registró el píxel —zona horaria, bloqueo en iOS, ventana de atribución—. Es el margen de error de las plataformas, no ventas de otro lado. Para decidir, el número que manda es el de la tienda: el CPA real está en Control publicitario.`}
+            {diferencia > 0
+              ? `Meta y TikTok se atribuyen ${atribuidas.toLocaleString("es-EC")} compras contra ${ordenesReales.toLocaleString("es-EC")} pedidos reales: ${diferencia.toLocaleString("es-EC")} de más (${Math.round(desvio * 100)}%). Se solapan: las dos se cuelgan algunas de las mismas ventas, y el CPA que muestra el administrador de anuncios sale más bajo que el real. Lo aceptable es hasta un 10%. Para decidir, el número que manda es el de la tienda: el CPA real está en Control publicitario.`
+              : diferencia < 0
+                ? `Todas las ventas entran por los enlaces de la pauta; ${Math.abs(diferencia).toLocaleString("es-EC")} no las registró el píxel —zona horaria, bloqueo en iOS, ventana de atribución—. Es el margen de error de las plataformas, no ventas de otro lado. Para decidir, el número que manda es el de la tienda: el CPA real está en Control publicitario.`
+                : "Las plataformas reportan exactamente los pedidos de la tienda."}
           </p>
 
           {/* De las tres causas que nombra el mensaje de arriba, una se puede
@@ -275,24 +309,33 @@ function Tramo({
   valor,
   total,
   tono,
+  valorTexto,
+  pctTexto,
+  colorTexto,
 }: {
   etiqueta: string;
   valor: number;
   total: number;
   tono: string;
+  /** Para mostrar el número con signo (+56) en vez del valor a secas. */
+  valorTexto?: string;
+  pctTexto?: string;
+  colorTexto?: string;
 }) {
-  const pct = total > 0 ? (valor / total) * 100 : 0;
+  const pct = total > 0 ? (Math.abs(valor) / total) * 100 : 0;
   return (
     <div className="min-w-[150px] flex-1">
       <div className="flex items-baseline gap-1.5">
-        <span className="text-base font-semibold tabular-nums">{valor.toLocaleString("es-EC")}</span>
-        <span className="text-[11px] text-muted tabular-nums">{pct.toFixed(0)}%</span>
+        <span className={`text-base font-semibold tabular-nums ${colorTexto ?? ""}`}>
+          {valorTexto ?? valor.toLocaleString("es-EC")}
+        </span>
+        <span className="text-[11px] text-muted tabular-nums">{pctTexto ?? `${pct.toFixed(0)}%`}</span>
       </div>
       <p className="mt-0.5 text-[11px] leading-tight text-muted">{etiqueta}</p>
       {/* La barra va debajo del número, no en lugar del número: el dato es
           cuántas órdenes son, la proporción es el contexto. */}
       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2">
-        <div className={`h-full rounded-full ${tono}`} style={{ width: `${Math.max(pct, 1.5)}%` }} />
+        <div className={`h-full rounded-full ${tono}`} style={{ width: `${Math.min(Math.max(pct, 1.5), 100)}%` }} />
       </div>
     </div>
   );
