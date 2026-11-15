@@ -2,6 +2,23 @@ import { db } from "@/lib/db";
 import { fetchWindsorRows, type WindsorConnector, type WindsorRow } from "./windsor";
 import type { Platform } from "@/generated/prisma/client";
 import { normalizar, parseCampaignRef } from "@/lib/product-code";
+import { filasDeMetaDirecto } from "./meta-directo";
+
+/**
+ * El token de Meta directo de la organización, si lo hay.
+ *
+ * Si la tabla todavía no existe (se despliega el código antes de correr el
+ * SQL) o falla la lectura, se sigue por Windsor: una conexión nueva no puede
+ * dejar a Meta sin datos.
+ */
+export async function tokenDeMetaDirecto(organizationId: string): Promise<string | null> {
+  try {
+    const c = await db.metaConnection.findUnique({ where: { organizationId }, select: { token: true } });
+    return c?.token ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // Vuelca lo que trae Windsor en el modelo de la app: una AdAccount por cuenta
 // publicitaria, una Campaign por campaña y un MetricSnapshot por campaña y día.
@@ -58,7 +75,13 @@ export async function syncWindsorConnector(
   connector: WindsorConnector,
   datePreset = "last_7dT"
 ) {
-  const rows = await fetchWindsorRows(connector, datePreset);
+  // Con token de Meta guardado en Conexiones, Meta se lee directo de su API y
+  // no de Windsor (meta-directo.ts). Las filas tienen la misma forma, así que
+  // todo lo de abajo —campañas, productos, días— es igual para las dos.
+  const tokenMeta = connector === "facebook" ? await tokenDeMetaDirecto(organizationId) : null;
+  const rows = tokenMeta
+    ? await filasDeMetaDirecto(tokenMeta, datePreset)
+    : await fetchWindsorRows(connector, datePreset);
   const platform = PLATFORM[connector];
 
   if (rows.length === 0) {
@@ -92,9 +115,12 @@ export async function syncWindsorConnector(
     const conectadas = await db.adAccount.count({ where: { organizationId, platform } });
     if (conectadas > 0) {
       throw new Error(
-        `Windsor no devolvió ninguna fila para ${connector}, ni siquiera la lista de cuentas, ` +
-          `y esta organización tiene ${conectadas} conectada${conectadas === 1 ? "" : "s"}. ` +
-          `Revisá esa conexión en Windsor.`,
+        tokenMeta
+          ? `Meta directo no devolvió ninguna fila y hay ${conectadas} cuenta${conectadas === 1 ? "" : "s"} de Meta. ` +
+              `Revisá que el usuario del sistema tenga asignadas las cuentas publicitarias.`
+          : `Windsor no devolvió ninguna fila para ${connector}, ni siquiera la lista de cuentas, ` +
+              `y esta organización tiene ${conectadas} conectada${conectadas === 1 ? "" : "s"}. ` +
+              `Revisá esa conexión en Windsor.`,
       );
     }
 

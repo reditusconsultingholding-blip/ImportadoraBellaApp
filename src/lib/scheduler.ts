@@ -3,7 +3,8 @@ import { syncShopifyStore } from "@/lib/integrations/shopify-sync";
 import { rellenarClientes } from "@/lib/relleno-clientes";
 import { avisarPagosDelDia } from "@/lib/avisar-pagos";
 import { diaDelReportePendiente } from "@/lib/reporte-horario";
-import { syncWindsorConnector } from "@/lib/integrations/windsor-sync";
+import { relinkCampaignsToProducts, syncWindsorConnector, tokenDeMetaDirecto } from "@/lib/integrations/windsor-sync";
+import { crearProductosNuevos } from "@/lib/product-import";
 import { sincronizarAnuncios } from "@/lib/integrations/windsor-anuncios";
 import { hasWindsorKey, intervaloDeWindsor, type WindsorConnector } from "@/lib/integrations/windsor";
 import { anotarSaludDeCuentas, avisoDeCuentasCalladas, estadoDeLasCuentas } from "@/lib/salud-cuentas";
@@ -70,6 +71,15 @@ const PRESET_CORTO = "last_3dT";
 const PRESET_LARGO = "last_7dT";
 const SEMANA_CADA_MS = 30 * 60 * 1000;
 const ultimaSemana = new Map<string, number>();
+
+// Meta directo (meta-directo.ts) se pregunta cada 10 minutos y no cada 2: son
+// trece cuentas por vuelta, y Meta limita las llamadas de lectura por cuenta.
+// Diez minutos ya es más fresco que lo que entregaba Windsor (15 a 60).
+const META_DIRECTO_CADA_MS = 10 * 60 * 1000;
+const ultimaMetaDirecta = new Map<string, number>();
+
+const PRODUCTOS_NUEVOS_CADA_MS = 60 * 60 * 1000;
+const ultimoProductosNuevos = new Map<string, number>();
 
 // Arranca un rato después de levantar el proceso: durante un despliegue las
 // dos instancias conviven unos segundos y no tiene sentido que las dos salgan
@@ -143,9 +153,16 @@ async function traerPauta(organizationId: string, conector: WindsorConnector) {
  * de las 12:40 · próxima actualización en 14:32"). Preguntar no es lo mismo
  * que recibir algo nuevo: se marca solo cuando algún número cambió.
  */
-async function anotarFrescura(organizationId: string, conector: WindsorConnector, llegoAlgoNuevo: boolean) {
+async function anotarFrescura(
+  organizationId: string,
+  conector: WindsorConnector,
+  llegoAlgoNuevo: boolean,
+  directo = false,
+) {
   const fuente = `frescura-${conector}`;
-  const detalle = intervaloDeWindsor(conector) ?? "6h";
+  // Meta directo se pregunta cada 10 minutos (META_DIRECTO_CADA_MS) y contesta
+  // lo del momento: no hay intervalo de Windsor de por medio.
+  const detalle = directo ? "10min" : (intervaloDeWindsor(conector) ?? "6h");
   await db.syncState
     .upsert({
       where: { organizationId_fuente: { organizationId, fuente } },
@@ -255,21 +272,30 @@ export async function sincronizarRapido() {
       }
     }
 
-    if (hasWindsorKey()) {
-      // Meta y TikTok a la vez: son dos pedidos a Windsor independientes, y
-      // en fila uno esperaba al otro sin motivo.
+    // Meta puede venir directo de su API (token en Conexiones) aunque no haya
+    // clave de Windsor; TikTok siempre va por Windsor.
+    const metaDirecta = (await tokenDeMetaDirecto(org.id)) != null;
+    const conectoresDeEstaVuelta = CONECTORES.filter(
+      (c) => hasWindsorKey() || (c === "facebook" && metaDirecta),
+    );
+    if (conectoresDeEstaVuelta.length > 0) {
+      // Meta y TikTok a la vez: son dos pedidos independientes, y en fila uno
+      // esperaba al otro sin motivo.
       await Promise.all(
-        CONECTORES.map(async (conector) => {
+        conectoresDeEstaVuelta.map(async (conector) => {
+          const directo = conector === "facebook" && metaDirecta;
+          if (directo && Date.now() - (ultimaMetaDirecta.get(org.id) ?? 0) < META_DIRECTO_CADA_MS) return;
           if (!(await tomarCandado(org.id, conector))) {
             anotar(conector, "ya estaba corriendo");
             return;
           }
           const t = Date.now();
           try {
+            if (directo) ultimaMetaDirecta.set(org.id, Date.now());
             const r = await traerPauta(org.id, conector);
             if (r.cambiados > 0) cambio = true;
-            await anotarFrescura(org.id, conector, r.cambiados > 0);
-            const hecho = `${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
+            await anotarFrescura(org.id, conector, r.cambiados > 0, directo);
+            const hecho = `${directo ? "Meta directo: " : ""}${r.campaigns} campañas, ${r.cambiados} días cambiados de ${r.rango} en ${((Date.now() - t) / 1000).toFixed(1)}s`;
 
             // UNA RESPUESTA VÁLIDA CON UNA CUENTA DE MENOS NO ES UNA
             // RESPUESTA VÁLIDA.
@@ -430,6 +456,22 @@ export async function sincronizarTodo(conRapido = true) {
       if (r) resumen.relleno = r;
     } catch (err) {
       resumen.relleno = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // Productos nuevos solos (10-nov): una campaña con un código que no tiene
+    // ficha crea la ficha, con precio y costo de Shopify, y se le enganchan sus
+    // campañas. Una vez por hora; sin códigos nuevos son dos consultas chicas.
+    if (Date.now() - (ultimoProductosNuevos.get(org.id) ?? 0) > PRODUCTOS_NUEVOS_CADA_MS) {
+      ultimoProductosNuevos.set(org.id, Date.now());
+      try {
+        const r = await crearProductosNuevos(org.id);
+        if (r && r.creados > 0) {
+          const enlace = await relinkCampaignsToProducts(org.id);
+          resumen.productosNuevos = `${r.creados} ficha${r.creados === 1 ? "" : "s"} nueva${r.creados === 1 ? "" : "s"}, ${enlace.linked} campañas enganchadas`;
+        }
+      } catch (err) {
+        resumen.productosNuevos = `error: ${err instanceof Error ? err.message : String(err)}`;
+      }
     }
 
     // Las alertas se revisan después, con los datos ya frescos.

@@ -9,6 +9,7 @@ import DropiCard from "./dropi-card";
 import NotionCard from "./notion-card";
 import CollapsibleSection from "./collapsible-section";
 import CorreoCard from "./correo-card";
+import MetaDirectoCard from "./meta-directo-card";
 import { emailConfigured, estadoDelCorreo } from "@/lib/email";
 import { estadoDeLasCuentas } from "@/lib/salud-cuentas";
 import { hasShopifyAppCredentials } from "@/lib/integrations/shopify";
@@ -20,7 +21,7 @@ export default async function ConexionesPage() {
   // Esta pantalla guarda los tokens de produccion. Antes solo pedia sesion.
   if (!canManageConexiones(session.role)) redirect("/dashboard");
 
-  const [accounts, estadoCuentas, shopifyStore, dropiConnection, notionConnection, estadoCorreo] = await Promise.all([
+  const [accounts, estadoCuentas, shopifyStore, dropiConnection, notionConnection, estadoCorreo, metaConnection] = await Promise.all([
     db.adAccount.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "asc" },
@@ -33,6 +34,9 @@ export default async function ConexionesPage() {
     db.dropiConnection.findFirst({ where: { organizationId: session.organizationId } }),
     db.notionConnection.findUnique({ where: { organizationId: session.organizationId } }),
     estadoDelCorreo(),
+    // Si la tabla todavía no está (código desplegado antes que el SQL), la
+    // pantalla sigue andando y la tarjeta dice «Por Windsor».
+    db.metaConnection.findUnique({ where: { organizationId: session.organizationId } }).catch(() => null),
   ]);
 
   // La clave puede estar en la variable del servidor o guardada en la base.
@@ -56,6 +60,11 @@ export default async function ConexionesPage() {
         </h2>
 
         <CollapsibleSection title="Meta (Facebook + Instagram)" count={metaAccounts.length}>
+          <MetaDirectoCard
+            conectado={Boolean(metaConnection?.token)}
+            cuentas={metaConnection?.cuentas ?? 0}
+            desde={metaConnection?.connectedAt?.toISOString() ?? null}
+          />
           {metaAccounts.map((account) => (
             <AccountCard
               key={account.id}

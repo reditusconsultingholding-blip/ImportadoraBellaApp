@@ -117,6 +117,7 @@ model Organization {
   campanasManual     CampanaManual[]
   enlacesShopify     ProductoShopify[]
   notionConnection   NotionConnection?
+  metaConnection     MetaConnection?
   cierresSeguimiento CierreSeguimiento[]
 }
 
@@ -1673,6 +1674,23 @@ model NotionConnection {
   campanasDatabaseId String?
   connectedAt        DateTime?
   lastImportAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Meta Ads directo, sin Windsor (Fabrizio, 13-nov). Ver
+// src/lib/integrations/meta-directo.ts. Con token guardado, la pauta de Meta
+// se trae de la API de Meta; sin token, sigue por Windsor como siempre.
+model MetaConnection {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  token       String? // Token de usuario del sistema del Business Manager, cifrado en reposo (db.ts)
+  /** Cuántas cuentas veía el token la última vez que se probó. */
+  cuentas     Int       @default(0)
+  connectedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

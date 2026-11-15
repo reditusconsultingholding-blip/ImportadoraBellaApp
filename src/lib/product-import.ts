@@ -37,11 +37,61 @@ function calcularCpaTarget(
   return { valor: 10, provisional: true };
 }
 
-export async function importarProductosDesdeCampanas(organizationId: string) {
-  const campaigns = await db.campaign.findMany({
+/**
+ * Los códigos de campaña que todavía no tienen ficha.
+ *
+ * Es la consulta liviana que corre el reloj cada hora (Fabrizio y Emilia,
+ * 10-nov: «que los productos nuevos se carguen solos»; Emilia tuvo que crear
+ * varios a mano). Solo lee nombres de campaña y códigos: si no hay nada nuevo,
+ * no se toca Shopify ni las métricas.
+ */
+export async function codigosSinFicha(organizationId: string): Promise<string[]> {
+  const [campanas, productos] = await Promise.all([
+    db.campaign.findMany({ where: { adAccount: { organizationId } }, select: { name: true } }),
+    db.product.findMany({ where: { organizationId }, select: { code: true, codigosAnteriores: true } }),
+  ]);
+  const conocidos = new Set(productos.flatMap((p) => [p.code, ...p.codigosAnteriores]));
+  const nuevos = new Set<string>();
+  for (const c of campanas) {
+    const ref = parseCampaignRef(c.name);
+    if (ref && !conocidos.has(ref.code)) nuevos.add(ref.code);
+  }
+  return [...nuevos];
+}
+
+/**
+ * Crea solo las fichas que faltan. Lo llama el reloj: con nada nuevo, cuesta
+ * dos consultas chicas.
+ */
+export async function crearProductosNuevos(organizationId: string) {
+  const nuevos = await codigosSinFicha(organizationId);
+  if (nuevos.length === 0) return null;
+  return importarProductosDesdeCampanas(organizationId, new Set(nuevos));
+}
+
+export async function importarProductosDesdeCampanas(organizationId: string, soloCodigos?: Set<string>) {
+  const todas = await db.campaign.findMany({
     where: { adAccount: { organizationId } },
-    select: { id: true, name: true, metrics: { select: { spend: true, purchases: true } } },
+    select: { id: true, name: true },
   });
+  // Con una lista de códigos, las métricas se leen solo de esas campañas: la
+  // historia de todas es lo que más pesa de esta función.
+  const elegidas = soloCodigos
+    ? todas.filter((c) => {
+        const ref = parseCampaignRef(c.name);
+        return ref != null && soloCodigos.has(ref.code);
+      })
+    : todas;
+  const metricas = await db.metricSnapshot.groupBy({
+    by: ["campaignId"],
+    where: { campaignId: { in: elegidas.map((c) => c.id) } },
+    _sum: { spend: true, purchases: true },
+  });
+  const sumaDe = new Map(metricas.map((m) => [m.campaignId, m._sum]));
+  const campaigns = elegidas.map((c) => ({
+    ...c,
+    metrics: [{ spend: sumaDe.get(c.id)?.spend ?? 0, purchases: sumaDe.get(c.id)?.purchases ?? 0 }],
+  }));
 
   // Un grupo por código: todos los nombres con que apareció y lo que lleva
   // gastado y vendido, para poder estimar su CPA actual.

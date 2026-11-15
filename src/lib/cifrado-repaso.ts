@@ -18,6 +18,7 @@ const TABLAS = [
   { tabla: "DropiConnection", campo: "integrationKey", modelo: "dropiConnection" },
   { tabla: "NotionConnection", campo: "token", modelo: "notionConnection" },
   { tabla: "Organization", campo: "resendApiKey", modelo: "organization" },
+  { tabla: "MetaConnection", campo: "token", modelo: "metaConnection" },
 ] as const;
 
 export async function recifrarPendientes(): Promise<number> {
