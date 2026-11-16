@@ -16,12 +16,32 @@ const RETENCION_DIAS = 120;
 
 const PLATAFORMA: Record<WindsorConnector, "META" | "TIKTOK"> = { facebook: "META", tiktok: "TIKTOK" };
 
+/**
+ * Cuántos días pedirle a Windsor.
+ *
+ * La primera vez un mes, para que la ficha no arranque vacía; después la
+ * semana, que es lo que las plataformas siguen ajustando. Pero si la vuelta
+ * anterior se venció por tiempo, tres días: el 16-nov Windsor dejó de
+ * alcanzar a armar siete días de anuncios de las 37 cuentas de TikTok en tres
+ * minutos, y reintentar lo mismo cada media hora solo repetía el error
+ * mientras los anuncios se quedaban viejos. Con tres días vuelve a responder;
+ * cuando entra bien, la siguiente vuelta pide la semana otra vez.
+ */
+export function rangoDeAnuncios(hayHistoria: boolean, ultimoFueTimeout: boolean) {
+  if (!hayHistoria) return "last_30dT";
+  return ultimoFueTimeout ? "last_3dT" : "last_7dT";
+}
+
 export async function sincronizarAnuncios(organizationId: string, connector: WindsorConnector) {
   const fuente = `anuncios-${connector}`;
   const estado = await db.syncState.findUnique({
     where: { organizationId_fuente: { organizationId, fuente } },
-    select: { okAt: true, errorAt: true },
+    select: { okAt: true, errorAt: true, error: true },
   });
+  const ultimoFueTimeout =
+    estado?.errorAt != null &&
+    (estado.okAt == null || estado.errorAt > estado.okAt) &&
+    /timeout|aborted/i.test(estado.error ?? "");
   const ultimo = Math.max(estado?.okAt?.getTime() ?? 0, estado?.errorAt?.getTime() ?? 0);
   if (Date.now() - ultimo < CADA_MINUTOS * 60_000) return null;
 
@@ -37,13 +57,12 @@ export async function sincronizarAnuncios(organizationId: string, connector: Win
     });
 
   try {
-    // La primera vez se trae un mes, para que la ficha no arranque vacía;
-    // después, la semana, que es lo que Meta sigue ajustando.
+    // Cuántos días: ver rangoDeAnuncios.
     const hayHistoria = await db.adCreativoDia.findFirst({
       where: { ad: { campaign: { adAccount: { organizationId, platform: PLATAFORMA[connector] } } } },
       select: { id: true },
     });
-    const { filas, campos } = await fetchWindsorAdRows(connector, hayHistoria ? "last_7dT" : "last_30dT");
+    const { filas, campos } = await fetchWindsorAdRows(connector, rangoDeAnuncios(Boolean(hayHistoria), ultimoFueTimeout));
 
     // EL MISMO SILENCIO QUE EN LA SINCRONIZACIÓN DE CAMPAÑAS, EN OTRA PUERTA.
     //
