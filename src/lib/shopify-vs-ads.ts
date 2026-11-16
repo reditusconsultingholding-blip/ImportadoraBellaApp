@@ -55,6 +55,13 @@ export type ShopifyVsAds = {
   dias: FilaDiaCuadre[];
   filas: FilaDiaProductoCuadre[];
   total: Cuadre & ExtraVentas;
+  /**
+   * Los nombres de la planilla que no se cruzan con ningún producto, uno por
+   * uno. En `productos` van todos juntos en «Sin producto asignado»; la
+   * pantalla de riesgo los muestra por nombre, como el archivo de Emilia,
+   * porque muchos son justamente los testeos recién llegados.
+   */
+  sinEnlazar: { nombre: string; ventas: number; confirmados: number }[];
   avisos: {
     /** Gasto de cuentas «vende por WhatsApp», que no entra en la comparación. */
     gastoFueraWeb: number;
@@ -102,7 +109,7 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
     pedidosRealesPorDia(organizationId, desdeInstante, hastaInstante),
     db.pedidoReporte.findMany({
       where: { organizationId, fecha: { gte: desdeDia, lte: hastaDia } },
-      select: { fecha: true, productoNorm: true, pedidos: true, confirmados: true },
+      select: { fecha: true, productoNorm: true, productoTexto: true, pedidos: true, confirmados: true },
     }),
     db.productoShopify.findMany({ where: { organizationId }, select: { nombreNorm: true, productId: true } }),
     db.product.findMany({
@@ -147,10 +154,18 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
     if (porCodigo) aProducto.set(porCodigo, p.id);
   }
   for (const e of enlaces) aProducto.set(e.nombreNorm, e.productId);
+  const sueltos = new Map<string, { nombre: string; ventas: number; confirmados: number }>();
   for (const r of reporte) {
-    const c = celda(iso(r.fecha), aProducto.get(r.productoNorm) ?? null);
+    const productId = aProducto.get(r.productoNorm) ?? null;
+    const c = celda(iso(r.fecha), productId);
     c.ventas += r.pedidos;
     c.confirmados += r.confirmados;
+    if (!productId) {
+      const s = sueltos.get(r.productoNorm) ?? { nombre: r.productoTexto, ventas: 0, confirmados: 0 };
+      s.ventas += r.pedidos;
+      s.confirmados += r.confirmados;
+      sueltos.set(r.productoNorm, s);
+    }
   }
 
   const porProducto = new Map<string, Acum>();
@@ -187,7 +202,10 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
         cpaObjetivo: p && p.cpaTarget > 0 ? p.cpaTarget : null,
       };
     })
-    .filter((f) => f.shopify > 0 || f.plataforma > 0 || f.gasto > 0)
+    // Los que solo están en la planilla también entran: un producto con 9
+    // pedidos y 55% de confirmación (el Mini UPS del 1 al 8 de noviembre) es
+    // justo el de riesgo alto que la pantalla de riesgo tiene que mostrar.
+    .filter((f) => f.shopify > 0 || f.plataforma > 0 || f.gasto > 0 || f.ventas > 0)
     .sort((a, b) => b.gasto - a.gasto || b.shopify - a.shopify);
 
   return {
@@ -200,6 +218,7 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
       .map((c) => ({ fecha: c.fecha, productId: c.productId, ...cerrar(c) }))
       .sort((a, b) => b.fecha.localeCompare(a.fecha)),
     total: cerrar(total),
+    sinEnlazar: [...sueltos.values()].filter((s) => s.ventas > 0).sort((a, b) => b.ventas - a.ventas),
     avisos: {
       gastoFueraWeb: fueraWeb.reduce((t, f) => t + (Number(f.gasto) || 0), 0),
       cuentasFueraWeb: fueraWeb.filter((f) => Number(f.gasto) > 0).map((f) => f.name),

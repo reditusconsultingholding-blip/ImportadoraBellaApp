@@ -17,9 +17,9 @@ import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import Testeos from "./testeos";
 import { productosPautadosDelMes } from "@/lib/pautados";
 import { shopifyVsAds } from "@/lib/shopify-vs-ads";
-import { riesgoDe, topDelMes } from "@/lib/shopify-vs-ads-calculo";
+import { cpaDePlanilla, riesgoDe } from "@/lib/shopify-vs-ads-calculo";
 import CuadreShopifyAds from "./cuadre";
-import RiesgoProductos, { type DatosRiesgo, type FilaRiesgo } from "./riesgo";
+import RiesgoProductos, { type FilaRiesgo } from "./riesgo";
 import FiltroPeriodo from "./filtro-periodo";
 
 // El control de gastos publicitarios.
@@ -227,9 +227,15 @@ export default async function ControlPage({
       </>
     );
   } else if (vista === "riesgo") {
-    // La confirmación, el CPA y la utilidad son los del control (que toma la
-    // economía de la Calculadora); de Shopify vs Ads sale qué vendió sin pauta.
-    const [control, cuadre, catalogo] = await Promise.all([
+    // EL ARCHIVO DE EMILIA, CON SUS MISMAS CUENTAS (revisado el 16-nov):
+    //   - Pedidos y confirmación: la planilla de ventas del período,
+    //     confirmados ÷ pedidos. Es lo que ella mide y con lo que clasifica.
+    //   - Pedidos de plataforma y gasto: Meta + TikTok por producto.
+    //   - CPA: gasto ÷ pedidos de la planilla, rojo pasando de $6.
+    // La utilidad sigue saliendo del control (economía de la Calculadora): es
+    // lo que Jarvis le suma a su archivo, junto con el top, el SKU y las
+    // etiquetas.
+    const [control, cuadre] = await Promise.all([
       controlDelPeriodo(session.organizationId, {
         desde: periodo.desde,
         hasta: periodo.hasta,
@@ -237,64 +243,55 @@ export default async function ControlPage({
         productIds: [],
       }),
       shopifyVsAds(session.organizationId, periodo.desde, periodo.hasta),
-      db.product.findMany({
-        where: { organizationId: session.organizationId },
-        select: { id: true, sku: true, etiquetas: true },
-      }),
     ]);
-    const info = new Map(catalogo.map((c) => [c.id, c]));
-    const filas: FilaRiesgo[] = control.productos
-      .filter((f) => f.productId && (f.pedidos > 0 || f.gasto > 0))
-      .map((f) => {
-        const c = info.get(f.productId!);
-        // El mismo CPA que Resultados y la Calculadora: gasto ÷ pedidos de
-        // Shopify. Sin gasto no hay CPA: un «$0,00» lo mandaba a riesgo bajo.
-        const cpaReal = f.gasto > 0 ? f.cpaShopify : null;
+    const utilidadDe = new Map(control.productos.filter((f) => f.productId).map((f) => [f.productId!, f.utilidad]));
+    const filas: FilaRiesgo[] = [
+      ...cuadre.productos
+        .filter((f) => f.productId && (f.ventas > 0 || f.gasto > 0 || f.plataforma > 0))
+        .map((f) => {
+          const confirmacion = f.ventas > 0 ? f.confirmados / f.ventas : null;
+          return {
+            clave: f.productId!,
+            productId: f.productId,
+            nombre: f.nombre,
+            sku: f.sku,
+            etiquetas: f.etiquetas,
+            pedidos: f.ventas,
+            confirmados: f.confirmados,
+            confirmacion,
+            plataforma: f.plataforma,
+            gasto: f.gasto,
+            cpa: cpaDePlanilla(f.gasto, f.ventas),
+            cpaObjetivo: f.cpaObjetivo,
+            utilidad: utilidadDe.get(f.productId!) ?? null,
+            sinEnlazar: false,
+            riesgo: riesgoDe({ pedidos: f.ventas, confirmacion }),
+          };
+        }),
+      // Los nombres de la planilla que todavía no tienen producto: entran con
+      // su confirmación (que es de la planilla y no depende del enlace), pero
+      // sin gasto ni CPA hasta enlazarlos.
+      ...cuadre.sinEnlazar.map((s) => {
+        const confirmacion = s.ventas > 0 ? s.confirmados / s.ventas : null;
         return {
-          productId: f.productId,
-          nombre: f.producto,
-          codigo: f.codigo,
-          sku: c?.sku ?? null,
-          etiquetas: c?.etiquetas ?? [],
-          pedidos: f.pedidos,
-          efectividad: f.efectividad,
-          cpaReal,
-          cpaObjetivo: f.cpaObjetivo,
-          gasto: f.gasto,
-          utilidad: f.utilidad,
-          riesgo: riesgoDe({ ...f, cpaReal }),
+          clave: `nombre:${s.nombre}`,
+          productId: null,
+          nombre: s.nombre,
+          sku: null,
+          etiquetas: [],
+          pedidos: s.ventas,
+          confirmados: s.confirmados,
+          confirmacion,
+          plataforma: 0,
+          gasto: 0,
+          cpa: null,
+          cpaObjetivo: null,
+          utilidad: null,
+          sinEnlazar: true,
+          riesgo: riesgoDe({ pedidos: s.ventas, confirmacion }),
         };
-      });
-    const tiene = (f: { etiquetas: string[] }, e: string) => f.etiquetas.includes(e);
-    // Sin confirmación cargada (efectividad 0) la utilidad sale negativa por
-    // falta de datos, no porque el producto pierda: esos van a su propia
-    // sección, para cargarlos en la Calculadora. Y los que no tuvieron pauta
-    // van en «Venden sin pauta»: sin gasto no hay riesgo publicitario que medir.
-    const sinConfirmacion = (f: FilaRiesgo) => f.pedidos > 0 && f.efectividad <= 0;
-    const enJuego = filas.filter(
-      (f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO") && f.gasto > 0 && !sinConfirmacion(f),
-    );
-    const conPauta = new Set(filas.filter((f) => f.gasto > 0).map((f) => f.productId));
-    const datos: DatosRiesgo = {
-      top: topDelMes(enJuego),
-      bajo: enJuego.filter((f) => f.riesgo === "bajo").sort((a, b) => b.utilidad - a.utilidad),
-      medio: enJuego.filter((f) => f.riesgo === "medio").sort((a, b) => b.utilidad - a.utilidad),
-      alto: enJuego.filter((f) => f.riesgo === "alto").sort((a, b) => a.utilidad - b.utilidad),
-      testeo: filas.filter((f) => tiene(f, "TESTEO")),
-      faltaCalculadora: filas
-        .filter((f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO") && f.gasto > 0 && sinConfirmacion(f))
-        .sort((a, b) => b.gasto - a.gasto),
-      apagados: filas.filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO")),
-      sinPauta: cuadre.productos
-        .filter(
-          (f) =>
-            f.productId &&
-            f.shopify > 0 &&
-            ((f.gasto === 0 && !conPauta.has(f.productId)) || f.etiquetas.includes("ORGANICO")),
-        )
-        .map((f) => ({ productId: f.productId, nombre: f.nombre, sku: f.sku, etiquetas: f.etiquetas, shopify: f.shopify }))
-        .sort((a, b) => b.shopify - a.shopify),
-    };
+      }),
+    ];
     cuerpo = (
       <>
         <FiltroPeriodo
@@ -305,7 +302,11 @@ export default async function ControlPage({
           meses={meses}
           conHoy={false}
         />
-        <RiesgoProductos datos={datos} editable={canManagePipeline(session.role)} />
+        <RiesgoProductos
+          filas={filas}
+          gastoSinProducto={cuadre.productos.find((f) => !f.productId)?.gasto ?? 0}
+          editable={canManagePipeline(session.role)}
+        />
       </>
     );
   } else if (vista === "testeos") {

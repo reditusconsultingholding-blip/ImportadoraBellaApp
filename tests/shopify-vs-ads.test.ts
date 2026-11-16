@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cuadrar, estadoDelCuadre, riesgoDe, topDelMes } from "../src/lib/shopify-vs-ads-calculo";
+import { cpaDePlanilla, cuadrar, estadoDelCuadre, riesgoDe, topDelMes } from "../src/lib/shopify-vs-ads-calculo";
 import { limpiarEtiquetas } from "../src/lib/etiquetas-producto";
 
 test("el factor es plataforma ÷ Shopify y los dos CPA salen del mismo gasto", () => {
@@ -31,19 +31,23 @@ test("compras de plataforma sin pedidos en Shopify es lo peor; sin nada no se ju
   assert.equal(c.cpaPlataforma, null);
 });
 
-test("riesgo: buena confirmación y CPA dentro del objetivo es bajo", () => {
-  const base = { pedidos: 50, cpaObjetivo: 6, utilidad: 300 };
-  assert.equal(riesgoDe({ ...base, efectividad: 0.75, cpaReal: 5 }), "bajo");
-  assert.equal(riesgoDe({ ...base, efectividad: 0.75, cpaReal: 7 }), "medio");
-  assert.equal(riesgoDe({ ...base, efectividad: 0.5, cpaReal: 5 }), "medio");
-  assert.equal(riesgoDe({ ...base, efectividad: 0.5, cpaReal: 7 }), "alto");
+test("riesgo: los cortes del archivo de Emilia, 70% y 57% de confirmación", () => {
+  // Casos reales de su artefacto, 1 al 8 de noviembre.
+  assert.equal(riesgoDe({ pedidos: 1322, confirmacion: 950 / 1322 }), "bajo"); // drenaje 71,86%
+  assert.equal(riesgoDe({ pedidos: 375, confirmacion: 0.6827 }), "medio"); // Faja Lipo 360
+  assert.equal(riesgoDe({ pedidos: 63, confirmacion: 36 / 63 }), "medio"); // pasta dental 57,14%
+  assert.equal(riesgoDe({ pedidos: 9, confirmacion: 5 / 9 }), "alto"); // Mini UPS 55,56%
+  // Los bordes exactos.
+  assert.equal(riesgoDe({ pedidos: 100, confirmacion: 70 / 100 }), "bajo");
+  assert.equal(riesgoDe({ pedidos: 100, confirmacion: 57 / 100 }), "medio");
 });
 
-test("riesgo: perder plata sin buena confirmación es alto; sin pedidos no hay datos", () => {
-  assert.equal(riesgoDe({ pedidos: 10, efectividad: 0.6, cpaReal: 4, cpaObjetivo: 6, utilidad: -20 }), "alto");
-  assert.equal(riesgoDe({ pedidos: 0, efectividad: 0, cpaReal: null, cpaObjetivo: 6, utilidad: -20 }), "sinDatos");
-  // Sin objetivo cargado manda la utilidad.
-  assert.equal(riesgoDe({ pedidos: 10, efectividad: 0.8, cpaReal: 4, cpaObjetivo: null, utilidad: 100 }), "bajo");
+test("riesgo: sin pedidos no hay datos; el CPA sale de la planilla y sin gasto no existe", () => {
+  assert.equal(riesgoDe({ pedidos: 0, confirmacion: null }), "sinDatos");
+  assert.equal(riesgoDe({ pedidos: 5, confirmacion: null }), "sinDatos");
+  assert.equal(cpaDePlanilla(21616.02, 4128)?.toFixed(2), "5.24");
+  assert.equal(cpaDePlanilla(0, 270), null);
+  assert.equal(cpaDePlanilla(90, 0), null);
 });
 
 test("el top ordena por utilidad y deja afuera los sin pedidos", () => {

@@ -71,7 +71,9 @@ function CpaReal({ c, objetivo }: { c: Cuadre; objetivo: number | null }) {
   );
 }
 
-const th = "px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-muted";
+const thBase = "px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted";
+const th = `${thBase} text-right`;
+const thIzq = `${thBase} text-left`;
 const td = "px-3 py-2 text-right tabular-nums";
 
 export default function CuadreShopifyAds({
@@ -160,7 +162,7 @@ export default function CuadreShopifyAds({
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-surface-2">
               <tr>
-                <th className={`${th} text-left`}>Día</th>
+                <th className={thIzq}>Día</th>
                 <th className={th}>Shopify</th>
                 <th className={th}>Meta</th>
                 <th className={th}>TikTok</th>
@@ -221,7 +223,7 @@ export default function CuadreShopifyAds({
           <table className="w-full min-w-[1000px] text-sm">
             <thead className="bg-surface-2">
               <tr>
-                <th className={`${th} text-left`}>Producto</th>
+                <th className={thIzq}>Producto</th>
                 <th className={th}>Shopify</th>
                 <th className={th}>Meta</th>
                 <th className={th}>TikTok</th>

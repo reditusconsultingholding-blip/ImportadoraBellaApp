@@ -81,43 +81,41 @@ export function estadoDelCuadre(shopify: number, plataforma: number): EstadoCuad
 
 // ─── Riesgo ──────────────────────────────────────────────────────────────
 
+// LA REGLA ES LA DEL ARCHIVO DE EMILIA, NO UNA PROPIA
+// Su artefacto «Confirmación y CPA por producto» (mostrado el 10-nov y
+// revisado el 16-nov) clasifica SOLO por la confirmación que mide la planilla
+// de ventas en el período —confirmados ÷ pedidos—: 70% o más es riesgo bajo,
+// de 57% a 69,99% medio, menos de 57% alto. El CPA no mueve de sección: se
+// pinta de rojo cuando pasa de $6. Antes Jarvis mezclaba la confirmación de la
+// Calculadora con el CPA objetivo, y el drenaje (71% de confirmación) caía en
+// «medio» por un objetivo de $2,67 mal cargado: la misma lista daba otra
+// respuesta que la de ellos, que es la que usan para decidir.
+
 /** Emilia: «los que tienen alta confirmación, del 70% para arriba». */
 export const CONFIRMACION_ALTA = 0.7;
-/** Por debajo de esto la confirmación ya es un problema por sí sola. */
-export const CONFIRMACION_BAJA = 0.55;
+/** Desde aquí y hasta el 70% es riesgo medio; por debajo, alto. */
+export const CONFIRMACION_MEDIA = 0.57;
+/** El CPA real que se pinta de rojo, como en el archivo de Emilia. */
+export const CPA_ALERTA = 6;
 
 export type Riesgo = "bajo" | "medio" | "alto" | "sinDatos";
 
 /**
- * El riesgo de un producto en el período.
- *
- * - Bajo: confirma 70% o más y su CPA real está dentro del objetivo. Es el
- *   ejemplo que dieron: las gotas de drenaje, buena confirmación y buen CPA.
- * - Alto: confirma poco Y el CPA se pasa del objetivo, o directamente pierde
- *   plata.
- * - Medio: todo lo demás, una de las dos cosas anda bien y la otra no.
- *
- * Sin CPA objetivo cargado se juzga el CPA por la utilidad: si gana, el CPA
- * está aguantando.
+ * El riesgo de un producto en el período, por su confirmación real.
+ * Sin pedidos en la planilla no hay confirmación que medir.
  */
-export function riesgoDe(f: {
-  pedidos: number;
-  efectividad: number;
-  cpaReal: number | null;
-  cpaObjetivo: number | null;
-  utilidad: number;
-}): Riesgo {
-  if (f.pedidos <= 0) return "sinDatos";
-  const confirmaBien = f.efectividad >= CONFIRMACION_ALTA;
-  const confirmaMal = f.efectividad < CONFIRMACION_BAJA;
-  const cpaBien =
-    f.cpaObjetivo != null && f.cpaObjetivo > 0 && f.cpaReal != null
-      ? f.cpaReal <= f.cpaObjetivo
-      : f.utilidad > 0;
-  if (f.utilidad < 0 && !confirmaBien) return "alto";
-  if (confirmaBien && cpaBien) return "bajo";
-  if (confirmaMal && !cpaBien) return "alto";
-  return "medio";
+export function riesgoDe(f: { pedidos: number; confirmacion: number | null }): Riesgo {
+  if (f.pedidos <= 0 || f.confirmacion == null) return "sinDatos";
+  // Redondeado a 4 decimales: 0,57 calculado como 57/100 no debe caer en alto.
+  const c = Math.round(f.confirmacion * 1e4) / 1e4;
+  if (c >= CONFIRMACION_ALTA) return "bajo";
+  if (c >= CONFIRMACION_MEDIA) return "medio";
+  return "alto";
+}
+
+/** CPA real de la pantalla de riesgo: gasto ÷ pedidos de la planilla. Sin gasto no hay CPA. */
+export function cpaDePlanilla(gasto: number, pedidos: number): number | null {
+  return gasto > 0 && pedidos > 0 ? gasto / pedidos : null;
 }
 
 /** El top del mes: los que más utilidad dejaron, con al menos un pedido. */
