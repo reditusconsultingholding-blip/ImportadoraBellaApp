@@ -683,26 +683,38 @@ export async function sincronizarTodo(conRapido = true) {
       if (Date.now() - ultimoCorreo > 60 * 60 * 1000) {
         ultimoCorreo = Date.now();
         const e = await estadoDelCorreo();
-        const base = e.error
-          ? "error: " + e.error
-          : e.dominio
-            ? "enviando desde jarvis@" + e.dominio
-            : "sin dominio verificado: Resend solo entrega al dueño de la cuenta";
-        const lista = e.dominios.length
-          ? " · dominios: " + e.dominios.map((d) => d.nombre + " (" + d.estado + ")").join(", ")
-          : "";
-        resumen.correo = base + lista;
-        // EL ESTADO TIENE QUE DECIR LO MISMO QUE EL DETALLE.
+        // SIN CLAVE ES «APAGADO», NO UNA CAÍDA.
         //
-        // Acá el error se escribía en el texto y la vuelta se anotaba como
-        // buena, así que el tablero mostraba «correo · ok» con un detalle que
-        // empezaba por «error: Falta la clave de Resend». Quien mira la lista
-        // de fuentes ve la columna de estado, no el detalle: durante semanas
-        // el correo figuró sano sin poder mandar un solo reporte.
-        //
-        // Sin dominio verificado NO es error: Resend entrega igual, solo que
-        // al dueño de la cuenta. Eso es una limitación conocida, no una caída.
-        await anotarVuelta(org.id, "correo", Date.now(), resumen.correo, e.error ?? null);
+        // El 16-nov se decidió no usar el correo saliente (Sebastian: «lo de
+        // Resend no vamos a hacerlo»). Sin clave no hay nada roto que
+        // arreglar, y dejarlo en rojo en el estado de salud solo enseña a
+        // ignorar el rojo. Si un día se pega una clave, vuelve a vigilarse
+        // como siempre.
+        if (!e.hayClave) {
+          resumen.correo = "apagado: no hay clave de Resend, los reportes por correo no se envían";
+          await anotarVuelta(org.id, "correo", Date.now(), resumen.correo, null);
+        } else {
+          const base = e.error
+            ? "error: " + e.error
+            : e.dominio
+              ? "enviando desde jarvis@" + e.dominio
+              : "sin dominio verificado: Resend solo entrega al dueño de la cuenta";
+          const lista = e.dominios.length
+            ? " · dominios: " + e.dominios.map((d) => d.nombre + " (" + d.estado + ")").join(", ")
+            : "";
+          resumen.correo = base + lista;
+          // EL ESTADO TIENE QUE DECIR LO MISMO QUE EL DETALLE.
+          //
+          // Acá el error se escribía en el texto y la vuelta se anotaba como
+          // buena, así que el tablero mostraba «correo · ok» con un detalle que
+          // empezaba por «error: Falta la clave de Resend». Quien mira la lista
+          // de fuentes ve la columna de estado, no el detalle: durante semanas
+          // el correo figuró sano sin poder mandar un solo reporte.
+          //
+          // Sin dominio verificado NO es error: Resend entrega igual, solo que
+          // al dueño de la cuenta. Eso es una limitación conocida, no una caída.
+          await anotarVuelta(org.id, "correo", Date.now(), resumen.correo, e.error ?? null);
+        }
       }
     } catch (err) {
       resumen.correo = "error: " + (err instanceof Error ? err.message : String(err));
