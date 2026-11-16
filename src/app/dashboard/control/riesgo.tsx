@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Riesgo } from "@/lib/shopify-vs-ads-calculo";
 import { CONFIRMACION_ALTA, CONFIRMACION_MEDIA, CPA_ALERTA, topDelMes } from "@/lib/shopify-vs-ads-calculo";
 import EditorEtiquetas from "./etiquetas";
@@ -105,6 +105,9 @@ const SECCIONES: Seccion[] = [
 ];
 
 const tiene = (f: FilaRiesgo, e: string) => f.etiquetas.includes(e);
+
+/** La guía «Qué hacer ahora» cerrada en este navegador. */
+const CLAVE_GUIA = "guia-riesgo-16nov";
 
 function Barra({ valor, max, clase }: { valor: number; max: number; clase: string }) {
   const ancho = max > 0 ? Math.max(2, Math.min(100, (valor / max) * 100)) : 0;
@@ -295,11 +298,105 @@ export default function RiesgoProductos({
     };
   }, [filas, busqueda, gastoSinProducto]);
 
+  // La guía de arriba. Se puede cerrar (queda cerrada en ese navegador) y se
+  // va sola cuando no queda nada por enlazar ni ningún testeo por marcar.
+  // Arranca cerrada y se abre después de montar: el servidor no ve el
+  // localStorage, y decidirlo en el primer dibujado haría que servidor y
+  // navegador pinten cosas distintas.
+  const [guiaCerrada, setGuiaCerrada] = useState(true);
+  useEffect(() => {
+    let cerrada = false;
+    try {
+      cerrada = window.localStorage.getItem(CLAVE_GUIA) === "1";
+    } catch {
+      /* sin almacenamiento: se muestra */
+    }
+    if (!cerrada) {
+      const t = window.setTimeout(() => setGuiaCerrada(false), 0);
+      return () => window.clearTimeout(t);
+    }
+  }, []);
+  const sinEnlazar = filas.filter((f) => f.sinEnlazar);
+  const hayTesteos = filas.some((f) => tiene(f, "TESTEO"));
+  const mostrarGuia = !guiaCerrada && (sinEnlazar.length > 0 || !hayTesteos);
+  const cerrarGuia = () => {
+    setGuiaCerrada(true);
+    try {
+      window.localStorage.setItem(CLAVE_GUIA, "1");
+    } catch {
+      /* sin almacenamiento: se cierra igual hasta recargar */
+    }
+  };
+
   const { grupos, total } = vistas;
   const pedidosEnSecciones = SECCIONES.reduce((t, s) => t + grupos[s.id].reduce((a, f) => a + f.pedidos, 0), 0);
 
   return (
     <div className="flex flex-col gap-5">
+      {/* ------------------------- Qué hacer ahora ------------------------- */}
+      {mostrarGuia && (
+        <section className="rounded-xl border border-accent/40 bg-accent/5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Qué hacer ahora para que quede igual a tu archivo</h2>
+              <p className="mt-0.5 text-xs text-muted">
+                Esta pestaña ya clasifica como el archivo de Emilia: confirmación de la planilla, 70 % / 57 % y CPA en rojo
+                pasando de {dinero2(CPA_ALERTA)}. Faltan dos cosas que solo puede decidir el equipo.
+              </p>
+            </div>
+            <button type="button" onClick={cerrarGuia} className="shrink-0 text-xs text-muted hover:text-foreground">
+              Cerrar
+            </button>
+          </div>
+          <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-sm text-foreground">
+            <li>
+              <b>Marcar los testeos.</b>{" "}
+              <span className="text-muted">
+                En cada producto que esté en prueba, «+ etiqueta» → Testeo. Pasa a la sección azul y deja de contar en
+                bajo, medio o alto.{" "}
+                {hayTesteos ? "Ya hay productos marcados." : "Todavía no hay ninguno marcado."}
+              </span>
+            </li>
+            <li>
+              <b>
+                Enlazar {sinEnlazar.length === 0 ? "los nombres nuevos" : `${sinEnlazar.length} ${sinEnlazar.length === 1 ? "nombre" : "nombres"}`} de la planilla.
+              </b>{" "}
+              <span className="text-muted">
+                {sinEnlazar.length === 0
+                  ? "No queda ninguno sin enlazar en este período."
+                  : `Los que dicen «sin enlazar» (${sinEnlazar
+                      .slice(0, 4)
+                      .map((f) => f.nombre)
+                      .join(", ")}${sinEnlazar.length > 4 ? "…" : ""}) tienen confirmación pero no gasto: al enlazarlos se les suma la pauta y el CPA.`}{" "}
+              </span>
+              {sinEnlazar.length > 0 && (
+                <Link href="/dashboard/control?vista=enlazar" className="font-medium text-accent-strong hover:underline">
+                  Ir a Enlazar pedidos →
+                </Link>
+              )}
+            </li>
+            <li>
+              <b>Ver el video de esta pantalla</b>{" "}
+              <span className="text-muted">(un minuto):</span>{" "}
+              <a
+                href="/video/capacitacion/control-riesgo.mp4"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-accent-strong hover:underline"
+              >
+                abrir el video →
+              </a>{" "}
+              <span className="text-muted">También está en la burbuja «Ayuda», abajo a la derecha.</span>
+            </li>
+          </ol>
+          <p className="mt-3 text-xs text-muted">
+            Si el gasto no coincide con tu archivo: acá es el gasto real que reportan Meta y TikTok. En el archivo, el de
+            Meta se reconstruía como conversiones × costo por conversión y dejaba afuera lo gastado sin conversiones; por eso
+            allá el CPA salía más bajo.
+          </p>
+        </section>
+      )}
+
       {/* --------------------------- Lo grande --------------------------- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[

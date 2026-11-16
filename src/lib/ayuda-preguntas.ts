@@ -40,7 +40,7 @@ export const PREGUNTAS: PreguntaFrecuente[] = [
     id: "riesgo-como-se-calcula",
     pregunta: "¿Cómo decide Jarvis si un producto es de riesgo bajo, medio o alto?",
     respuesta:
-      "Con la confirmación y el CPA real. Riesgo bajo: confirma 70 % o más y el CPA está dentro del objetivo. Riesgo alto: confirma menos de 55 % y el CPA no da, o pierde plata. Medio: una de las dos anda bien y la otra no. La confirmación y el objetivo salen de la Calculadora.",
+      "Igual que el archivo de Emilia: por la confirmación de la planilla de ventas en el período (confirmados ÷ pedidos). Bajo: 70 % o más. Medio: de 57 % a 69,99 %. Alto: menos de 57 %. El CPA (gasto ÷ pedidos) no cambia la sección: se pinta de rojo cuando pasa de $6.",
     pasoId: "control-riesgo",
     sinonimos: ["top 10", "mejores productos", "confirmacion alta"],
   },
@@ -48,7 +48,7 @@ export const PREGUNTAS: PreguntaFrecuente[] = [
     id: "donde-confirmacion",
     pregunta: "¿Dónde se actualiza la confirmación, el costo o el CPA objetivo?",
     respuesta:
-      "En la Calculadora de precios. Todo sale de ahí: si se cambia la confirmación, el costo o el gasto operativo de un producto, Control publicitario y Riesgo por producto se actualizan solos.",
+      "En la Calculadora de precios: si se cambia la confirmación, el costo o el gasto operativo de un producto, la economía y la utilidad del Control publicitario se actualizan solas. La confirmación con la que se clasifica el riesgo es la real de la planilla de ventas, no la de la Calculadora.",
     pasoId: "calculadora",
     sinonimos: ["efectividad", "gasto operativo", "precio", "actualizar", "cambiar"],
   },
@@ -64,7 +64,7 @@ export const PREGUNTAS: PreguntaFrecuente[] = [
     id: "sin-pauta",
     pregunta: "¿Qué son los productos que venden sin pauta?",
     respuesta:
-      "Productos con pedidos en Shopify y ningún gasto publicitario en el período: recompras y ventas orgánicas. No son un error. También aparecen ahí los marcados con la etiqueta Orgánico.",
+      "Productos con pedidos y ningún gasto publicitario en el período: recompras y ventas orgánicas. En «Riesgo por producto» dicen «sin pauta» en la columna del CPA, y en «Shopify vs Ads» también. Se pueden marcar con la etiqueta Orgánico.",
     pasoId: "control-riesgo",
     sinonimos: ["organica", "recompra", "sin publicidad"],
   },
