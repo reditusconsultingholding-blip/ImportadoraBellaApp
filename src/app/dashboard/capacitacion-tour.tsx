@@ -379,6 +379,31 @@ export default function CapacitacionTour({
     setAbierto(false);
     if (!yaVista) anotar(true);
   }
+  // UN ENLACE QUE ABRE LA CAPACITACIÓN EN UN PASO.
+  //
+  // «…?capacitacion=control-shopify-ads» abre el recorrido justo ahí. Sirve
+  // para mandarle a alguien lo nuevo sin hacerle repetir los treinta pasos
+  // (16-nov: «el link para capacitación de Emilia con estos ajustes»). El
+  // parámetro se borra de la dirección después de usarlo, para que recargar
+  // la página no lo vuelva a abrir. Un id que no existe, o un paso que esa
+  // persona no puede ver, no hace nada.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("capacitacion");
+    if (!id) return;
+    const i = pasos.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const t = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("capacitacion");
+      window.history.replaceState(null, "", url.toString());
+      setIndice(i);
+      setAbierto(true);
+      const destino = pasos[i];
+      if (`${url.pathname}${url.search}` !== destino.ruta) router.push(destino.ruta);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [pasos, router]);
+
   // Escape cierra igual que la equis. Va por referencia para no volver a
   // montar el atrapa-foco en cada render.
   const cerrarRef = useRef(cerrarPorAhora);
