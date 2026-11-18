@@ -17,7 +17,7 @@ import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import Testeos from "./testeos";
 import { productosPautadosDelMes } from "@/lib/pautados";
 import { shopifyVsAds } from "@/lib/shopify-vs-ads";
-import { cpaDePlanilla, riesgoDe } from "@/lib/shopify-vs-ads-calculo";
+import { cpaDePlanilla } from "@/lib/shopify-vs-ads-calculo";
 import CuadreShopifyAds from "./cuadre";
 import RiesgoProductos, { type FilaRiesgo } from "./riesgo";
 import FiltroPeriodo from "./filtro-periodo";
@@ -226,16 +226,18 @@ export default async function ControlPage({
         <CuadreShopifyAds datos={datos} editable={canManagePipeline(session.role)} />
       </>
     );
-  } else if (vista === "riesgo") {
-    // EL ARCHIVO DE EMILIA, CON SUS MISMAS CUENTAS (revisado el 16-nov):
-    //   - Pedidos y confirmación: la planilla de ventas del período,
-    //     confirmados ÷ pedidos. Es lo que ella mide y con lo que clasifica.
-    //   - Pedidos de plataforma y gasto: Meta + TikTok por producto.
-    //   - CPA: gasto ÷ pedidos de la planilla, rojo pasando de $6.
-    // La utilidad sigue saliendo del control (economía de la Calculadora): es
-    // lo que Jarvis le suma a su archivo, junto con el top, el SKU y las
-    // etiquetas.
-    const [control, cuadre] = await Promise.all([
+  } else if (vista === "riesgo" || vista === "testeos") {
+    // EL TABLERO DE EMILIA, CON SUS MISMAS CUENTAS (revisado el 18-nov):
+    //   - Pedidos y confirmación: la planilla del área comercial del período,
+    //     confirmados ÷ pedidos.
+    //   - Pedidos de plataforma y gasto: Meta + TikTok por producto, sin la
+    //     cuenta de ventas por WhatsApp.
+    //   - CPA real: gasto ÷ pedidos de la planilla.
+    // La clasificación se hace en la pantalla, porque los umbrales se mueven
+    // ahí. La utilidad sigue saliendo del control (economía de la Calculadora).
+    const desdeInstante = new Date(periodo.desde.getTime() + 5 * 3600_000);
+    const hastaInstante = new Date(periodo.hasta.getTime() + 29 * 3600_000);
+    const [control, cuadre, testeosPedidos, dias] = await Promise.all([
       controlDelPeriodo(session.organizationId, {
         desde: periodo.desde,
         hasta: periodo.hasta,
@@ -243,59 +245,60 @@ export default async function ControlPage({
         productIds: [],
       }),
       shopifyVsAds(session.organizationId, periodo.desde, periodo.hasta),
+      vista === "testeos" ? testeosDelPeriodo(session.organizationId, desdeInstante, hastaInstante) : null,
+      vista === "testeos" ? pedidosRealesPorDia(session.organizationId, desdeInstante, hastaInstante) : null,
     ]);
     const utilidadDe = new Map(control.productos.filter((f) => f.productId).map((f) => [f.productId!, f.utilidad]));
     const filas: FilaRiesgo[] = [
       ...cuadre.productos
         .filter((f) => f.productId && (f.ventas > 0 || f.gasto > 0 || f.plataforma > 0))
-        .map((f) => {
-          const confirmacion = f.ventas > 0 ? f.confirmados / f.ventas : null;
-          return {
-            clave: f.productId!,
-            productId: f.productId,
-            nombre: f.nombre,
-            sku: f.sku,
-            etiquetas: f.etiquetas,
-            pedidos: f.ventas,
-            confirmados: f.confirmados,
-            confirmacion,
-            plataforma: f.plataforma,
-            gasto: f.gasto,
-            cpa: cpaDePlanilla(f.gasto, f.ventas),
-            cpaObjetivo: f.cpaObjetivo,
-            utilidad: utilidadDe.get(f.productId!) ?? null,
-            sinEnlazar: false,
-            riesgo: riesgoDe({ pedidos: f.ventas, confirmacion }),
-          };
-        }),
-      // Los nombres de la planilla que todavía no tienen producto: entran con
-      // su confirmación (que es de la planilla y no depende del enlace), pero
-      // sin gasto ni CPA hasta enlazarlos.
-      ...cuadre.sinEnlazar.map((s) => {
-        const confirmacion = s.ventas > 0 ? s.confirmados / s.ventas : null;
-        return {
-          clave: `nombre:${s.nombre}`,
-          productId: null,
-          nombre: s.nombre,
-          sku: null,
-          etiquetas: [],
-          pedidos: s.ventas,
-          confirmados: s.confirmados,
-          confirmacion,
-          plataforma: 0,
-          gasto: 0,
-          cpa: null,
-          cpaObjetivo: null,
-          utilidad: null,
-          sinEnlazar: true,
-          riesgo: riesgoDe({ pedidos: s.ventas, confirmacion }),
-        };
-      }),
+        .map((f) => ({
+          clave: f.productId!,
+          productId: f.productId,
+          nombre: f.nombre,
+          sku: f.sku,
+          etiquetas: f.etiquetas,
+          pedidos: f.ventas,
+          confirmados: f.confirmados,
+          confirmacion: f.ventas > 0 ? f.confirmados / f.ventas : null,
+          plataforma: f.plataforma,
+          meta: f.meta,
+          tiktok: f.tiktok,
+          gasto: f.gasto,
+          cpa: cpaDePlanilla(f.gasto, f.ventas),
+          cpaObjetivo: f.cpaObjetivo,
+          utilidad: utilidadDe.get(f.productId!) ?? null,
+          sinEnlazar: false,
+        })),
+      // Los nombres de la planilla que todavía no tienen producto: cuentan en
+      // los totales del comercial, pero sin gasto no entran en el riesgo.
+      ...cuadre.sinEnlazar.map((s) => ({
+        clave: `nombre:${s.nombre}`,
+        productId: null,
+        nombre: s.nombre,
+        sku: null,
+        etiquetas: [],
+        pedidos: s.ventas,
+        confirmados: s.confirmados,
+        confirmacion: s.ventas > 0 ? s.confirmados / s.ventas : null,
+        plataforma: 0,
+        meta: 0,
+        tiktok: 0,
+        gasto: 0,
+        cpa: null,
+        cpaObjetivo: null,
+        utilidad: null,
+        sinEnlazar: true,
+      })),
     ];
+    const pedidosDelControl = (dias ?? []).reduce(
+      (t, d) => t + [...d.porProducto.values()].reduce((a, b) => a + b, 0) + d.sinAsignar,
+      0,
+    );
     cuerpo = (
       <>
         <FiltroPeriodo
-          vista="riesgo"
+          vista={vista}
           periodo={periodo.id}
           desde={isoDay(periodo.desde)}
           hasta={isoDay(periodo.hasta)}
@@ -306,29 +309,28 @@ export default async function ControlPage({
           filas={filas}
           gastoSinProducto={cuadre.productos.find((f) => !f.productId)?.gasto ?? 0}
           editable={canManagePipeline(session.role)}
+          modo={vista === "testeos" ? "testeos" : "riesgo"}
         />
+        {testeosPedidos && (
+          <details className="mt-5 rounded-xl border border-border bg-surface px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium text-foreground">
+              Pedidos marcados uno por uno como testeo y gasto de las campañas «TEST»
+            </summary>
+            <p className="mt-1 text-xs text-muted">
+              Es otra cosa: los pedidos sueltos que se marcan desde «Enlazar pedidos» para que no sumen a la utilidad, y
+              cuánto se gasta en campañas con TEST en el nombre (que en Jarvis son las iniciales de cualquier producto).
+            </p>
+            <div className="mt-4">
+              <Testeos
+                datos={testeosPedidos}
+                periodo={periodo.id === "personalizado" ? `${isoDay(periodo.desde)} a ${isoDay(periodo.hasta)}` : periodo.id}
+                pedidosDelControl={pedidosDelControl}
+                verCifras={true}
+              />
+            </div>
+          </details>
+        )}
       </>
-    );
-  } else if (vista === "testeos") {
-    // La ventana en instantes: los testeos se cuentan sobre órdenes, que sí
-    // tienen hora (el día de Ecuador arranca a las 05:00 UTC).
-    const desdeInstante = new Date(periodo.desde.getTime() + 5 * 3600_000);
-    const hastaInstante = new Date(periodo.hasta.getTime() + 29 * 3600_000);
-    const [testeos, dias] = await Promise.all([
-      testeosDelPeriodo(session.organizationId, desdeInstante, hastaInstante),
-      pedidosRealesPorDia(session.organizationId, desdeInstante, hastaInstante),
-    ]);
-    const pedidosDelControl = dias.reduce(
-      (t, d) => t + [...d.porProducto.values()].reduce((a, b) => a + b, 0) + d.sinAsignar,
-      0,
-    );
-    cuerpo = (
-      <Testeos
-        datos={testeos}
-        periodo={periodo.id === "personalizado" ? `${isoDay(periodo.desde)} a ${isoDay(periodo.hasta)}` : periodo.id}
-        pedidosDelControl={pedidosDelControl}
-        verCifras={true}
-      />
     );
   } else {
     const [pendientes, resueltos] = await Promise.all([

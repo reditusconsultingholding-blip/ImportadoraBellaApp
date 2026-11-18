@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cpaDePlanilla, cuadrar, estadoDelCuadre, riesgoDe, topDelMes } from "../src/lib/shopify-vs-ads-calculo";
+import { clasificarRiesgo, cpaDePlanilla, cuadrar, estadoDelCuadre, riesgoDe, topDelMes } from "../src/lib/shopify-vs-ads-calculo";
 import { limpiarEtiquetas } from "../src/lib/etiquetas-producto";
 
 test("el factor es plataforma ÷ Shopify y los dos CPA salen del mismo gasto", () => {
@@ -31,20 +31,46 @@ test("compras de plataforma sin pedidos en Shopify es lo peor; sin nada no se ju
   assert.equal(c.cpaPlataforma, null);
 });
 
-test("riesgo: los cortes del archivo de Emilia, 70% y 57% de confirmación", () => {
-  // Casos reales de su artefacto, 1 al 8 de noviembre.
-  assert.equal(riesgoDe({ pedidos: 1322, confirmacion: 950 / 1322 }), "bajo"); // drenaje 71,86%
-  assert.equal(riesgoDe({ pedidos: 375, confirmacion: 0.6827 }), "medio"); // Faja Lipo 360
-  assert.equal(riesgoDe({ pedidos: 63, confirmacion: 36 / 63 }), "medio"); // pasta dental 57,14%
-  assert.equal(riesgoDe({ pedidos: 9, confirmacion: 5 / 9 }), "alto"); // Mini UPS 55,56%
-  // Los bordes exactos.
-  assert.equal(riesgoDe({ pedidos: 100, confirmacion: 70 / 100 }), "bajo");
-  assert.equal(riesgoDe({ pedidos: 100, confirmacion: 57 / 100 }), "medio");
+// Casos reales del tablero «Comercial vs Pauta» de Emilia, 1 al 17 de noviembre.
+const fila = (pedidos: number, conf: number, gasto: number, plataforma: number, testeo = false) => ({
+  pedidos,
+  confirmados: Math.round(conf * pedidos),
+  cpa: cpaDePlanilla(gasto, pedidos),
+  plataforma,
+  gasto,
+  testeo,
 });
 
-test("riesgo: sin pedidos no hay datos; el CPA sale de la planilla y sin gasto no existe", () => {
-  assert.equal(riesgoDe({ pedidos: 0, confirmacion: null }), "sinDatos");
-  assert.equal(riesgoDe({ pedidos: 5, confirmacion: null }), "sinDatos");
+test("riesgo: la regla del tablero de Emilia (65 % / $8 alto; 70 % / $5 / 30 pedidos / 1,33× medio)", () => {
+  assert.equal(riesgoDe(fila(1961, 0.717, 10031, 2192)), "medio"); // drenaje: CPA 5,12
+  assert.equal(riesgoDe(fila(58, 0.7414, 270, 65)), "bajo"); // Combo Celimax: cumple todo
+  assert.equal(riesgoDe(fila(220, 0.7, 1464, 314)), "medio"); // NIDA: CPA 6,65 y 1,43×
+  assert.equal(riesgoDe(fila(11, 0.6364, 6, 1)), "alto"); // Mini UPS: confirma 63,64 %
+  // Los bordes exactos: 65 % no es alto, 70 % no es medio, $8 no es alto.
+  assert.equal(riesgoDe(fila(100, 0.65, 400, 100)), "medio");
+  assert.equal(riesgoDe(fila(100, 0.7, 500, 100)), "bajo");
+  assert.equal(riesgoDe(fila(100, 0.8, 800, 100)), "medio");
+});
+
+test("riesgo alto se separa por causa", () => {
+  assert.equal(clasificarRiesgo(fila(200, 0.635, 1711, 286)).causa, "ambas"); // Kit de batana
+  assert.equal(clasificarRiesgo(fila(120, 0.8, 1158, 194)).causa, "cpa"); // Pulsera de cobre
+  assert.equal(clasificarRiesgo(fila(11, 0.6364, 6, 1)).causa, "confirmacion"); // Mini UPS
+});
+
+test("testeos: sin regla de volumen; sin pedidos pero con pauta es alto", () => {
+  assert.equal(riesgoDe(fila(22, 0.8182, 72, 24, true)), "bajo"); // Fundas al vacío
+  assert.equal(riesgoDe(fila(22, 0.8182, 72, 24, false)), "medio"); // el mismo, si no fuera testeo
+  const vev = clasificarRiesgo(fila(21, 0.8095, 150, 31, true)); // VEV: CPA 7,14 y 1,48×
+  assert.equal(vev.riesgo, "medio");
+  assert.equal(vev.motivos.length, 2);
+  const trm = clasificarRiesgo({ pedidos: 0, confirmados: 0, cpa: null, plataforma: 2, gasto: 14, testeo: true });
+  assert.equal(trm.riesgo, "alto");
+  assert.equal(trm.causa, "sinDatos");
+  assert.equal(clasificarRiesgo({ pedidos: 0, confirmados: 0, cpa: null, plataforma: 0, gasto: 0 }).riesgo, "sinDatos");
+});
+
+test("el CPA sale de la planilla y sin gasto no existe", () => {
   assert.equal(cpaDePlanilla(21616.02, 4128)?.toFixed(2), "5.24");
   assert.equal(cpaDePlanilla(0, 270), null);
   assert.equal(cpaDePlanilla(90, 0), null);

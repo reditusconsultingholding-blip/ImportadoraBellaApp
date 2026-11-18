@@ -81,36 +81,115 @@ export function estadoDelCuadre(shopify: number, plataforma: number): EstadoCuad
 
 // ─── Riesgo ──────────────────────────────────────────────────────────────
 
-// LA REGLA ES LA DEL ARCHIVO DE EMILIA, NO UNA PROPIA
-// Su artefacto «Confirmación y CPA por producto» (mostrado el 10-nov y
-// revisado el 16-nov) clasifica SOLO por la confirmación que mide la planilla
-// de ventas en el período —confirmados ÷ pedidos—: 70% o más es riesgo bajo,
-// de 57% a 69,99% medio, menos de 57% alto. El CPA no mueve de sección: se
-// pinta de rojo cuando pasa de $6. Antes Jarvis mezclaba la confirmación de la
-// Calculadora con el CPA objetivo, y el drenaje (71% de confirmación) caía en
-// «medio» por un objetivo de $2,67 mal cargado: la misma lista daba otra
-// respuesta que la de ellos, que es la que usan para decidir.
+// LA REGLA ES LA DEL TABLERO DE EMILIA, NO UNA PROPIA
+// Su tablero «Comercial vs Pauta» (revisado el 18-nov) clasifica cada producto
+// con pauta por la confirmación del área comercial (la planilla de ventas:
+// confirmados ÷ pedidos) Y por el CPA real (gasto ÷ pedidos del comercial):
+//   - ALTO: confirma menos de 65 % o el CPA real pasa de $8. Se separa por
+//     causa, porque cada una pide otra solución: mala confirmación (logística
+//     o producto), buena confirmación con CPA alto (el anuncio), o las dos.
+//   - MEDIO: no llega a 70 % de confirmación, o su CPA pasa de $5, o tiene
+//     menos de 30 pedidos (esta regla no se aplica a los testeos), o la
+//     plataforma cuenta más de 1,33 veces sus pedidos.
+//   - BAJO: cumple todo.
+// Los umbrales se pueden mover desde la pantalla (en su tablero, desde la
+// pestaña Top 10); estos son los de ella.
 
-/** Emilia: «los que tienen alta confirmación, del 70% para arriba». */
-export const CONFIRMACION_ALTA = 0.7;
-/** Desde aquí y hasta el 70% es riesgo medio; por debajo, alto. */
-export const CONFIRMACION_MEDIA = 0.57;
-/** El CPA real que se pinta de rojo, como en el archivo de Emilia. */
-export const CPA_ALERTA = 6;
+export type UmbralesRiesgo = {
+  /** Por debajo: riesgo alto. */
+  confirmacionAlto: number;
+  /** Por encima: riesgo alto. */
+  cpaAlto: number;
+  /** Por debajo: riesgo medio. */
+  confirmacionMedio: number;
+  /** Por encima: riesgo medio. */
+  cpaMedio: number;
+  /** Menos pedidos que esto: riesgo medio (no aplica a testeos). */
+  pedidosMinimos: number;
+  /** Plataforma ÷ pedidos del comercial por encima de esto: riesgo medio. */
+  factorPlataforma: number;
+};
+
+export const UMBRALES_RIESGO: UmbralesRiesgo = {
+  confirmacionAlto: 0.65,
+  cpaAlto: 8,
+  confirmacionMedio: 0.7,
+  cpaMedio: 5,
+  pedidosMinimos: 30,
+  factorPlataforma: 1.33,
+};
+
+// Compatibilidad con las pantallas que pintan la confirmación por colores.
+export const CONFIRMACION_ALTA = UMBRALES_RIESGO.confirmacionMedio;
+export const CONFIRMACION_MEDIA = UMBRALES_RIESGO.confirmacionAlto;
+export const CPA_ALERTA = UMBRALES_RIESGO.cpaMedio;
 
 export type Riesgo = "bajo" | "medio" | "alto" | "sinDatos";
 
+/** Por qué un producto de riesgo alto está ahí. */
+export type CausaAlto = "confirmacion" | "cpa" | "ambas" | "sinDatos";
+
+export type Motivo = { texto: string; grave: boolean };
+
+export type Clasificacion = { riesgo: Riesgo; causa: CausaAlto | null; motivos: Motivo[] };
+
+const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
+const pctTxt = (n: number) =>
+  `${(n * 100).toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+const usd = (n: number) =>
+  n.toLocaleString("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 /**
- * El riesgo de un producto en el período, por su confirmación real.
- * Sin pedidos en la planilla no hay confirmación que medir.
+ * El riesgo de un producto en el período, con la regla del tablero de Emilia.
+ *
+ * `pedidos` y `confirmados` son los del área comercial (la planilla); `cpa` es
+ * gasto ÷ esos pedidos; `plataforma`, las compras que se atribuyen Meta y
+ * TikTok. Un testeo sin pedidos (solo pauta) cae en alto: no hay cómo medirlo.
  */
-export function riesgoDe(f: { pedidos: number; confirmacion: number | null }): Riesgo {
-  if (f.pedidos <= 0 || f.confirmacion == null) return "sinDatos";
-  // Redondeado a 4 decimales: 0,57 calculado como 57/100 no debe caer en alto.
-  const c = Math.round(f.confirmacion * 1e4) / 1e4;
-  if (c >= CONFIRMACION_ALTA) return "bajo";
-  if (c >= CONFIRMACION_MEDIA) return "medio";
-  return "alto";
+export function clasificarRiesgo(
+  f: { pedidos: number; confirmados: number; cpa: number | null; plataforma: number; gasto: number; testeo?: boolean },
+  u: UmbralesRiesgo = UMBRALES_RIESGO,
+): Clasificacion {
+  const motivos: Motivo[] = [];
+  if (f.pedidos <= 0) {
+    if (f.gasto <= 0 && f.plataforma <= 0) return { riesgo: "sinDatos", causa: null, motivos };
+    motivos.push({ texto: "sin dato comercial", grave: true });
+    if (f.gasto > 0) motivos.push({ texto: "sin pedidos para medir CPA", grave: true });
+    return { riesgo: "alto", causa: "sinDatos", motivos };
+  }
+  const conf = r4(f.confirmados / f.pedidos);
+  const cpa = f.cpa == null ? null : r4(f.cpa);
+  // A dos decimales, como se lee: 12 ÷ 9 = 1,333 se ve «1,33×» y no pasa de 1,33.
+  const factor = Math.round((f.plataforma / f.pedidos) * 100) / 100;
+
+  const confMala = conf < u.confirmacionAlto;
+  const cpaMalo = cpa != null && cpa > u.cpaAlto;
+  if (confMala || cpaMalo) {
+    if (confMala) motivos.push({ texto: `confirma ${pctTxt(conf)}`, grave: true });
+    if (cpaMalo) motivos.push({ texto: `CPA real ${usd(cpa!)}`, grave: true });
+    if (!f.testeo && f.pedidos < u.pedidosMinimos)
+      motivos.push({ texto: `solo ${f.pedidos} pedidos comercial`, grave: true });
+    if (factor > u.factorPlataforma)
+      motivos.push({ texto: `plataforma cuenta ${factor.toLocaleString("es-EC", { maximumFractionDigits: 2 })}× los pedidos`, grave: true });
+    return { riesgo: "alto", causa: confMala && cpaMalo ? "ambas" : confMala ? "confirmacion" : "cpa", motivos };
+  }
+
+  if (conf < u.confirmacionMedio) motivos.push({ texto: `confirma ${pctTxt(conf)}`, grave: false });
+  if (cpa != null && cpa > u.cpaMedio) motivos.push({ texto: `CPA real ${usd(cpa)}`, grave: false });
+  if (!f.testeo && f.pedidos < u.pedidosMinimos)
+    motivos.push({ texto: `solo ${f.pedidos} pedidos comercial`, grave: false });
+  if (factor > u.factorPlataforma)
+    motivos.push({ texto: `plataforma cuenta ${factor.toLocaleString("es-EC", { maximumFractionDigits: 2 })}× los pedidos`, grave: false });
+  if (motivos.length > 0) return { riesgo: "medio", causa: null, motivos };
+  return { riesgo: "bajo", causa: null, motivos: [{ texto: "cumple todo", grave: false }] };
+}
+
+/** Solo la sección, sin los motivos. */
+export function riesgoDe(
+  f: { pedidos: number; confirmados: number; cpa: number | null; plataforma: number; gasto: number; testeo?: boolean },
+  u: UmbralesRiesgo = UMBRALES_RIESGO,
+): Riesgo {
+  return clasificarRiesgo(f, u).riesgo;
 }
 
 /** CPA real de la pantalla de riesgo: gasto ÷ pedidos de la planilla. Sin gasto no hay CPA. */

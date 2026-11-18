@@ -2,26 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { Riesgo } from "@/lib/shopify-vs-ads-calculo";
-import { CONFIRMACION_ALTA, CONFIRMACION_MEDIA, CPA_ALERTA, topDelMes } from "@/lib/shopify-vs-ads-calculo";
+import {
+  UMBRALES_RIESGO,
+  clasificarRiesgo,
+  topDelMes,
+  type CausaAlto,
+  type Clasificacion,
+  type UmbralesRiesgo,
+} from "@/lib/shopify-vs-ads-calculo";
 import EditorEtiquetas from "./etiquetas";
 
-// Riesgo por producto.
+// Riesgo por producto y Testeos.
 //
-// Es el artefacto de Emilia «Confirmación y CPA por producto – Bella» dentro de
-// Jarvis, con sus mismas cuentas y su misma forma (revisado el 16-nov):
-//   - arriba: pedidos, confirmación, pedidos de plataforma, gasto y CPA;
-//   - una tarjeta por sección con cuántos productos y pedidos tiene, y la
-//     barra que reparte los pedidos entre las secciones;
-//   - las secciones por confirmación de la planilla: bajo (70% o más), medio
-//     (57% a 69,99%), alto (menos de 57%), los testeos aparte y los que tienen
-//     pauta pero ningún pedido;
-//   - cada producto con pedidos, pedidos de plataforma, CPA (rojo pasando de
-//     $6) y confirmación;
-//   - un buscador de producto que recalcula todo.
-// Lo que Jarvis le suma: el top 10 por utilidad, la utilidad de cada uno (con
-// la economía de la Calculadora), el SKU y las etiquetas para marcar testeos,
-// apagados u orgánicos sin salir de la pantalla.
+// Es el tablero «Comercial vs Pauta» de Emilia dentro de Jarvis, con sus
+// mismas reglas (revisado el 18-nov):
+//   - Riesgo: solo productos con pauta y sin la etiqueta Testeo. Alto si
+//     confirma menos de 65 % o el CPA real pasa de $8, separado por causa;
+//     medio si no llega a 70 %, el CPA pasa de $5, tiene menos de 30 pedidos o
+//     la plataforma cuenta más de 1,33 veces sus pedidos; bajo si cumple todo.
+//     Dentro de cada sección, del CPA real más bajo al más alto.
+//   - Testeos: los productos marcados como Testeo, con la misma regla pero sin
+//     la de volumen. Un testeo con pauta y sin pedidos es alto: no hay cómo
+//     medirlo.
+//   - Los umbrales se mueven desde la pantalla (quedan en ese navegador).
+// Lo que Jarvis le suma: la utilidad de cada producto con la economía de la
+// Calculadora, el SKU, las etiquetas editables y el top 10 por utilidad.
 
 export type FilaRiesgo = {
   clave: string;
@@ -29,13 +34,15 @@ export type FilaRiesgo = {
   nombre: string;
   sku: string | null;
   etiquetas: string[];
-  /** Pedidos de la planilla de ventas en el período. */
+  /** Pedidos del área comercial (la planilla de ventas) en el período. */
   pedidos: number;
   confirmados: number;
   /** confirmados ÷ pedidos. null sin pedidos. */
   confirmacion: number | null;
   /** Compras que se atribuyen Meta + TikTok. */
   plataforma: number;
+  meta: number;
+  tiktok: number;
   gasto: number;
   /** gasto ÷ pedidos de la planilla. */
   cpa: number | null;
@@ -44,70 +51,45 @@ export type FilaRiesgo = {
   utilidad: number | null;
   /** Nombre de la planilla que todavía no está enlazado a un producto. */
   sinEnlazar: boolean;
-  riesgo: Riesgo;
 };
+
+type Clasificada = FilaRiesgo & Clasificacion;
 
 const dinero = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const dinero2 = (n: number) =>
   n.toLocaleString("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const entero = (n: number) => Math.round(n).toLocaleString("es-EC");
-const pct2 = (n: number) => `${(n * 100).toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+const pct2 = (n: number) => `${(n * 100).toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 const sinTildes = (s: string) =>
   s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 
-type Seccion = {
-  id: "bajo" | "medio" | "alto" | "testeo";
-  titulo: string;
-  rango: string;
-  /** Encabezado de la tabla y acento de la tarjeta. */
-  cabecera: string;
-  acento: string;
-  barra: string;
-};
+type IdSeccion = "alto" | "medio" | "bajo";
 
-const SECCIONES: Seccion[] = [
+const SECCIONES: { id: IdSeccion; titulo: string; cabecera: string; acento: string; barra: string }[] = [
+  { id: "alto", titulo: "Riesgo alto", cabecera: "bg-red-700 text-white", acento: "border-t-red-600", barra: "bg-red-600" },
+  { id: "medio", titulo: "Riesgo medio", cabecera: "bg-amber-700 text-white", acento: "border-t-amber-600", barra: "bg-amber-600" },
+  { id: "bajo", titulo: "Riesgo bajo", cabecera: "bg-emerald-700 text-white", acento: "border-t-emerald-600", barra: "bg-emerald-600" },
+];
+
+const CAUSAS: { id: CausaAlto; titulo: string; nota: string }[] = [
   {
-    id: "bajo",
-    titulo: "Bajo riesgo",
-    rango: `${Math.round(CONFIRMACION_ALTA * 100)} % o más`,
-    cabecera: "bg-emerald-700 text-white",
-    acento: "border-t-emerald-600",
-    barra: "bg-emerald-600",
+    id: "confirmacion",
+    titulo: "Mala confirmación",
+    nota: "problema de logística o de producto: por más barato que salga el pedido, no se concreta",
   },
-  {
-    id: "medio",
-    titulo: "Medio riesgo",
-    rango: `${Math.round(CONFIRMACION_MEDIA * 100)} % a ${Math.round(CONFIRMACION_ALTA * 100) - 1},99 %`,
-    cabecera: "bg-amber-700 text-white",
-    acento: "border-t-amber-600",
-    barra: "bg-amber-600",
-  },
-  {
-    id: "alto",
-    titulo: "Alto riesgo",
-    rango: `menos de ${Math.round(CONFIRMACION_MEDIA * 100)} %`,
-    cabecera: "bg-red-700 text-white",
-    acento: "border-t-red-600",
-    barra: "bg-red-600",
-  },
-  {
-    id: "testeo",
-    titulo: "Testeos",
-    rango: "productos en prueba",
-    cabecera: "bg-blue-600 text-white",
-    acento: "border-t-blue-600",
-    barra: "bg-blue-600",
-  },
+  { id: "cpa", titulo: "Buena confirmación, CPA alto", nota: "el producto convierte, el problema es el costo de adquisición" },
+  { id: "ambas", titulo: "Confirmación y CPA malos", nota: "los dos problemas juntos" },
+  { id: "sinDatos", titulo: "Sin datos para medir", nota: "tiene pauta pero ningún pedido en el área comercial" },
 ];
 
 const tiene = (f: FilaRiesgo, e: string) => f.etiquetas.includes(e);
 
-/** La guía «Qué hacer ahora» cerrada en este navegador. */
-const CLAVE_GUIA = "guia-riesgo-16nov";
+/** Los umbrales movidos en este navegador. */
+const CLAVE_UMBRALES = "umbrales-riesgo-18nov";
 
 function Barra({ valor, max, clase }: { valor: number; max: number; clase: string }) {
   const ancho = max > 0 ? Math.max(2, Math.min(100, (valor / max) * 100)) : 0;
@@ -118,15 +100,13 @@ function Barra({ valor, max, clase }: { valor: number; max: number; clase: strin
   );
 }
 
-function Cpa({ f }: { f: FilaRiesgo }) {
-  if (f.cpa == null)
-    return <span className="text-muted">{!f.sinEnlazar && f.pedidos > 0 && f.gasto <= 0 ? "sin pauta" : "—"}</span>;
-  const alto = f.cpa > CPA_ALERTA;
+function Cpa({ f, u }: { f: FilaRiesgo; u: UmbralesRiesgo }) {
+  if (f.cpa == null) return <span className="text-muted">—</span>;
+  const tono =
+    f.cpa > u.cpaAlto ? "bg-critical-bg text-critical" : f.cpa > u.cpaMedio ? "bg-warning/10 text-warning" : "bg-good-bg text-good";
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
-        alto ? "bg-critical-bg text-critical" : "bg-good-bg text-good"
-      }`}
+      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tono}`}
       title={f.cpaObjetivo != null ? `Objetivo en la Calculadora: ${dinero2(f.cpaObjetivo)}` : undefined}
     >
       {dinero2(f.cpa)}
@@ -134,14 +114,18 @@ function Cpa({ f }: { f: FilaRiesgo }) {
   );
 }
 
-function Confirmacion({ f }: { f: FilaRiesgo }) {
+function Confirmacion({ f, u }: { f: FilaRiesgo; u: UmbralesRiesgo }) {
   if (f.confirmacion == null) return <span className="text-muted">—</span>;
   const clase =
-    f.confirmacion >= CONFIRMACION_ALTA ? "bg-emerald-600" : f.confirmacion >= CONFIRMACION_MEDIA ? "bg-amber-600" : "bg-red-600";
+    f.confirmacion >= u.confirmacionMedio
+      ? "bg-emerald-600"
+      : f.confirmacion >= u.confirmacionAlto
+        ? "bg-amber-600"
+        : "bg-red-600";
   return (
     <span className="inline-flex items-center justify-end gap-2" title={`${entero(f.confirmados)} de ${entero(f.pedidos)} confirmados`}>
       <Barra valor={f.confirmacion} max={1} clase={clase} />
-      <span className="w-14 text-right tabular-nums">{pct2(f.confirmacion)}</span>
+      <span className="w-16 text-right tabular-nums">{pct2(f.confirmacion)}</span>
     </span>
   );
 }
@@ -151,88 +135,133 @@ const th = `${thBase} text-right`;
 const thIzq = `${thBase} text-left`;
 const td = "px-3 py-2 text-right tabular-nums";
 
+function Fila({ f, u, maxPedidos, editable }: { f: Clasificada; u: UmbralesRiesgo; maxPedidos: number; editable: boolean }) {
+  return (
+    <tr className="border-t border-border align-top">
+      <td className="px-3 py-2 text-left">
+        <span className="font-medium text-foreground">{f.nombre}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
+          {f.sku && <span>SKU {f.sku}</span>}
+          {f.plataforma > 0 && (
+            <span>
+              plataformas {entero(f.plataforma)} (Meta {entero(f.meta)} · TikTok {entero(f.tiktok)})
+            </span>
+          )}
+          {f.sinEnlazar && (
+            <Link href="/dashboard/control?vista=enlazar" className="text-warning underline-offset-2 hover:underline">
+              sin enlazar: sin gasto ni etiquetas hasta enlazarlo
+            </Link>
+          )}
+        </span>
+        {f.motivos.length > 0 && (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {f.motivos.map((m) => (
+              <span
+                key={m.texto}
+                className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
+                  f.riesgo === "bajo"
+                    ? "bg-good-bg text-good"
+                    : m.grave
+                      ? "bg-critical-bg text-critical"
+                      : "bg-warning/10 text-warning"
+                }`}
+              >
+                {m.texto}
+              </span>
+            ))}
+          </span>
+        )}
+        {f.productId && (
+          <span className="mt-1 block">
+            <EditorEtiquetas productId={f.productId} etiquetas={f.etiquetas} editable={editable} />
+          </span>
+        )}
+      </td>
+      <td className={`${td} text-foreground`}>{f.gasto > 0 ? dinero(f.gasto) : "—"}</td>
+      <td className={td}>
+        <span className="inline-flex items-center justify-end gap-2">
+          <Barra valor={f.pedidos} max={maxPedidos} clase="bg-muted/50" />
+          <span className="w-12 text-right font-semibold text-foreground">{entero(f.pedidos)}</span>
+        </span>
+      </td>
+      <td className={`${td} text-muted`}>{f.plataforma > 0 ? entero(f.plataforma) : "—"}</td>
+      <td className={td}>
+        <Cpa f={f} u={u} />
+      </td>
+      <td className={td}>
+        <Confirmacion f={f} u={u} />
+      </td>
+      <td className={`${td} ${f.utilidad == null ? "text-muted" : f.utilidad >= 0 ? "text-good" : "text-critical"}`}>
+        {f.utilidad == null ? "—" : dinero(f.utilidad)}
+      </td>
+    </tr>
+  );
+}
+
 function Tabla({
   titulo,
-  rango,
+  nota,
   cabecera,
-  filas,
+  grupos,
+  u,
   maxPedidos,
   editable,
   vacio,
 }: {
   titulo: string;
-  rango: string;
+  nota: string;
   cabecera: string;
-  filas: FilaRiesgo[];
+  /** Una o varias tandas de filas, cada una con su subtítulo opcional. */
+  grupos: { titulo?: string; nota?: string; filas: Clasificada[] }[];
+  u: UmbralesRiesgo;
   maxPedidos: number;
   editable: boolean;
   vacio: string;
 }) {
+  const n = grupos.reduce((t, g) => t + g.filas.length, 0);
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface">
-      <div className={`flex items-center justify-between px-4 py-2.5 ${cabecera}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 ${cabecera}`}>
         <h3 className="text-sm font-semibold uppercase tracking-wide">
-          {titulo} <span className="ml-1 text-xs font-normal opacity-80">{filas.length}</span>
+          {titulo} <span className="ml-1 text-xs font-normal opacity-80">{n}</span>
         </h3>
-        <span className="text-xs opacity-90">{rango}</span>
+        <span className="text-xs opacity-90">{nota}</span>
       </div>
-      {filas.length === 0 ? (
+      {n === 0 ? (
         <p className="px-4 py-5 text-center text-xs text-muted">{vacio}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-surface-2">
               <tr>
                 <th className={thIzq}>Producto</th>
-                <th className={th}>Pedidos</th>
+                <th className={th}>Gasto</th>
+                <th className={th}>Pedidos comercial</th>
                 <th className={th}>Pedidos plat.</th>
-                <th className={th}>CPA</th>
+                <th className={th}>CPA real</th>
                 <th className={th}>Confirmación</th>
                 <th className={th}>Utilidad</th>
               </tr>
             </thead>
-            <tbody>
-              {filas.map((f) => (
-                <tr key={f.clave} className="border-t border-border align-top">
-                  <td className="px-3 py-2 text-left">
-                    <span className="font-medium text-foreground">{f.nombre}</span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
-                      {f.sku && <span>SKU {f.sku}</span>}
-                      {f.sinEnlazar && (
-                        <Link href="/dashboard/control?vista=enlazar" className="text-warning underline-offset-2 hover:underline">
-                          sin enlazar: sin gasto ni etiquetas hasta enlazarlo
-                        </Link>
-                      )}
-                    </span>
-                    {f.productId && (
-                      <span className="mt-0.5 block">
-                        <EditorEtiquetas productId={f.productId} etiquetas={f.etiquetas} editable={editable} />
-                      </span>
-                    )}
-                  </td>
-                  <td className={td}>
-                    <span className="inline-flex items-center justify-end gap-2">
-                      <Barra valor={f.pedidos} max={maxPedidos} clase="bg-muted/50" />
-                      <span className="w-12 text-right font-semibold text-foreground">{entero(f.pedidos)}</span>
-                    </span>
-                  </td>
-                  <td className={`${td} text-muted`}>{f.plataforma > 0 ? entero(f.plataforma) : "—"}</td>
-                  <td className={td}>
-                    <Cpa f={f} />
-                  </td>
-                  <td className={td}>
-                    <Confirmacion f={f} />
-                  </td>
-                  <td
-                    className={`${td} ${
-                      f.utilidad == null ? "text-muted" : f.utilidad >= 0 ? "text-good" : "text-critical"
-                    }`}
-                  >
-                    {f.utilidad == null ? "—" : dinero(f.utilidad)}
-                  </td>
-                </tr>
+            {grupos
+              .filter((g) => g.filas.length > 0)
+              .map((g, i) => (
+                <tbody key={g.titulo ?? i}>
+                  {g.titulo && (
+                    <tr className="border-t border-border bg-surface-2/60">
+                      <td colSpan={7} className="px-3 py-1.5 text-left">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-critical">
+                          {g.titulo} <span className="font-normal text-muted">{g.filas.length}</span>
+                        </span>
+                        {g.nota && <span className="ml-2 text-[11px] text-muted">{g.nota}</span>}
+                      </td>
+                    </tr>
+                  )}
+                  {g.filas.map((f) => (
+                    <Fila key={f.clave} f={f} u={u} maxPedidos={maxPedidos} editable={editable} />
+                  ))}
+                </tbody>
               ))}
-            </tbody>
           </table>
         </div>
       )}
@@ -240,167 +269,201 @@ function Tabla({
   );
 }
 
+function EditorUmbrales({ u, cambiar }: { u: UmbralesRiesgo; cambiar: (u: UmbralesRiesgo) => void }) {
+  const campos: { k: keyof UmbralesRiesgo; label: string; pct?: boolean; paso: number }[] = [
+    { k: "confirmacionAlto", label: "Alto: confirma menos de (%)", pct: true, paso: 1 },
+    { k: "cpaAlto", label: "Alto: CPA real sobre ($)", paso: 0.5 },
+    { k: "confirmacionMedio", label: "Medio: confirma menos de (%)", pct: true, paso: 1 },
+    { k: "cpaMedio", label: "Medio: CPA real sobre ($)", paso: 0.5 },
+    { k: "pedidosMinimos", label: "Medio: menos pedidos que", paso: 1 },
+    { k: "factorPlataforma", label: "Medio: plataforma cuenta más de (×)", paso: 0.01 },
+  ];
+  const distinto = (Object.keys(UMBRALES_RIESGO) as (keyof UmbralesRiesgo)[]).some((k) => u[k] !== UMBRALES_RIESGO[k]);
+  return (
+    <details className="rounded-xl border border-border bg-surface px-4 py-3 text-xs">
+      <summary className="cursor-pointer font-medium text-foreground">
+        Umbrales{distinto ? " (movidos en este navegador)" : ""}: alto {Math.round(u.confirmacionAlto * 100)} % /{" "}
+        {dinero2(u.cpaAlto)} · medio {Math.round(u.confirmacionMedio * 100)} % / {dinero2(u.cpaMedio)} /{" "}
+        {u.pedidosMinimos} pedidos / {u.factorPlataforma.toLocaleString("es-EC")}×
+      </summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {campos.map((c) => (
+          <label key={c.k} className="flex flex-col gap-1 text-muted">
+            {c.label}
+            <input
+              type="number"
+              step={c.paso}
+              value={c.pct ? Math.round(u[c.k] * 1000) / 10 : u[c.k]}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v) || v < 0) return;
+                cambiar({ ...u, [c.k]: c.pct ? v / 100 : v });
+              }}
+              className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm tabular-nums text-foreground outline-none"
+            />
+          </label>
+        ))}
+      </div>
+      {distinto && (
+        <button
+          type="button"
+          onClick={() => cambiar(UMBRALES_RIESGO)}
+          className="mt-3 text-xs font-medium text-accent-strong hover:underline"
+        >
+          Volver a los del tablero de Emilia
+        </button>
+      )}
+    </details>
+  );
+}
+
 export default function RiesgoProductos({
   filas,
   gastoSinProducto,
   editable,
+  modo = "riesgo",
 }: {
   filas: FilaRiesgo[];
   /** Gasto de campañas sin producto: no entra en ninguna fila. */
   gastoSinProducto: number;
   editable: boolean;
+  /** «testeos»: solo los productos marcados como Testeo, sin la regla de volumen. */
+  modo?: "riesgo" | "testeos";
 }) {
   const [busqueda, setBusqueda] = useState("");
+  const [u, setU] = useState<UmbralesRiesgo>(UMBRALES_RIESGO);
+  // Los umbrales guardados se leen después de montar: el servidor no ve el
+  // localStorage y decidirlo en el primer dibujado haría que servidor y
+  // navegador pinten cosas distintas.
+  useEffect(() => {
+    try {
+      const guardado = window.localStorage.getItem(CLAVE_UMBRALES);
+      if (guardado) {
+        const v = { ...UMBRALES_RIESGO, ...JSON.parse(guardado) } as UmbralesRiesgo;
+        const t = window.setTimeout(() => setU(v), 0);
+        return () => window.clearTimeout(t);
+      }
+    } catch {
+      /* sin almacenamiento: los de Emilia */
+    }
+  }, []);
+  const cambiarUmbrales = (v: UmbralesRiesgo) => {
+    setU(v);
+    try {
+      window.localStorage.setItem(CLAVE_UMBRALES, JSON.stringify(v));
+    } catch {
+      /* sin almacenamiento: vale hasta recargar */
+    }
+  };
 
   const vistas = useMemo(() => {
     const q = sinTildes(busqueda.trim());
     const visibles = q ? filas.filter((f) => sinTildes(`${f.nombre} ${f.sku ?? ""}`).includes(q)) : filas;
-    const porPedidos = (a: FilaRiesgo, b: FilaRiesgo) => b.pedidos - a.pedidos || b.gasto - a.gasto;
+    const clasificar = (f: FilaRiesgo): Clasificada => ({
+      ...f,
+      ...clasificarRiesgo({ ...f, testeo: tiene(f, "TESTEO") }, u),
+    });
+    // Del CPA real más bajo al más alto, como el tablero; sin CPA al final.
+    const porCpa = (a: Clasificada, b: Clasificada) =>
+      (a.cpa ?? Number.POSITIVE_INFINITY) - (b.cpa ?? Number.POSITIVE_INFINITY) || b.gasto - a.gasto;
 
-    const testeo = visibles.filter((f) => tiene(f, "TESTEO")).sort(porPedidos);
-    const apagados = visibles.filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO")).sort(porPedidos);
-    const resto = visibles.filter((f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO"));
-    const conPautaSinPedidos = resto
-      .filter((f) => f.pedidos <= 0 && (f.gasto > 0 || f.plataforma > 0))
-      .sort((a, b) => b.gasto - a.gasto);
-    const enSecciones = resto.filter((f) => f.pedidos > 0);
+    const testeos = visibles.filter((f) => tiene(f, "TESTEO") && (f.gasto > 0 || f.pedidos > 0));
+    const apagados = visibles
+      .filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO") && f.pedidos > 0)
+      .map(clasificar)
+      .sort(porCpa);
+    const normales = visibles.filter((f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO"));
+    // «Solo productos con pauta»: los que venden sin gasto van aparte.
+    const sinPauta = normales
+      .filter((f) => f.gasto <= 0 && f.pedidos > 0)
+      .map(clasificar)
+      .sort((a, b) => b.pedidos - a.pedidos);
+    const base = modo === "testeos" ? testeos : normales.filter((f) => f.gasto > 0 && !f.sinEnlazar);
+    const clasificadas = base.map(clasificar).filter((f) => f.riesgo !== "sinDatos");
     const grupos = {
-      bajo: enSecciones.filter((f) => f.riesgo === "bajo").sort(porPedidos),
-      medio: enSecciones.filter((f) => f.riesgo === "medio").sort(porPedidos),
-      alto: enSecciones.filter((f) => f.riesgo === "alto").sort(porPedidos),
-      testeo,
+      alto: clasificadas.filter((f) => f.riesgo === "alto").sort(porCpa),
+      medio: clasificadas.filter((f) => f.riesgo === "medio").sort(porCpa),
+      bajo: clasificadas.filter((f) => f.riesgo === "bajo").sort(porCpa),
     };
 
     const suma = (l: FilaRiesgo[], k: "pedidos" | "confirmados" | "plataforma" | "gasto") =>
       l.reduce((t, f) => t + f[k], 0);
-    // Los totales cuentan todo lo visible, también apagados y sin pedidos: es
-    // la foto del período, como la del archivo de Emilia.
-    const pedidos = suma(visibles, "pedidos");
-    const confirmados = suma(visibles, "confirmados");
-    const gasto = suma(visibles, "gasto") + (q ? 0 : gastoSinProducto);
+    // Arriba, la foto del período: en riesgo, todo lo que ve el comercial y
+    // todo el gasto; en testeos, solo los testeos.
+    const delTotal = modo === "testeos" ? testeos : visibles;
+    const pedidos = suma(delTotal, "pedidos");
+    const confirmados = suma(delTotal, "confirmados");
+    const gasto = suma(delTotal, "gasto") + (q || modo === "testeos" ? 0 : gastoSinProducto);
     return {
       grupos,
       apagados,
-      conPautaSinPedidos,
+      sinPauta,
+      nTesteos: testeos.length,
       top: topDelMes(
-        enSecciones.filter((f) => f.utilidad != null).map((f) => ({ ...f, utilidad: f.utilidad as number })),
+        clasificadas.filter((f) => f.utilidad != null).map((f) => ({ ...f, utilidad: f.utilidad as number })),
       ),
       total: {
         pedidos,
         confirmados,
         confirmacion: pedidos > 0 ? confirmados / pedidos : null,
-        plataforma: suma(visibles, "plataforma"),
+        plataforma: suma(delTotal, "plataforma"),
         gasto,
         cpa: pedidos > 0 && gasto > 0 ? gasto / pedidos : null,
       },
       maxPedidos: Math.max(1, ...visibles.map((f) => f.pedidos)),
       filtrando: q.length > 0,
     };
-  }, [filas, busqueda, gastoSinProducto]);
+  }, [filas, busqueda, gastoSinProducto, u, modo]);
 
-  // La guía de arriba. Se puede cerrar (queda cerrada en ese navegador) y se
-  // va sola cuando no queda nada por enlazar ni ningún testeo por marcar.
-  // Arranca cerrada y se abre después de montar: el servidor no ve el
-  // localStorage, y decidirlo en el primer dibujado haría que servidor y
-  // navegador pinten cosas distintas.
-  const [guiaCerrada, setGuiaCerrada] = useState(true);
-  useEffect(() => {
-    let cerrada = false;
-    try {
-      cerrada = window.localStorage.getItem(CLAVE_GUIA) === "1";
-    } catch {
-      /* sin almacenamiento: se muestra */
-    }
-    if (!cerrada) {
-      const t = window.setTimeout(() => setGuiaCerrada(false), 0);
-      return () => window.clearTimeout(t);
-    }
-  }, []);
-  const sinEnlazar = filas.filter((f) => f.sinEnlazar);
-  const hayTesteos = filas.some((f) => tiene(f, "TESTEO"));
-  const mostrarGuia = !guiaCerrada && (sinEnlazar.length > 0 || !hayTesteos);
-  const cerrarGuia = () => {
-    setGuiaCerrada(true);
-    try {
-      window.localStorage.setItem(CLAVE_GUIA, "1");
-    } catch {
-      /* sin almacenamiento: se cierra igual hasta recargar */
-    }
-  };
-
+  const sinEnlazar = filas.filter((f) => f.sinEnlazar && f.pedidos > 0);
   const { grupos, total } = vistas;
-  const pedidosEnSecciones = SECCIONES.reduce((t, s) => t + grupos[s.id].reduce((a, f) => a + f.pedidos, 0), 0);
+  const enSecciones = grupos.alto.length + grupos.medio.length + grupos.bajo.length;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ------------------------- Qué hacer ahora ------------------------- */}
-      {mostrarGuia && (
-        <section className="rounded-xl border border-accent/40 bg-accent/5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Qué hacer ahora para que quede igual a tu archivo</h2>
-              <p className="mt-0.5 text-xs text-muted">
-                Esta pestaña ya clasifica como el archivo de Emilia: confirmación de la planilla, 70 % / 57 % y CPA en rojo
-                pasando de {dinero2(CPA_ALERTA)}. Faltan dos cosas que solo puede decidir el equipo.
-              </p>
-            </div>
-            <button type="button" onClick={cerrarGuia} className="shrink-0 text-xs text-muted hover:text-foreground">
-              Cerrar
-            </button>
-          </div>
-          <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-sm text-foreground">
-            <li>
-              <b>Marcar los testeos.</b>{" "}
-              <span className="text-muted">
-                En cada producto que esté en prueba, «+ etiqueta» → Testeo. Pasa a la sección azul y deja de contar en
-                bajo, medio o alto.{" "}
-                {hayTesteos ? "Ya hay productos marcados." : "Todavía no hay ninguno marcado."}
-              </span>
-            </li>
-            <li>
-              <b>
-                Enlazar {sinEnlazar.length === 0 ? "los nombres nuevos" : `${sinEnlazar.length} ${sinEnlazar.length === 1 ? "nombre" : "nombres"}`} de la planilla.
-              </b>{" "}
-              <span className="text-muted">
-                {sinEnlazar.length === 0
-                  ? "No queda ninguno sin enlazar en este período."
-                  : `Los que dicen «sin enlazar» (${sinEnlazar
-                      .slice(0, 4)
-                      .map((f) => f.nombre)
-                      .join(", ")}${sinEnlazar.length > 4 ? "…" : ""}) tienen confirmación pero no gasto: al enlazarlos se les suma la pauta y el CPA.`}{" "}
-              </span>
-              {sinEnlazar.length > 0 && (
-                <Link href="/dashboard/control?vista=enlazar" className="font-medium text-accent-strong hover:underline">
-                  Ir a Enlazar pedidos →
-                </Link>
-              )}
-            </li>
-            <li>
-              <b>Ver el video de esta pantalla</b>{" "}
-              <span className="text-muted">(un minuto):</span>{" "}
-              <a
-                href="/video/capacitacion/control-riesgo.mp4"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-accent-strong hover:underline"
-              >
-                abrir el video →
-              </a>{" "}
-              <span className="text-muted">También está en la burbuja «Ayuda», abajo a la derecha.</span>
-            </li>
-          </ol>
-          <p className="mt-3 text-xs text-muted">
-            Si el gasto no coincide con tu archivo: acá es el gasto real que reportan Meta y TikTok. En el archivo, el de
-            Meta se reconstruía como conversiones × costo por conversión y dejaba afuera lo gastado sin conversiones; por eso
-            allá el CPA salía más bajo.
+      {/* ----------------------------- Qué es ----------------------------- */}
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-sm font-semibold text-foreground">{modo === "testeos" ? "Testeos" : "Riesgo por producto"}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {modo === "testeos" ? (
+            <>
+              Los productos marcados como <b>Testeo</b> (en cualquier fila, «+ etiqueta»), con la misma regla que el riesgo
+              pero sin la de volumen: un testeo empieza con pocos pedidos. Con pauta y sin pedidos en el comercial es alto,
+              porque no hay cómo medirlo. Que una campaña diga «TEST» en el nombre no hace que el producto esté en prueba.
+            </>
+          ) : (
+            <>
+              Solo productos con pauta, ordenados por CPA real de menor a mayor dentro de cada sección. <b>Alto:</b> confirma
+              menos de {Math.round(u.confirmacionAlto * 100)} % o CPA real sobre {dinero2(u.cpaAlto)}; se separa por causa
+              porque cada una pide una solución distinta. <b>Medio:</b> no llega a {Math.round(u.confirmacionMedio * 100)} %
+              de confirmación o a un CPA de {dinero2(u.cpaMedio)}, tiene menos de {u.pedidosMinimos} pedidos, o la
+              plataforma cuenta más de {u.factorPlataforma.toLocaleString("es-EC")} veces sus pedidos. <b>Bajo:</b> cumple
+              todo. Los testeos no entran aquí:{" "}
+              <Link href="/dashboard/control?vista=testeos" className="font-medium text-accent-strong hover:underline">
+                se ven en su propia pestaña ({vistas.nTesteos}) →
+              </Link>
+            </>
+          )}
+        </p>
+        {sinEnlazar.length > 0 && modo === "riesgo" && (
+          <p className="mt-2 text-xs text-warning">
+            {sinEnlazar.length} {sinEnlazar.length === 1 ? "nombre" : "nombres"} de la planilla sin enlazar (
+            {sinEnlazar
+              .slice(0, 4)
+              .map((f) => f.nombre)
+              .join(", ")}
+            {sinEnlazar.length > 4 ? "…" : ""}): sus pedidos no suman a ningún producto.{" "}
+            <Link href="/dashboard/control?vista=enlazar" className="font-medium underline">
+              Enlazarlos
+            </Link>
           </p>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* --------------------------- Lo grande --------------------------- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
-          { label: "Pedidos", valor: entero(total.pedidos), nota: "de la planilla de ventas" },
+          { label: "Pedidos comercial", valor: entero(total.pedidos), nota: "de la planilla de ventas" },
           {
             label: "Confirmación",
             valor: total.confirmacion == null ? "—" : pct2(total.confirmacion),
@@ -408,19 +471,19 @@ export default function RiesgoProductos({
             tono:
               total.confirmacion == null
                 ? ""
-                : total.confirmacion >= CONFIRMACION_ALTA
+                : total.confirmacion >= u.confirmacionMedio
                   ? "text-good"
-                  : total.confirmacion >= CONFIRMACION_MEDIA
+                  : total.confirmacion >= u.confirmacionAlto
                     ? "text-warning"
                     : "text-critical",
           },
           { label: "Pedidos plataforma", valor: entero(total.plataforma), nota: "Meta + TikTok" },
-          { label: "Gasto", valor: dinero2(total.gasto), nota: vistas.filtrando ? "de lo buscado" : "Meta + TikTok" },
+          { label: "Gasto", valor: dinero2(total.gasto), nota: vistas.filtrando ? "de lo buscado" : "Meta + TikTok, sin WhatsApp" },
           {
-            label: "CPA",
+            label: "CPA real",
             valor: total.cpa == null ? "—" : dinero2(total.cpa),
-            nota: "gasto ÷ pedidos",
-            tono: total.cpa != null && total.cpa > CPA_ALERTA ? "text-critical" : "",
+            nota: "gasto ÷ pedidos del comercial",
+            tono: total.cpa == null ? "" : total.cpa > u.cpaAlto ? "text-critical" : total.cpa > u.cpaMedio ? "text-warning" : "text-good",
           },
         ].map((x) => (
           <div key={x.label} className="rounded-xl border border-border bg-surface p-4">
@@ -432,28 +495,24 @@ export default function RiesgoProductos({
       </div>
 
       {/* ------------------------- Las secciones ------------------------- */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {SECCIONES.map((s) => {
           const l = grupos[s.id];
-          const ped = l.reduce((a, f) => a + f.pedidos, 0);
           return (
             <a
               key={s.id}
               href={`#riesgo-${s.id}`}
               className={`rounded-xl border border-border border-t-4 bg-surface p-4 transition-colors hover:bg-surface-2 ${s.acento}`}
             >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
-                {s.titulo} · {s.rango}
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{s.titulo}</p>
+              <p className="mt-1 text-3xl font-semibold tabular-nums text-foreground">{l.length}</p>
+              <p className="text-xs text-muted">
+                {entero(l.reduce((a, f) => a + f.pedidos, 0))} pedidos · {dinero(l.reduce((a, f) => a + f.gasto, 0))} de gasto
               </p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                {l.length}{" "}
-                <span className="text-sm font-normal text-muted">{l.length === 1 ? "producto" : "productos"}</span>
-              </p>
-              <p className="text-xs text-muted">{entero(ped)} pedidos</p>
               <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-2">
                 <span
                   className={`block h-full rounded-full ${s.barra}`}
-                  style={{ width: `${total.pedidos > 0 ? (ped / total.pedidos) * 100 : 0}%` }}
+                  style={{ width: `${enSecciones > 0 ? (l.length / enSecciones) * 100 : 0}%` }}
                 />
               </span>
             </a>
@@ -461,31 +520,7 @@ export default function RiesgoProductos({
         })}
       </div>
 
-      <div>
-        <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2">
-          {SECCIONES.map((s) => {
-            const ped = grupos[s.id].reduce((a, f) => a + f.pedidos, 0);
-            return (
-              <span
-                key={s.id}
-                className={s.barra}
-                style={{ width: `${pedidosEnSecciones > 0 ? (ped / pedidosEnSecciones) * 100 : 0}%` }}
-                title={`${s.titulo}: ${entero(ped)} pedidos`}
-              />
-            );
-          })}
-        </div>
-        <p className="mt-1.5 text-xs text-muted">
-          Bajo + medio + alto{" "}
-          <b className="text-foreground">
-            {entero(grupos.bajo.concat(grupos.medio, grupos.alto).reduce((a, f) => a + f.pedidos, 0))}
-          </b>{" "}
-          + testeos <b className="text-foreground">{entero(grupos.testeo.reduce((a, f) => a + f.pedidos, 0))}</b> ={" "}
-          <b className="text-foreground">{entero(pedidosEnSecciones)}</b> pedidos · CPA mayor a {dinero2(CPA_ALERTA)} en
-          rojo
-          {vistas.apagados.length > 0 && <> · {vistas.apagados.length} apagados aparte</>}
-        </p>
-      </div>
+      <EditorUmbrales u={u} cambiar={cambiarUmbrales} />
 
       {/* ---------------------------- Buscador ---------------------------- */}
       <label className="flex max-w-md items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
@@ -500,12 +535,12 @@ export default function RiesgoProductos({
       </label>
 
       {/* ----------------------------- Top 10 ----------------------------- */}
-      {!vistas.filtrando && vistas.top.length > 0 && (
+      {modo === "riesgo" && !vistas.filtrando && vistas.top.length > 0 && (
         <section className="overflow-hidden rounded-xl border border-border bg-surface">
           <div className="border-b border-border px-5 py-3">
             <h2 className="text-sm font-semibold text-foreground">Top 10 del período</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Los que más utilidad dejaron (con la economía de la Calculadora), con su confirmación y su CPA.
+              Los que más utilidad dejaron (con la economía de la Calculadora), con su confirmación y su CPA real.
             </p>
           </div>
           <ol className="grid gap-px bg-border sm:grid-cols-2">
@@ -515,7 +550,7 @@ export default function RiesgoProductos({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-foreground">{f.nombre}</p>
                   <p className="text-[11px] text-muted">
-                    {entero(f.pedidos)} pedidos · confirma {f.confirmacion == null ? "—" : pct2(f.confirmacion)} · CPA{" "}
+                    {entero(f.pedidos)} pedidos · confirma {f.confirmacion == null ? "—" : pct2(f.confirmacion)} · CPA real{" "}
                     {f.cpa == null ? "—" : dinero2(f.cpa)}
                   </p>
                 </div>
@@ -533,38 +568,51 @@ export default function RiesgoProductos({
         <div key={s.id} id={`riesgo-${s.id}`} className="scroll-mt-4">
           <Tabla
             titulo={s.titulo}
-            rango={s.rango}
+            nota={
+              s.id === "alto"
+                ? `confirma menos de ${Math.round(u.confirmacionAlto * 100)} % o CPA real sobre ${dinero2(u.cpaAlto)}`
+                : s.id === "medio"
+                  ? `no cumple algún umbral`
+                  : "cumple confirmación, CPA y volumen"
+            }
             cabecera={s.cabecera}
-            filas={grupos[s.id]}
+            grupos={
+              s.id === "alto"
+                ? CAUSAS.map((c) => ({ titulo: c.titulo, nota: c.nota, filas: grupos.alto.filter((f) => f.causa === c.id) }))
+                : [{ filas: grupos[s.id] }]
+            }
+            u={u}
             maxPedidos={vistas.maxPedidos}
             editable={editable}
             vacio={
-              s.id === "testeo"
-                ? "Ningún producto marcado como Testeo. Se marcan con «+ etiqueta» en cualquier fila."
+              modo === "testeos" && grupos.alto.length + grupos.medio.length + grupos.bajo.length === 0
+                ? "Ningún producto marcado como Testeo con pauta o pedidos en el período."
                 : "Ninguno en este período."
             }
           />
         </div>
       ))}
 
-      {vistas.conPautaSinPedidos.length > 0 && (
+      {modo === "riesgo" && vistas.sinPauta.length > 0 && (
         <Tabla
-          titulo="Con pauta, sin pedidos"
-          rango="no aparecen en la planilla de ventas"
+          titulo="Con pedidos, sin pauta"
+          nota="venden sin gasto en el período: no entran en el riesgo"
           cabecera="bg-zinc-600 text-white"
-          filas={vistas.conPautaSinPedidos}
+          grupos={[{ filas: vistas.sinPauta }]}
+          u={u}
           maxPedidos={vistas.maxPedidos}
           editable={editable}
           vacio=""
         />
       )}
 
-      {vistas.apagados.length > 0 && (
+      {modo === "riesgo" && vistas.apagados.length > 0 && (
         <Tabla
           titulo="Apagados"
-          rango="marcados como Apagado"
+          nota="marcados como Apagado"
           cabecera="bg-zinc-500 text-white"
-          filas={vistas.apagados}
+          grupos={[{ filas: vistas.apagados }]}
+          u={u}
           maxPedidos={vistas.maxPedidos}
           editable={editable}
           vacio=""
@@ -575,33 +623,30 @@ export default function RiesgoProductos({
         <summary className="cursor-pointer font-medium text-foreground">Cómo se calculan los números</summary>
         <ul className="mt-2 flex list-disc flex-col gap-1 pl-4">
           <li>
-            <b className="text-foreground">Pedidos y confirmación:</b> la planilla de ventas del equipo (Seguimiento de
+            <b className="text-foreground">Pedidos y confirmación:</b> la planilla del área comercial (Seguimiento de
             pedidos), todos los estados. Confirmación = confirmados ÷ pedidos del período elegido.
           </li>
           <li>
-            <b className="text-foreground">Secciones:</b> bajo riesgo confirma {Math.round(CONFIRMACION_ALTA * 100)}% o más;
-            medio, de {Math.round(CONFIRMACION_MEDIA * 100)}% a 69,99%; alto, menos de{" "}
-            {Math.round(CONFIRMACION_MEDIA * 100)}%. Los marcados como Testeo van aparte y no entran en las secciones.
-          </li>
-          <li>
             <b className="text-foreground">Pedidos de plataforma y gasto:</b> Meta + TikTok, por las campañas de cada
-            producto. Las cuentas que venden por WhatsApp no entran.
+            producto. La cuenta de ventas por WhatsApp (CP2 - Top Ventas) no entra: sus campañas no traen compras web.
           </li>
           <li>
-            <b className="text-foreground">CPA:</b> gasto ÷ pedidos de la planilla. En rojo cuando pasa de{" "}
-            {dinero2(CPA_ALERTA)}. Pasando el mouse se ve el objetivo de la Calculadora.
+            <b className="text-foreground">CPA real:</b> gasto ÷ pedidos del comercial. Verde hasta {dinero2(u.cpaMedio)},
+            ámbar hasta {dinero2(u.cpaAlto)}, rojo por encima. Pasando el mouse se ve el objetivo de la Calculadora.
+          </li>
+          <li>
+            <b className="text-foreground">Plataforma cuenta N×:</b> compras de Meta + TikTok ÷ pedidos del comercial.
           </li>
           <li>
             <b className="text-foreground">Utilidad:</b> la del Control publicitario, con la economía de la Calculadora de
             precios.
           </li>
-          <li>
-            <b className="text-foreground">Sin enlazar:</b> nombres de la planilla que todavía no tienen producto en Jarvis.
-            Su confirmación ya cuenta; el gasto y las etiquetas aparecen al enlazarlos en «Enlazar pedidos».
-            {gastoSinProducto > 0 && (
-              <> Hay {dinero(gastoSinProducto)} de campañas sin producto que suman al gasto total pero a ninguna fila.</>
-            )}
-          </li>
+          {gastoSinProducto > 0 && modo === "riesgo" && (
+            <li>
+              Hay {dinero(gastoSinProducto)} de campañas sin producto que suman al gasto total pero a ninguna fila (se
+              asignan en «Sin nomenclatura»).
+            </li>
+          )}
         </ul>
       </details>
     </div>
