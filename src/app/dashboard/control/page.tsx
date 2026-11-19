@@ -310,6 +310,7 @@ export default async function ControlPage({
         <RiesgoProductos
           filas={filas}
           gastoSinProducto={cuadre.productos.find((f) => !f.productId)?.gasto ?? 0}
+          plataformaSinProducto={cuadre.productos.find((f) => !f.productId)?.plataforma ?? 0}
           editable={canManagePipeline(session.role)}
           modo={vista === "testeos" ? "testeos" : "riesgo"}
         />

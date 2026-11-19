@@ -369,12 +369,15 @@ function EditorUmbrales({ u, cambiar }: { u: UmbralesRiesgo; cambiar: (u: Umbral
 export default function RiesgoProductos({
   filas,
   gastoSinProducto,
+  plataformaSinProducto = 0,
   editable,
   modo = "riesgo",
 }: {
   filas: FilaRiesgo[];
   /** Gasto de campañas sin producto: no entra en ninguna fila. */
   gastoSinProducto: number;
+  /** Compras de plataforma de esas mismas campañas: suman al total, como el gasto. */
+  plataformaSinProducto?: number;
   editable: boolean;
   /** «testeos»: solo los productos marcados como Testeo, sin la regla de volumen. */
   modo?: "riesgo" | "testeos";
@@ -460,14 +463,14 @@ export default function RiesgoProductos({
         pedidos,
         confirmados,
         confirmacion: pedidos > 0 ? confirmados / pedidos : null,
-        plataforma: suma(delTotal, "plataforma"),
+        plataforma: suma(delTotal, "plataforma") + (q || modo === "testeos" ? 0 : plataformaSinProducto),
         gasto,
         cpa: pedidos > 0 && gasto > 0 ? gasto / pedidos : null,
       },
       maxPedidos: Math.max(1, ...visibles.map((f) => f.pedidos)),
       filtrando: q.length > 0,
     };
-  }, [filas, busqueda, gastoSinProducto, u, modo]);
+  }, [filas, busqueda, gastoSinProducto, plataformaSinProducto, u, modo]);
 
   const sinEnlazar = filas.filter((f) => f.sinEnlazar && f.pedidos > 0);
   const { grupos, total } = vistas;
