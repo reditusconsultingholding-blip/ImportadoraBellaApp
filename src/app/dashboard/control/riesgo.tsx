@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   UMBRALES_RIESGO,
@@ -41,6 +42,8 @@ export type FilaRiesgo = {
   confirmacion: number | null;
   /** Compras que se atribuyen Meta + TikTok. */
   plataforma: number;
+  /** Pedidos de Shopify: la base del factor «plataforma cuenta N×». null si no aplica. */
+  shopify: number | null;
   meta: number;
   tiktok: number;
   gasto: number;
@@ -82,9 +85,11 @@ const CAUSAS: { id: CausaAlto; titulo: string; nota: string }[] = [
     nota: "problema de logística o de producto: por más barato que salga el pedido, no se concreta",
   },
   { id: "cpa", titulo: "Buena confirmación, CPA alto", nota: "el producto convierte, el problema es el costo de adquisición" },
+  // Los que tienen pauta y ningún pedido van aquí, como en el tablero: no hay
+  // confirmación ni CPA que medir.
   { id: "ambas", titulo: "Confirmación y CPA malos", nota: "los dos problemas juntos" },
-  { id: "sinDatos", titulo: "Sin datos para medir", nota: "tiene pauta pero ningún pedido en el área comercial" },
 ];
+const causaDe = (f: Clasificada) => (f.causa === "sinDatos" ? "ambas" : f.causa);
 
 const tiene = (f: FilaRiesgo, e: string) => f.etiquetas.includes(e);
 
@@ -135,11 +140,54 @@ const th = `${thBase} text-right`;
 const thIzq = `${thBase} text-left`;
 const td = "px-3 py-2 text-right tabular-nums";
 
+/** Pone o quita la etiqueta Descartado, como el botón del tablero de Emilia. */
+function BotonDescartar({ f, restaurar = false }: { f: FilaRiesgo; restaurar?: boolean }) {
+  const router = useRouter();
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!f.productId) return null;
+  const alternar = async () => {
+    setGuardando(true);
+    setError(null);
+    const etiquetas = restaurar ? f.etiquetas.filter((e) => e !== "DESCARTADO") : [...f.etiquetas, "DESCARTADO"];
+    try {
+      const res = await fetch("/api/productos/etiquetas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: f.productId, etiquetas }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo guardar.");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={alternar}
+        disabled={guardando}
+        className="rounded-md border border-border px-1.5 py-px text-[10px] font-medium text-muted hover:border-border-strong hover:text-foreground disabled:opacity-50"
+      >
+        {guardando ? "…" : restaurar ? "Restaurar" : "Descartar"}
+      </button>
+      {error && <span className="text-[10px] text-critical">{error}</span>}
+    </span>
+  );
+}
+
 function Fila({ f, u, maxPedidos, editable }: { f: Clasificada; u: UmbralesRiesgo; maxPedidos: number; editable: boolean }) {
   return (
     <tr className="border-t border-border align-top">
       <td className="px-3 py-2 text-left">
-        <span className="font-medium text-foreground">{f.nombre}</span>
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-foreground">{f.nombre}</span>
+          {editable && <BotonDescartar f={f} />}
+        </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
           {f.sku && <span>SKU {f.sku}</span>}
           {f.plataforma > 0 && (
@@ -277,6 +325,7 @@ function EditorUmbrales({ u, cambiar }: { u: UmbralesRiesgo; cambiar: (u: Umbral
     { k: "cpaMedio", label: "Medio: CPA real sobre ($)", paso: 0.5 },
     { k: "pedidosMinimos", label: "Medio: menos pedidos que", paso: 1 },
     { k: "factorPlataforma", label: "Medio: plataforma cuenta más de (×)", paso: 0.01 },
+    { k: "factorMinimoPedidos", label: "El factor se mira desde (pedidos Shopify)", paso: 1 },
   ];
   const distinto = (Object.keys(UMBRALES_RIESGO) as (keyof UmbralesRiesgo)[]).some((k) => u[k] !== UMBRALES_RIESGO[k]);
   return (
@@ -367,7 +416,9 @@ export default function RiesgoProductos({
     const porCpa = (a: Clasificada, b: Clasificada) =>
       (a.cpa ?? Number.POSITIVE_INFINITY) - (b.cpa ?? Number.POSITIVE_INFINITY) || b.gasto - a.gasto;
 
-    const testeos = visibles.filter((f) => tiene(f, "TESTEO") && (f.gasto > 0 || f.pedidos > 0));
+    const descartado = (f: FilaRiesgo) => tiene(f, "DESCARTADO");
+    const testeosTodos = visibles.filter((f) => tiene(f, "TESTEO") && (f.gasto > 0 || f.pedidos > 0));
+    const testeos = testeosTodos.filter((f) => !descartado(f));
     const apagados = visibles
       .filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO") && f.pedidos > 0)
       .map(clasificar)
@@ -378,7 +429,9 @@ export default function RiesgoProductos({
       .filter((f) => f.gasto <= 0 && f.pedidos > 0)
       .map(clasificar)
       .sort((a, b) => b.pedidos - a.pedidos);
-    const base = modo === "testeos" ? testeos : normales.filter((f) => f.gasto > 0 && !f.sinEnlazar);
+    const conPauta = normales.filter((f) => f.gasto > 0 && !f.sinEnlazar);
+    const base = modo === "testeos" ? testeos : conPauta.filter((f) => !descartado(f));
+    const descartados = (modo === "testeos" ? testeosTodos : conPauta).filter(descartado).map(clasificar);
     const clasificadas = base.map(clasificar).filter((f) => f.riesgo !== "sinDatos");
     const grupos = {
       alto: clasificadas.filter((f) => f.riesgo === "alto").sort(porCpa),
@@ -396,6 +449,7 @@ export default function RiesgoProductos({
     const gasto = suma(delTotal, "gasto") + (q || modo === "testeos" ? 0 : gastoSinProducto);
     return {
       grupos,
+      descartados,
       apagados,
       sinPauta,
       nTesteos: testeos.length,
@@ -437,7 +491,8 @@ export default function RiesgoProductos({
               menos de {Math.round(u.confirmacionAlto * 100)} % o CPA real sobre {dinero2(u.cpaAlto)}; se separa por causa
               porque cada una pide una solución distinta. <b>Medio:</b> no llega a {Math.round(u.confirmacionMedio * 100)} %
               de confirmación o a un CPA de {dinero2(u.cpaMedio)}, tiene menos de {u.pedidosMinimos} pedidos, o la
-              plataforma cuenta más de {u.factorPlataforma.toLocaleString("es-EC")} veces sus pedidos. <b>Bajo:</b> cumple
+              plataforma cuenta más de {u.factorPlataforma.toLocaleString("es-EC")} veces sus pedidos de Shopify (desde{" "}
+              {u.factorMinimoPedidos} pedidos). <b>Bajo:</b> cumple
               todo. Los testeos no entran aquí:{" "}
               <Link href="/dashboard/control?vista=testeos" className="font-medium text-accent-strong hover:underline">
                 se ven en su propia pestaña ({vistas.nTesteos}) →
@@ -578,7 +633,7 @@ export default function RiesgoProductos({
             cabecera={s.cabecera}
             grupos={
               s.id === "alto"
-                ? CAUSAS.map((c) => ({ titulo: c.titulo, nota: c.nota, filas: grupos.alto.filter((f) => f.causa === c.id) }))
+                ? CAUSAS.map((c) => ({ titulo: c.titulo, nota: c.nota, filas: grupos.alto.filter((f) => causaDe(f) === c.id) }))
                 : [{ filas: grupos[s.id] }]
             }
             u={u}
@@ -592,6 +647,26 @@ export default function RiesgoProductos({
           />
         </div>
       ))}
+
+      {vistas.descartados.length > 0 && (
+        <details className="rounded-xl border border-border bg-surface px-4 py-3 text-xs">
+          <summary className="cursor-pointer font-medium text-foreground">Descartados ({vistas.descartados.length})</summary>
+          <p className="mt-1 text-muted">No cuentan en las secciones. Restaurar los devuelve a su lugar.</p>
+          <ul className="mt-2 flex flex-col divide-y divide-border">
+            {vistas.descartados.map((f) => (
+              <li key={f.clave} className="flex items-center justify-between gap-3 py-1.5">
+                <span>
+                  <span className="font-medium text-foreground">{f.nombre}</span>{" "}
+                  <span className="text-muted">
+                    {f.cpa != null ? `CPA real ${dinero2(f.cpa)}` : "sin CPA"} · {dinero(f.gasto)} de gasto
+                  </span>
+                </span>
+                {editable && <BotonDescartar f={f} restaurar />}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {modo === "riesgo" && vistas.sinPauta.length > 0 && (
         <Tabla
@@ -635,7 +710,8 @@ export default function RiesgoProductos({
             ámbar hasta {dinero2(u.cpaAlto)}, rojo por encima. Pasando el mouse se ve el objetivo de la Calculadora.
           </li>
           <li>
-            <b className="text-foreground">Plataforma cuenta N×:</b> compras de Meta + TikTok ÷ pedidos del comercial.
+            <b className="text-foreground">Plataforma cuenta N×:</b> compras de Meta + TikTok ÷ pedidos de Shopify. Se
+            marca desde {u.factorMinimoPedidos} pedidos: con menos, cualquier compra de más dispara el factor.
           </li>
           <li>
             <b className="text-foreground">Utilidad:</b> la del Control publicitario, con la economía de la Calculadora de

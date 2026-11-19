@@ -106,8 +106,14 @@ export type UmbralesRiesgo = {
   cpaMedio: number;
   /** Menos pedidos que esto: riesgo medio (no aplica a testeos). */
   pedidosMinimos: number;
-  /** Plataforma ÷ pedidos del comercial por encima de esto: riesgo medio. */
+  /** Plataforma ÷ pedidos de Shopify por encima de esto: riesgo medio. */
   factorPlataforma: number;
+  /**
+   * El factor solo se mira con al menos estos pedidos en Shopify: con 1 o 4
+   * pedidos, 8 compras de plataforma dan 8× y no dicen nada. Así lo hace el
+   * tablero de Emilia (Ojara 6/4, Fwee 15/7 o Baïa 8/1 no se marcan).
+   */
+  factorMinimoPedidos: number;
 };
 
 export const UMBRALES_RIESGO: UmbralesRiesgo = {
@@ -117,6 +123,7 @@ export const UMBRALES_RIESGO: UmbralesRiesgo = {
   cpaMedio: 5,
   pedidosMinimos: 30,
   factorPlataforma: 1.33,
+  factorMinimoPedidos: 10,
 };
 
 // Compatibilidad con las pantallas que pintan la confirmación por colores.
@@ -147,46 +154,70 @@ const usd = (n: number) =>
  * TikTok. Un testeo sin pedidos (solo pauta) cae en alto: no hay cómo medirlo.
  */
 export function clasificarRiesgo(
-  f: { pedidos: number; confirmados: number; cpa: number | null; plataforma: number; gasto: number; testeo?: boolean },
+  f: {
+    pedidos: number;
+    confirmados: number;
+    cpa: number | null;
+    plataforma: number;
+    gasto: number;
+    testeo?: boolean;
+    /** Pedidos de Shopify: la base del factor de plataforma. Sin el dato, los del comercial. */
+    shopify?: number | null;
+  },
   u: UmbralesRiesgo = UMBRALES_RIESGO,
 ): Clasificacion {
   const motivos: Motivo[] = [];
+  const volumen = (n: number, grave: boolean) => {
+    if (!f.testeo && n < u.pedidosMinimos) motivos.push({ texto: `solo ${n} pedidos comercial`, grave });
+  };
   if (f.pedidos <= 0) {
     if (f.gasto <= 0 && f.plataforma <= 0) return { riesgo: "sinDatos", causa: null, motivos };
     motivos.push({ texto: "sin dato comercial", grave: true });
     if (f.gasto > 0) motivos.push({ texto: "sin pedidos para medir CPA", grave: true });
+    volumen(0, true);
     return { riesgo: "alto", causa: "sinDatos", motivos };
   }
   const conf = r4(f.confirmados / f.pedidos);
   const cpa = f.cpa == null ? null : r4(f.cpa);
-  // A dos decimales, como se lee: 12 ÷ 9 = 1,333 se ve «1,33×» y no pasa de 1,33.
-  const factor = Math.round((f.plataforma / f.pedidos) * 100) / 100;
+  // Plataforma ÷ pedidos de Shopify, como el tablero (Té 18 flavors: 191 ÷ 125
+  // = 1,53×). A dos decimales, como se lee: 12 ÷ 9 = 1,333 se ve «1,33×».
+  const base = f.shopify ?? f.pedidos;
+  const factor = base >= u.factorMinimoPedidos && base > 0 ? Math.round((f.plataforma / base) * 100) / 100 : null;
+  const factorAlto = factor != null && factor > u.factorPlataforma;
+  const textoFactor = () => `plataforma cuenta ${factor!.toLocaleString("es-EC", { maximumFractionDigits: 2 })}× los pedidos`;
 
   const confMala = conf < u.confirmacionAlto;
   const cpaMalo = cpa != null && cpa > u.cpaAlto;
   if (confMala || cpaMalo) {
-    if (confMala) motivos.push({ texto: `confirma ${pctTxt(conf)}`, grave: true });
-    if (cpaMalo) motivos.push({ texto: `CPA real ${usd(cpa!)}`, grave: true });
-    if (!f.testeo && f.pedidos < u.pedidosMinimos)
-      motivos.push({ texto: `solo ${f.pedidos} pedidos comercial`, grave: true });
-    if (factor > u.factorPlataforma)
-      motivos.push({ texto: `plataforma cuenta ${factor.toLocaleString("es-EC", { maximumFractionDigits: 2 })}× los pedidos`, grave: true });
+    // En alto se listan todos los umbrales que no cumple, también los de medio
+    // (Lifting Pro Duo: «confirma 68,18 %», «CPA real $10,41», «solo 22»).
+    if (conf < u.confirmacionMedio) motivos.push({ texto: `confirma ${pctTxt(conf)}`, grave: true });
+    if (cpa != null && cpa > u.cpaMedio) motivos.push({ texto: `CPA real ${usd(cpa)}`, grave: true });
+    volumen(f.pedidos, true);
+    if (factorAlto) motivos.push({ texto: textoFactor(), grave: true });
     return { riesgo: "alto", causa: confMala && cpaMalo ? "ambas" : confMala ? "confirmacion" : "cpa", motivos };
   }
 
   if (conf < u.confirmacionMedio) motivos.push({ texto: `confirma ${pctTxt(conf)}`, grave: false });
   if (cpa != null && cpa > u.cpaMedio) motivos.push({ texto: `CPA real ${usd(cpa)}`, grave: false });
-  if (!f.testeo && f.pedidos < u.pedidosMinimos)
-    motivos.push({ texto: `solo ${f.pedidos} pedidos comercial`, grave: false });
-  if (factor > u.factorPlataforma)
-    motivos.push({ texto: `plataforma cuenta ${factor.toLocaleString("es-EC", { maximumFractionDigits: 2 })}× los pedidos`, grave: false });
+  volumen(f.pedidos, false);
+  if (factorAlto) motivos.push({ texto: textoFactor(), grave: false });
   if (motivos.length > 0) return { riesgo: "medio", causa: null, motivos };
   return { riesgo: "bajo", causa: null, motivos: [{ texto: "cumple todo", grave: false }] };
 }
 
 /** Solo la sección, sin los motivos. */
 export function riesgoDe(
-  f: { pedidos: number; confirmados: number; cpa: number | null; plataforma: number; gasto: number; testeo?: boolean },
+  f: {
+    pedidos: number;
+    confirmados: number;
+    cpa: number | null;
+    plataforma: number;
+    gasto: number;
+    testeo?: boolean;
+    /** Pedidos de Shopify: la base del factor de plataforma. Sin el dato, los del comercial. */
+    shopify?: number | null;
+  },
   u: UmbralesRiesgo = UMBRALES_RIESGO,
 ): Riesgo {
   return clasificarRiesgo(f, u).riesgo;

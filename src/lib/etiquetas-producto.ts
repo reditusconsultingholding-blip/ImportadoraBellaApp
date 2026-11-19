@@ -18,6 +18,9 @@ export const ETIQUETAS = [
   { id: "REIMPORTAR", texto: "Volver a importar", clase: "border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300" },
   { id: "NO_REIMPORTAR", texto: "No importar", clase: "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300" },
   { id: "ORGANICO", texto: "Orgánico", clase: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  // El «Descartar» del tablero de Emilia: sale de las secciones de riesgo y de
+  // testeos sin perder nada, y se restaura con un clic.
+  { id: "DESCARTADO", texto: "Descartado", clase: "border-zinc-400/40 bg-zinc-400/10 text-zinc-500 dark:text-zinc-400" },
 ] as const;
 
 export type EtiquetaId = (typeof ETIQUETAS)[number]["id"];

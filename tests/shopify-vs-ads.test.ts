@@ -95,3 +95,34 @@ test("vender sin pauta no es un píxel roto: no se pinta ni tiene CPA", () => {
   assert.equal(c.estado, null);
   assert.equal(c.cpaReal, null);
 });
+
+test("factor sobre los pedidos de Shopify y solo desde 10 (tablero de Emilia, 18-nov)", () => {
+  const base = { confirmados: 0, cpa: null, gasto: 0 };
+  // Té 18 flavors: 191 compras ÷ 125 de Shopify = 1,53× (sobre los 124 del comercial daría 1,54×).
+  const te = clasificarRiesgo({ ...base, pedidos: 124, confirmados: 77, cpa: 5.5, plataforma: 191, gasto: 682, shopify: 125 });
+  assert.ok(te.motivos.some((m) => m.texto === "plataforma cuenta 1,53× los pedidos"));
+  // Pulsera de cobre: 223 ÷ 147 = 1,52× (sobre los 141 del comercial: 1,58×).
+  const cobre = clasificarRiesgo({ ...base, pedidos: 141, confirmados: 111, cpa: 9.18, plataforma: 223, gasto: 1294, shopify: 147 });
+  assert.ok(cobre.motivos.some((m) => m.texto.includes("1,52×")));
+  // Fwee: 15 compras con 7 pedidos de Shopify no se marca (muy pocos para medir).
+  const fwee = clasificarRiesgo({ ...base, pedidos: 7, confirmados: 6, cpa: 15, plataforma: 15, gasto: 105, shopify: 7, testeo: true });
+  assert.deepEqual(fwee.motivos.map((m) => m.texto), ["CPA real $15,00"]);
+  // Uric: 24 ÷ 16 = 1,5× sí, con 16 pedidos.
+  const uric = clasificarRiesgo({ ...base, pedidos: 15, confirmados: 12, cpa: 10.13, plataforma: 24, gasto: 152, shopify: 16, testeo: true });
+  assert.ok(uric.motivos.some((m) => m.texto.includes("1,5×")));
+});
+
+test("en alto se listan también los umbrales de medio que no cumple", () => {
+  // Lifting Pro Duo: CPA 10,41 (alto) con 68,18 % y 22 pedidos.
+  const l = clasificarRiesgo({ pedidos: 22, confirmados: 15, cpa: 10.41, plataforma: 21, gasto: 229, shopify: 23 });
+  assert.equal(l.riesgo, "alto");
+  assert.equal(l.causa, "cpa");
+  assert.deepEqual(l.motivos.map((m) => m.texto), ["confirma 68,18 %", "CPA real $10,41", "solo 22 pedidos comercial"]);
+  // Pauta sin pedidos fuera de testeo: también «solo 0 pedidos comercial».
+  const s = clasificarRiesgo({ pedidos: 0, confirmados: 0, cpa: null, plataforma: 2, gasto: 64 });
+  assert.deepEqual(s.motivos.map((m) => m.texto), ["sin dato comercial", "sin pedidos para medir CPA", "solo 0 pedidos comercial"]);
+});
+
+test("Descartado es una etiqueta válida", () => {
+  assert.deepEqual(limpiarEtiquetas(["DESCARTADO", "TESTEO"]), ["TESTEO", "DESCARTADO"]);
+});

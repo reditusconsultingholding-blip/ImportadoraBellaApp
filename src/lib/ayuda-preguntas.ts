@@ -40,7 +40,7 @@ export const PREGUNTAS: PreguntaFrecuente[] = [
     id: "riesgo-como-se-calcula",
     pregunta: "¿Cómo decide Jarvis si un producto es de riesgo bajo, medio o alto?",
     respuesta:
-      "Igual que el tablero «Comercial vs Pauta» de Emilia, solo con los productos con pauta. Alto: confirma menos de 65 % o el CPA real (gasto ÷ pedidos del comercial) pasa de $8, separado por causa. Medio: no llega a 70 %, el CPA pasa de $5, tiene menos de 30 pedidos o la plataforma cuenta más de 1,33 veces sus pedidos. Bajo: cumple todo. Los umbrales se mueven en la misma pantalla y los testeos van en su propia pestaña.",
+      "Igual que el tablero «Comercial vs Pauta» de Emilia, solo con los productos con pauta. Alto: confirma menos de 65 % o el CPA real (gasto ÷ pedidos del comercial) pasa de $8, separado por causa. Medio: no llega a 70 %, el CPA pasa de $5, tiene menos de 30 pedidos o la plataforma cuenta más de 1,33 veces sus pedidos de Shopify (desde 10 pedidos). Bajo: cumple todo. Los umbrales se mueven en la misma pantalla, «Descartar» saca un producto de las secciones y los testeos van en su propia pestaña.",
     pasoId: "control-riesgo",
     sinonimos: ["top 10", "mejores productos", "confirmacion alta"],
   },
