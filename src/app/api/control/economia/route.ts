@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
+import { claveDelMes } from "@/lib/clave-calculadora";
 
 // La economía de un producto en un mes: efectividad, producción, flete,
 // precio promedio, CPA máximo y devoluciones.
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   // un id de otra cuenta alcanzaría para escribirle los costos.
   const producto = await db.product.findFirst({
     where: { id: productId, organizationId: session.organizationId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!producto) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
 
@@ -66,6 +67,36 @@ export async function POST(req: NextRequest) {
     create: { organizationId: session.organizationId, productId, anio, mes, ...datos },
     update: datos,
   });
+
+  // Si ese mes también se ajustó en la Calculadora («BODY @ 2026-11»), ese
+  // ajuste manda en el Control: se actualiza con lo que se acaba de escribir
+  // para que gane lo último que alguien cargó, sin importar en qué pantalla.
+  const clave = claveDelMes(producto.name, `${anio}-${String(mes).padStart(2, "0")}`);
+  const ajuste = await db.calcSetting.findUnique({
+    where: { organizationId_producto: { organizationId: session.organizationId, producto: clave } },
+    select: { data: true },
+  });
+  if (ajuste) {
+    let previo: Record<string, unknown> = {};
+    try {
+      previo = JSON.parse(ajuste.data) as Record<string, unknown>;
+    } catch {
+      previo = {};
+    }
+    const pct = (v: number | null) => (v == null ? undefined : String(Math.round(v * 1000) / 10));
+    const nuevo = {
+      ...previo,
+      confirmationPct: pct(datos.efectividad) ?? previo.confirmationPct,
+      productCost: String(datos.produccion),
+      shippingCost: String(datos.flete),
+      priceOverride: String(datos.precioProm),
+      returnPct: pct(datos.devoluciones) ?? previo.returnPct,
+    };
+    await db.calcSetting.update({
+      where: { organizationId_producto: { organizationId: session.organizationId, producto: clave } },
+      data: { data: JSON.stringify(nuevo), updatedById: session.userId },
+    });
+  }
 
   return NextResponse.json({ variable: fila });
 }

@@ -37,3 +37,58 @@ export function limpiarEtiquetas(entrada: unknown): EtiquetaId[] {
 export function datosEtiqueta(id: string) {
   return ETIQUETAS.find((e) => e.id === id);
 }
+
+// TESTEO POR MES (20-nov). Un producto se prueba en un período: Cutting Mix
+// fue testeo en septiembre y desde octubre se pauta normal; Fwee se probó en
+// octubre y otra vez en noviembre. Con la etiqueta sola, septiembre mostraba
+// cero testeos y octubre dos, cuando el tablero de Emilia tiene 22 y 11.
+
+/** Los meses ("2026-09") que toca un período, de su primer a su último día. */
+export function mesesDelPeriodo(desde: Date, hasta: Date): string[] {
+  const meses: string[] = [];
+  let a = desde.getUTCFullYear();
+  let m = desde.getUTCMonth();
+  const finA = hasta.getUTCFullYear();
+  const finM = hasta.getUTCMonth();
+  while (a < finA || (a === finA && m <= finM)) {
+    meses.push(`${a}-${String(m + 1).padStart(2, "0")}`);
+    m += 1;
+    if (m === 12) {
+      m = 0;
+      a += 1;
+    }
+  }
+  return meses;
+}
+
+/**
+ * Si el producto era testeo en el período. Con meses anotados, manda el mes;
+ * sin meses, la etiqueta Testeo vale para cualquier período (como antes).
+ */
+export function esTesteoEnPeriodo(
+  p: { etiquetas: readonly string[]; testeoMeses?: readonly string[] | null },
+  meses: readonly string[],
+): boolean {
+  const anotados = p.testeoMeses ?? [];
+  if (anotados.length > 0) return anotados.some((m) => meses.includes(m));
+  return p.etiquetas.includes("TESTEO");
+}
+
+/**
+ * Los meses de prueba después de poner o quitar la etiqueta Testeo. Solo se
+ * tocan si el producto ya tiene meses anotados: poner Testeo suma el mes en
+ * curso y quitarla lo saca, sin borrar los meses en que ya se probó.
+ */
+export function mesesTrasEtiqueta(
+  antes: { etiquetas: readonly string[]; testeoMeses: readonly string[] },
+  etiquetasNuevas: readonly string[],
+  mesActual: string,
+): string[] {
+  const meses = [...antes.testeoMeses];
+  if (meses.length === 0) return meses;
+  const tenia = antes.etiquetas.includes("TESTEO");
+  const tiene = etiquetasNuevas.includes("TESTEO");
+  if (!tenia && tiene && !meses.includes(mesActual)) meses.push(mesActual);
+  if (tenia && !tiene) return meses.filter((m) => m !== mesActual);
+  return meses.sort();
+}

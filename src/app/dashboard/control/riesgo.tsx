@@ -35,6 +35,8 @@ export type FilaRiesgo = {
   nombre: string;
   sku: string | null;
   etiquetas: string[];
+  /** Si era testeo en el período que se mira (por mes, no solo la etiqueta). */
+  testeo: boolean;
   /** Pedidos del área comercial (la planilla de ventas) en el período. */
   pedidos: number;
   confirmados: number;
@@ -413,27 +415,29 @@ export default function RiesgoProductos({
     const visibles = q ? filas.filter((f) => sinTildes(`${f.nombre} ${f.sku ?? ""}`).includes(q)) : filas;
     const clasificar = (f: FilaRiesgo): Clasificada => ({
       ...f,
-      ...clasificarRiesgo({ ...f, testeo: tiene(f, "TESTEO") }, u),
+      ...clasificarRiesgo(f, u),
     });
     // Del CPA real más bajo al más alto, como el tablero; sin CPA al final.
     const porCpa = (a: Clasificada, b: Clasificada) =>
       (a.cpa ?? Number.POSITIVE_INFINITY) - (b.cpa ?? Number.POSITIVE_INFINITY) || b.gasto - a.gasto;
 
     const descartado = (f: FilaRiesgo) => tiene(f, "DESCARTADO");
-    const testeosTodos = visibles.filter((f) => tiene(f, "TESTEO") && (f.gasto > 0 || f.pedidos > 0));
+    const testeosTodos = visibles.filter((f) => f.testeo && (f.gasto > 0 || f.pedidos > 0));
     const testeos = testeosTodos.filter((f) => !descartado(f));
     const apagados = visibles
-      .filter((f) => tiene(f, "APAGADO") && !tiene(f, "TESTEO") && f.pedidos > 0)
+      .filter((f) => tiene(f, "APAGADO") && !f.testeo && f.pedidos > 0)
       .map(clasificar)
       .sort(porCpa);
-    const normales = visibles.filter((f) => !tiene(f, "TESTEO") && !tiene(f, "APAGADO"));
-    // «Solo productos con pauta»: los que venden sin gasto van aparte.
-    const sinPauta = normales
+    const normales = visibles.filter((f) => !f.testeo && !tiene(f, "APAGADO"));
+    // «Solo productos con pauta»: los que venden sin gasto van aparte. En
+    // testeos también, como «Sin pauta enlazada» del tablero (Body cierre
+    // viral en septiembre: 7 pedidos y su gasto quedó en Body y Faja).
+    const sinPauta = (modo === "testeos" ? testeos : normales)
       .filter((f) => f.gasto <= 0 && f.pedidos > 0)
       .map(clasificar)
       .sort((a, b) => b.pedidos - a.pedidos);
     const conPauta = normales.filter((f) => f.gasto > 0 && !f.sinEnlazar);
-    const base = modo === "testeos" ? testeos : conPauta.filter((f) => !descartado(f));
+    const base = modo === "testeos" ? testeos.filter((f) => f.gasto > 0) : conPauta.filter((f) => !descartado(f));
     const descartados = (modo === "testeos" ? testeosTodos : conPauta).filter(descartado).map(clasificar);
     const clasificadas = base.map(clasificar).filter((f) => f.riesgo !== "sinDatos");
     const grupos = {
@@ -486,7 +490,8 @@ export default function RiesgoProductos({
             <>
               Los productos marcados como <b>Testeo</b> (en cualquier fila, «+ etiqueta»), con la misma regla que el riesgo
               pero sin la de volumen: un testeo empieza con pocos pedidos. Con pauta y sin pedidos en el comercial es alto,
-              porque no hay cómo medirlo. Que una campaña diga «TEST» en el nombre no hace que el producto esté en prueba.
+              porque no hay cómo medirlo. Un testeo lo es en su mes: Cutting Mix sale aquí en septiembre y en el riesgo
+              normal desde octubre. Que una campaña diga «TEST» en el nombre no hace que el producto esté en prueba.
             </>
           ) : (
             <>
@@ -671,10 +676,14 @@ export default function RiesgoProductos({
         </details>
       )}
 
-      {modo === "riesgo" && vistas.sinPauta.length > 0 && (
+      {vistas.sinPauta.length > 0 && (
         <Tabla
-          titulo="Con pedidos, sin pauta"
-          nota="venden sin gasto en el período: no entran en el riesgo"
+          titulo={modo === "testeos" ? "Sin pauta enlazada" : "Con pedidos, sin pauta"}
+          nota={
+            modo === "testeos"
+              ? "testeos con pedidos y sin gasto propio en el período: no se clasifican"
+              : "venden sin gasto en el período: no entran en el riesgo"
+          }
           cabecera="bg-zinc-600 text-white"
           grupos={[{ filas: vistas.sinPauta }]}
           u={u}

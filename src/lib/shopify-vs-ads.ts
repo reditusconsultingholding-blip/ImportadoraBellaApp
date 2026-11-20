@@ -43,6 +43,8 @@ export type FilaProductoCuadre = Cuadre &
     codigo: string;
     sku: string | null;
     etiquetas: string[];
+    /** Meses en que estuvo en prueba (ver esTesteoEnPeriodo). */
+    testeoMeses: string[];
     cpaObjetivo: number | null;
   };
 
@@ -114,7 +116,7 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
     db.productoShopify.findMany({ where: { organizationId }, select: { nombreNorm: true, productId: true } }),
     db.product.findMany({
       where: { organizationId },
-      select: { id: true, name: true, code: true, sku: true, etiquetas: true, cpaTarget: true },
+      select: { id: true, name: true, code: true, sku: true, etiquetas: true, testeoMeses: true, cpaTarget: true },
     }),
   ]);
 
@@ -199,6 +201,7 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
         codigo: p?.code ?? "",
         sku: p?.sku ?? null,
         etiquetas: p?.etiquetas ?? [],
+        testeoMeses: p?.testeoMeses ?? [],
         cpaObjetivo: p && p.cpaTarget > 0 ? p.cpaTarget : null,
       };
     })

@@ -217,7 +217,7 @@ export async function economiaDelMes(
   anio: number,
   mes: number,
 ): Promise<Map<string, Economia>> {
-  const [filas, productos, deLaCalculadora] = await Promise.all([
+  const [filas, productos, deLaCalculadora, delMesEnLaCalculadora] = await Promise.all([
     db.variableProducto.findMany({
       where: { organizationId, anio, mes },
       select: {
@@ -251,6 +251,10 @@ export async function economiaDelMes(
     // producto, que tiene costos de hace meses. De ahí salía el "en todo
     // estamos perdiendo y eso no es así".
     economiaDeLaCalculadora(organizationId),
+    // Lo que se ajustó en la Calculadora para ESTE mes (Emilia, 20-nov: «que
+    // solamente sea el mes de noviembre»). Va encima de todo, en cualquier
+    // mes: alguien eligió el mes a propósito.
+    economiaDeLaCalculadora(organizationId, `${anio}-${String(mes).padStart(2, "0")}`),
   ]);
 
   const salida = new Map<string, Economia>();
@@ -293,6 +297,9 @@ export async function economiaDelMes(
   } else {
     ponerLaCalculadora();
     ponerElMes();
+  }
+  for (const [productId, c] of delMesEnLaCalculadora) {
+    salida.set(productId, { ...mezclarConLaCalculadora(salida.get(productId), c), delMes: true });
   }
 
   return salida;

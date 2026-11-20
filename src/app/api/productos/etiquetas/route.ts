@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
-import { limpiarEtiquetas } from "@/lib/etiquetas-producto";
+import { limpiarEtiquetas, mesesTrasEtiqueta } from "@/lib/etiquetas-producto";
+import { diaEcuador } from "@/lib/control-publicitario";
 
 // Guarda las etiquetas de un producto (testeo, activo, apagado...). Ver
 // src/lib/etiquetas-producto.ts. Las pone dirección: son las que deciden en
@@ -19,10 +20,14 @@ export async function POST(req: NextRequest) {
   if (!body.productId) return NextResponse.json({ error: "Falta el producto." }, { status: 400 });
 
   const etiquetas = limpiarEtiquetas(body.etiquetas);
-  const r = await db.product.updateMany({
+  const antes = await db.product.findFirst({
     where: { id: body.productId, organizationId: session.organizationId },
-    data: { etiquetas },
+    select: { etiquetas: true, testeoMeses: true },
   });
-  if (r.count === 0) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
+  if (!antes) return NextResponse.json({ error: "Producto no encontrado." }, { status: 404 });
+  // Si ya tiene meses de prueba anotados, poner o quitar Testeo mueve el mes
+  // en curso (ver esTesteoEnPeriodo).
+  const testeoMeses = mesesTrasEtiqueta(antes, etiquetas, diaEcuador().toISOString().slice(0, 7));
+  await db.product.update({ where: { id: body.productId }, data: { etiquetas, testeoMeses } });
   return NextResponse.json({ ok: true, etiquetas });
 }

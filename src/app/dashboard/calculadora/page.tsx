@@ -11,6 +11,8 @@ import { getRentabilidad } from "@/lib/rentabilidad";
 import { recomendar } from "@/lib/recomendaciones";
 import { economiaDe } from "@/lib/economia";
 import { resolveRange } from "@/lib/date-range";
+import { mesesRecientes, separarClave } from "@/lib/clave-calculadora";
+import { diaEcuador } from "@/lib/control-publicitario";
 import { EncabezadoSeccion, InsigniaEncabezado } from "../encabezado-seccion";
 
 export default async function CalculadoraPage() {
@@ -114,6 +116,8 @@ export default async function CalculadoraPage() {
   });
   const notaDe = new Map<string, string>();
   for (const a of ajustes) {
+    // La nota de «pierden plata» es del histórico, no la de un mes.
+    if (separarClave(a.producto).mes) continue;
     try {
       const d = JSON.parse(a.data) as { recomendacion?: unknown };
       if (typeof d?.recomendacion === "string") notaDe.set(a.producto, d.recomendacion);
@@ -176,7 +180,7 @@ export default async function CalculadoraPage() {
           </p>
         )}
       </div>
-      <PricingCalculator products={products} />
+      <PricingCalculator products={products} meses={mesesRecientes(diaEcuador(), 6)} />
 
       <SinRentabilidad filas={perdiendo} periodo={rango.label} />
     </div>

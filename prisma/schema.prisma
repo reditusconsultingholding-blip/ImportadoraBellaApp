@@ -413,6 +413,11 @@ model Product {
   // las campañas viejas —que siguen llamándose con el código anterior— caen
   // igual en él.
   codigosAnteriores String[] @default([])
+  // Los meses ("2026-09") en que el producto estuvo en prueba. Un testeo lo es
+  // en un período, no para siempre: Cutting Mix fue testeo en septiembre y en
+  // octubre ya se pautaba normal, como lo lleva el tablero de Emilia (20-nov).
+  // Vacío con la etiqueta Testeo = en prueba en cualquier período, como antes.
+  testeoMeses String[] @default([])
   // Ángulos propios de este producto, además de la lista general de Super Ads.
   // Cada producto tiene los suyos ("sin olor a batana", "no mancha la ropa")
   // y obligar a elegir el más parecido de una lista fija hace que el campo

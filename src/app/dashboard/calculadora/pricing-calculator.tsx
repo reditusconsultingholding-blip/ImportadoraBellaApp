@@ -7,6 +7,7 @@ import CopiarId from "../copiar-id";
 import { aNumero } from "@/lib/numero-escrito";
 import { agruparVariantes } from "@/lib/calculadora-variantes";
 import { CPA_EQUILIBRIO, CPA_OBJETIVO } from "@/lib/cpa-glosario";
+import { claveDelMes, etiquetaDelMes } from "@/lib/clave-calculadora";
 
 // La calculadora de precios, con lo mejor de "Costeo y utilidad".
 //
@@ -288,7 +289,23 @@ function Chip({ children, tono }: { children: React.ReactNode; tono?: "bien" | "
 
 /* -------------------------------- La pantalla ----------------------------- */
 
-export default function PricingCalculator({ products }: { products: CalcProduct[] }) {
+/** El último día de un mes "2026-11" (30). */
+function ultimoDia(mes: string): number {
+  const [a, m] = mes.split("-").map(Number);
+  return new Date(Date.UTC(a, m, 0)).getUTCDate();
+}
+
+/** Lo que pasó de verdad con un producto en un mes (planilla + pauta). */
+type RealDelMes = { pedidos: number; confirmados: number; gasto: number };
+
+export default function PricingCalculator({ products, meses = [] }: { products: CalcProduct[]; meses?: string[] }) {
+  // "" = histórico (los valores de siempre del producto); "2026-11" = ese mes.
+  const [mesCalc, setMesCalc] = useState("");
+  // En ref para leerlo al cargar un producto en el mismo clic; en estado para dibujarlo.
+  const realRef = useRef<Record<string, { hasta: string | null; productos: Record<string, RealDelMes> }>>({});
+  const [realPorMes, setRealPorMes] = useState<typeof realRef.current>({});
+  const [cargandoMes, setCargandoMes] = useState(false);
+  const [errorMes, setErrorMes] = useState<string | null>(null);
   const [productCost, setProductCost] = useState("8");
   const [shippingCost, setShippingCost] = useState("3.5");
   const [operatingCost, setOperatingCost] = useState("2");
@@ -423,7 +440,7 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
   /** El producto que está elegido, para poder mostrar su ID y su origen. */
   const productoElegido = lista.find((x) => x.name === selectedProduct) ?? null;
 
-  function loadFromProduct(name: string) {
+  function loadFromProduct(name: string, mes: string = mesCalc) {
     // Lo que quedó sin guardar del producto anterior se guarda ahora: el
     // guardado automático espera 800 ms y cambiar de producto en ese rato
     // mataba el temporizador y el cambio se perdía en silencio.
@@ -447,11 +464,29 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     // …y encima lo que el equipo ya ajustó a mano, que le gana. Si el producto
     // solo se trabajó en "Costeo y utilidad", sus números se traducen.
     const g = ajustesRef.current[name];
-    setTieneGuardado(Boolean(g));
-    if (!g) {
-      setNota("");
+    if (g) aplicarAjuste(g);
+    else setNota("");
+    if (!mes) {
+      setTieneGuardado(Boolean(g));
       return;
     }
+
+    // UN MES ELEGIDO (Emilia, 20-nov). Sobre el histórico, lo que pasó de
+    // verdad ese mes: la confirmación del comercial y el CPA real (gasto ÷
+    // pedidos), los mismos de «Riesgo por producto». Y encima de todo, lo que
+    // alguien ya ajustó para ese mes.
+    const real = realRef.current[mes]?.productos[name];
+    if (real && real.pedidos > 0) {
+      setConfirmationPct(((real.confirmados / real.pedidos) * 100).toFixed(1));
+      if (real.gasto > 0) setAdSpend((real.gasto / real.pedidos).toFixed(2));
+    }
+    const gm = ajustesRef.current[claveDelMes(name, mes)];
+    setTieneGuardado(Boolean(gm));
+    if (gm) aplicarAjuste(gm);
+  }
+
+  /** Pone en pantalla un ajuste guardado (histórico o de un mes). */
+  function aplicarAjuste(g: Partial<Ajuste> & AjusteCosteo) {
     const s = (v: number | undefined) => (typeof v === "number" && isFinite(v) ? String(v) : undefined);
     const productCostG = g.productCost ?? s(g.costoProducto);
     const shippingG = g.shippingCost ?? s(g.flete);
@@ -524,8 +559,11 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     ],
   );
 
+  // Con un mes elegido se guarda solo para ese mes («BODY @ 2026-11»).
+  const claveGuardado = selectedProduct && mesCalc ? claveDelMes(selectedProduct, mesCalc) : selectedProduct;
+
   const guardar = useCallback(async () => {
-    if (!selectedProduct) return;
+    if (!claveGuardado) return;
     const cuerpo = { ...valores, nota };
     setGuardado("guardando");
     setErrorGuardado(null);
@@ -535,10 +573,10 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
         headers: { "Content-Type": "application/json" },
         // Mezclando con lo que ya había: la recomendación de un producto se
         // escribe desde "Productos que pierden plata" y no viaja en este cuerpo.
-        body: JSON.stringify({ producto: selectedProduct, data: cuerpo, parche: true }),
+        body: JSON.stringify({ producto: claveGuardado, data: cuerpo, parche: true }),
       });
       if (res.ok) {
-        ajustesRef.current[selectedProduct] = { ...ajustesRef.current[selectedProduct], ...cuerpo };
+        ajustesRef.current[claveGuardado] = { ...ajustesRef.current[claveGuardado], ...cuerpo };
         setGuardado("guardado");
         setSucio(false);
         setTieneGuardado(true);
@@ -551,15 +589,40 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
       setErrorGuardado("No hay conexión: los cambios siguen en pantalla, vuelve a intentar.");
       setGuardado("error");
     }
-  }, [selectedProduct, valores, nota]);
+  }, [claveGuardado, valores, nota]);
+
+  /** Cambia entre el histórico y un mes, y recarga el producto con esos números. */
+  async function cambiarMes(mes: string) {
+    // Lo pendiente se guarda en el mes (o histórico) donde se escribió.
+    if (selectedProduct && sucio) await guardar();
+    setErrorMes(null);
+    if (mes && !realRef.current[mes]) {
+      setCargandoMes(true);
+      try {
+        const res = await fetch(`/api/calculadora/mes?mes=${encodeURIComponent(mes)}`);
+        if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+        const datos = await res.json();
+        realRef.current[mes] = datos;
+        setRealPorMes((previo) => ({ ...previo, [mes]: datos }));
+      } catch (e) {
+        setErrorMes(
+          `No se pudieron traer los números reales del mes (${e instanceof Error ? e.message : String(e)}). Se muestran los valores guardados.`,
+        );
+      } finally {
+        setCargandoMes(false);
+      }
+    }
+    setMesCalc(mes);
+    if (selectedProduct) loadFromProduct(selectedProduct, mes);
+  }
 
   // Guardado automático, solo después de un cambio de verdad y con espera:
   // mover un deslizador dispara veinte cambios y alcanza con guardar el último.
   useEffect(() => {
-    if (!selectedProduct || !ajustesListos || !sucio) return;
+    if (!claveGuardado || !ajustesListos || !sucio) return;
     const t = setTimeout(() => void guardar(), 800);
     return () => clearTimeout(t);
-  }, [valores, nota, selectedProduct, ajustesListos, sucio, guardar]);
+  }, [valores, nota, claveGuardado, ajustesListos, sucio, guardar]);
 
   /* ------------------------------ Los números ---------------------------- */
 
@@ -677,18 +740,23 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
     "w-full bg-transparent border border-border rounded px-3 py-2 outline-none focus:border-accent tabular-nums";
   const labelClass = "block text-xs font-mono uppercase tracking-wide text-muted mb-1";
 
+  const dondeSeGuarda = mesCalc ? `${selectedProduct} (solo ${etiquetaDelMes(mesCalc)})` : selectedProduct;
   const estadoGuardado =
     guardado === "guardando"
       ? "Guardando…"
       : guardado === "guardado"
-        ? `Guardado en ${selectedProduct} — todo el equipo ve estos valores.`
+        ? `Guardado en ${dondeSeGuarda} — todo el equipo ve estos valores.`
         : guardado === "error"
           ? `No se guardó: ${errorGuardado}`
           : sucio
             ? "Hay cambios sin guardar: se guardan solos en un segundo, o apriétalo ahora."
             : tieneGuardado
-              ? `Todo guardado en ${selectedProduct}.`
-              : `${selectedProduct} todavía no tiene ajustes guardados: el primer cambio se guarda solo.`;
+              ? `Todo guardado en ${dondeSeGuarda}.`
+              : mesCalc
+                ? `${selectedProduct} no tiene ajustes propios de ${etiquetaDelMes(mesCalc)}: el primer cambio se guarda solo para ese mes.`
+                : `${selectedProduct} todavía no tiene ajustes guardados: el primer cambio se guarda solo.`;
+  const realElegido = mesCalc && selectedProduct ? realPorMes[mesCalc]?.productos[selectedProduct] : undefined;
+  const hastaMes = mesCalc ? realPorMes[mesCalc]?.hasta : null;
 
   const botonGuardar = (grande: boolean) =>
     selectedProduct ? (
@@ -777,6 +845,62 @@ export default function PricingCalculator({ products }: { products: CalcProduct[
               </p>
             )}
           </div>
+
+          {meses.length > 0 && (
+            <div className="rounded border border-border bg-surface-2 p-3">
+              <label className="flex flex-wrap items-center gap-2">
+                <span className={`${labelClass} mb-0`}>Números de</span>
+                <select
+                  value={mesCalc}
+                  onChange={(e) => void cambiarMes(e.target.value)}
+                  disabled={cargandoMes || !ajustesListos}
+                  className="rounded border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-accent"
+                  aria-label="Mes de los números"
+                >
+                  <option value="">Histórico (todos los meses)</option>
+                  {meses.map((m) => (
+                    <option key={m} value={m}>
+                      Solo {etiquetaDelMes(m)}
+                    </option>
+                  ))}
+                </select>
+                {cargandoMes && <span className="text-xs text-muted">Trayendo los números del mes…</span>}
+              </label>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                {!mesCalc ? (
+                  <>
+                    Los valores de siempre del producto: valen para todos los meses que no tengan los suyos. Elige un mes
+                    para ver y ajustar solo ese mes (la devolución o la confirmación no son iguales todos los meses).
+                  </>
+                ) : realElegido && realElegido.pedidos > 0 ? (
+                  <>
+                    En {etiquetaDelMes(mesCalc)}
+                    {hastaMes && hastaMes.slice(0, 7) === mesCalc && Number(hastaMes.slice(8)) < ultimoDia(mesCalc)
+                      ? ` (del 1 al ${Number(hastaMes.slice(8))})`
+                      : ""}
+                    : {realElegido.pedidos.toLocaleString("es-EC")} pedidos del comercial, confirmación real{" "}
+                    <b>{((realElegido.confirmados / realElegido.pedidos) * 100).toFixed(1).replace(".", ",")} %</b>
+                    {realElegido.gasto > 0 && (
+                      <>
+                        {" "}y CPA real <b>${(realElegido.gasto / realElegido.pedidos).toFixed(2).replace(".", ",")}</b> (gasto ÷
+                        pedidos, como en Riesgo por producto)
+                      </>
+                    )}
+                    . Se cargan como punto de partida. Lo que cambies se guarda <b>solo para {etiquetaDelMes(mesCalc)}</b> y el
+                    Control publicitario lo usa en ese mes.
+                  </>
+                ) : (
+                  <>
+                    {selectedProduct
+                      ? `${selectedProduct} no tiene pedidos del comercial en ${etiquetaDelMes(mesCalc)}: se muestran los valores guardados.`
+                      : `Elige un producto para ver sus números de ${etiquetaDelMes(mesCalc)}.`}{" "}
+                    Lo que cambies se guarda solo para {etiquetaDelMes(mesCalc)}.
+                  </>
+                )}
+              </p>
+              {errorMes && <p className="mt-1 text-[11px] text-critical">{errorMes}</p>}
+            </div>
+          )}
 
           <div className="-mt-1 flex flex-wrap items-center gap-2">
             <Chip>

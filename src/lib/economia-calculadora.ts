@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { normalizar } from "@/lib/product-code";
+import { separarClave } from "@/lib/clave-calculadora";
 
 /**
  * La economía de cada producto, tomada de la Calculadora de precios.
@@ -74,9 +75,13 @@ export function cpaMaximo(e: {
   return porConfirmado > 0 ? Math.round(porConfirmado * 100) / 100 : null;
 }
 
-/** Lo que la calculadora sabe hoy, por id de producto. */
+/**
+ * Lo que la calculadora sabe hoy, por id de producto. Con `mes` ("2026-11"),
+ * solo los ajustes guardados para ese mes; sin él, el histórico.
+ */
 export async function economiaDeLaCalculadora(
   organizationId: string,
+  mes: string | null = null,
 ): Promise<Map<string, EconomiaCalculada>> {
   const [ajustes, productos] = await Promise.all([
     db.calcSetting.findMany({
@@ -95,7 +100,9 @@ export async function economiaDeLaCalculadora(
   const salida = new Map<string, EconomiaCalculada>();
 
   for (const a of ajustes) {
-    const productId = porNombre.get(normalizar(a.producto));
+    const clave = separarClave(a.producto);
+    if (clave.mes !== mes) continue;
+    const productId = porNombre.get(normalizar(clave.producto));
     if (!productId) continue;
 
     let d: Record<string, unknown>;

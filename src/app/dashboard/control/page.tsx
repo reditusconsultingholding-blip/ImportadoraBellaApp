@@ -18,6 +18,7 @@ import Testeos from "./testeos";
 import { productosPautadosDelMes } from "@/lib/pautados";
 import { shopifyVsAds } from "@/lib/shopify-vs-ads";
 import { cpaDePlanilla } from "@/lib/shopify-vs-ads-calculo";
+import { esTesteoEnPeriodo, mesesDelPeriodo } from "@/lib/etiquetas-producto";
 import CuadreShopifyAds from "./cuadre";
 import RiesgoProductos, { type FilaRiesgo } from "./riesgo";
 import FiltroPeriodo from "./filtro-periodo";
@@ -249,6 +250,8 @@ export default async function ControlPage({
       vista === "testeos" ? pedidosRealesPorDia(session.organizationId, desdeInstante, hastaInstante) : null,
     ]);
     const utilidadDe = new Map(control.productos.filter((f) => f.productId).map((f) => [f.productId!, f.utilidad]));
+    // Testeo por mes: Cutting Mix es testeo en septiembre y normal en octubre.
+    const mesesPeriodo = mesesDelPeriodo(periodo.desde, periodo.hasta);
     const filas: FilaRiesgo[] = [
       ...cuadre.productos
         .filter((f) => f.productId && (f.ventas > 0 || f.gasto > 0 || f.plataforma > 0))
@@ -258,6 +261,7 @@ export default async function ControlPage({
           nombre: f.nombre,
           sku: f.sku,
           etiquetas: f.etiquetas,
+          testeo: esTesteoEnPeriodo(f, mesesPeriodo),
           pedidos: f.ventas,
           confirmados: f.confirmados,
           confirmacion: f.ventas > 0 ? f.confirmados / f.ventas : null,
@@ -279,6 +283,7 @@ export default async function ControlPage({
         nombre: s.nombre,
         sku: null,
         etiquetas: [],
+        testeo: false,
         pedidos: s.ventas,
         confirmados: s.confirmados,
         confirmacion: s.ventas > 0 ? s.confirmados / s.ventas : null,
