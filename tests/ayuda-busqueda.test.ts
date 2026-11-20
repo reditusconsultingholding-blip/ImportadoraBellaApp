@@ -44,5 +44,6 @@ test("en Control publicitario, la pestaña abierta va primero", () => {
   const general = pasosDeLaPantalla(dueno, "/dashboard/control", null);
   assert.deepEqual(general.map((p) => p.id), ["control"]);
   // Una pestaña sin paso propio cae a los generales de la pantalla.
-  assert.deepEqual(pasosDeLaPantalla(dueno, "/dashboard/control", "testeos").map((p) => p.id), ["control"]);
+  assert.deepEqual(pasosDeLaPantalla(dueno, "/dashboard/control", "testeos").map((p) => p.id), ["control-testeos"]);
+  assert.deepEqual(pasosDeLaPantalla(dueno, "/dashboard/control", "enlazar").map((p) => p.id), ["control"]);
 });

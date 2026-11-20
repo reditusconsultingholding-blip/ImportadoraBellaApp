@@ -166,6 +166,10 @@ export default function SidebarNav({
           ? [{ href: "/dashboard/chat", label: "Chat interno", icon: "chat" }]
           : []),
         { href: "/dashboard/notificaciones", label: "Notificaciones", icon: "notificaciones" },
+        // El buzón del equipo (20-nov): lo que se dicta desde «Ayuda».
+        ...(showContenido
+          ? [{ href: "/dashboard/propuestas", label: "Propuestas y dudas", icon: "chat" }]
+          : []),
         // Jarvis y Conexiones ya estaban cerrados por rol, pero seguían
         // apareciendo en el menú de todos: se entraba y rebotaba al Panel.
         ...(showJarvis

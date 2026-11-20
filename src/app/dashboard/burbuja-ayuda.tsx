@@ -8,6 +8,7 @@ import { buscarAyuda, pasosDeLaPantalla, type PreguntaFrecuente, type Resultado 
 import { PREGUNTAS } from "@/lib/ayuda-preguntas";
 import { textoDelPaso } from "@/lib/voz-capacitacion";
 import { huellaDeTexto } from "@/lib/huella-texto";
+import DialogoPropuesta from "./propuesta-dialogo";
 
 // LA BURBUJA DE AYUDA (Sebastian, 12-nov).
 //
@@ -28,14 +29,14 @@ import { huellaDeTexto } from "@/lib/huella-texto";
 // queda atado a la huella del texto con el que se grabó: si el paso cambió y
 // el video no se rehízo, no se ofrece, para no mostrar una pantalla vieja.
 
-type EntradaVideo = { archivo: string; huella: string; segundos: number; poster?: string };
-type ManifiestoVideos = Record<string, EntradaVideo>;
+export type EntradaVideo = { archivo: string; huella: string; segundos: number; poster?: string };
+export type ManifiestoVideos = Record<string, EntradaVideo>;
 
-const CARPETA = "/video/capacitacion";
+export const CARPETA = "/video/capacitacion";
 
 let manifiestoVideos: ManifiestoVideos | null = null;
 let pedidoVideos: Promise<ManifiestoVideos> | null = null;
-function cargarVideos(): Promise<ManifiestoVideos> {
+export function cargarVideos(): Promise<ManifiestoVideos> {
   if (manifiestoVideos) return Promise.resolve(manifiestoVideos);
   pedidoVideos ??= fetch(`${CARPETA}/manifiesto.json`, { cache: "no-cache" })
     .then((r) => (r.ok ? (r.json() as Promise<ManifiestoVideos>) : {}))
@@ -44,13 +45,13 @@ function cargarVideos(): Promise<ManifiestoVideos> {
   return pedidoVideos;
 }
 
-function videoDelPaso(paso: PasoCapacitacion, m: ManifiestoVideos): EntradaVideo | null {
+export function videoDelPaso(paso: PasoCapacitacion, m: ManifiestoVideos): EntradaVideo | null {
   const v = m[paso.id];
   if (!v) return null;
   return v.huella === huellaDeTexto(textoDelPaso(paso)) ? v : null;
 }
 
-const duracion = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+export const duracion = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
 export default function BurbujaAyuda({ pasos, puedeJarvis }: { pasos: PasoCapacitacion[]; puedeJarvis: boolean }) {
   const enElNavegador = useSyncExternalStore(
@@ -69,6 +70,7 @@ export default function BurbujaAyuda({ pasos, puedeJarvis }: { pasos: PasoCapaci
   const [videos, setVideos] = useState<ManifiestoVideos>({});
   const [reproduciendo, setReproduciendo] = useState<PasoCapacitacion | null>(null);
   const entradaRef = useRef<HTMLInputElement>(null);
+  const [proponer, setProponer] = useState<null | "MEJORA" | "DUDA">(null);
 
   useEffect(() => {
     if (!abierta) return;
@@ -292,6 +294,33 @@ export default function BurbujaAyuda({ pasos, puedeJarvis }: { pasos: PasoCapaci
         )}
       </div>
 
+      <div className="flex gap-2 border-t border-border bg-surface-2 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => {
+            setAbierta(false);
+            setProponer(consulta.trim().length >= 3 ? "DUDA" : "MEJORA");
+          }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-strong"
+        >
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <rect x="7" y="2.5" width="6" height="10" rx="3" />
+            <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" strokeLinecap="round" />
+          </svg>
+          Proponer una mejora o avisar algo
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAbierta(false);
+            router.push("/dashboard/propuestas");
+          }}
+          className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:border-accent"
+        >
+          Mis propuestas
+        </button>
+      </div>
+
       {conVideo.length > 0 && !verTodos && consulta.trim().length < 3 && (
         <button
           type="button"
@@ -324,6 +353,18 @@ export default function BurbujaAyuda({ pasos, puedeJarvis }: { pasos: PasoCapaci
       </button>
 
       {abierta && enElNavegador && createPortal(panel, document.body)}
+
+      {proponer && enElNavegador && (
+        <DialogoPropuesta
+          key={proponer}
+          tipoInicial={proponer}
+          textoInicial={proponer === "DUDA" ? consulta.trim() : ""}
+          seccion={deEstaPantalla[0]?.seccion ?? null}
+          ruta={vista ? `${pathname}?vista=${vista}` : pathname}
+          puedeJarvis={puedeJarvis}
+          onCerrar={() => setProponer(null)}
+        />
+      )}
 
       {reproduciendo &&
         video &&

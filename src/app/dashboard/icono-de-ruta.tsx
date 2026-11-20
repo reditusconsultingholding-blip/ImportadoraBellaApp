@@ -25,6 +25,7 @@ import { IconoSeccion, type TonoIcono } from "./icono-seccion";
 const PIEZAS: [string, string][] = [
   ["/dashboard/sin-nomenclatura", "sin-nomenclatura"],
   ["/dashboard/notificaciones", "notificaciones"],
+  ["/dashboard/propuestas", "chat"],
   ["/dashboard/configuracion", "configuracion"],
   ["/dashboard/rentabilidad", "rentabilidad"],
   ["/dashboard/calculadora", "calculadora"],

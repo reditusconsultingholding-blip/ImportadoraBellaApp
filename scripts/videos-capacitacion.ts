@@ -226,6 +226,8 @@ async function main() {
         // Ni la ayuda que se abre sola la primera vez en algunas pantallas
         // (ayuda-pantalla.tsx): taparía todo el video.
         for (const id of ["sin-nomenclatura", "ficha-producto"]) localStorage.setItem(`ayuda:${id}`, "1");
+        // Ni el pop-up de cada sección (popup-seccion.tsx): es este mismo video.
+        localStorage.setItem("popup-seccion:apagado", "1");
       } catch {}
     });
 

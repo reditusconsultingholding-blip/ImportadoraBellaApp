@@ -291,7 +291,25 @@ export const PASOS: PasoCapacitacion[] = [
       "Dentro de cada sección, los productos van del CPA más bajo al más alto, con el motivo de por qué están ahí.",
       "Los umbrales se pueden mover en la misma pantalla, en «Umbrales».",
       "Los marcados con la etiqueta Testeo van en la pestaña Testeos, con la misma regla pero sin la de volumen. Las etiquetas se ponen con «+ etiqueta» en cada fila.",
+      "Con «Descartar», al lado del nombre, un producto que ya no se trabaja sale de las secciones, igual que en el tablero de Emilia. Queda abajo, en «Descartados», y vuelve con «Restaurar».",
       "«Con pedidos, sin pauta» son los que venden sin gasto en el período. El top 10 y la utilidad salen de la Calculadora de precios.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
+    // Pestaña propia desde el 18-nov: cuadra con la lista de testeos de Emilia.
+    id: "control-testeos",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/control?vista=testeos",
+    seccion: "Control publicitario",
+    titulo: "Cómo va cada producto en prueba",
+    texto:
+      "Aquí están solo los productos marcados con la etiqueta Testeo, con la misma regla de riesgo pero sin la de volumen, porque un testeo empieza con pocos pedidos. Si tiene pauta y todavía ningún pedido en el comercial, queda en riesgo alto: no hay con qué medirlo.",
+    puntos: [
+      "Arriba ves cuántos pedidos de testeo hubo, cuánto se facturó en prueba y cuánto se gastó en campañas en fase de prueba.",
+      "Los pedidos de testeo explican la diferencia entre lo que muestra Shopify y lo que cuenta el control.",
+      "Un producto entra aquí con «+ etiqueta», Testeo, en cualquier fila. Que una campaña diga TEST en el nombre no lo pone en prueba.",
+      "Cuando un testeo no sigue, se descarta con «Descartar» y sale de la lista sin perderse.",
     ],
     roles: CON_NUMEROS,
   },
@@ -374,6 +392,22 @@ export const PASOS: PasoCapacitacion[] = [
       "La barra de equilibrio marca con qué tasa de confirmación se deja de ganar, con todo lo demás igual.",
       "Los escenarios muestran qué pasaría al subir la confirmación, bajar el CPA o escalar los checkouts.",
       "No modifica nada del negocio: es para probar antes de decidir.",
+    ],
+    roles: CON_NUMEROS,
+  },
+  {
+    id: "pagos",
+    requierePermisoFinanzas: true,
+    ruta: "/dashboard/pagos",
+    seccion: "Pagos y suscripciones",
+    titulo: "Que ningún cobro de una app los tome por sorpresa",
+    texto:
+      "Aquí se anotan las apps y servicios que se cobran todos los meses, con su monto y el día del cobro. Jarvis avisa unos días antes y el mismo día, así la fecha deja de vivir en la cabeza de una sola persona.",
+    puntos: [
+      "Con «Agregar» pones el nombre, el monto, la moneda y el día del mes en que cobran.",
+      "Eliges con cuántos días de anticipación quieres el aviso. Si el día no existe en ese mes, se toma el último.",
+      "El aviso le llega a dirección en Notificaciones y al celular.",
+      "Un servicio que se canceló se apaga y deja de avisar, sin borrar lo que había.",
     ],
     roles: CON_NUMEROS,
   },
@@ -520,6 +554,21 @@ export const PASOS: PasoCapacitacion[] = [
       "Aparte del rol hay dos permisos que se dan por persona: ver la nómina y ver las cifras del negocio. Un director operativo puede no tenerlos.",
     ],
     roles: CON_NUMEROS,
+  },
+  {
+    id: "propuestas",
+    ruta: "/dashboard/propuestas",
+    seccion: "Propuestas y dudas",
+    titulo: "Proponer una mejora o avisar algo con tu voz",
+    texto:
+      "Si algo no se entiende, no funciona o se podría hacer mejor, lo dices con tu voz desde cualquier pantalla. Toca Ayuda, abajo a la derecha, y luego Proponer una mejora o avisar algo. Le llega a dirección con la pantalla donde estabas.",
+    puntos: [
+      "Eliges si es una mejora, una duda o un error, tocas el micrófono y hablas. Lo que dices aparece escrito y lo puedes corregir antes de enviarlo.",
+      "Si es una duda, también puedes preguntársela a Jarvis en el momento, que casi siempre la responde.",
+      "Cuando dirección te responde o lo marca como hecho, te llega a Notificaciones.",
+      "En Propuestas y dudas ves todo lo que mandaste y lo que te respondieron.",
+    ],
+    roles: CON_PIPELINE,
   },
   {
     id: "cierre",

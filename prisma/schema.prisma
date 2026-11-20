@@ -1979,3 +1979,30 @@ model PagoRecurrente {
 
   @@index([organizationId, activo])
 }
+
+// Lo que el equipo propone o pregunta desde la burbuja de ayuda (Sebastian,
+// 20-nov: «que puedan proponer mejoras por audio como en las otras apps»).
+// Se dicta o se escribe; dirección lo lee en «Propuestas del equipo», lo
+// marca y responde, y la respuesta le llega a quien lo mandó.
+//
+// Sin relaciones a propósito: es un buzón, no cambia nada del negocio, y así
+// no hubo que tocar User ni Organization para agregarlo.
+model PropuestaEquipo {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  tipo           String // DUDA | MEJORA | ERROR
+  texto          String
+  dictado        Boolean   @default(false) // si se dijo en voz y no se escribió
+  ruta           String? // en qué pantalla estaba
+  seccion        String?
+  estado         String    @default("NUEVA") // NUEVA | EN_CURSO | HECHA | DESCARTADA
+  respuesta      String?
+  respondidoPor  String?
+  respondidoEn   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, estado])
+  @@index([userId])
+}

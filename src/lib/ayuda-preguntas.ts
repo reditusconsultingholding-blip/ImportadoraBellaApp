@@ -100,4 +100,36 @@ export const PREGUNTAS: PreguntaFrecuente[] = [
     pasoId: "conexiones",
     sinonimos: ["no actualiza", "desconectada", "windsor", "sincronizar"],
   },
+  {
+    id: "proponer-mejora",
+    pregunta: "¿Cómo propongo una mejora o aviso de un error?",
+    respuesta:
+      "Toca «Ayuda» abajo a la derecha y luego «Proponer una mejora o avisar algo». Eliges mejora, duda o error, tocas el micrófono y lo dices con tu voz (o lo escribes). Le llega a dirección y la respuesta te aparece en Notificaciones y en «Propuestas y dudas».",
+    pasoId: "propuestas",
+    sinonimos: ["sugerencia", "propuesta", "reportar", "audio", "voz", "dictar", "falla", "no funciona"],
+  },
+  {
+    id: "testeos-donde",
+    pregunta: "¿Dónde veo cómo van los productos en testeo?",
+    respuesta:
+      "En Control publicitario, pestaña «Testeos». Están solo los productos con la etiqueta Testeo, con la regla de riesgo sin la de volumen. Si uno no aparece, ponle la etiqueta con «+ etiqueta» en su fila.",
+    pasoId: "control-testeos",
+    sinonimos: ["testeo", "prueba", "test", "producto nuevo"],
+  },
+  {
+    id: "descartar-producto",
+    pregunta: "¿Cómo saco de riesgo un producto que ya no trabajamos?",
+    respuesta:
+      "Con «Descartar», al lado del nombre del producto en Riesgo por producto o en Testeos. Sale de las secciones y queda abajo en «Descartados», de donde vuelve con «Restaurar».",
+    pasoId: "control-riesgo",
+    sinonimos: ["descartar", "quitar", "ocultar", "restaurar", "ya no se vende"],
+  },
+  {
+    id: "pagos-apps",
+    pregunta: "¿Dónde anoto lo que nos cobran las apps cada mes?",
+    respuesta:
+      "En «Pagos y suscripciones». Pones la app, el monto y el día del cobro, y Jarvis avisa unos días antes y el mismo día.",
+    pasoId: "pagos",
+    sinonimos: ["suscripcion", "cobro", "shopify", "app", "mensualidad", "recordatorio"],
+  },
 ];

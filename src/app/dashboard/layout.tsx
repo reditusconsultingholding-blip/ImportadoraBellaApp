@@ -12,6 +12,7 @@ import {
 import { pasosParaUsuario } from "@/lib/capacitacion-pasos";
 import CapacitacionTour from "./capacitacion-tour";
 import BurbujaAyuda from "./burbuja-ayuda";
+import PopupSeccion from "./popup-seccion";
 import { Suspense } from "react";
 import AvisoVersion from "./aviso-version";
 import SelectorTema from "./selector-tema";
@@ -218,6 +219,12 @@ export default async function DashboardLayout({
             Suspense porque lee la pestaña (?vista=) de la dirección. */}
         <Suspense fallback={null}>
           <BurbujaAyuda pasos={pasosCapacitacion} puedeJarvis={canUseJarvis(session.role)} />
+          {/* La primera vez en cada sección, su video y cómo funciona. */}
+          <PopupSeccion
+            pasos={pasosCapacitacion}
+            yaVista={Boolean(me?.capacitacionVista)}
+            puedeJarvis={canUseJarvis(session.role)}
+          />
         </Suspense>
       </div>
     </div>
