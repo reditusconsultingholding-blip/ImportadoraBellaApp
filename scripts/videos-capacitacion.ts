@@ -201,7 +201,12 @@ async function main() {
     { archivo: string; huella: string }
   >;
 
-  const pasos = pasosParaUsuario({ rol: "OWNER", vePayroll: true, veCifras: true }).filter(
+  // --rol=EDITOR graba los pasos que solo ve un editor (panel, contenido y
+  // productos de quien produce). El token tiene que ser de un usuario editor:
+  // el rol se relee de la base, no del token.
+  const rol = (argumento("rol") ?? "OWNER") as "OWNER" | "EDITOR" | "PENDING";
+  const dueno = rol === "OWNER";
+  const pasos = pasosParaUsuario({ rol, vePayroll: dueno, veCifras: dueno }).filter(
     (p) => !solo || solo.includes(p.id),
   );
 

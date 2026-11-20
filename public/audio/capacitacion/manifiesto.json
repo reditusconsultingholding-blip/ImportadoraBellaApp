@@ -204,9 +204,30 @@
   },
   "control-riesgo": {
     "archivo": "control-riesgo.mp3",
-    "huella": "6e8b849e",
+    "huella": "eb65b0ff",
     "voz": "W1hAcdh0RNsPYUA7fkJh",
     "modelo": "eleven_multilingual_v2",
-    "generado": "2026-11-18T20:25:10.201Z"
+    "generado": "2026-11-20T15:48:57.434Z"
+  },
+  "control-testeos": {
+    "archivo": "control-testeos.mp3",
+    "huella": "a792aa0a",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-11-20T15:49:02.493Z"
+  },
+  "pagos": {
+    "archivo": "pagos.mp3",
+    "huella": "09096b69",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-11-20T15:49:06.657Z"
+  },
+  "propuestas": {
+    "archivo": "propuestas.mp3",
+    "huella": "b840d35d",
+    "voz": "W1hAcdh0RNsPYUA7fkJh",
+    "modelo": "eleven_multilingual_v2",
+    "generado": "2026-11-20T15:49:10.510Z"
   }
 }

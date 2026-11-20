@@ -1,184 +1,226 @@
 {
   "control-riesgo": {
     "archivo": "control-riesgo.mp4",
-    "huella": "6e8b849e",
-    "segundos": 62,
+    "huella": "eb65b0ff",
+    "segundos": 73,
     "poster": "control-riesgo.jpg",
-    "generado": "2026-11-18T20:31:10.853Z"
+    "generado": "2026-11-20T16:08:37.854Z"
   },
   "bienvenida": {
     "archivo": "bienvenida.mp4",
     "huella": "8d298781",
     "segundos": 26,
     "poster": "bienvenida.jpg",
-    "generado": "2026-11-13T04:53:47.806Z"
+    "generado": "2026-11-20T15:48:39.439Z"
   },
   "novedades": {
     "archivo": "novedades.mp4",
     "huella": "43f9d6af",
-    "segundos": 41,
+    "segundos": 40,
     "poster": "novedades.jpg",
-    "generado": "2026-11-13T04:54:39.339Z"
+    "generado": "2026-11-20T15:49:27.052Z"
   },
   "novedades-economia": {
     "archivo": "novedades-economia.mp4",
     "huella": "94ca01c0",
-    "segundos": 71,
+    "segundos": 72,
     "poster": "novedades-economia.jpg",
-    "generado": "2026-11-13T04:56:04.189Z"
+    "generado": "2026-11-20T15:50:52.144Z"
   },
   "panel-gestion": {
     "archivo": "panel-gestion.mp4",
     "huella": "1e7cb1d7",
     "segundos": 50,
     "poster": "panel-gestion.jpg",
-    "generado": "2026-11-13T04:57:05.707Z"
+    "generado": "2026-11-20T15:51:55.748Z"
   },
   "ceo": {
     "archivo": "ceo.mp4",
     "huella": "5b9e73db",
     "segundos": 33,
     "poster": "ceo.jpg",
-    "generado": "2026-11-13T04:57:54.248Z"
+    "generado": "2026-11-20T15:52:51.480Z"
   },
   "contenido-gestion": {
     "archivo": "contenido-gestion.mp4",
     "huella": "df782658",
     "segundos": 56,
     "poster": "contenido-gestion.jpg",
-    "generado": "2026-11-13T04:59:00.679Z"
+    "generado": "2026-11-20T15:53:55.246Z"
   },
   "productos-gestion": {
     "archivo": "productos-gestion.mp4",
     "huella": "0d6a9004",
     "segundos": 88,
     "poster": "productos-gestion.jpg",
-    "generado": "2026-11-13T05:00:52.466Z"
+    "generado": "2026-11-20T15:55:41.047Z"
   },
   "control": {
     "archivo": "control.mp4",
     "huella": "822ad8ec",
     "segundos": 88,
     "poster": "control.jpg",
-    "generado": "2026-11-13T05:10:27.357Z"
+    "generado": "2026-11-20T15:57:21.942Z"
   },
   "control-shopify-ads": {
     "archivo": "control-shopify-ads.mp4",
     "huella": "6fd82840",
     "segundos": 71,
     "poster": "control-shopify-ads.jpg",
-    "generado": "2026-11-13T05:11:50.444Z"
+    "generado": "2026-11-20T15:58:44.721Z"
   },
   "rentabilidad": {
     "archivo": "rentabilidad.mp4",
     "huella": "2e33327c",
     "segundos": 57,
     "poster": "rentabilidad.jpg",
-    "generado": "2026-11-13T05:14:21.972Z"
+    "generado": "2026-11-20T16:00:49.618Z"
   },
   "clientes": {
     "archivo": "clientes.mp4",
     "huella": "0f5b799b",
     "segundos": 32,
     "poster": "clientes.jpg",
-    "generado": "2026-11-13T05:15:16.046Z"
+    "generado": "2026-11-20T16:01:31.551Z"
   },
   "origen": {
     "archivo": "origen.mp4",
     "huella": "62c21182",
     "segundos": 57,
     "poster": "origen.jpg",
-    "generado": "2026-11-13T05:16:38.219Z"
+    "generado": "2026-11-20T16:02:36.835Z"
   },
   "calculadora": {
     "archivo": "calculadora.mp4",
     "huella": "4db3db4f",
     "segundos": 69,
     "poster": "calculadora.jpg",
-    "generado": "2026-11-13T05:18:07.337Z"
+    "generado": "2026-11-20T16:03:54.935Z"
   },
   "reportes": {
     "archivo": "reportes.mp4",
     "huella": "37c0a420",
-    "segundos": 30,
+    "segundos": 29,
     "poster": "reportes.jpg",
-    "generado": "2026-11-13T05:18:52.505Z"
+    "generado": "2026-11-20T16:04:34.001Z"
   },
   "logistica": {
     "archivo": "logistica.mp4",
     "huella": "cca2efb9",
-    "segundos": 30,
+    "segundos": 28,
     "poster": "logistica.jpg",
-    "generado": "2026-11-13T05:19:38.964Z"
+    "generado": "2026-11-20T16:05:08.395Z"
   },
   "sin-nomenclatura": {
     "archivo": "sin-nomenclatura.mp4",
     "huella": "10cf9c80",
     "segundos": 51,
     "poster": "sin-nomenclatura.jpg",
-    "generado": "2026-11-13T05:31:38.258Z"
+    "generado": "2026-11-20T15:59:44.646Z"
   },
   "chat": {
     "archivo": "chat.mp4",
     "huella": "c667e063",
     "segundos": 28,
     "poster": "chat.jpg",
-    "generado": "2026-11-13T05:32:20.679Z"
+    "generado": "2026-11-20T16:06:40.449Z"
   },
   "notificaciones": {
     "archivo": "notificaciones.mp4",
     "huella": "dcd71da9",
     "segundos": 23,
     "poster": "notificaciones.jpg",
-    "generado": "2026-11-13T05:32:51.996Z"
+    "generado": "2026-11-20T16:10:39.974Z"
   },
   "jarvis": {
     "archivo": "jarvis.mp4",
     "huella": "a5e03f30",
     "segundos": 61,
     "poster": "jarvis.jpg",
-    "generado": "2026-11-13T05:34:15.964Z"
+    "generado": "2026-11-20T16:11:49.704Z"
   },
   "conexiones": {
     "archivo": "conexiones.mp4",
     "huella": "8796b770",
     "segundos": 34,
     "poster": "conexiones.jpg",
-    "generado": "2026-11-13T05:35:03.482Z"
+    "generado": "2026-11-20T16:12:30.717Z"
   },
   "configuracion": {
     "archivo": "configuracion.mp4",
     "huella": "7305c482",
     "segundos": 18,
     "poster": "configuracion.jpg",
-    "generado": "2026-11-13T05:35:27.531Z"
+    "generado": "2026-11-20T16:12:53.699Z"
   },
   "usuarios": {
     "archivo": "usuarios.mp4",
     "huella": "932e7d87",
     "segundos": 66,
     "poster": "usuarios.jpg",
-    "generado": "2026-11-13T05:36:43.759Z"
+    "generado": "2026-11-20T16:14:07.422Z"
   },
   "rangos": {
     "archivo": "rangos.mp4",
     "huella": "d992b979",
     "segundos": 70,
     "poster": "rangos.jpg",
-    "generado": "2026-11-13T05:38:03.352Z"
+    "generado": "2026-11-20T16:15:29.816Z"
   },
   "cierre": {
     "archivo": "cierre.mp4",
     "huella": "39f850f8",
-    "segundos": 39,
+    "segundos": 40,
     "poster": "cierre.jpg",
-    "generado": "2026-11-13T05:38:50.949Z"
+    "generado": "2026-11-20T16:17:14.157Z"
   },
   "nomina": {
     "archivo": "nomina.mp4",
     "huella": "5e199c77",
     "segundos": 47,
     "poster": "nomina.jpg",
-    "generado": "2026-11-16T18:39:58.484Z"
+    "generado": "2026-11-20T16:06:03.364Z"
+  },
+  "control-testeos": {
+    "archivo": "control-testeos.mp4",
+    "huella": "a792aa0a",
+    "segundos": 43,
+    "poster": "control-testeos.jpg",
+    "generado": "2026-11-20T16:09:29.524Z"
+  },
+  "pagos": {
+    "archivo": "pagos.mp4",
+    "huella": "09096b69",
+    "segundos": 34,
+    "poster": "pagos.jpg",
+    "generado": "2026-11-20T16:10:10.315Z"
+  },
+  "propuestas": {
+    "archivo": "propuestas.mp4",
+    "huella": "b840d35d",
+    "segundos": 40,
+    "poster": "propuestas.jpg",
+    "generado": "2026-11-20T16:16:20.835Z"
+  },
+  "panel-editor": {
+    "archivo": "panel-editor.mp4",
+    "huella": "b669715f",
+    "segundos": 29,
+    "poster": "panel-editor.jpg",
+    "generado": "2026-11-20T16:18:41.694Z"
+  },
+  "contenido-editor": {
+    "archivo": "contenido-editor.mp4",
+    "huella": "cbcce86d",
+    "segundos": 54,
+    "poster": "contenido-editor.jpg",
+    "generado": "2026-11-20T16:19:43.088Z"
+  },
+  "productos-editor": {
+    "archivo": "productos-editor.mp4",
+    "huella": "14faeaa0",
+    "segundos": 32,
+    "poster": "productos-editor.jpg",
+    "generado": "2026-11-20T16:20:26.598Z"
   }
 }
