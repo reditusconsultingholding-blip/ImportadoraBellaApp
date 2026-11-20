@@ -3,6 +3,18 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
+import { separarClave } from "@/lib/clave-calculadora";
+import { normalizar } from "@/lib/product-code";
+
+/** Un número tecleado en la Calculadora ("5,61" o 5.61), o null. */
+function numero(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const limpio = v.trim().replace(/\s/g, "").replace(",", ".");
+  if (!limpio) return null;
+  const n = Number(limpio);
+  return Number.isFinite(n) ? n : null;
+}
 
 // Los ajustes de la calculadora se guardan por producto y los ve todo el
 // equipo. Es la diferencia entre una calculadora y una planilla: si cada
@@ -108,6 +120,37 @@ export async function POST(req: NextRequest) {
     },
     update: { data: json, updatedById: session.userId },
   });
+
+  // Un ajuste de UN MES («BODY @ 2026-11») también va a Economía por producto
+  // de ese mes, para que las dos pantallas muestren lo mismo (Emilia, 20-nov:
+  // «tanto en control publicitario como en calculadora»).
+  const { producto: nombreProducto, mes } = separarClave(nombre);
+  if (mes) {
+    const ficha = (
+      await db.product.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true } })
+    ).find((p) => normalizar(p.name) === normalizar(nombreProducto));
+    const precio = numero(aGuardar.priceOverride);
+    const costo = numero(aGuardar.productCost);
+    if (ficha && precio != null && costo != null) {
+      const [anio, m] = mes.split("-").map(Number);
+      const conf = numero(aGuardar.confirmationPct);
+      const dev = numero(aGuardar.returnPct);
+      const datos = {
+        efectividad: conf == null ? 0 : conf / 100,
+        produccion: costo,
+        flete: numero(aGuardar.shippingCost) ?? 0,
+        precioProm: precio,
+        devoluciones: dev == null ? null : dev / 100,
+      };
+      await db.variableProducto.upsert({
+        where: {
+          organizationId_productId_anio_mes: { organizationId: session.organizationId, productId: ficha.id, anio, mes: m },
+        },
+        create: { organizationId: session.organizationId, productId: ficha.id, anio, mes: m, cpaMin: null, ...datos },
+        update: datos,
+      });
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
