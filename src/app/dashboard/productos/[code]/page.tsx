@@ -16,6 +16,7 @@ import MatrixRondas from "./matrix-rondas";
 import HistorialDecisiones from "./historial-decisiones";
 import ReporteProducto from "./reporte-producto";
 import AnclajeProducto from "./anclaje-producto";
+import AliasCampanas from "./alias-campanas";
 import AyudaPantalla from "../../ayuda-pantalla";
 
 const DONE = new Set(["REALIZADO", "EDITADO", "TESTEADO"]);
@@ -160,6 +161,8 @@ export default async function ProductoDetailPage({
         links={product.links}
         puedeEditar={canManage}
       />
+
+      <AliasCampanas productId={product.id} alias={product.aliasCampanas} puedeEditar={canManage} />
 
       <ReporteProducto code={product.code} />
 

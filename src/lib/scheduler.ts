@@ -28,6 +28,7 @@ import { estadoDelCorreo } from "@/lib/email";
 import { sincronizarReporteVentas } from "@/lib/integrations/reporte-ventas";
 import { descuadreDelControl } from "@/lib/control-cuadre";
 import { sincronizarSkus } from "@/lib/integrations/sku-dropi";
+import { autoEnlazarNombres } from "@/lib/auto-enlace";
 
 let ultimaLimpiezaActividad = "";
 /** Cuándo se revisó por última vez el correo saliente. */
@@ -262,6 +263,17 @@ export async function sincronizarRapido() {
       try {
         const r = await syncShopifyStore(tienda.id);
         anotar("shopify", `${r.ordersSynced} órdenes`);
+        // Los títulos nuevos con «- Product Id: …» se enlazan solos (ver
+        // auto-enlace.ts). Si falla, la sincronización vale igual.
+        try {
+          const enlazados = await autoEnlazarNombres(org.id);
+          if (enlazados.length > 0) {
+            resumen.enlaces = `${enlazados.length} nombres nuevos enlazados solos`;
+            cambio = true;
+          }
+        } catch (err) {
+          console.error("[auto-enlace]", err);
+        }
         // Solo cuenta como cambio si entró o se modificó alguna orden.
         if (r.creadas + r.actualizadas > 0) cambio = true;
         await soltarCandado(org.id, "shopify", { ok: true, detalle: mio.shopify });

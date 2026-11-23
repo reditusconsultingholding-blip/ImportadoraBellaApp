@@ -41,9 +41,19 @@ const PLATFORM: Record<WindsorConnector, Platform> = {
 // Para el resto queda el cruce por nombre, probando primero los más largos:
 // si existieran "TE" y "TE GINSENG", el corto haría match con todo y ganaría
 // el equivocado.
+/** Mayúsculas, sin tildes ni signos: «Cápsula» y «CAPSULA» son lo mismo. */
+function plano(s: string): string {
+  return ` ${s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()} `;
+}
+
 export function matchProduct(
   campaignName: string,
-  products: { id: string; code: string; name: string; codigosAnteriores?: string[] }[]
+  products: { id: string; code: string; name: string; codigosAnteriores?: string[]; aliasCampanas?: string[] }[]
 ) {
   // Un producto responde a su código actual y a los que usó antes: las
   // campañas viejas siguen llamándose con el código anterior y tienen que
@@ -62,6 +72,15 @@ export function matchProduct(
   for (const product of ordered) {
     if (codigosDe(product).some((c) => c && haystack.includes(c.toUpperCase()))) return product.id;
   }
+  // Los otros nombres que el equipo usa en las campañas de prueba sin código
+  // («VITAL DROP» para Vitaldrops). Palabras enteras y sin tildes; el alias
+  // más largo gana, como con los nombres.
+  const enPlano = plano(campaignName);
+  const conAlias = products
+    .flatMap((p) => (p.aliasCampanas ?? []).map((a) => ({ id: p.id, alias: plano(a) })))
+    .filter((x) => x.alias.trim().length >= 3)
+    .sort((a, b) => b.alias.length - a.alias.length);
+  for (const x of conAlias) if (enPlano.includes(x.alias)) return x.id;
   for (const product of ordered) {
     if (product.name.length >= 4 && haystack.includes(product.name.toUpperCase())) {
       return product.id;
@@ -128,7 +147,7 @@ export async function syncWindsorConnector(
   }
   const products = await db.product.findMany({
     where: { organizationId },
-    select: { id: true, code: true, name: true, codigosAnteriores: true },
+    select: { id: true, code: true, name: true, codigosAnteriores: true, aliasCampanas: true },
   });
 
   // Las campañas y los lotes que ya existen se leen de una vez al principio.
@@ -358,7 +377,7 @@ export async function relinkCampaignsToProducts(organizationId: string) {
   const [products, campaigns] = await Promise.all([
     db.product.findMany({
       where: { organizationId },
-      select: { id: true, code: true, name: true, codigosAnteriores: true },
+      select: { id: true, code: true, name: true, codigosAnteriores: true, aliasCampanas: true },
     }),
     db.campaign.findMany({
       where: { adAccount: { organizationId } },
