@@ -3,6 +3,7 @@ import { memorizar } from "@/lib/memoria";
 import { normalizarNombre } from "@/lib/enlace-shopify";
 import { pedidosRealesPorDia } from "@/lib/pedidos-reales";
 import { cuadrar, type Cuadre } from "@/lib/shopify-vs-ads-calculo";
+import { objetivoAMostrar, objetivosDeLaCalculadora } from "@/lib/economia-calculadora";
 
 // Shopify contra Meta y TikTok, con los datos de la base.
 //
@@ -88,7 +89,11 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
   const desdeInstante = new Date(desdeDia.getTime() + 5 * 3600_000);
   const hastaInstante = new Date(hastaDia.getTime() + 29 * 3600_000);
 
-  const [plataforma, fueraWeb, deShopify, reporte, enlaces, catalogo] = await Promise.all([
+  // El objetivo sale de la Calculadora: la del mes si el rango cae en un solo
+  // mes y se guardó uno, si no la histórica.
+  const mesUnico =
+    desdeDia.toISOString().slice(0, 7) === hastaDia.toISOString().slice(0, 7) ? desdeDia.toISOString().slice(0, 7) : null;
+  const [plataforma, fueraWeb, deShopify, reporte, enlaces, catalogo, objetivos] = await Promise.all([
     db.$queryRaw<{ productId: string | null; fecha: Date; platform: "META" | "TIKTOK"; gasto: number; compras: number }[]>`
       SELECT c."productId", m."capturedAt" AS fecha, a.platform,
              sum(m.spend)::float8 AS gasto, sum(m.purchases)::int AS compras
@@ -116,8 +121,18 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
     db.productoShopify.findMany({ where: { organizationId }, select: { nombreNorm: true, productId: true } }),
     db.product.findMany({
       where: { organizationId },
-      select: { id: true, name: true, code: true, sku: true, etiquetas: true, testeoMeses: true, cpaTarget: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        sku: true,
+        etiquetas: true,
+        testeoMeses: true,
+        cpaTarget: true,
+        economiaDe: true,
+      },
     }),
+    objetivosDeLaCalculadora(organizationId, mesUnico),
   ]);
 
   // Producto × día.
@@ -202,7 +217,7 @@ async function shopifyVsAdsSinMemoria(organizationId: string, desdeDia: Date, ha
         sku: p?.sku ?? null,
         etiquetas: p?.etiquetas ?? [],
         testeoMeses: p?.testeoMeses ?? [],
-        cpaObjetivo: p && p.cpaTarget > 0 ? p.cpaTarget : null,
+        cpaObjetivo: p ? objetivoAMostrar(p, objetivos) : null,
       };
     })
     // Los que solo están en la planilla también entran: un producto con 9

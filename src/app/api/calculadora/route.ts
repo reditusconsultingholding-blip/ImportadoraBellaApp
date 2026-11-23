@@ -5,6 +5,7 @@ import { canManagePipeline } from "@/lib/permissions";
 import { veLasCifras } from "@/lib/finanzas";
 import { separarClave } from "@/lib/clave-calculadora";
 import { normalizar } from "@/lib/product-code";
+import { objetivoDeAjuste } from "@/lib/economia-calculadora";
 
 /** Un número tecleado en la Calculadora ("5,61" o 5.61), o null. */
 function numero(v: unknown): number | null {
@@ -125,6 +126,25 @@ export async function POST(req: NextRequest) {
   // de ese mes, para que las dos pantallas muestren lo mismo (Emilia, 20-nov:
   // «tanto en control publicitario como en calculadora»).
   const { producto: nombreProducto, mes } = separarClave(nombre);
+
+  // El histórico deja en la ficha el CPA objetivo que muestra la Calculadora,
+  // para que el «objetivo» de Shopify vs Ads, Riesgo, alertas y la ficha sea
+  // el mismo (Emilia, 23-nov: «lo que es objetivo, ¿de dónde sale?»).
+  if (!mes) {
+    const objetivo = objetivoDeAjuste(aGuardar);
+    if (objetivo != null) {
+      const ficha = (
+        await db.product.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true } })
+      ).find((p) => normalizar(p.name) === normalizar(nombreProducto));
+      if (ficha) {
+        await db.product.update({
+          where: { id: ficha.id },
+          data: { cpaTarget: Math.max(0.01, objetivo), economiaDe: "Calculadora de precios" },
+        });
+      }
+    }
+  }
+
   if (mes) {
     const ficha = (
       await db.product.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true } })

@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
-import { economiaDeLaCalculadora, type EconomiaCalculada } from "@/lib/economia-calculadora";
+import {
+  economiaDeLaCalculadora,
+  objetivoAMostrar,
+  objetivosDeLaCalculadora,
+  type EconomiaCalculada,
+} from "@/lib/economia-calculadora";
 import { pedidosParaElControl } from "@/lib/pedidos-del-control";
 import { filasDelDia, plataformaPorDia } from "@/lib/control-relleno";
 import { ETIQUETA_SIN_ASIGNAR, HORAS_CORTE } from "@/lib/control-opciones";
@@ -420,7 +425,7 @@ async function controlDelPeriodoSinMemoria(
         gasto: true,
         pedidosReales: true,
         productId: true,
-        product: { select: { name: true, code: true, cpaTarget: true } },
+        product: { select: { name: true, code: true, cpaTarget: true, economiaDe: true } },
       },
     }),
     filtro
@@ -478,9 +483,12 @@ async function controlDelPeriodoSinMemoria(
     meses.add(claveMes(d));
   }
   const economias = new Map<string, Map<string, Economia>>();
+  // El CPA objetivo de cada mes, el mismo que muestra la Calculadora.
+  const objetivos = new Map<string, Map<string, number>>();
   for (const clave of meses) {
     const [anio, mes] = clave.split("-").map(Number);
     economias.set(clave, await economiaDelMes(organizationId, anio, mes));
+    objetivos.set(clave, await objetivosDeLaCalculadora(organizationId, `${anio}-${String(mes).padStart(2, "0")}`));
   }
 
   const mesesSinGastoAdm = new Set<string>();
@@ -509,7 +517,10 @@ async function controlDelPeriodoSinMemoria(
       pedidosShopify: shopify(c.fecha, c.productId, pedidos),
       cpa: cpa(c.gasto, pedidos),
       cpaShopify: cpaSobreShopify(c.gasto, shopify(c.fecha, c.productId, pedidos)),
-      cpaObjetivo: c.product.cpaTarget > 0 ? c.product.cpaTarget : null,
+      cpaObjetivo: objetivoAMostrar(
+        { id: c.productId, cpaTarget: c.product.cpaTarget, economiaDe: c.product.economiaDe },
+        objetivos.get(claveMes(c.fecha)) ?? new Map(),
+      ),
       gasto: c.gasto,
       efectividad,
       pedidosEfectivos,
