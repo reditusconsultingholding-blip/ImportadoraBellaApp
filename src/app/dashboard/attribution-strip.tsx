@@ -267,7 +267,11 @@ export default function AttributionStrip({
               emparejarlas. Las otras dos —mensajes directos y gente que entra
               por el link— no dejan rastro en lo que Shopify nos manda, y por
               eso siguen siendo una hipótesis y se dicen como tal. */}
-          {sinProducto.campanas > 0 && (
+          {/* Solo si alguna gastó en el período. Fabrizio, 24-nov, vio «329
+              campañas no cuelgan de ningún producto, aunque ninguna gastó» y
+              leyó que no se había pagado nada: campañas viejas en $0 no
+              explican ninguna diferencia, y nombrarlas solo confunde. */}
+          {sinProducto.conGasto > 0 && (
             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded border border-border bg-surface-2 px-3 py-2">
               <p className="min-w-[18rem] flex-1 text-xs text-muted">
                 De esas causas, una se puede medir:{" "}
@@ -276,18 +280,14 @@ export default function AttributionStrip({
                   {sinProducto.campanas === 1 ? "campaña no cuelga" : "campañas no cuelgan"} de
                   ningún producto
                 </strong>
-                {sinProducto.conGasto > 0 ? (
-                  <>
+                <>
                     {" "}
                     y {sinProducto.conGasto === 1 ? "la que gastó se llevó" : `${sinProducto.conGasto} de ellas se llevaron`}{" "}
                     {money(sinProducto.gasto)} en este período, con{" "}
                     {sinProducto.compras.toLocaleString("es-EC")}{" "}
                     {sinProducto.compras === 1 ? "compra atribuida" : "compras atribuidas"} que no
                     suman a la rentabilidad de nadie.
-                  </>
-                ) : (
-                  <>, aunque ninguna gastó en este período.</>
-                )}
+                </>
               </p>
               <Link
                 href="/dashboard/sin-nomenclatura"
