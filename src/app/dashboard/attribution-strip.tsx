@@ -198,6 +198,20 @@ export default function AttributionStrip({
           {exceso.toFixed(1)} veces más. Es normal que se solapen —una persona ve el anuncio en
           Meta y compra después de verlo en TikTok, y las dos se lo cuelgan—, pero conviene decidir
           con las órdenes de Shopify, que son las que se cobran.
+          {/* 24-nov: desde mediados de noviembre Meta sola se atribuye casi
+              todas las órdenes de la tienda —antes rondaba el 65 %—, y en los
+              productos que solo se pautan en Meta (Arbutin, tés, Kahi) reporta
+              hasta el doble de pedidos. Eso no es solapamiento: es el píxel. */}
+          {ordenesReales > 0 && meta.purchases >= ordenesReales * 0.9 && (
+            <>
+              {" "}
+              <strong className="font-medium">
+                Ojo: Meta sola se atribuye {meta.purchases.toLocaleString("es-EC")}, {meta.purchases > ordenesReales ? "más que" : "casi tantas como"} todos los pedidos de la tienda.
+              </strong>{" "}
+              Eso ya no se explica porque las plataformas se solapen. Lo más probable es que Meta esté recibiendo
+              la compra dos veces por pedido; se revisa en el Administrador de eventos, en el evento Purchase.
+            </>
+          )}
         </p>
       )}
 
