@@ -7,6 +7,7 @@ import { calcularAlertasDiarias } from "@/lib/alertas-diarias";
 import { comoTexto, principiosRelevantes } from "@/lib/conocimiento";
 import { resolveRange } from "@/lib/date-range";
 import { correrHerramienta, herramientasPara, sinCifras } from "@/lib/agent-tools";
+import { correrHerramientaDeEnlace, HERRAMIENTAS_ENLACE, NOMBRES_ENLACE } from "@/lib/agent-enlaces";
 
 /**
  * El modelo, y por qué este.
@@ -150,6 +151,27 @@ En lo creativo, que es su trabajo: qué producto necesita piezas nuevas, cuál
 está rindiendo y conviene reforzar, qué ángulo o formato probar, cómo escribir
 un gancho, por qué un anuncio se cansa y qué hacer al respecto. Ahí no te
 guardes nada: es donde más valés.`;
+
+const UNIR_Y_EXPLICAR = `UNIR NOMBRES Y EXPLICAR UN NÚMERO
+Cuando pregunten «¿por qué me sale esto?», «¿por qué sale sin Shopify?» o «¿de
+dónde sale el objetivo?», llama a revisar_producto y explica con lo que
+devuelve: qué nombres y campañas tiene unidos, por qué cae cada campaña, de
+dónde sale el objetivo y qué nombres sueltos se le parecen. Si ves algo suelto
+que claramente es de ese producto, ofrece unirlo.
+
+Cuando te digan «X es Y» («la cápsula de hongos es reishi», «Tremella es el
+hongo de nieve»), une con unir_nombre:
+- tipo=shopify si X es un nombre de los pedidos de Shopify o de la planilla;
+  tipo=campana si X es una palabra que aparece en el nombre de campañas sin
+  código. Si no sabes cuál, mira pendientes_de_unir o revisar_producto primero.
+  Si aplica a los dos, son dos cambios.
+- Siempre en dos pasos. El primero devuelve qué va a cambiar y un código: dilo
+  en una o dos frases (cuántos pedidos o campañas se mueven, y de dónde) y
+  pregunta si lo confirma. Solo cuando la persona responda que sí, llamas de
+  nuevo con el código. Nunca digas que quedó unido si la herramienta no
+  devolvió aplicado=true.
+- Si la herramienta dice que esta persona no puede unir, díselo en una frase:
+  lo hace dirección desde la ficha del producto o la pantalla de enlaces.`;
 
 const META_CON_DINERO = `CUANDO TE PIDAN LLEGAR A UNA META
 Preguntas como "¿qué hago para escalar a 50 mil?" se contestan con la cuenta
@@ -312,6 +334,8 @@ venga de internet es inventada.
 
 ${veFinanzas ? META_CON_DINERO : ""}
 
+${veFinanzas ? UNIR_Y_EXPLICAR : ""}
+
 ${SE_LEE_MIENTRAS_ESCRIBES}
 
 ${IMAGENES}
@@ -367,6 +391,9 @@ const QUE_MIRA: Record<string, string> = {
   que_hacer_hoy: "las prioridades del día",
   tareas_hoy: "las tareas de hoy",
   mejor_campana_producto: "la mejor campaña del producto",
+  revisar_producto: "cómo está unido el producto",
+  pendientes_de_unir: "lo que está sin unir",
+  unir_nombre: "el cambio de nombres",
   web_search: "qué se dice afuera",
   propose_action: "una propuesta de acción",
 };
@@ -450,8 +477,15 @@ export async function* chatWithJarvis(
   // consultarla, basta preguntarle cuanto se facturo y la regla se cae por la
   // puerta de atras. Por eso el permiso llega hasta aca y decide QUE
   // herramientas existen, en vez de pedirle al modelo que se abstenga.
-  veFinanzas: boolean
+  veFinanzas: boolean,
+  // Quién pregunta y si puede unir nombres desde el chat (dirección con
+  // acceso a las cifras, lo mismo que pide la pantalla de enlaces).
+  quien: { userId: string; puedeEnlazar: boolean } = { userId: "", puedeEnlazar: false }
 ): AsyncGenerator<EventoJarvis> {
+  // Cada respuesta tiene su id: un cambio propuesto en ella no se puede
+  // confirmar en ella misma (ver enlaces-chat.ts).
+  const turno = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const ctxEnlace = { organizationId, userId: quien.userId, puedeEnlazar: quien.puedeEnlazar && !!quien.userId, turno };
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     yield {
@@ -546,7 +580,12 @@ export async function* chatWithJarvis(
         // preguntas difíciles.
         max_tokens: 20_000,
         system: buildSystemPrompt(org.name, contextSummary, conocimiento, veFinanzas),
-        tools: [PROPOSE_ACTION_TOOL, BUSQUEDA_WEB, ...herramientasPara(veFinanzas)],
+        tools: [
+          PROPOSE_ACTION_TOOL,
+          BUSQUEDA_WEB,
+          ...herramientasPara(veFinanzas),
+          ...(veFinanzas ? HERRAMIENTAS_ENLACE : []),
+        ],
         messages,
       });
 
@@ -669,6 +708,22 @@ export async function* chatWithJarvis(
             : `No hay campaña asociada al producto ${input.product_code}. La propuesta NO quedó registrada; dilo así.`,
           is_error: !campaign,
         });
+        continue;
+      }
+
+      // Unir nombres y explicar un número: solo con acceso a las cifras.
+      if (NOMBRES_ENLACE.has(block.name)) {
+        let contenido: string;
+        let fallo = false;
+        try {
+          contenido = veFinanzas
+            ? await correrHerramientaDeEnlace(ctxEnlace, block.name, (block.input ?? {}) as Record<string, unknown>)
+            : JSON.stringify({ error: "Sin acceso a esta herramienta." });
+        } catch (err) {
+          contenido = `La consulta falló: ${err instanceof Error ? err.message : String(err)}`;
+          fallo = true;
+        }
+        resultados.push({ type: "tool_result", tool_use_id: block.id, content: contenido, is_error: fallo });
         continue;
       }
 

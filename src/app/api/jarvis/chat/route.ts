@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { canUseJarvis } from "@/lib/permissions";
+import { canManagePipeline, canUseJarvis } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { chatWithJarvis, type ChatTurn } from "@/lib/agent";
 import { guardarTurno } from "@/lib/jarvis-chats";
@@ -62,7 +62,12 @@ export async function POST(req: NextRequest) {
         for await (const ev of chatWithJarvis(
           session.organizationId,
           history,
-          me?.canViewFinancials === true
+          me?.canViewFinancials === true,
+          {
+            userId: session.userId,
+            // Lo mismo que pide la pantalla de enlaces: dirección y cifras.
+            puedeEnlazar: canManagePipeline(session.role) && me?.canViewFinancials === true,
+          }
         )) {
           if (ev.tipo !== "fin") {
             mandar(ev);
