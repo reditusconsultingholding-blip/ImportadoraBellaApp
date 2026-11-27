@@ -45,7 +45,7 @@ const PUNTOS: Punto[] = [
     pasaba:
       "No siempre. Cuando un producto se creaba desde las campañas, la ficha quedaba con un objetivo provisional, y ese era el que se mostraba. Por ejemplo, Gotas de drenaje mostraba $2,67 de objetivo.",
     quedo:
-      "El objetivo de Shopify vs Ads y de Riesgo es el CPA objetivo de la Calculadora: el del mes, si guardaste uno para ese mes, y si no, el histórico. Gotas de drenaje ahora muestra $7,11, el mismo de la Calculadora. El valor provisional ya no se muestra: si un producto todavía no está en la Calculadora, aparece sin objetivo hasta que se cargue.",
+      "El objetivo de Shopify vs Ads y de Riesgo es el CPA objetivo de la Calculadora: el del mes, si guardaste uno para ese mes, y si no, el histórico. Gotas de drenaje ahora muestra $4,31, el mismo de la Calculadora. El valor provisional ya no se muestra: si un producto todavía no está en la Calculadora, aparece sin objetivo hasta que se cargue.",
     donde: "Control publicitario > Shopify vs Ads, y Riesgo",
     estado: "SOLUCIONADO",
   },
@@ -93,7 +93,7 @@ const SEGUIMIENTO: Seguimiento[] = [
   {
     fecha: "23-nov",
     pidio: "«lo que es objetivo, ¿de dónde sale? De calculadora, ¿no?»",
-    quedo: "Sí, ahora sale de la Calculadora (del mes o histórico). Gotas de drenaje: $7,11.",
+    quedo: "Sí, ahora sale de la Calculadora (del mes o histórico). Gotas de drenaje: $4,31.",
     estado: "SOLUCIONADO",
   },
   {
@@ -276,7 +276,7 @@ doc.moveDown(1);
 
 recuadro(
   "En pocas palabras",
-  "Lo que pediste el 23 de noviembre ya está en vivo: el objetivo sale de la Calculadora (Gotas de drenaje pasó de $2,67 a $7,11), y a Jarvis se le puede pedir que una un nombre con su producto o que explique por qué un producto sale como sale. " +
+  "Lo que pediste el 23 de noviembre ya está en vivo: el objetivo sale de la Calculadora (Gotas de drenaje pasó de $2,67 a $4,31), y a Jarvis se le puede pedir que una un nombre con su producto o que explique por qué un producto sale como sale. " +
     "Además encontramos por qué la pauta se atribuye tantas compras de más desde mediados de noviembre: es Meta, que reporta más compras que los pedidos reales. Eso se corrige en Meta, no en Jarvis; abajo están los pasos.",
   COLOR.bienFondo,
   COLOR.bienFondo,
